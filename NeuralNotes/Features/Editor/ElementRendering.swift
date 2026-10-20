@@ -4,7 +4,7 @@ import NeuralNotesCore
 @MainActor
 enum ElementRendering {
     static func drawImage(_ element: ImageElement, package: URL, context: CGContext) {
-        guard let image = UIImage(contentsOfFile: package.appendingPathComponent(element.file).path), let cg = image.cgImage else { return }
+        guard let image = DocumentRenderCache.shared.image(package.appendingPathComponent(element.file)), let cg = image.cgImage else { return }
         let crop = element.crop ?? .full
         let source = CGRect(x: crop.x * Double(cg.width), y: crop.y * Double(cg.height),
             width: crop.width * Double(cg.width), height: crop.height * Double(cg.height)).integral

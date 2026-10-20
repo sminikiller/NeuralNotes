@@ -63,6 +63,7 @@ struct EditorView: View {
             .toolbar(focus ? .hidden : .visible, for: .navigationBar)
             .statusBarHidden(focus)
             .navigationTitle(notebook.title)
+            .onAppear { model.backupMetadata = notebook; model.scheduleMaintenance() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -177,7 +178,7 @@ struct EditorView: View {
                 switch item {
                 case .workspace: WorkspacePanel(model: model)
                 case .paper: PageTemplatePanel(model: model)
-                case .storage: StoragePanel(workspace: model.workspace, editor: model)
+                case .storage: StoragePanel(workspace: model.workspace, editor: model, metadata: notebook)
                 case .photoCrop:
                     if let cropImage {
                         PhotoCropPanel(image: cropImage, initial: insertingImage ? .full : selectedCrop) { crop in

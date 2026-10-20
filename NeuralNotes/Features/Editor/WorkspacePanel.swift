@@ -68,6 +68,7 @@ struct WorkspacePanel: View {
                     NavigationLink { gestures } label: { Label("Gesti e automatismi", systemImage: "hand.draw") }
                     NavigationLink { ToolPalettePanel(model: model).padding().navigationTitle("Colori per strumento") } label: { Label("Colori e spessori", systemImage: "paintpalette") }
                 }
+                Section { NavigationLink("Penne, preset e gomma") { WritingToolsPanel(model: model) } }
                 Section("Salva una configurazione") {
                     TextField("Nome attività", text: $name)
                     Button("Duplica con questo nome", systemImage: "plus.square.on.square") { model.duplicateWorkspace(name: name); name = "" }

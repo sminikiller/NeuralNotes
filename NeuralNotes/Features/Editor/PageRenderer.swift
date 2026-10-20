@@ -11,7 +11,7 @@ enum PageRenderer {
         let paperColor = page.pdfFile == nil ? UIColor(red: rgb.0, green: rgb.1, blue: rgb.2, alpha: 1) : UIColor.white
         context.setFillColor(paperColor.cgColor); context.fill(rect)
         if let file = page.pdfFile, let index = page.pdfIndex,
-           let document = CGPDFDocument(package.appendingPathComponent(file) as CFURL),
+           let document = DocumentRenderCache.shared.pdf(package.appendingPathComponent(file)),
            let pdf = document.page(at: index + 1) {
             context.saveGState()
             context.translateBy(x: 0, y: rect.height); context.scaleBy(x: 1, y: -1)
@@ -60,6 +60,13 @@ enum PageRenderer {
 
 @MainActor
 final class PageSurfaceView: UIView {
+    /// Redraw at the visible zoom resolution, bounded to 32 MB per surface.
+    func updateResolution(zoom: CGFloat, screenScale: CGFloat) {
+        let maximum = sqrt(8_000_000 / max(1, CGFloat(page.width * page.height)))
+        let scale = max(0.5, min(maximum, screenScale * max(1, zoom)))
+        guard abs(contentScaleFactor - scale) > 0.15 else { return }
+        contentScaleFactor = scale; layer.contentsScale = scale; setNeedsDisplay()
+    }
     var hiddenTextID: UUID? { didSet { if oldValue != hiddenTextID { setNeedsDisplay() } } }
     var page = PageSnapshot() {
         didSet {

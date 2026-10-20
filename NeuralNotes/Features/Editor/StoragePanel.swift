@@ -5,6 +5,9 @@ import NeuralNotesCore
 struct StoragePanel: View {
     let workspace: DocumentWorkspace
     var editor: EditorViewModel? = nil
+    var metadata: Notebook? = nil
+    @AppStorage("backup.automatic") private var automaticBackup = true
+    @State private var backups: [AutomaticBackupInfo] = []
     @Environment(\.dismiss) private var dismiss
     @State private var report: WorkspaceStorageReport?
     @State private var error: String?
@@ -19,6 +22,27 @@ struct StoragePanel: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Backup automatici") {
+                    Toggle("Copie automatiche ogni 10 minuti di modifiche", isOn: $automaticBackup)
+                    Text("Conserva le ultime 5 copie su questo iPad, separate dal quaderno. Durante una registrazione il backup attende la pausa. Per proteggerti dalla perdita dell’iPad, condividi una copia in File o iCloud Drive.").font(.caption)
+                    if let warning = editor?.backupWarning { Text(warning).foregroundStyle(.orange) }
+                    if let metadata {
+                        Button("Crea copia adesso", systemImage: "externaldrive.badge.plus") {
+                            Task {
+                                busy = true; defer { busy = false }
+                                if let editor, !(await editor.flush()) { return }
+                                do { _ = try await workspace.createAutomaticBackup(metadata: metadata, minimumInterval: 0); await refresh() }
+                                catch { self.error = error.localizedDescription }
+                            }
+                        }.disabled(busy || editor?.hasActiveStroke == true)
+                    }
+                    ForEach(backups) { backup in
+                        ShareLink(item: backup.url) {
+                            Label("\(backup.date.formatted(date: .abbreviated, time: .shortened)) · \(bytes(backup.bytes))", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                    if backups.isEmpty { Text("La prima copia viene creata dopo il salvataggio del quaderno.").font(.caption) }
+                }
                 if catalogRecovery?.needsRecovery == true, let editor {
                     Section("Catalogo da recuperare") {
                         Text("Puoi recuperare audio, trascrizioni e configurazioni senza chiudere l’editor. Inchiostro e file originali vengono conservati.")
@@ -83,6 +107,7 @@ struct StoragePanel: View {
         }
     }
     private func refresh() async {
+        backups = (try? await workspace.automaticBackups()) ?? []
         catalogRecovery = try? await workspace.catalogRecoveryStatus()
         do { report = try await workspace.storageReport() } catch { self.error = error.localizedDescription }
     }

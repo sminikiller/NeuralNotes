@@ -139,6 +139,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
+        surface.updateResolution(zoom: canvas.zoomScale, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             interaction?.refresh(); textInput?.layout(); return
         }

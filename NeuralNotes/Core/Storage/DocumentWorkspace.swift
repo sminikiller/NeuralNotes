@@ -18,6 +18,32 @@ public actor DocumentWorkspace {
     public nonisolated let package: URL
     private let notebookID: UUID
     public nonisolated let documentID: UUID
+    private var searchDirty = true
+    private var searchChunks: [IndexedChunk] = []
+
+    public func indexedChunks() throws -> [IndexedChunk] {
+        if !searchDirty { return searchChunks }
+        let ids = try manifest().pageIDs
+        let paths = ["manifest.json", "catalog.json"] + ids.map { "pages/\($0).json" }
+        let generation = try paths.map { path -> String in
+            let file = try url(path)
+            let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            return "\(path):\(values?.contentModificationDate?.timeIntervalSince1970 ?? 0):\(values?.fileSize ?? 0)"
+        }.joined(separator: "|")
+        let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("NeuralNotesSearch").appendingPathComponent("\(documentID).json")
+        if let data = try? Data(contentsOf: cache), let snapshot = try? JSONDecoder().decode(SearchSnapshot.self, from: data),
+           snapshot.format == 1, snapshot.generation == generation {
+            searchChunks = snapshot.chunks
+        } else {
+            let snapshot = SearchSnapshot.make(pages: try pages(), catalog: try catalog(), documentID: documentID, generation: generation)
+            searchChunks = snapshot.chunks
+            // Derived-data failures never fail a notebook save or search.
+            try? FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if let data = try? JSONEncoder().encode(snapshot) { try? data.write(to: cache, options: .atomic) }
+        }
+        searchDirty = false; return searchChunks
+    }
 
     public init(package: URL, documentID: UUID, notebookID: UUID) {
         self.package = package; self.documentID = documentID; self.notebookID = notebookID
@@ -315,6 +341,7 @@ public actor DocumentWorkspace {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(value)
+        searchDirty = true
         if path == "catalog.json" { try CatalogRecovery.preserveCurrent(in: package) }
         if path == "manifest.json" {
             let current = try url(path)

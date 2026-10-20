@@ -92,35 +92,7 @@ struct FileDocumentIndexingService: DocumentIndexingService {
     let id: UUID
     func index(documentID: UUID) async throws -> [IndexedChunk] {
         guard documentID == id else { throw LibraryFailure.missingItem }
-        var chunks: [IndexedChunk] = []
-        for page in try await workspace.pages() {
-            let text = (page.texts.map(\.text) + [page.recognizedText]).joined(separator: "\n")
-            for part in text.split(separator: "\n") where !part.isEmpty {
-                let paragraph = String(part)
-                var from = paragraph.startIndex
-                while from < paragraph.endIndex {
-                    let to = paragraph.index(from, offsetBy: 2000, limitedBy: paragraph.endIndex) ?? paragraph.endIndex
-                    chunks.append(IndexedChunk(text: String(paragraph[from..<to]),
-                        reference: SourceReference(documentID: id, pageID: page.id, pageRevision: page.revision)))
-                    from = to
-                }
-            }
-        }
-        for session in try await workspace.catalog().sessions {
-            var text = "", start: Double = 0
-            for segment in session.transcript {
-                if text.isEmpty { start = segment.start }
-                text += (text.isEmpty ? "" : " ") + segment.text
-                if text.count >= 500 {
-                    chunks.append(IndexedChunk(text: text, reference: SourceReference(documentID: id, audioSessionID: session.id, seconds: start)))
-                    text = ""
-                }
-            }
-            if !text.isEmpty {
-                chunks.append(IndexedChunk(text: text, reference: SourceReference(documentID: id, audioSessionID: session.id, seconds: start)))
-            }
-        }
-        return chunks
+        return try await workspace.indexedChunks()
     }
 }
 

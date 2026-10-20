@@ -89,7 +89,7 @@ struct LibraryView: View {
             case .diagnostics: DiagnosticsPanel()
             case .cover(let notebook): PhotoCoverPanel(notebook: notebook, library: model)
             case .storage(let notebook):
-                if let workspace = try? model.workspace(notebook) { StoragePanel(workspace: workspace) }
+                if let workspace = try? model.workspace(notebook) { StoragePanel(workspace: workspace, metadata: notebook) }
             case .recovery: RecoveryPanel(library: model)
             }
         }

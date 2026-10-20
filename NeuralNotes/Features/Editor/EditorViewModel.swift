@@ -77,6 +77,21 @@ final class EditorViewModel {
     private(set) var hasLease = false
     var error: String?
     var dirty = false
+    @ObservationIgnored var backupMetadata: Notebook?
+    @ObservationIgnored private var maintenanceTask: Task<Void, Never>?
+    var backupWarning: String?
+    func scheduleMaintenance() {
+        guard maintenanceTask == nil else { return }
+        maintenanceTask = Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            defer { self.maintenanceTask = nil }
+            _ = try? await self.workspace.indexedChunks()
+            guard UserDefaults.standard.object(forKey: "backup.automatic") as? Bool != false,
+                  let metadata = self.backupMetadata else { return }
+            do { _ = try await self.workspace.createAutomaticBackup(metadata: metadata); self.backupWarning = nil }
+            catch { self.backupWarning = "Backup automatico da riprovare: \(error.localizedDescription)" }
+        }
+    }
     var saving = false
     var loading = false
     var navigating = false
@@ -126,13 +141,14 @@ final class EditorViewModel {
         if tool != .objects { selectionIncludesInk = false; selectedStrokeIndices = nil }
         PaperInk.configure(canvas)
         switch tool {
-        case .pen: canvas.tool = PKInkingTool(.pen, color: PaperInk.color(ink), width: thickness)
+        case .pen: canvas.tool = PKInkingTool(writingOptions.pen.native, color: PaperInk.color(ink), width: thickness)
         case .marker: canvas.tool = PKInkingTool(.marker, color: PaperInk.color(ink), width: max(12, thickness * 5))
-        case .eraser: canvas.tool = PKEraserTool(.vector)
+        case .eraser: canvas.tool = PKEraserTool(writingOptions.eraser == .partial ? .bitmap : .vector, width: writingOptions.eraserWidth)
         case .lasso: canvas.tool = PKLassoTool()
         case .objects, .audioLink, .text, .shape: break
         }
         canvas.drawingGestureRecognizer.isEnabled = tool != .objects && tool != .audioLink && tool != .text && tool != .shape
+        if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = rulerActive && (tool == .pen || tool == .marker)
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
@@ -214,6 +230,7 @@ final class EditorViewModel {
         editBeforeGesture = nil
         recordEdit(before, label: shaped ? "Forma precisa" : scratched ? "Scarabocchio: cancella" : "Inchiostro")
         drawingChanged()
+        if tool == .eraser && writingOptions.returnToPen { chooseTool(.pen) }
     }
 
     @discardableResult
@@ -231,6 +248,7 @@ final class EditorViewModel {
             guard dirty, var snapshot = page else {
                 guard await saveWorkspaceSettings() else { return false }
                 if dirty { continue }
+                scheduleMaintenance()
                 return true
             }
             guard hasLease else { return false }

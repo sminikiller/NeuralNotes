@@ -49,12 +49,13 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     public var dock = ToolbarDock.top
     public var showPages = true, showStatus = true, holdShapes = true, scratchErase = true, pullNext = true
     public var palettes: [String: ToolPalette] = [:]
+    public var writing: WritingOptions?
     public init(name: String, favorites: [WorkspaceTool]) { self.name = name; self.favorites = favorites }
     public func palette(for tool: WorkspaceTool) -> ToolPalette { palettes[tool.rawValue] ?? .standard(for: tool) }
     public var isValid: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 40 &&
         (1...8).contains(favorites.count) && Set(favorites).count == favorites.count && palettes.count <= WorkspaceTool.allCases.count &&
-        palettes.allSatisfy { WorkspaceTool(rawValue: $0.key) != nil && $0.value.isValid }
+        palettes.allSatisfy { WorkspaceTool(rawValue: $0.key) != nil && $0.value.isValid } && (writing?.isValid ?? true)
     }
 }
 

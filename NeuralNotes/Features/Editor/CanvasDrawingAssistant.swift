@@ -31,7 +31,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
-        let enabled = model.tool == .shape || ((model.tool == .pen || model.tool == .marker) && model.currentWorkspace.holdShapes && !model.rulerActive)
+        let enabled = model.tool == .shape || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && model.currentWorkspace.holdShapes && !model.rulerActive)
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -46,7 +46,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         guard host.surface.bounds.contains(at) else { return }
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
-        if model.tool == .shape { model.drawingShape = true }
+        if model.tool == .shape || model.tool == .eraser { model.drawingShape = true }
     }
     func move(_ touch: UITouch, event: UIEvent) {
         guard let host else { return }
@@ -62,6 +62,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             points.append(StrokeSample(x: Double(p.x), y: Double(p.y)))
         }
         if points.count > 2000 { points = points.enumerated().filter { $0.offset % 2 == 0 || $0.offset == points.count - 1 }.map(\.element) }
+        if model.tool == .eraser { return }
         if model.tool == .shape { drawPreview(model.shapeKind); return }
         guard let at = samples.last else { return }
         if hypot(at.x - anchor.x, at.y - anchor.y) > max(1.5, 3 / host.canvas.zoomScale) {
@@ -75,6 +76,11 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func end(cancelled: Bool) {
         holdTask?.cancel(); holdTask = nil
         guard let model else { cancel(); return }
+        if model.tool == .eraser {
+            model.drawingShape = false
+            if !cancelled { model.eraseMarkers(samples: points) }
+            cancel(); return
+        }
         if model.tool == .shape {
             model.drawingShape = false
             if !cancelled, model.page?.id == pageID, let first = points.first, let last = points.last {
