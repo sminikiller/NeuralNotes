@@ -1,4 +1,20 @@
-# Architettura NeuralNotes 0.5
+# Architettura NeuralNotes 0.9
+
+## Estensione 0.9
+
+`DocumentWorkspace` rimane il writer serializzato. L’indice persistente e la cache OCR risiedono in Caches, includono la revisione della pagina e sono ricostruibili: non sostituiscono i documenti. I backup a versioni vengono completati prima della rotazione; non includono registrazioni ancora in scrittura. La manutenzione dell’editor attende una pausa per l’OCR e non cambia la revisione degli appunti per salvare dati derivati.
+
+Il canvas PencilKit unico resta montato. `VisiblePaperDetail` ridisegna PDF e testo solo nel viewport con budget di pixel, mentre `DocumentRenderCache` condivide sorgenti PDF immutabili e immagini con costo limitato. Le anteprime continue restano limitate alle pagine vicine; per le pagine piccole pulite esiste un caricamento nativo sincrono al primo contatto. Il percorso asincrono protetto resta necessario per i casi grandi o con salvataggio in corso.
+
+Testo RTF e rotazione sono campi opzionali del formato esistente. Scanner e drop normalizzano le immagini; lo scanner salva una pagina alla volta. Le annotazioni PDF sono dati del quaderno, senza riscrittura dell’allegato originale. Il pannello di studio usa un PDFDocument separato, e il renderer/export applica i markup nelle coordinate della pagina. La conversazione AI è nel catalogo, con rimappatura delle fonti alla duplicazione e all’importazione di pagine native.
+
+La Lente usa le fonti della selezione e un provider intercambiabile. Il client HTTPS riceve eventi NDJSON e verifica il risultato finale; il backend inoltra lo streaming Responses ed estrae il testo provvisorio. La risposta viene persistita soltanto dopo la validazione dei riferimenti. Token del backend nel portachiavi, chiave del provider sul server; il provider offline rimane estrattivo.
+
+CloudKit usa snapshot `.nnbackup` in parti immutabili e un record condizionale della revisione. La politica confronta locale, remoto e checkpoint; modifiche concorrenti producono un conflitto esplicito. Una lease impedisce di sostituire un quaderno aperto e l’impronta locale viene ricontrollata al commit. Backup e recupero `.cloudPrevious` proteggono la sostituzione. L’app firmata e il contenitore devono ancora essere attivati: le prove del modello di conflitto e della sostituzione sul filesystem non sono una prova del servizio CloudKit live.
+
+I documenti di stato e i limiti della build corrente sono in [VALIDATION.md](docs/VALIDATION.md) e [STUDY_WORKSPACE_0_9.md](docs/STUDY_WORKSPACE_0_9.md). Le sezioni seguenti conservano l’architettura e i numeri storici delle consegne precedenti.
+
+## Architettura storica 0.5
 
 ## Estensione 0.5
 

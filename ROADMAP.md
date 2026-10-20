@@ -1,4 +1,18 @@
-# Roadmap NeuralNotes — 0.8.1
+# Roadmap NeuralNotes — 0.9.0
+
+Le sette aree richieste sono sviluppate nella [consegna 0.9](docs/STUDY_WORKSPACE_0_9.md): rendering visibile e cache, versioni automatiche dei backup, penne e gomma selettiva, testo formattato/scanner/inserimenti, PDF affiancato, indice persistente/OCR e Lente AI. La sincronizzazione CloudKit è implementata e predisposta per il Team ID `64R668842U`, ma non attivata né provata sul servizio reale. Gli esiti effettivi della build sono in [VALIDATION.md](docs/VALIDATION.md).
+
+Prossime verifiche e attività:
+
+1. Completare le prove fisiche sull’iPad 10, soprattutto input Pencil, scanner, nitidezza, memoria e registrazioni lunghe con standby.
+2. Attivare App ID/contenitore/profilo di firma nel team Apple e provare CloudKit su due dispositivi con modifiche concorrenti. Cartelle e cancellazioni cloud richiedono ancora un protocollo dedicato.
+3. Pubblicare e configurare il backend HTTPS, poi misurare qualità e latenza delle risposte AI sulle fonti. Nessuna risposta live è stata provata.
+4. Eliminare il possibile secondo contatto sulle pagine molto grandi/non preparate durante un salvataggio; completare la pipeline delle anteprime fuori dal percorso di interazione e misurare archivi grandi.
+5. Aggiungere checklist interattive, continuazione degli elenchi, trascinamento PDF e maniglie libere per trasformare selezioni; estendere OCR automatico ai quaderni esistenti con elaborazione controllata.
+
+Non viene dichiarata la parità con Goodnotes. I limiti concreti di ogni area sono elencati nella guida 0.9, separati dalla presenza del codice e dalle prove automatiche.
+
+## Storico fino alla 0.8.1
 
 **Stato attuale:** consolidamento del salvataggio/recupero, correzione del compilatore e CI macOS privata attiva. Gli esiti correnti sono in [VALIDATION.md](docs/VALIDATION.md); le indicazioni di mancata verifica nelle voci precedenti descrivono lo stato storico di quelle consegne. La prova fisica su iPad resta separata.
 

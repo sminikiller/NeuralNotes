@@ -21,10 +21,18 @@ Opzionali: `PORT`, `NN_MAX_OUTPUT_TOKENS` (256–8192, default 4096), `NN_UPSTRE
 - Limiti per utente: dieci richieste/minuto e cento/giorno. Sono in memoria, per singolo processo, e si azzerano al riavvio; per più istanze o quote di produzione serve uno storage condiviso. Configurare anche limiti di spesa sull’account provider.
 - Errori di autenticazione, quote, rifiuto o output incompleto non diventano risposte simulate. Nessun costo o richiesta esterna avviati per consegnare questo codice.
 
-## Verifica
+## Streaming della Lente AI
+
+Con `Accept: application/x-ndjson`, `POST /v1/study` invia un oggetto JSON per riga: `{"type":"delta","text":"…"}`, poi `{"type":"result","artifact":{…}}` soltanto dopo la validazione finale. Un errore dopo l’inizio della risposta è un evento `{"type":"error","code":"…"}` e non un artifact. Il client considera i frammenti provvisori e non li salva se manca il risultato finale. Senza questo header resta disponibile la risposta JSON completa precedente.
+
+L’adapter usa lo streaming reale della Responses API, decodifica SSE anche su confini di byte/Unicode e rifiuta risposte troncate o citazioni non presenti nella richiesta. Il reverse proxy deve inoltrare lo streaming senza buffering; `X-Accel-Buffering: no` è inviato dal server. Interrompere la lettura sul client annulla il segnale upstream.
+
+Contratto verificato sulla [documentazione ufficiale dello streaming Responses](https://developers.openai.com/api/docs/guides/streaming-responses). I test locali usano fixture e HTTP loopback: non provano latenza o qualità di un modello live.
+
+## Verifica automatica
 
 `node --test backend/server.test.mjs`
 
-I test usano un transport stub dichiarato e richieste HTTP su loopback: verificano autenticazione/scadenza, limiti, validazione fonti, citazioni, rifiuti, risposte incomplete e contratto HTTP. L’adapter live, l’hosting HTTPS e il collegamento dall’iPad richiedono credenziali e una prova separata. Il backend non viene avviato in background o distribuito automaticamente.
+I dodici test usano un transport stub dichiarato e richieste HTTP su loopback: verificano autenticazione/scadenza, limiti, validazione fonti, citazioni, rifiuti, risposte incomplete, frammenti Unicode, contratto HTTP con streaming e cancellazione alla disconnessione. L’adapter live, l’hosting HTTPS e il collegamento dall’iPad richiedono credenziali e una prova separata. Il backend non viene avviato in background o distribuito automaticamente.
 
 Contratto REST verificato nella [documentazione ufficiale OpenAI sugli output strutturati](https://developers.openai.com/api/docs/guides/structured-outputs). Il campo `text.format` usa JSON Schema strict e la richiesta usa la Responses API.

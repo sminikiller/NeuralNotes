@@ -1,4 +1,26 @@
-# Validazione della consegna 0.8.2
+# Validazione della consegna 0.9.0
+
+20 ottobre 2026 — funzioni e limiti in [STUDY_WORKSPACE_0_9.md](STUDY_WORKSPACE_0_9.md).
+
+**Esito Apple: PASS.** [Esecuzione 39449039047](https://github.com/sminikiller/NeuralNotes/actions/runs/39449039047), commit sorgenti `e3a026e1a285e864fa977dd319937b0a11532a7e`. Ambiente: macOS 15, Xcode 16.4, Swift 6.1.2; simulatore iPad Pro 11 M4 / iPadOS 18.5.
+
+- macOS `swift test`: **86 test superati**, zero errori.
+- Simulatore, unit/integrazione: **153 superati, due esclusi**, zero errori. Le due prove dell’alias Darwin `/private/var` vengono eseguite su macOS.
+- Simulatore, interfaccia: **16 test superati**, zero esclusi/errori, compresi Lente e impostazioni di penna/gomma.
+- Debug `xcodebuild test`: **TEST SUCCEEDED**. Release per dispositivo iOS generico, **senza firma**: **BUILD SUCCEEDED**.
+- Backend: **12 test Node superati**, fixture/SSE e HTTP loopback, compresi Unicode, autenticazione dello streaming e annullamento alla disconnessione. Nessuna chiamata provider live.
+- Controlli locali/portable: grafo Xcode di 226 oggetti, membership sorgenti, plist/privacy/asset e grammatica di 123 file Swift. Il controllo grammaticale non sostituisce la compilazione Apple.
+- Pacchetto iPad: **107 sorgenti/risorse canonici invariati più manifest**, insieme esatto, confronto byte per byte, singolo entry point e risorse verificati. Il controllo del manifest non esegue AppleProductTypes su iPad.
+
+Le nuove prove verificano indice persistente/invalidation, OCR associato alla revisione, backup e rotazione, sostituzione cloud con backup e rifiuto della modifica locale concorrente, recupero dopo interruzione, rimappatura delle fonti AI in copia e merge, cache PDF, dettaglio dello zoom, RTF/PDF, scarabocchio su testo ruotato senza perdita di stile, gomma solo evidenziatore (anche un punto e tratto intero), trasformazione di inchiostro con undo, markup PDF separati dall’originale e ordine delle pagine.
+
+Log integrale locale: `.verification/apple-validation-0.9.0.log`; log e `.xcresult` negli artifact della run, conservati per 14 giorni. Checksum e commit della consegna: `.verification/release-0.9.0.json`. Dopo il PASS vengono aggiornati soltanto documenti Markdown, mantenendo invariati i sorgenti verificati.
+
+**Non eseguito:** iPad fisico, runner Swift Playground, Pencil/camera/scanner, registrazioni reali lunghe e standby, misura di memoria/latenza su iPad 10. **CloudKit live e AI live non configurati né provati**: il primo richiede App ID/contenitore/profilo e firma; il secondo hosting HTTPS, token e configurazione del provider. I test del modello di conflitto e del filesystem non equivalgono a una prova di sincronizzazione reale. La build CI non è un IPA installabile firmato.
+
+## Evidenza storica precedente
+
+### Validazione della consegna 0.8.2
 
 20 ottobre 2026 — correzioni in [FIXES_0_8_2.md](FIXES_0_8_2.md).
 

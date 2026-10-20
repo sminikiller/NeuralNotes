@@ -1,4 +1,20 @@
-# Gate di accettazione 0.8.2
+# Gate di accettazione 0.9.0
+
+La build e le suite automatiche correnti sono riportate in [VALIDATION.md](VALIDATION.md). L’accettazione sul dispositivo resta aperta; seguire prima [STUDY_WORKSPACE_0_9.md](STUDY_WORKSPACE_0_9.md).
+
+- [x] CI Apple 0.9: core, unit/integrazione e 16 UI test, Debug e Release senza firma. Backend 12/12; esiti e limiti in VALIDATION.md.
+
+- [ ] Zoom PDF/testo e scorrimento su iPad 10, con memoria e primo contatto sulle pagine grandi annotati.
+- [ ] Sei penne, preset, gomma parziale/per tratto e solo evidenziatore; undo/redo e riapertura.
+- [ ] Selezione ruotata/ridimensionata/ricolorata e scarabocchio su testo formattato.
+- [ ] RTF, scanner reale multipagina, drop da altre app e collegamenti apribili.
+- [ ] Selezione/copia, indice, link ed evidenziazione PDF affiancato, comprese pagine ruotate ed export.
+- [ ] Ricerca globale e OCR della grafia reale con apertura del risultato nella pagina corretta.
+- [ ] Versioni automatiche riaperte come copie e backup rinviato durante la registrazione.
+- [ ] Lente offline e, separatamente, backend HTTPS configurato: streaming/Stop/perdita rete senza risposte incomplete salvate.
+- [ ] App firmata con Team `64R668842U`, contenitore CloudKit attivo e prova di conflitto su due dispositivi.
+
+## Gate mantenuti dalle consegne precedenti
 
 Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packaging passano; build e test Apple vengono eseguiti dalla CI privata, con esiti in [VALIDATION.md](VALIDATION.md). Il vecchio piano della Fase 1, già autorizzato dall’utente dopo le proprie prove, è conservato in [history/ACCEPTANCE_PHASE_1.md](history/ACCEPTANCE_PHASE_1.md).
 

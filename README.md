@@ -1,17 +1,19 @@
-# NeuralNotes 0.8.2 — app nativa iPad
+# NeuralNotes 0.9.0 — app nativa iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo, nessuna dipendenza di terze parti nell’app. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
-**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39433258233): 77 test core macOS, 135 unit/integrazione iPad e tutti i 14 UI test superati, più due esclusioni specifiche del simulatore; build Release senza firma riuscita. [Esiti e limiti](docs/VALIDATION.md). La prova della Pencil fisica e del runner Swift Playground resta necessaria.
+**Nuove funzioni:** PDF e testo più nitidi allo zoom, backup automatici con versioni, penne/preset e gomma selettiva, selezione trasformabile, testo formattato, scanner, PDF affiancato, ricerca globale e Lente AI. [Funzioni, accesso ai comandi e limiti della 0.9](docs/STUDY_WORKSPACE_0_9.md). iCloud è predisposto con il Team ID fornito; firma e attivazione del contenitore restano da completare. Il backend AI richiede hosting HTTPS e configurazione.
+
+**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39449039047): 86 core macOS, 153 unit/integrazione iPad e tutti i 16 UI test, più due esclusioni specifiche del simulatore; build Release senza firma riuscita. Dodici test backend superati. [Esiti e limiti](docs/VALIDATION.md). Pencil fisica e runner Swift Playground restano da provare.
 
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.8.2.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.9.0.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: 26 controlli temporanei.
-5. Prova [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md), poi segui [le prove di scorrimento e voltata 0.7](docs/TESTING_0_7.md), poi le regressioni precedenti e la prova di carico facoltativa.
+5. Esegui [le prove della 0.9](docs/STUDY_WORKSPACE_0_9.md), poi [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md) e [scorrimento e voltata](docs/TESTING_0_7.md).
 
 Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
 
