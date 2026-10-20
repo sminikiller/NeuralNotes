@@ -8,8 +8,7 @@ extension EditorViewModel {
         guard let page else { return .null }
         var result = selectionIncludesInk ? selectedInkBounds : .null
         for text in page.texts where selectedIDs.contains(text.id) {
-            let size = RichText.attributed(text).boundingRect(with: CGSize(width: text.width, height: page.height), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
-            result = result.union(CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize, size.height)))
+            result = result.union(RichText.bounds(text, pageHeight: page.height).applying(RichText.rotation(text, pageHeight: page.height)))
         }
         for image in page.images where selectedIDs.contains(image.id) { result = result.union(CGRect(x: image.x, y: image.y, width: image.width, height: image.height)) }
         for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) { result = result.union(CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)) }
@@ -31,12 +30,13 @@ extension EditorViewModel {
             page.images[i].rotation = (image.rotation ?? 0) + Double(degrees)
         }
         for i in page.texts.indices where selectedIDs.contains(page.texts[i].id) {
-            let text = page.texts[i], at = CGPoint(x: text.x, y: text.y).applying(transform)
+            let text = page.texts[i], box = RichText.bounds(text, pageHeight: page.height)
+            let at = CGPoint(x: box.midX, y: box.midY).applying(transform)
             let attributed = NSMutableAttributedString(attributedString: RichText.attributed(text))
             attributed.enumerateAttribute(.font, in: NSRange(location: 0, length: attributed.length)) { value, range, _ in
                 if let font = value as? UIFont { attributed.addAttribute(.font, value: font.withSize(min(1000, max(1, font.pointSize * scale))), range: range) }
             }
-            page.texts[i].x = at.x; page.texts[i].y = at.y; page.texts[i].width *= Double(scale)
+            page.texts[i].x = at.x - box.width * scale / 2; page.texts[i].y = at.y - box.height * scale / 2; page.texts[i].width *= Double(scale)
             page.texts[i].fontSize = min(1000, max(1, text.fontSize * Double(scale))); page.texts[i].rotation = (text.rotation ?? 0) + Double(degrees)
             page.texts[i].rtf = RichText.data(attributed)
         }

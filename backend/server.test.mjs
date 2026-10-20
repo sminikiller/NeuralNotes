@@ -125,3 +125,47 @@ test('HTTP endpoint rejects unauthorized requests before invoking the provider a
     assert.equal(calls, 1);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('HTTP streaming authenticates first and delivers deltas before the validated result', async () => {
+  let calls = 0;
+  const adapter = { async *generateStream(input) {
+    calls++; yield { type: 'delta', text: 'Risposta [1]' };
+    yield { type: 'result', artifact: artifactFromResult({ text: 'Risposta [1]', citations: [1] }, input, 'test-only') };
+  } };
+  const server = createApp({ secret, adapter }); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}/v1/study`;
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' };
+  try {
+    const denied = await fetch(url, { method: 'POST', headers, body: JSON.stringify(request()) });
+    assert.equal(denied.status, 401); await denied.body.cancel(); assert.equal(calls, 0);
+    headers.Authorization = `Bearer ${issueToken(secret, 'stream-tester', Math.floor(Date.now() / 1000) + 60)}`;
+    const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(request()) });
+    assert.equal(response.status, 200); assert.match(response.headers.get('content-type'), /^application\/x-ndjson/);
+    const events = (await response.text()).trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(events.map(event => event.type), ['delta', 'result']);
+    assert.deepEqual(events[1].artifact.references, request().sources.map(source => source.reference));
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('disconnecting a streaming client aborts upstream work', { timeout: 5000 }, async () => {
+  let confirmAbort;
+  const aborted = new Promise(resolve => { confirmAbort = resolve; });
+  const adapter = { async *generateStream(_input, signal) {
+    yield { type: 'delta', text: 'Inizio' };
+    await new Promise(resolve => {
+      const stop = () => { confirmAbort(); resolve(); };
+      if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true });
+    });
+  } };
+  const server = createApp({ secret, adapter }); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const cancelled = new AbortController();
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/v1/study`, {
+      method: 'POST', signal: cancelled.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', Authorization: `Bearer ${issueToken(secret, 'cancel-tester', Math.floor(Date.now() / 1000) + 60)}` },
+      body: JSON.stringify(request())
+    });
+    const first = await response.body.getReader().read(); assert.equal(first.done, false);
+    cancelled.abort(); await aborted;
+  } finally { cancelled.abort(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});

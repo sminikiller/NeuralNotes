@@ -25,7 +25,7 @@ public extension DocumentWorkspace {
         let inspected = try NativePackageInspector.inspect(incoming)
         guard inspected.manifest.documentID == documentID, inspected.manifest.notebookID == metadata.id,
               try SnapshotDigest.package(package, metadata: metadata) == expectedLocal else { throw WorkspaceFailure.staleRevision }
-        _ = try createAutomaticBackup(metadata: metadata, minimumInterval: 0)
+        guard try createAutomaticBackup(metadata: metadata, minimumInterval: 0) != nil else { throw WorkspaceFailure.staleRevision }
         let parent = package.deletingLastPathComponent(), name = "\(documentID).cloudPrevious"
         let previous = try NativeArchive.fileURL(name, in: parent)
         if FileManager.default.fileExists(atPath: previous.path) { try FileManager.default.removeItem(at: previous) }
