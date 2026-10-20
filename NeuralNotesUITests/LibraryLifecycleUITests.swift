@@ -16,8 +16,17 @@ final class LibraryLifecycleUITests: XCTestCase {
         let cover = app.buttons["Personalizza copertina"]
         XCTAssertTrue(cover.waitForExistence(timeout: 5)); cover.tap()
         let toggle = app.switches["coverLastEditedPage"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5)); toggle.tap()
-        app.buttons["Salva"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: toggle)
+        wait(for: [ready], timeout: 5)
+        XCTAssertEqual(toggle.value as? String, "0")
+        // A SwiftUI Form switch's AX frame includes its full label row. Tap the
+        // native thumb on the trailing edge, not the empty middle of the row.
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: toggle)
+        wait(for: [enabled], timeout: 5)
+        let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
+        app.buttons["saveCoverButton"].tap()
         XCTAssertTrue(notebook.waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments = ["--ui-testing"]; app.launch()
         XCTAssertTrue(notebook.waitForExistence(timeout: 10)); notebook.press(forDuration: 1)

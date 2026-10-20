@@ -13,6 +13,7 @@ struct PhotoCoverPanel: View {
     @State private var preview: UIImage?
     @State private var data: Data?
     @State private var busy = false
+    @State private var loading = true
     @State private var error: String?
     @State private var design = CoverDesign()
     @State private var usesLastEditedPage = false
@@ -26,6 +27,7 @@ struct PhotoCoverPanel: View {
                         design: design, isPagePreview: usesLastEditedPage).frame(maxWidth: 300).frame(maxWidth: .infinity)
                     Toggle("Ultima pagina modificata", isOn: $usesLastEditedPage)
                         .accessibilityIdentifier("coverLastEditedPage")
+                        .disabled(loading)
                     Text("La copertina mostra la pagina salvata più di recente, con inchiostro, immagini e PDF. Si aggiorna quando torni in libreria.").font(.caption)
                     PhotosPicker(selection: $selection, matching: .images) { Label("Scegli una foto", systemImage: "photo.on.rectangle") }
                     Button("Usa copertina a colori", role: .destructive) { usesLastEditedPage = false; preview = nil; data = nil }
@@ -50,15 +52,16 @@ struct PhotoCoverPanel: View {
             }
             .navigationTitle("Copertina · \(notebook.title)")
             .task {
+                defer { loading = false }
                 do {
                     let workspace = try library.workspace(notebook)
                     let catalog = try await workspace.catalog()
                     design = catalog.coverDesign ?? .suggested(id: notebook.id, title: notebook.title)
                     usesLastEditedPage = catalog.coverUsesLastEditedPage == true
-                    pagePreview = try await LastEditedCover.image(workspace: workspace)
                     if let file = catalog.coverImageFile {
                         data = try Data(contentsOf: await workspace.url(file)); preview = data.flatMap { UIImage(data: $0) }
                     }
+                    pagePreview = try await LastEditedCover.image(workspace: workspace)
                 } catch { self.error = error.localizedDescription }
             }
             .task(id: selection) {
@@ -88,7 +91,7 @@ struct PhotoCoverPanel: View {
                                 library.didEdit(notebook); library.coverRevision += 1; dismiss()
                             } catch { self.error = error.localizedDescription }
                         }
-                    }.disabled(busy)
+                    }.disabled(busy || loading).accessibilityIdentifier("saveCoverButton")
                 }
             }
         }.interactiveDismissDisabled(busy)
