@@ -1,6 +1,8 @@
 import http from 'node:http';
 import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { once } from 'node:events';
+import { partialText, responseEvents } from './streaming.mjs';
 
 export class RequestFailure extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -120,6 +122,36 @@ export class ResponsesAdapter {
     catch { throw new RequestFailure(502, 'invalid_provider_response'); }
     return artifactFromResult(result, request, `${this.name} / ${this.model}`);
   }
+  async *generateStream(request, signal) {
+    const body = {
+      model: this.model, store: false, stream: true, max_output_tokens: this.maxOutputTokens, instructions,
+      input: [{ role: 'user', content: JSON.stringify({ task: request.task, question: request.question,
+        sources: request.sources.map((s, i) => ({ id: i + 1, text: s.text })) }) }],
+      text: { format: { type: 'json_schema', name: 'neuralnotes_study', strict: true, schema: outputSchema(request.sources.length) } }
+    };
+    const response = await this.transport(this.url, { method: 'POST', redirect: 'error', signal,
+      headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(body) });
+    if (!response.ok) { await response.body?.cancel(); throw new RequestFailure(response.status === 429 ? 429 : 502, 'provider_unavailable'); }
+    let raw = '', shown = '', completed = false;
+    for await (const event of responseEvents(response)) {
+      if (event.type === 'response.output_text.delta') {
+        raw += event.delta; const text = partialText(raw);
+        if (text.startsWith(shown) && text.length > shown.length) { yield { type: 'delta', text: text.slice(shown.length) }; shown = text; }
+      } else if (event.type === 'response.refusal.delta') { throw new RequestFailure(422, 'provider_refusal'); }
+      else if (['error', 'response.failed', 'response.incomplete'].includes(event.type)) { throw new RequestFailure(502, 'provider_incomplete'); }
+      else if (event.type === 'response.completed') {
+        const data = event.response;
+        if (data?.status !== 'completed' || !Array.isArray(data.output)) throw new RequestFailure(502, 'provider_incomplete');
+        const content = data.output.flatMap(item => item.type === 'message' ? item.content ?? [] : []);
+        if (content.some(item => item.type === 'refusal')) throw new RequestFailure(422, 'provider_refusal');
+        let value; try { value = JSON.parse(content.filter(item => item.type === 'output_text').map(item => item.text).join('')); }
+        catch { throw new RequestFailure(502, 'invalid_provider_response'); }
+        const artifact = artifactFromResult(value, request, `${this.name} / ${this.model}`);
+        completed = true; yield { type: 'result', artifact }; break;
+      }
+    }
+    if (!completed) throw new RequestFailure(502, 'provider_incomplete');
+  }
 }
 
 export class UsageLimiter {
@@ -174,13 +206,23 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
       const cancelled = new AbortController();
       res.on('close', () => { if (!res.writableEnded) cancelled.abort(); });
       const signal = AbortSignal.any([cancelled.signal, AbortSignal.timeout(timeoutMs)]);
-      const artifact = await adapter.generate(request, signal);
-      reply(200, artifact);
+      if (req.headers.accept === 'application/x-ndjson' && typeof adapter.generateStream === 'function') {
+        res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff' });
+        res.flushHeaders();
+        for await (const event of adapter.generateStream(request, signal)) {
+          if (!res.write(JSON.stringify(event) + '\n')) await once(res, 'drain', { signal });
+        }
+        res.end();
+      } else {
+        const artifact = await adapter.generate(request, signal); reply(200, artifact);
+      }
     } catch (error) {
       if (!res.destroyed && !res.headersSent) {
         const known = error instanceof RequestFailure;
         const timeout = error?.name === 'TimeoutError';
         reply(known ? error.status : timeout ? 504 : 502, { error: known ? error.code : timeout ? 'provider_timeout' : 'service_unavailable' });
+      } else if (!res.destroyed && !res.writableEnded) {
+        res.end(JSON.stringify({ type: 'error', code: error instanceof RequestFailure ? error.code : 'service_unavailable' }) + '\n');
       }
     } finally { if (counted) active--; }
   });

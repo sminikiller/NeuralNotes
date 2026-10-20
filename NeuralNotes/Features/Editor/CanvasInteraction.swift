@@ -87,10 +87,11 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             return model.hasLease && !model.interactionBusy && host.canvas.zoomScale <= host.canvas.minimumZoomScale * 1.05
         }
         if gesture is UIPanGestureRecognizer {
+            if model.tool == .lens { return true }
             return model.tool == .objects && (model.selectRectangle || hit(gesture.location(in: host.surface)) != nil)
         }
         if model.pageNavigation == .vertical, host.flow?.page(at: gesture.location(in: host)) != model.page?.id { return true }
-        return model.tool == .objects || model.tool == .audioLink || model.tool == .text
+        return model.tool == .objects || model.tool == .audioLink || model.tool == .text || model.tool == .lens
     }
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
@@ -119,6 +120,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             host.flow?.activateAtPoint(gesture.location(in: host)); return
         }
         let point = gesture.location(in: host.surface)
+        if model.tool == .lens { model.lensArea = CGRect(x: point.x - 60, y: point.y - 30, width: 120, height: 60); model.lensRequest += 1; return }
         if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }
         else if model.tool == .audioLink { Task { await model.playAudio(at: point, tolerance: 18 / max(host.canvas.zoomScale, 0.1)) } }
         else if let id = hit(point) {
@@ -136,7 +138,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if gesture.state == .began {
             start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
             originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
-            if !model.selectRectangle {
+            if !model.selectRectangle && model.tool != .lens {
                 if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
                 for id in model.selectedIDs { original[id] = objectRect(id) }
                 if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
@@ -145,10 +147,13 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 } else { resizing = false }
             }
         }
-        if model.selectRectangle {
+        if model.selectRectangle || model.tool == .lens {
             let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
             marquee.path = UIBezierPath(rect: host.surface.convert(rect, to: host)).cgPath
             if gesture.state == .ended {
+                if model.tool == .lens {
+                    model.lensArea = rect; model.lensRequest += 1; marquee.path = nil; before = nil; originalDrawing = nil; return
+                }
                 let ids = allIDs.filter { objectRect($0)?.intersects(rect) == true }
                 model.selectedIDs = model.multiSelection ? model.selectedIDs.union(ids) : Set(ids)
                 let strokes = Set(model.canvas.drawing.strokes.indices.filter { model.canvas.drawing.strokes[$0].renderBounds.intersects(rect) })

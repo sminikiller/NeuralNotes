@@ -131,5 +131,6 @@ public struct DocumentCatalog: Codable, Sendable {
     public var editorWorkspaces: NotebookWorkspaces?
     public var coverDesign: CoverDesign?
     public var coverUsesLastEditedPage: Bool?
+    public var conversation: [AIConversationTurn]?
     public init() { }
 }

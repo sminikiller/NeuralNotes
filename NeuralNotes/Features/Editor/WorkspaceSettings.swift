@@ -5,7 +5,7 @@ import NeuralNotesCore
 extension InkTool {
     var workspaceTool: WorkspaceTool {
         switch self { case .pen: return .pen; case .marker: return .marker; case .eraser: return .eraser
-        case .lasso: return .lasso; case .objects: return .objects; case .audioLink: return .audioLink; case .text: return .text; case .shape: return .line }
+        case .lasso: return .lasso; case .objects: return .objects; case .audioLink: return .audioLink; case .text: return .text; case .shape: return .line; case .lens: return .lens }
     }
 }
 extension InkColor {
@@ -20,13 +20,13 @@ extension WorkspaceTool {
     var title: String {
         switch self { case .pen: return "Penna"; case .marker: return "Evidenziatore"; case .eraser: return "Gomma"
         case .lasso: return "Lazo"; case .objects: return "Oggetti"; case .text: return "Testo con Pencil"; case .audioLink: return "Ascolta tratto"
-        case .line: return "Linea"; case .arrow: return "Freccia"; case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .ruler: return "Righello" }
+        case .line: return "Linea"; case .arrow: return "Freccia"; case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .ruler: return "Righello"; case .lens: return "Lente AI" }
     }
     var icon: String {
         switch self { case .pen: return "pencil.tip"; case .marker: return "highlighter"; case .eraser: return "eraser"
         case .lasso: return "lasso"; case .objects: return "cursorarrow.and.square.on.square.dashed"; case .text: return "character.cursor.ibeam"
         case .audioLink: return "waveform"; case .line: return "line.diagonal"; case .arrow: return "arrow.up.right"
-        case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .ruler: return "ruler" }
+        case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .ruler: return "ruler"; case .lens: return "sparkle.magnifyingglass" }
     }
     var shape: ShapeKind? {
         switch self { case .line: return .line; case .arrow: return .arrow; case .ellipse: return .ellipse; case .rectangle: return .rectangle; default: return nil }
@@ -68,7 +68,7 @@ extension EditorViewModel {
         if let shape = item.shape { shapeKind = shape; tool = .shape }
         else {
             switch item { case .pen: tool = .pen; case .marker: tool = .marker; case .eraser: tool = .eraser
-            case .lasso: tool = .lasso; case .objects: tool = .objects; case .text: tool = .text; case .audioLink: tool = .audioLink; default: break }
+            case .lasso: tool = .lasso; case .objects: tool = .objects; case .text: tool = .text; case .audioLink: tool = .audioLink; case .lens: tool = .lens; default: break }
         }
         restoreToolPalette(); configureTool()
     }

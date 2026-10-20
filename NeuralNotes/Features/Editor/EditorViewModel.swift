@@ -6,12 +6,14 @@ import NeuralNotesCore
 enum InkTool: String, CaseIterable {
     case pen = "Penna", marker = "Evidenziatore", eraser = "Gomma", lasso = "Lazo"
     case objects = "Oggetti", audioLink = "Ascolta tratto", text = "Testo con Pencil", shape = "Forme"
+    case lens = "Lente AI"
     var icon: String {
         switch self {
         case .pen: return "pencil.tip"; case .marker: return "highlighter"; case .eraser: return "eraser"
         case .lasso: return "lasso"; case .objects: return "cursorarrow.and.square.on.square.dashed"; case .audioLink: return "waveform"
         case .text: return "character.cursor.ibeam"
         case .shape: return "circle.square"
+        case .lens: return "sparkle.magnifyingglass"
         }
     }
 }
@@ -29,6 +31,8 @@ final class EditorViewModel {
     var pages: [PageSnapshot] = []
     var page: PageSnapshot?
     var tool = InkTool.pen
+    var lensArea: CGRect?
+    var lensRequest = 0
     var ink = Color.black
     var thickness: Double = 3
     var fingerDrawing = false
@@ -145,9 +149,10 @@ final class EditorViewModel {
         case .marker: canvas.tool = PKInkingTool(.marker, color: PaperInk.color(ink), width: max(12, thickness * 5))
         case .eraser: canvas.tool = PKEraserTool(writingOptions.eraser == .partial ? .bitmap : .vector, width: writingOptions.eraserWidth)
         case .lasso: canvas.tool = PKLassoTool()
-        case .objects, .audioLink, .text, .shape: break
+        case .objects, .audioLink, .text, .shape, .lens: break
         }
         canvas.drawingGestureRecognizer.isEnabled = tool != .objects && tool != .audioLink && tool != .text && tool != .shape
+        if tool == .lens { canvas.drawingGestureRecognizer.isEnabled = false }
         if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = rulerActive && (tool == .pen || tool == .marker)
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
@@ -333,6 +338,7 @@ final class EditorViewModel {
     }
 
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
+        lensArea = nil
         pendingHeldShape = nil; drawingAssistant?.cancel()
         gestureCommitTask?.cancel(); gestureCommitTask = nil; editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         endTextEdit()

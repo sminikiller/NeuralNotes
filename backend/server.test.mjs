@@ -2,6 +2,43 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { issueToken, verifyToken, validateRequest, artifactFromResult, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
+import { partialText } from './streaming.mjs';
+
+test('streamed JSON text waits for complete escapes and Unicode pairs', () => {
+  const value = 'Una riga\ncon "citazione", caffè e 😀';
+  const raw = '{"text":' + JSON.stringify(value) + ',"citations":[1]}';
+  let previous = '';
+  for (let i = 0; i <= raw.length; i++) {
+    const partial = partialText(raw.slice(0, i)); assert.ok(partial.startsWith(previous)); previous = partial;
+  }
+  assert.equal(previous, value);
+  assert.equal(partialText('{"text":"\\uD83D'), '');
+  assert.equal(partialText('{"text":"\\uD83D\\uDE00'), '😀');
+});
+
+function streamFixture(citations = [1], complete = true) {
+  const text = 'Risposta italiana [1].', output = JSON.stringify({ text, citations });
+  const frames = [...Array.from(output).map(delta => ({ type: 'response.output_text.delta', delta }))];
+  if (complete) frames.push({ type: 'response.completed', response: { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: output }] }] } });
+  const bytes = new TextEncoder().encode(frames.map(event => 'data: ' + JSON.stringify(event) + '\r\n\r\n').join(''));
+  return new Response(new ReadableStream({ start(controller) { for (let i = 0; i < bytes.length; i += 7) controller.enqueue(bytes.slice(i, i + 7)); controller.close(); } }));
+}
+test('real streaming adapter emits deltas and only then a validated artifact', async () => {
+  const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async (_url, call) => {
+    assert.equal(JSON.parse(call.body).stream, true); assert.equal(call.redirect, 'error'); return streamFixture();
+  });
+  const events = []; for await (const event of adapter.generateStream(request(), new AbortController().signal)) events.push(event);
+  assert.equal(events.filter(e => e.type === 'delta').map(e => e.text).join(''), 'Risposta italiana [1].');
+  assert.equal(events.at(-1).type, 'result'); assert.deepEqual(events.at(-1).artifact.references, request().sources.map(s => s.reference));
+});
+test('truncated streams and invented citations never emit a completed artifact', async () => {
+  for (const [citations, complete] of [[[1], false], [[99], true]]) {
+    const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async () => streamFixture(citations, complete));
+    const events = [];
+    await assert.rejects(async () => { for await (const event of adapter.generateStream(request(), new AbortController().signal)) events.push(event); });
+    assert.ok(events.every(e => e.type !== 'result'));
+  }
+});
 
 const secret = 'test-only-secret-that-is-not-a-deployment-credential';
 function request() {

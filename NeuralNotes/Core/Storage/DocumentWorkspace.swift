@@ -254,6 +254,12 @@ public actor DocumentWorkspace {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try write(artifact, "artifacts/\(artifact.id).json")
     }
+    public func saveConversationTurn(_ turn: AIConversationTurn) throws {
+        guard turn.question.count <= 4000, turn.answer.text.count <= 100_000 else { throw WorkspaceFailure.oversizedImport }
+        var value = try catalog()
+        value.conversation = Array(((value.conversation ?? []) + [turn]).suffix(20))
+        try write(value, "catalog.json")
+    }
 
     public func artifacts() throws -> [AIArtifact] {
         let directory = try url("artifacts")

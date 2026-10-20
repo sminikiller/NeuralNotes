@@ -30,6 +30,8 @@ struct EditorView: View {
     @State private var choosingPhoto = false
     @State private var camera = false
     @State private var scanner = false
+    @State private var sideOpen = false
+    @State private var sidePDF = false
     @State private var captured: UIImage?
     @State private var cropImage: UIImage?
     @State private var insertingImage = false
@@ -102,6 +104,8 @@ struct EditorView: View {
                             .foregroundStyle(model.audio?.recording == true ? Color.red : Brand.accent)
                     }.disabled(!model.hasLease).accessibilityIdentifier("editorAudio")
                     Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
+                    Button { if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true } } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
+                    Button { sidePDF = false; sideOpen = true; model.lensArea = nil; model.lensRequest += 1 } label: { Label("Lente AI", systemImage: "sparkle.magnifyingglass") }.keyboardShortcut("k", modifiers: .command)
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
                         Menu("Inserisci", systemImage: "plus.circle") {
@@ -227,6 +231,13 @@ struct EditorView: View {
                 }
             }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
+            .inspector(isPresented: $sideOpen) {
+                Group {
+                    if sidePDF { PDFStudyPanel(model: model) }
+                    else { LensPanel(model: model, notebook: notebook) }
+                }.inspectorColumnWidth(min: 320, ideal: 420, max: 600)
+            }
+            .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
         }
     }
 

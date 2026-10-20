@@ -12,7 +12,7 @@ public struct InkColor: Codable, Equatable, Hashable, Sendable {
 }
 
 public enum WorkspaceTool: String, Codable, CaseIterable, Sendable {
-    case pen, marker, eraser, lasso, objects, text, audioLink, line, arrow, ellipse, rectangle, ruler
+    case pen, marker, eraser, lasso, objects, text, audioLink, line, arrow, ellipse, rectangle, ruler, lens
 }
 
 public struct ToolPalette: Codable, Equatable, Sendable {
