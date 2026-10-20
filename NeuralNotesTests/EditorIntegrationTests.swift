@@ -737,16 +737,20 @@ private final class PDFResourceProbe {
         guard CGPDFDictionaryGetDictionary(dictionary, "Resources", &resources), let resources,
               CGPDFDictionaryGetDictionary(resources, "XObject", &xobjects), let xobjects else { return false }
         let box = PDFResourceProbe(depth: depth)
-        CGPDFDictionaryApplyFunction(xobjects, { _, object, context in
-            guard let context else { return }
-            let box = Unmanaged<PDFResourceProbe>.fromOpaque(context).takeUnretainedValue()
-            var stream: CGPDFStreamRef?
-            guard CGPDFObjectGetValue(object, .stream, &stream), let stream else { return }
-            guard let dictionary = CGPDFStreamGetDictionary(stream) else { return }
-            var name: UnsafePointer<CChar>?
-            if CGPDFDictionaryGetName(dictionary, "Subtype", &name), let name, String(cString: name) == "Image" { box.found = true }
-            if hasImages(dictionary, depth: box.depth + 1) { box.found = true }
-        }, Unmanaged.passUnretained(box).toOpaque())
+        // Core Graphics visits synchronously. A standalone C callback avoids a
+        // Swift 6.1 region-analysis crash on the nested recursive closure.
+        CGPDFDictionaryApplyFunction(xobjects, inspectPDFXObject, Unmanaged.passUnretained(box).toOpaque())
         return box.found
     }
+}
+
+private func inspectPDFXObject(_ key: UnsafePointer<CChar>, _ object: CGPDFObjectRef, _ context: UnsafeMutableRawPointer?) {
+    guard let context else { return }
+    let box = Unmanaged<PDFResourceProbe>.fromOpaque(context).takeUnretainedValue()
+    var stream: CGPDFStreamRef?
+    guard CGPDFObjectGetValue(object, .stream, &stream), let stream else { return }
+    guard let dictionary = CGPDFStreamGetDictionary(stream) else { return }
+    var name: UnsafePointer<CChar>?
+    if CGPDFDictionaryGetName(dictionary, "Subtype", &name), let name, String(cString: name) == "Image" { box.found = true }
+    if PDFResourceProbe.hasImages(dictionary, depth: box.depth + 1) { box.found = true }
 }
