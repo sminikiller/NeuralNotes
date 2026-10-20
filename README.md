@@ -1,19 +1,21 @@
-# NeuralNotes 0.9.0 — app nativa iPad
+# NeuralNotes 0.9.1 — app nativa iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo, nessuna dipendenza di terze parti nell’app. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
 **Nuove funzioni:** PDF e testo più nitidi allo zoom, backup automatici con versioni, penne/preset e gomma selettiva, selezione trasformabile, testo formattato, scanner, PDF affiancato, ricerca globale e Lente AI. [Funzioni, accesso ai comandi e limiti della 0.9](docs/STUDY_WORKSPACE_0_9.md). iCloud è predisposto con il Team ID fornito; firma e attivazione del contenitore restano da completare. Il backend AI richiede hosting HTTPS e configurazione.
 
-**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39449039047): 86 core macOS, 153 unit/integrazione iPad e tutti i 16 UI test, più due esclusioni specifiche del simulatore; build Release senza firma riuscita. Dodici test backend superati. [Esiti e limiti](docs/VALIDATION.md). Pencil fisica e runner Swift Playground restano da provare.
+**0.9.1 — trascrizione delle registrazioni lunghe:** ogni blocco viene letto direttamente dalla registrazione, senza conversione; il silenzio iniziale non ferma più il lavoro; un blocco che fallisce viene saltato e riprovato con Riprendi; parole salvate in frasi brevi; schermo acceso durante la trascrizione; "Prova il primo blocco" e registro diagnostico. [Prova sull'iPad](docs/TESTING_0_9_1.md).
+
+**Stato della consegna:** [CI Apple superata per la 0.9.1](https://github.com/sminikiller/NeuralNotes/actions/runs/39472735749): 91 test core macOS, 164 unit/integrazione iPad (2 esclusioni del simulatore) e 16 UI test; build Release senza firma riuscita; 12 test backend. [Esiti e limiti](docs/VALIDATION.md). Apple Speech reale, Pencil fisica e runner Swift Playground restano da provare sull'iPad.
 
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.9.0.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.9.1.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
-4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: 26 controlli temporanei.
-5. Esegui [le prove della 0.9](docs/STUDY_WORKSPACE_0_9.md), poi [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md) e [scorrimento e voltata](docs/TESTING_0_7.md).
+4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: 27 controlli temporanei.
+5. Prova [la trascrizione lunga della 0.9.1](docs/TESTING_0_9_1.md), poi [le prove della 0.9](docs/STUDY_WORKSPACE_0_9.md), poi [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md) e [scorrimento e voltata](docs/TESTING_0_7.md).
 
 Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
 

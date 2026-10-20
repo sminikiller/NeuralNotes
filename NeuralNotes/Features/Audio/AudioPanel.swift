@@ -72,13 +72,18 @@ struct AudioPanel: View {
                         if audio.transcribingSessionID == session.id {
                             ProgressView(value: audio.transcriptionProgress)
                             Text(audio.transcriptionStatus).font(.caption)
-                            Button("Pausa trascrizione", systemImage: "pause.circle") { audio.transcriptionTask?.cancel() }
+                            if audio.transcriptionTask != nil {
+                                Button("Pausa trascrizione", systemImage: "pause.circle") { audio.transcriptionTask?.cancel() }
+                            }
+                        } else if audio.transcriptionStatusSessionID == session.id, !audio.transcriptionStatus.isEmpty {
+                            Text(audio.transcriptionStatus).font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("transcriptionStatus")
                         }
                         if session.hasTranscriptText {
                             Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
                                 guard presentation == nil else { return }; presentation = .read(session.id)
                             }.buttonStyle(.borderless).accessibilityIdentifier("transcriptRead-\(session.id)")
-                            Text(TranscriptText.minutes(session.readableTranscript).first?.text ?? "")
+                            Text(TranscriptText.firstMinuteText(session.readableTranscript))
                                 .lineLimit(3).foregroundStyle(.secondary)
                         } else if session.transcriptionComplete == true {
                             Text("Analisi completata senza testo riconosciuto. Ascolta l’audio e premi Riprova trascrizione.")
@@ -97,6 +102,15 @@ struct AudioPanel: View {
                             .buttonStyle(.borderless)
                             .accessibilityIdentifier("transcriptExport-\(session.id)")
                             .disabled(!session.hasTranscriptText)
+                        DisclosureGroup("Diagnosi trascrizione") {
+                            Button("Prova il primo blocco", systemImage: "stethoscope") { Task { await audio.probeFirstWindow(session) } }
+                                .buttonStyle(.borderless)
+                                .disabled(audio.transcribingSessionID != nil || audio.recording || session.segments.isEmpty)
+                                .accessibilityIdentifier("transcriptProbe-\(session.id)")
+                            Text("Riconosce solo i primi secondi e mostra metodo, tempo e testo. Utile se la trascrizione si ferma.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            TranscriptionLogView()
+                        }
                     }
                 }
                 if let page = model.page, !page.anchors.isEmpty {

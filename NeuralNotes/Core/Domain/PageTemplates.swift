@@ -67,6 +67,15 @@ public struct SpeechWindow: Codable, Equatable, Sendable {
         }
         return windows
     }
+    /// Frames of this window in an audio file, for reading it directly without
+    /// an export. Adjacent windows share their boundary frame exactly, so the
+    /// whole file is covered without gaps or overlaps. Nil past the end of file.
+    public func frames(sampleRate: Double, length: Int64) -> Range<Int64>? {
+        guard sampleRate.isFinite, sampleRate > 0, length > 0, start.isFinite, duration.isFinite, start >= 0, duration > 0 else { return nil }
+        let first = Int64((start * sampleRate).rounded())
+        let last = min(length, Int64(((start + duration) * sampleRate).rounded()))
+        return first < last ? first..<last : nil
+    }
 }
 
 public struct TranscriptionChunk: Codable, Equatable, Sendable {

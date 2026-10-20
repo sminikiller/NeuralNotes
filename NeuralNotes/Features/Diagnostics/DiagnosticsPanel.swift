@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PencilKit
 import PDFKit
+import AVFoundation
 import NeuralNotesCore
 
 private struct DiagnosticResult: Identifiable {
@@ -59,6 +60,11 @@ struct DiagnosticsPanel: View {
                         Text("PaperKit assente nell’SDK")
                         #endif
                         Text("La presenza di un modulo nell’SDK non conferma il supporto del sistema, dei modelli installati o dell’hardware.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    DisclosureGroup("Registro delle trascrizioni") {
+                        Text("Ultimi blocchi elaborati sul dispositivo: metodo, tempo, caratteri, memoria libera ed eventuale errore.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        TranscriptionLogView(limit: 40)
                     }
                 }
                 ForEach(results) { result in
@@ -406,6 +412,18 @@ struct DiagnosticsPanel: View {
             }
             await check("Zoom pagina intera e cancellazione locale dell’inchiostro") { try verifyCanvasGeometry() }
             await check("Trascrizioni: recupero del testo e risultato vuoto distinguibili") { try verifyReadableTranscript() }
+            await check("Audio: lettura diretta dei blocchi, senza conversione") {
+                let url = root.appendingPathComponent("blocchi.caf")
+                try writeSilence(url, seconds: 100, rate: 16000)
+                let duration = try AudioWindowReader.duration(of: url)
+                try require(abs(duration - 100) < 0.01, "Durata letta dai frame errata: \(duration) s.")
+                let windows = SpeechWindow.plan(duration: duration, maximum: 45)
+                var frames: Int64 = 0
+                for window in windows { frames += try AudioWindowReader.read(url: url, window: window) { _ in } }
+                try require(windows.count == 3 && frames == 1_600_000, "I blocchi non coprono tutta la registrazione (\(frames) frame).")
+                let words = (0..<30).map { TranscriptSegment(start: Double($0) * 0.4, duration: 0.3, text: "parola") }
+                try require(TranscriptText.phrases(words).count < 10, "Le parole non vengono raggruppate in frasi.")
+            }
             await check("Fogli continui: distacco ridotto e ordine delle coordinate") {
                 let pages = [PageSnapshot(), PageSnapshot(), PageSnapshot()]
                 let layout = ContinuousPageLayout(pages: pages)
@@ -441,6 +459,17 @@ struct DiagnosticsPanel: View {
         let pencil = NSNumber(value: UITouch.TouchType.pencil.rawValue)
         try require(host.canvas.panGestureRecognizer.isEnabled && !host.canvas.panGestureRecognizer.allowedTouchTypes.contains(pencil),
             "Lo scorrimento del canvas non esclude Apple Pencil.")
+    }
+
+    private func writeSilence(_ url: URL, seconds: Int, rate: Double) throws {
+        let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: rate,
+            AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false]
+        let file = try AVAudioFile(forWriting: url, settings: settings)
+        let frames = AVAudioFrameCount(rate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames),
+              let samples = buffer.floatChannelData else { throw DiagnosticFailure.assertion("Buffer audio di prova non disponibile.") }
+        buffer.frameLength = frames; samples[0].initialize(repeating: 0, count: Int(frames))
+        for _ in 0..<seconds { try file.write(from: buffer) }
     }
 
     private func verifyReadableTranscript() throws {

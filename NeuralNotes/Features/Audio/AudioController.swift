@@ -16,8 +16,12 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     var transcribingSessionID: UUID?
     var transcriptionProgress = 0.0
     var transcriptionStatus = ""
+    /// Session whose last transcription message stays visible after the job ends.
+    var transcriptionStatusSessionID: UUID?
     @ObservationIgnored var transcriptionTask: Task<Void, Never>?
     @ObservationIgnored var windowRecognition: (@MainActor (URL, SpeechWindow, String) async throws -> [TranscriptSegment])?
+    /// Seconds per recognition block; tests use short blocks to simulate long recordings.
+    @ObservationIgnored var transcriptionWindowLength: Double = 45
     var canTranscribe: Bool { !closed && !recording && !transitioning }
     var backgroundAudioConfigured: Bool {
         (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("audio") == true
