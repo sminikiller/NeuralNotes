@@ -17,6 +17,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private let previousInk = UIImageView()
     private var before = PKDrawing()
     private var held = false
+    private var markerSession: MarkerEraseSession?
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model
@@ -47,6 +48,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
         if model.tool == .shape || model.tool == .eraser { model.drawingShape = true }
+        if model.tool == .eraser { markerSession = MarkerEraseSession(model: model); markerSession?.append(points) }
     }
     func move(_ touch: UITouch, event: UIEvent) {
         guard let host else { return }
@@ -62,7 +64,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             points.append(StrokeSample(x: Double(p.x), y: Double(p.y)))
         }
         if points.count > 2000 { points = points.enumerated().filter { $0.offset % 2 == 0 || $0.offset == points.count - 1 }.map(\.element) }
-        if model.tool == .eraser { return }
+        if model.tool == .eraser {
+            markerSession?.append(samples.map { StrokeSample(x: Double($0.x), y: Double($0.y)) }); return
+        }
         if model.tool == .shape { drawPreview(model.shapeKind); return }
         guard let at = samples.last else { return }
         if hypot(at.x - anchor.x, at.y - anchor.y) > max(1.5, 3 / host.canvas.zoomScale) {
@@ -78,7 +82,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         guard let model else { cancel(); return }
         if model.tool == .eraser {
             model.drawingShape = false
-            if !cancelled { model.eraseMarkers(samples: points) }
+            markerSession?.finish(cancelled: cancelled); markerSession = nil
             cancel(); return
         }
         if model.tool == .shape {
@@ -130,6 +134,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }
     func cancel() {
+        markerSession?.finish(cancelled: true); markerSession = nil
         holdTask?.cancel(); holdTask = nil; finishPreview()
         model?.pendingHeldShape = nil; model?.drawingShape = false
         points = []; pageID = nil

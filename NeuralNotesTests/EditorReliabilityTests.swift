@@ -1,0 +1,83 @@
+import XCTest
+import UIKit
+import PencilKit
+import PDFKit
+import PhotosUI
+import NeuralNotesCore
+@testable import NeuralNotes
+
+final class EditorReliabilityTests: XCTestCase {
+    @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let model = EditorViewModel(workspace: DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID))
+        await model.open()
+        do { try await body(model) } catch { _ = await model.close(); throw error }; _ = await model.close()
+    }
+    @MainActor private func stroke(_ kind: PKInkingTool.InkType) -> PKStroke {
+        let points = [CGPoint(x: 20, y: 80), CGPoint(x: 300, y: 80)].enumerated().map { i, point in
+            PKStrokePoint(location: point, timeOffset: Double(i), size: CGSize(width: 12, height: 12), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+        }
+        return PKStroke(ink: PKInk(kind, color: kind == .marker ? .yellow : .black), path: PKStrokePath(controlPoints: points, creationDate: Date()))
+    }
+    @MainActor func testPencilTextInputIsTransparentOverPaperAndPDF() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            let input = CanvasTextInput(host: host, model: model); host.textInput = input
+            model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 50, y: 60)); host.surface.page = try XCTUnwrap(model.page)
+            input.refresh()
+            XCTAssertFalse(input.view.isOpaque); XCTAssertEqual(input.view.backgroundColor, .clear); XCTAssertEqual(input.view.layer.borderWidth, 0)
+            model.page?.pdfFile = "attachments/test.pdf"; input.refresh()
+            XCTAssertEqual(input.view.backgroundColor, .clear)
+        }
+    }
+    @MainActor func testPDFImportAfterUnsavedInkNeverCopiesInkOrTextToImportedPages() async throws {
+        try await fixture { model in
+            let original = try XCTUnwrap(model.page?.id)
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.pen)]); model.strokeEnded()
+            model.editText([TextElement(text: "Appunti della pagina precedente")])
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).pdf")
+            defer { try? FileManager.default.removeItem(at: file) }
+            let data = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 600, height: 800)).pdfData { renderer in
+                for _ in 0..<3 { renderer.beginPage(); ("Pagina PDF" as NSString).draw(at: CGPoint(x: 60, y: 80), withAttributes: [.font: UIFont.systemFont(ofSize: 24)]) }
+            }
+            try data.write(to: file); await model.importPages(from: file)
+            XCTAssertNil(model.error); XCTAssertNotEqual(model.page?.id, original); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertTrue(model.page?.texts.isEmpty == true); XCTAssertEqual(model.pages.count, 4)
+            let imported = model.pages.filter { $0.id != original }
+            for page in imported {
+                let bytes = try await model.workspace.drawing(page)
+                XCTAssertNil(bytes); XCTAssertTrue(page.texts.isEmpty); XCTAssertTrue(page.images.isEmpty)
+            }
+            await model.select(try XCTUnwrap(model.pages.first(where: { $0.id == original })))
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertEqual(model.page?.texts.first?.text, "Appunti della pagina precedente")
+            await model.select(try XCTUnwrap(imported.first)); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+        }
+    }
+    @MainActor func testMarkerEraserShowsChangesDuringGestureAndCancelRestoresInk() async throws {
+        try await fixture { model in
+            model.canvas.drawing = PKDrawing(strokes: [stroke(.pen), stroke(.marker)])
+            let original = model.canvas.drawing
+            model.chooseTool(.eraser); model.editWriting { $0.markerOnly = true }
+            let session = MarkerEraseSession(model: model); model.drawingShape = true
+            session.append([StrokeSample(x: 140, y: 60), StrokeSample(x: 140, y: 100)])
+            try await Task.sleep(for: .milliseconds(80))
+            XCTAssertNil(model.canvas.drawing.strokes[0].mask); XCTAssertNotNil(model.canvas.drawing.strokes[1].mask)
+            XCTAssertFalse(model.dirty)
+            session.finish(cancelled: true); model.drawingShape = false
+            XCTAssertEqual(model.canvas.drawing.strokes.count, original.strokes.count); XCTAssertNil(model.canvas.drawing.strokes[1].mask)
+        }
+    }
+    @MainActor func testPhotoPickerCancellationIsAnExplicitEmptyResult() {
+        var finished = false
+        let picker = PhotoLibraryImport { result in
+            finished = true
+            switch result { case .success(let data): XCTAssertNil(data); case .failure(let error): XCTFail(error.localizedDescription) }
+        }
+        let coordinator = picker.makeCoordinator()
+        coordinator.picker(PHPickerViewController(configuration: PHPickerConfiguration()), didFinishPicking: [])
+        XCTAssertTrue(finished)
+    }
+}

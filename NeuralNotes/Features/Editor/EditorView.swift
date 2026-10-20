@@ -26,13 +26,12 @@ struct EditorView: View {
     @State private var confirmDelete = false
     @State private var shareURL: URL?
     @State private var sharing = false
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var choosingPhoto = false
-    @State private var camera = false
-    @State private var scanner = false
+    @State private var media: EditorMedia?
+    @State private var pendingPhoto: Data?
+    @State private var pendingScan: VNDocumentCameraScan?
+    @State private var mediaError: String?
     @State private var sideOpen = false
     @State private var sidePDF = false
-    @State private var captured: UIImage?
     @State private var cropImage: UIImage?
     @State private var insertingImage = false
     @Environment(\.openWindow) private var openWindow
@@ -112,11 +111,8 @@ struct EditorView: View {
                         Menu("Inserisci", systemImage: "plus.circle") {
                             Button("Testi e immagini", systemImage: "textformat") { panel = .elements }
                             Button("Scatta foto", systemImage: "camera") { Task { await openCamera() } }
-                            Button("Scansiona documento", systemImage: "doc.viewfinder") {
-                                if VNDocumentCameraViewController.isSupported { scanner = true }
-                                else { model.error = "Scanner non disponibile in questa esecuzione." }
-                            }
-                            PhotosPicker(selection: $selectedPhoto, matching: .images) { Label("Inserisci da Foto", systemImage: "photo.on.rectangle") }
+                            Button("Scansiona documento", systemImage: "doc.viewfinder") { Task { await openMedia(.scanner) } }
+                            Button("Inserisci da Foto", systemImage: "photo.on.rectangle") { media = .photos }
                             Button("Importa immagine", systemImage: "photo") { importKind = "image"; importing = true }
                             Button("Importa PDF", systemImage: "doc.badge.plus") { importKind = "pdf"; importing = true }
                             Button("Aggiungi pagine da un backup", systemImage: "doc.on.doc") { importKind = "native"; importing = true }
@@ -147,27 +143,20 @@ struct EditorView: View {
                 }
             }
             .task { library.markOpened(notebook); await model.open() }
-            .task(id: selectedPhoto) {
-                guard let selectedPhoto else { return }
-                working = true; defer { working = false }
-                do {
-                    guard let data = try await selectedPhoto.loadTransferable(type: Data.self) else { throw CocoaError(.fileReadCorruptFile) }
-                    try Task.checkCancellation()
-                    preparePhoto(data)
-                } catch is CancellationError { }
-                catch { model.error = error.localizedDescription }
-            }
             .interactiveDismissDisabled()
-            .photosPicker(isPresented: $choosingPhoto, selection: $selectedPhoto, matching: .images)
-            .fullScreenCover(isPresented: $camera, onDismiss: {
-                if let image = captured, let data = image.jpegData(compressionQuality: 0.92) { captured = nil; preparePhoto(data) }
-            }) { CameraCapture { image in captured = image; camera = false } }
-            .fullScreenCover(isPresented: $scanner) {
-                DocumentScanner { result in
-                    scanner = false
-                    switch result {
-                    case .success(let scan): if let scan { Task { await model.importScan(scan) } }
-                    case .failure(let error): model.error = error.localizedDescription
+            .fullScreenCover(item: $media, onDismiss: finishMediaImport) { source in
+                switch source {
+                case .photos:
+                    PhotoLibraryImport { result in
+                        switch result { case .success(let data): pendingPhoto = data; case .failure(let error): mediaError = error.localizedDescription }
+                        media = nil
+                    }
+                case .camera:
+                    CameraCapture { image in pendingPhoto = image?.jpegData(compressionQuality: 0.92); media = nil }
+                case .scanner:
+                    DocumentScanner { result in
+                        switch result { case .success(let scan): pendingScan = scan; case .failure(let error): mediaError = error.localizedDescription }
+                        media = nil
                     }
                 }
             }
@@ -245,7 +234,7 @@ struct EditorView: View {
         }.inspectorColumnWidth(min: 320, ideal: 420, max: 600)
     }
     private var floatingToolbar: some View {
-        EditorQuickToolbar(model: model, photo: { choosingPhoto = true }, camera: { Task { await openCamera() } },
+        EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
             text: { model.addText(); panel = .elements }, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace })
             .disabled(!model.hasLease || model.loading || model.navigating || working)
             .padding(.horizontal, 12).padding(.vertical, model.currentWorkspace.dock.vertical ? 72 : 12)
@@ -285,6 +274,9 @@ struct EditorView: View {
 
     private func importFile(_ url: URL) async {
         working = true; defer { working = false }
+        if importKind == "native" || importKind == "pdf" {
+            await model.importPages(from: url, native: importKind == "native"); return
+        }
         guard await model.flush() else { return }
         let before = model.pages.map(\.id), selectedBefore = model.page?.id
         do {
@@ -371,15 +363,21 @@ struct EditorView: View {
             model.addImage(element)
         } catch { model.error = error.localizedDescription }
     }
-    private func openCamera() async {
-        guard UIImagePickerController.isSourceTypeAvailable(.camera) else { model.error = "Fotocamera non disponibile su questo dispositivo."; return }
-        guard Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil else {
-            model.error = "Abilita Fotocamera nelle funzionalità del progetto Swift Playground."; return
-        }
-        let allowed = await AVCaptureDevice.requestAccess(for: .video)
-        guard allowed else { model.error = "Consenti l’accesso alla fotocamera nelle impostazioni dell’iPad."; return }
-        camera = true
+    private func openCamera() async { await openMedia(.camera) }
+    private func openMedia(_ source: EditorMedia) async {
+        guard media == nil, panel == nil, !working else { return }
+        do { try await CameraAccess.request(scanner: source == .scanner); media = source }
+        catch { model.error = error.localizedDescription }
     }
+    private func finishMediaImport() {
+        if let error = mediaError { mediaError = nil; model.error = error }
+        if let data = pendingPhoto { pendingPhoto = nil; preparePhoto(data) }
+        if let scan = pendingScan {
+            pendingScan = nil
+            Task { working = true; defer { working = false }; await model.importScan(scan) }
+        }
+    }
+
 }
 
 @MainActor

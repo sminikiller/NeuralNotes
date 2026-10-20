@@ -51,7 +51,8 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         view.delegate = self; view.textContainerInset = .zero; view.textContainer.lineFragmentPadding = 0
         view.isEditable = true; view.isSelectable = true; view.isScrollEnabled = true
         view.overrideUserInterfaceStyle = .light
-        view.layer.borderWidth = 1; view.layer.borderColor = UIColor.systemTeal.cgColor
+        view.backgroundColor = .clear; view.isOpaque = false
+        view.layer.borderWidth = 0
         view.accessibilityIdentifier = "pageTextInput"; view.accessibilityLabel = "Testo sul foglio"
         view.allowsEditingTextAttributes = true; view.dataDetectorTypes = [.link, .phoneNumber]
         formatting = TextFormatting(view: view) { [weak self] in
@@ -74,8 +75,8 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
             shownID = id; view.attributedText = RichText.attributed(text); view.isHidden = false
             view.becomeFirstResponder()
         } else if view.text != text.text && view.markedTextRange == nil { view.attributedText = RichText.attributed(text) }
-        let tone = page.appearance?.tone ?? .white, rgb = tone.rgb
-        view.backgroundColor = page.pdfFile == nil ? UIColor(red: rgb.0, green: rgb.1, blue: rgb.2, alpha: 1) : .white
+        let tone = page.appearance?.tone ?? .white
+        view.backgroundColor = .clear
         if text.rtf == nil { view.textColor = tone == .slate && page.pdfFile == nil ? .white : .black }
         host.surface.hiddenTextID = id
         layout()

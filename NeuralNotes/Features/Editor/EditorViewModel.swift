@@ -174,6 +174,7 @@ final class EditorViewModel {
 
     func drawingChanged() {
         guard !loading else { return }
+        if tool == .eraser && drawingShape { return }
         if editBeforeGesture != nil && !usingInkTool && !finishingInkGesture { scheduleInkCommit() }
         dirty = true; status = "Modifiche da salvare"
         debounce?.cancel()
@@ -354,11 +355,15 @@ final class EditorViewModel {
         pendingHeldShape = nil; drawingAssistant?.cancel()
         gestureCommitTask?.cancel(); gestureCommitTask = nil; editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         endTextEdit()
+        let delegate = canvas.delegate
+        canvas.delegate = nil
+        defer { canvas.delegate = delegate }
         canvas.drawing = drawing
         canvas.undoManager?.removeAllActions()
         page = current; selectedObjectID = nil; dirty = recovered; recoveredFromPrevious = recovered
         status = recovered ? "Revisione precedente recuperata — salva" : "Salvato sul dispositivo"
         configureTool()
+        (pagePresenter as? CanvasHost)?.synchronizePage()
         UserDefaults.standard.set(current.id.uuidString, forKey: "editor.page.\(workspace.documentID)")
     }
 

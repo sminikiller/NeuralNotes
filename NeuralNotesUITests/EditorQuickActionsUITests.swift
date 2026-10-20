@@ -1,6 +1,22 @@
 import XCTest
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testLongPressShowsOptionsAnchoredToPenAndEraser() {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["tool-Penna"].press(forDuration: 0.6)
+        XCTAssertTrue(app.buttons["Tipo di penna"].waitForExistence(timeout: 5) || app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Tipo di penna")).firstMatch.exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8)).tap()
+        app.buttons["tool-Gomma"].press(forDuration: 0.6)
+        XCTAssertTrue(app.switches["Solo evidenziatore"].waitForExistence(timeout: 5))
+    }
+    @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Inserisci foto"].tap()
+        let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Annulla"])).firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 8)); cancel.tap()
+        XCTAssertTrue(app.buttons["editorAddText"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["pencilCanvas"].firstMatch.exists)
+    }
     @MainActor
     func testChangingPageModeKeepsTheFullEditorCanvasBounds() {
         let app = XCUIApplication(); openEditor(app)

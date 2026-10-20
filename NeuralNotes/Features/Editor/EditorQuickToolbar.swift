@@ -8,6 +8,7 @@ struct EditorQuickToolbar: View {
     let workspace: () -> Void
     @State private var paletteOpen = false
     @State private var selectionOpen = false
+    @State private var optionsTool: WorkspaceTool?
     private var vertical: Bool { model.currentWorkspace.dock.vertical }
     private var hasSelection: Bool { !model.selectedIDs.isEmpty || model.selectionIncludesInk }
     private var selectedImage: Bool {
@@ -73,6 +74,12 @@ struct EditorQuickToolbar: View {
             .background(selected ? Brand.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 14))
             .foregroundStyle(selected ? Brand.accent : .primary)
             .accessibilityLabel(item.title).help(item.title).accessibilityIdentifier("tool-\(item.title)")
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
+                model.chooseTool(item); optionsTool = item
+            })
+            .popover(isPresented: Binding(get: { optionsTool == item }, set: { if !$0 { optionsTool = nil } }), arrowEdge: vertical ? .leading : .top) {
+                ToolOptionsPopover(model: model, tool: item)
+            }
     }
     private func colorButton(_ color: InkColor) -> some View {
         Button { model.chooseInk(color.color) } label: {
