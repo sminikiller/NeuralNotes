@@ -88,6 +88,13 @@ struct EditorQuickToolbar: View {
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
+                Menu {
+                    Button("Ingrandisci 10%") { model.transformSelection(scale: 1.1) }
+                    Button("Riduci 10%") { model.transformSelection(scale: 1 / 1.1) }
+                    Button("Ruota a destra 15°") { model.transformSelection(degrees: 15) }
+                    Button("Ruota a sinistra 15°") { model.transformSelection(degrees: -15) }
+                    Button("Applica il colore corrente") { model.recolorSelection(InkColor(model.ink)) }
+                } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }.accessibilityLabel("Trasforma selezione").disabled(!hasSelection)
                 Button(action: crop) { Image(systemName: "crop") }.accessibilityLabel("Ritaglia immagine").disabled(!selectedImage)
                 Button { model.rotateSelectedImage() } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota immagine").disabled(!selectedImage)
                 Button { model.copySelection() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copia selezione").keyboardShortcut("c", modifiers: .command).disabled(!hasSelection)

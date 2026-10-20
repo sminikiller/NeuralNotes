@@ -19,7 +19,7 @@ struct ElementEditor: View {
                 }
                 ForEach($texts) { $text in
                     Section(model.selectedIDs.contains(text.id) ? "Testo selezionato" : "Testo") {
-                        TextEditor(text: $text.text).frame(minHeight: 100)
+                        RichTextEditor(text: $text).frame(minHeight: 150)
                         position(x: $text.x, y: $text.y, width: $text.width)
                         Stepper("Dimensione \(Int(text.fontSize)) pt", value: $text.fontSize, in: 10...96)
                         Button("Rimuovi testo", role: .destructive) { texts.removeAll { $0.id == text.id } }

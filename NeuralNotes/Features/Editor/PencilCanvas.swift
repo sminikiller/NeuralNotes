@@ -5,6 +5,7 @@ import NeuralNotesCore
 @MainActor
 final class CanvasHost: UIView {
     let surface = PageSurfaceView()
+    let paperDetail = VisiblePaperDetail()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -25,7 +26,8 @@ final class CanvasHost: UIView {
         surface.overrideUserInterfaceStyle = .light
         PaperInk.configure(canvas)
         PaperInk.configureNavigation(canvas, fingerDrawing: false)
-        addSubview(surface); addSubview(canvas)
+        paperDetail.isHidden = true; paperDetail.isUserInteractionEnabled = false
+        addSubview(surface); addSubview(paperDetail); addSubview(canvas)
         canvas.backgroundColor = .clear; canvas.isOpaque = false
         canvas.alwaysBounceVertical = true
         pullHint.text = "Rilascia per avanzare · nuova pagina se sei all’ultima"
@@ -139,8 +141,9 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        surface.updateResolution(zoom: canvas.zoomScale, screenScale: window?.screen.scale ?? UIScreen.main.scale)
+        surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
+            paperDetail.update(from: self)
             interaction?.refresh(); textInput?.layout(); return
         }
         let zoom = canvas.zoomScale
@@ -155,6 +158,7 @@ final class CanvasHost: UIView {
         if canvas.contentInset != inset { canvas.contentInset = inset }
         surface.center = CGPoint(x: size.width * zoom / 2 - canvas.contentOffset.x,
                                  y: size.height * zoom / 2 - canvas.contentOffset.y)
+        paperDetail.update(from: self)
         interaction?.refresh()
         textInput?.layout()
     }

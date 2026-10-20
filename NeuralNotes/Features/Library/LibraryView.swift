@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import NeuralNotesCore
 
 private enum LibrarySheet: Identifiable {
-    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery
+    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search
     var id: String {
         switch self {
         case .createNotebook: return "new-notebook"
@@ -15,6 +15,7 @@ private enum LibrarySheet: Identifiable {
         case .cover(let notebook): return "cover-\(notebook.id)"
         case .storage(let notebook): return "storage-\(notebook.id)"
         case .recovery: return "recovery"
+        case .search: return "search"
         }
     }
 }
@@ -91,6 +92,18 @@ struct LibraryView: View {
             case .storage(let notebook):
                 if let workspace = try? model.workspace(notebook) { StoragePanel(workspace: workspace, metadata: notebook) }
             case .recovery: RecoveryPanel(library: model)
+            case .search:
+                GlobalSearchPanel(library: model) { book, reference in
+                    Task {
+                        do {
+                            let editor = EditorViewModel(workspace: try model.workspace(book)); await editor.open()
+                            guard editor.hasLease else { model.errorMessage = editor.error; return }
+                            if let id = reference.pageID, let page = editor.pages.first(where: { $0.id == id }) { await editor.select(page) }
+                            if let id = reference.audioSessionID, let session = editor.audio?.sessions.first(where: { $0.id == id }) { await editor.audio?.play(session, at: reference.seconds ?? 0) }
+                            resumeEditor = editor; resumeNotebook = book
+                        } catch { model.errorMessage = error.localizedDescription }
+                    }
+                }
             }
         }
         .alert("Operazione non riuscita", isPresented: Binding(
@@ -151,6 +164,7 @@ struct LibraryView: View {
             Section {
                 Label("Sul tuo iPad", systemImage: "internaldrive")
                     .font(.footnote).foregroundStyle(.secondary)
+                Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }

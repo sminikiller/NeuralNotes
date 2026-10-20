@@ -45,9 +45,12 @@ public enum NativePackageInspector {
                   page.width > 0, page.height > 0, page.width <= 20000, page.height <= 20000 else { throw LibraryFailure.corruptDocument }
             if let time = page.lastEditedAt, !time.isFinite || time < 0 { throw LibraryFailure.corruptDocument }
             for path in [page.drawingFile, page.previousDrawingFile, page.pdfFile].compactMap({ $0 }) + page.images.map(\.file) { try media(path) }
+            guard (page.pdfMarkups ?? []).allSatisfy(\.isValid) else { throw LibraryFailure.corruptDocument }
             for text in page.texts {
                 guard [text.x, text.y, text.width, text.fontSize].allSatisfy(\.isFinite),
                       text.width > 0, (1...1000).contains(text.fontSize) else { throw LibraryFailure.corruptDocument }
+                if let rotation = text.rotation, !rotation.isFinite { throw LibraryFailure.corruptDocument }
+                if let rtf = text.rtf, rtf.count > 2 * 1024 * 1024 { throw LibraryFailure.corruptDocument }
             }
             for image in page.images {
                 guard [image.x, image.y, image.width, image.height].allSatisfy(\.isFinite),
@@ -64,6 +67,7 @@ public enum NativePackageInspector {
                       shape.width > 0, shape.height > 0, (0...1).contains(shape.red), (0...1).contains(shape.green), (0...1).contains(shape.blue),
                       shape.lineWidth > 0, shape.lineWidth <= 200 else { throw LibraryFailure.corruptDocument }
                 guard shape.start?.isValid ?? true, shape.end?.isValid ?? true else { throw LibraryFailure.corruptDocument }
+                if let rotation = shape.rotation, !rotation.isFinite { throw LibraryFailure.corruptDocument }
             }
         }
         if FileManager.default.fileExists(atPath: package.appendingPathComponent("catalog.json").path) {

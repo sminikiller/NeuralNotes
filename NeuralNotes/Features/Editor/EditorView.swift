@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import PencilKit
 import PhotosUI
 import AVFoundation
+import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
@@ -28,6 +29,7 @@ struct EditorView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var choosingPhoto = false
     @State private var camera = false
+    @State private var scanner = false
     @State private var captured: UIImage?
     @State private var cropImage: UIImage?
     @State private var insertingImage = false
@@ -39,6 +41,10 @@ struct EditorView: View {
             VStack(spacing: 0) {
                 if model.page != nil {
                     DocumentPageViewport(model: model).allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
+                        .onDrop(of: [.image, .text, .url], isTargeted: nil) { providers, location in
+                            let point = (model.pagePresenter as? CanvasHost)?.surface.convert(location, from: model.pagePresenter as? CanvasHost) ?? location
+                            Task { await PageDrop.insert(providers, at: point, model: model) }; return model.hasLease
+                        }
                         .overlay(alignment: toolbarAlignment) {
                             if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
                         }
@@ -63,7 +69,7 @@ struct EditorView: View {
             .toolbar(focus ? .hidden : .visible, for: .navigationBar)
             .statusBarHidden(focus)
             .navigationTitle(notebook.title)
-            .onAppear { model.backupMetadata = notebook; model.scheduleMaintenance() }
+            .onAppear { model.backupMetadata = notebook }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -101,6 +107,10 @@ struct EditorView: View {
                         Menu("Inserisci", systemImage: "plus.circle") {
                             Button("Testi e immagini", systemImage: "textformat") { panel = .elements }
                             Button("Scatta foto", systemImage: "camera") { Task { await openCamera() } }
+                            Button("Scansiona documento", systemImage: "doc.viewfinder") {
+                                if VNDocumentCameraViewController.isSupported { scanner = true }
+                                else { model.error = "Scanner non disponibile in questa esecuzione." }
+                            }
                             PhotosPicker(selection: $selectedPhoto, matching: .images) { Label("Inserisci da Foto", systemImage: "photo.on.rectangle") }
                             Button("Importa immagine", systemImage: "photo") { importKind = "image"; importing = true }
                             Button("Importa PDF", systemImage: "doc.badge.plus") { importKind = "pdf"; importing = true }
@@ -147,6 +157,20 @@ struct EditorView: View {
             .fullScreenCover(isPresented: $camera, onDismiss: {
                 if let image = captured, let data = image.jpegData(compressionQuality: 0.92) { captured = nil; preparePhoto(data) }
             }) { CameraCapture { image in captured = image; camera = false } }
+            .fullScreenCover(isPresented: $scanner) {
+                DocumentScanner { images in
+                    scanner = false
+                    Task {
+                        for (index, image) in images.enumerated() {
+                            guard let bytes = image.jpegData(compressionQuality: 0.9) else { continue }
+                            do {
+                                if index > 0 { await model.addPage() }
+                                model.addImage(try await DocumentServices.importImage(data: bytes, into: model.workspace))
+                            } catch { model.error = error.localizedDescription }
+                        }
+                    }
+                }
+            }
             .onChange(of: model.tool) { _, _ in model.restoreToolPalette(); model.configureTool() }
             .onChange(of: model.ink) { _, _ in model.configureTool() }
             .onChange(of: model.thickness) { _, _ in model.configureTool() }

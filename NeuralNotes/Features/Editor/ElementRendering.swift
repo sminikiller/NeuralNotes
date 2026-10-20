@@ -23,6 +23,9 @@ enum ElementRendering {
     static func drawShape(_ shape: ShapeElement, context: CGContext) {
         let rect = CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
         context.saveGState()
+        context.translateBy(x: rect.midX, y: rect.midY)
+        context.rotate(by: CGFloat(shape.rotation ?? 0) * .pi / 180)
+        context.translateBy(x: -rect.midX, y: -rect.midY)
         context.setStrokeColor(UIColor(red: shape.red, green: shape.green, blue: shape.blue, alpha: 1).cgColor)
         context.setLineWidth(shape.lineWidth); context.setLineCap(.round); context.setLineJoin(.round)
         switch shape.kind {

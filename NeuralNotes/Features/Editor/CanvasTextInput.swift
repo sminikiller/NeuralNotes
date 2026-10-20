@@ -24,6 +24,10 @@ extension EditorViewModel {
         guard let id = editingTextID, let i = page?.texts.firstIndex(where: { $0.id == id }) else { return }
         page?.texts[i].text = value; drawingChanged()
     }
+    func updateLiveText(_ value: NSAttributedString) {
+        guard let id = editingTextID, let i = page?.texts.firstIndex(where: { $0.id == id }) else { return }
+        page?.texts[i].text = value.string; page?.texts[i].rtf = RichText.data(value); drawingChanged()
+    }
     func commitTextEdit() {
         guard let before = textEditBefore, before.page.id == page?.id else { return }
         recordEdit(before, label: "Modifica testo"); textEditBefore = captureEdit()
@@ -41,6 +45,7 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
     weak var model: EditorViewModel?
     let view = UITextView()
     private var shownID: UUID?
+    private var formatting: TextFormatting?
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init()
         view.delegate = self; view.textContainerInset = .zero; view.textContainer.lineFragmentPadding = 0
@@ -48,11 +53,11 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         view.overrideUserInterfaceStyle = .light
         view.layer.borderWidth = 1; view.layer.borderColor = UIColor.systemTeal.cgColor
         view.accessibilityIdentifier = "pageTextInput"; view.accessibilityLabel = "Testo sul foglio"
-        let toolbar = UIToolbar()
-        let done = UIBarButtonItem(title: "Fine", style: .done, target: self, action: #selector(finishEditing))
-        done.accessibilityIdentifier = "pageTextDone"
-        toolbar.items = [UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil), done]
-        toolbar.sizeToFit(); view.inputAccessoryView = toolbar
+        view.allowsEditingTextAttributes = true; view.dataDetectorTypes = [.link, .phoneNumber]
+        formatting = TextFormatting(view: view) { [weak self] in
+            guard let self else { return }; self.model?.updateLiveText(self.view.attributedText); self.layout()
+        }
+        view.inputAccessoryView = formatting?.toolbar(doneTarget: self, doneAction: #selector(finishEditing))
         view.isHidden = true; host.addSubview(view)
     }
     @objc private func finishEditing() {
@@ -66,13 +71,12 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
             host.surface.hiddenTextID = nil; shownID = nil; return
         }
         if shownID != id {
-            shownID = id; view.text = text.text; view.isHidden = false
-            view.font = .systemFont(ofSize: CGFloat(text.fontSize))
+            shownID = id; view.attributedText = RichText.attributed(text); view.isHidden = false
             view.becomeFirstResponder()
-        } else if view.text != text.text && view.markedTextRange == nil { view.text = text.text }
+        } else if view.text != text.text && view.markedTextRange == nil { view.attributedText = RichText.attributed(text) }
         let tone = page.appearance?.tone ?? .white, rgb = tone.rgb
         view.backgroundColor = page.pdfFile == nil ? UIColor(red: rgb.0, green: rgb.1, blue: rgb.2, alpha: 1) : .white
-        view.textColor = tone == .slate && page.pdfFile == nil ? .white : .black
+        if text.rtf == nil { view.textColor = tone == .slate && page.pdfFile == nil ? .white : .black }
         host.surface.hiddenTextID = id
         layout()
     }
@@ -87,6 +91,6 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         view.center = host.surface.convert(CGPoint(x: text.x + text.width / 2, y: text.y + height / 2), to: host)
         host.bringSubviewToFront(view)
     }
-    func textViewDidChange(_ textView: UITextView) { model?.updateLiveText(textView.text); layout() }
+    func textViewDidChange(_ textView: UITextView) { model?.updateLiveText(textView.attributedText); layout() }
     func textViewDidEndEditing(_ textView: UITextView) { model?.endTextEdit() }
 }

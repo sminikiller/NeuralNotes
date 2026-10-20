@@ -19,6 +19,8 @@ public struct TextElement: Codable, Identifiable, Equatable, Sendable {
     public var y: Double = 64
     public var width: Double = 480
     public var fontSize: Double = 24
+    public var rtf: Data?
+    public var rotation: Double?
     public init(text: String) { self.text = text }
 }
 
@@ -78,6 +80,7 @@ public struct PageSnapshot: Codable, Identifiable, Equatable, Sendable {
     public var shapes: [ShapeElement]?
     public var appearance: PaperAppearance?
     public var lastEditedAt: Double?
+    public var pdfMarkups: [PDFMarkup]?
     public init(id: UUID = UUID()) { self.id = id }
 }
 

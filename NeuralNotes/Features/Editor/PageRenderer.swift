@@ -44,16 +44,25 @@ enum PageRenderer {
                 context.move(to: CGPoint(x: 64, y: 0)); context.addLine(to: CGPoint(x: 64, y: rect.height)); context.strokePath()
             }
         }
+        for markup in page.pdfMarkups ?? [] {
+            let box = CGRect(x: markup.x, y: markup.y, width: markup.width, height: markup.height)
+            context.saveGState(); context.setBlendMode(.multiply)
+            if markup.kind == .highlight { context.setFillColor(UIColor.systemYellow.withAlphaComponent(0.35).cgColor); context.fill(box) }
+            else { context.setStrokeColor(UIColor.systemRed.cgColor); context.setLineWidth(1); context.move(to: CGPoint(x: box.minX, y: box.maxY)); context.addLine(to: CGPoint(x: box.maxX, y: box.maxY)); context.strokePath() }
+            context.restoreGState()
+        }
         for image in page.images {
             ElementRendering.drawImage(image, package: package, context: context)
         }
         for shape in page.shapes ?? [] { ElementRendering.drawShape(shape, context: context) }
         for text in page.texts where text.id != hidingTextID {
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: text.fontSize),
-                .foregroundColor: appearance.tone == .slate && page.pdfFile == nil ? UIColor.white : UIColor.black]
-            (text.text as NSString).draw(in: CGRect(x: text.x, y: text.y, width: text.width,
-                height: max(0, page.height - text.y)), withAttributes: attributes)
+            let value = RichText.attributed(text, color: appearance.tone == .slate && page.pdfFile == nil ? .white : .black)
+            let size = value.boundingRect(with: CGSize(width: text.width, height: max(0, page.height - text.y)), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+            let box = CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize + 4, size.height))
+            context.saveGState(); context.translateBy(x: box.midX, y: box.midY)
+            context.rotate(by: CGFloat(text.rotation ?? 0) * .pi / 180)
+            value.draw(in: CGRect(x: -box.width / 2, y: -box.height / 2, width: box.width, height: box.height))
+            context.restoreGState()
         }
     }
 }
@@ -72,7 +81,7 @@ final class PageSurfaceView: UIView {
         didSet {
             if oldValue.id != page.id || oldValue.paper != page.paper || oldValue.texts != page.texts
                 || oldValue.images != page.images || oldValue.shapes != page.shapes || oldValue.pdfFile != page.pdfFile
-                || oldValue.appearance != page.appearance || oldValue.width != page.width || oldValue.height != page.height {
+                || oldValue.pdfMarkups != page.pdfMarkups || oldValue.appearance != page.appearance || oldValue.width != page.width || oldValue.height != page.height {
                 setNeedsDisplay()
             }
         }
