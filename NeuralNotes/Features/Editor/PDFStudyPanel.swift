@@ -11,6 +11,7 @@ final class PDFStudyController {
     var hasSelection = false
     var outline: [OutlineRow] = []
     @ObservationIgnored private var observer: NSObjectProtocol?
+    @ObservationIgnored private let annotationOwner = "NeuralNotes.study.\(UUID())"
     struct OutlineRow: Identifiable {
         let id: UUID
         let label: String
@@ -18,6 +19,8 @@ final class PDFStudyController {
         init(label: String, destination: PDFDestination) { id = UUID(); self.label = label; self.destination = destination }
     }
     func attach(_ view: PDFView) {
+        guard self.view !== view || observer == nil else { return }
+        detach()
         self.view = view
         observer = NotificationCenter.default.addObserver(forName: .PDFViewSelectionChanged, object: view, queue: .main) { [weak self, weak view] _ in
             Task { @MainActor in self?.hasSelection = view?.currentSelection != nil }
@@ -30,13 +33,13 @@ final class PDFStudyController {
         for index in 0..<document.pageCount {
             guard let source = document.page(at: index), let reference = source.pageRef,
                   let page = pages.first(where: { $0.pdfFile == file && $0.pdfIndex == index }) else { continue }
-            for annotation in source.annotations where annotation.userName == "NeuralNotes" { source.removeAnnotation(annotation) }
+            for annotation in source.annotations where annotation.userName == annotationOwner { source.removeAnnotation(annotation) }
             let inverse = reference.getDrawingTransform(.cropBox, rect: CGRect(x: 0, y: 0, width: page.width, height: page.height), rotate: 0, preserveAspectRatio: true)
                 .concatenating(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: page.height)).inverted()
             for markup in page.pdfMarkups ?? [] {
                 let box = CGRect(x: markup.x, y: markup.y, width: markup.width, height: markup.height).applying(inverse)
                 let annotation = PDFAnnotation(bounds: box, forType: markup.kind == .highlight ? .highlight : .underline, withProperties: nil)
-                annotation.userName = "NeuralNotes"; annotation.color = markup.kind == .highlight ? .systemYellow : .systemRed; source.addAnnotation(annotation)
+                annotation.userName = annotationOwner; annotation.color = markup.kind == .highlight ? .systemYellow : .systemRed; source.addAnnotation(annotation)
             }
         }
     }
@@ -83,7 +86,7 @@ private struct StudyPDFView: UIViewRepresentable {
         view.accessibilityIdentifier = "studyPDFView"; controller.attach(view); controller.load(file: file, package: package, index: index); controller.syncMarkups(pages)
         return view
     }
-    func updateUIView(_ view: PDFView, context: Context) { controller.load(file: file, package: package, index: index); controller.syncMarkups(pages) }
+    func updateUIView(_ view: PDFView, context: Context) { controller.attach(view); controller.load(file: file, package: package, index: index); controller.syncMarkups(pages) }
 }
 
 @MainActor

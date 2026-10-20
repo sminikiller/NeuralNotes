@@ -77,6 +77,7 @@ struct LensPanel: View {
             }
     }
     private func load() async {
+        job?.cancel()
         token = BackendCredentials.load()
         turns = (try? await model.workspace.catalog().conversation) ?? []
         await loadSources()

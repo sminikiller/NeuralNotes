@@ -75,8 +75,12 @@ enum TextScratchEraser {
         eraseWords(text, in: CGPath(rect: area, transform: nil), pageHeight: pageHeight)
     }
     static func eraseWords(_ text: TextElement, in area: CGPath, pageHeight: Double) -> String {
-        let font = UIFont.systemFont(ofSize: CGFloat(text.fontSize))
-        let storage = NSTextStorage(string: text.text, attributes: [.font: font])
+        eraseFormattedWords(text, in: area, pageHeight: pageHeight).text
+    }
+    static func eraseFormattedWords(_ text: TextElement, in area: CGPath, pageHeight: Double) -> TextElement {
+        var inverse = RichText.rotation(text, pageHeight: pageHeight).inverted()
+        let erasure = area.copy(using: &inverse) ?? area
+        let storage = NSTextStorage(attributedString: RichText.attributed(text))
         let layout = NSLayoutManager()
         let size = CGSize(width: CGFloat(text.width), height: CGFloat(max(1, pageHeight - text.y)))
         let container = NSTextContainer(size: size); container.lineFragmentPadding = 0
@@ -86,7 +90,7 @@ enum TextScratchEraser {
         source.enumerateSubstrings(in: NSRange(location: 0, length: source.length), options: .byWords) { _, range, _, _ in
             let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
             let rect = layout.boundingRect(forGlyphRange: glyphs, in: container).offsetBy(dx: CGFloat(text.x), dy: CGFloat(text.y))
-            guard rect.intersects(area.boundingBoxOfPath), rect.width > 0, rect.height > 0 else { return }
+            guard rect.intersects(erasure.boundingBoxOfPath), rect.width > 0, rect.height > 0 else { return }
             let columns = min(40, max(3, Int(ceil(rect.width / 4))))
             let rows = min(12, max(3, Int(ceil(rect.height / 4))))
             var covered = 0
@@ -94,14 +98,18 @@ enum TextScratchEraser {
                 for y in 0..<rows {
                     let px = rect.minX + (CGFloat(x) + 0.5) * rect.width / CGFloat(columns)
                     let py = rect.minY + (CGFloat(y) + 0.5) * rect.height / CGFloat(rows)
-                    if area.contains(CGPoint(x: px, y: py)) { covered += 1 }
+                    if erasure.contains(CGPoint(x: px, y: py)) { covered += 1 }
                 }
             }
             if covered * 2 >= columns * rows { ranges.append(range) }
         }
-        guard !ranges.isEmpty else { return text.text }
-        let result = NSMutableString(string: text.text)
+        guard !ranges.isEmpty else { return text }
+        let result = NSMutableAttributedString(attributedString: storage)
         for range in ranges.reversed() { result.deleteCharacters(in: range) }
-        return (result as String).trimmingCharacters(in: .whitespaces)
+        let trimmed = result.string.trimmingCharacters(in: .whitespaces)
+        let kept = (result.string as NSString).range(of: trimmed)
+        let attributed = trimmed.isEmpty ? NSAttributedString(string: "") : result.attributedSubstring(from: kept)
+        var updated = text; updated.text = attributed.string; updated.rtf = RichText.data(attributed)
+        return updated
     }
 }

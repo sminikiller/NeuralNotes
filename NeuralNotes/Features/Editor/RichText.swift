@@ -13,11 +13,20 @@ enum RichText {
     static func data(_ text: NSAttributedString) -> Data? {
         try? text.data(from: NSRange(location: 0, length: text.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
     }
+    static func bounds(_ text: TextElement, pageHeight: Double) -> CGRect {
+        let measured = attributed(text).boundingRect(with: CGSize(width: text.width, height: max(0, pageHeight - text.y)), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        return CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize + 4, measured.height))
+    }
+    static func rotation(_ text: TextElement, pageHeight: Double) -> CGAffineTransform {
+        let box = bounds(text, pageHeight: pageHeight)
+        return CGAffineTransform(translationX: box.midX, y: box.midY).rotated(by: CGFloat(text.rotation ?? 0) * .pi / 180).translatedBy(x: -box.midX, y: -box.midY)
+    }
     static func link(at point: CGPoint, text: TextElement, pageHeight: Double) -> URL? {
         let value = attributed(text), storage = NSTextStorage(attributedString: value), layout = NSLayoutManager()
         let container = NSTextContainer(size: CGSize(width: text.width, height: max(1, pageHeight - text.y)))
         container.lineFragmentPadding = 0; storage.addLayoutManager(layout); layout.addTextContainer(container); layout.ensureLayout(for: container)
-        let local = CGPoint(x: point.x - text.x, y: point.y - text.y)
+        let unrotated = point.applying(rotation(text, pageHeight: pageHeight).inverted())
+        let local = CGPoint(x: unrotated.x - text.x, y: unrotated.y - text.y)
         guard layout.usedRect(for: container).contains(local) else { return nil }
         let glyph = layout.glyphIndex(for: local, in: container, fractionOfDistanceThroughGlyph: nil), index = layout.characterIndexForGlyph(at: glyph)
         guard index < value.length else { return nil }

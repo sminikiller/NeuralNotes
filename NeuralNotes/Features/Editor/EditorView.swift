@@ -163,16 +163,11 @@ struct EditorView: View {
                 if let image = captured, let data = image.jpegData(compressionQuality: 0.92) { captured = nil; preparePhoto(data) }
             }) { CameraCapture { image in captured = image; camera = false } }
             .fullScreenCover(isPresented: $scanner) {
-                DocumentScanner { images in
+                DocumentScanner { result in
                     scanner = false
-                    Task {
-                        for (index, image) in images.enumerated() {
-                            guard let bytes = image.jpegData(compressionQuality: 0.9) else { continue }
-                            do {
-                                if index > 0 { await model.addPage() }
-                                model.addImage(try await DocumentServices.importImage(data: bytes, into: model.workspace))
-                            } catch { model.error = error.localizedDescription }
-                        }
+                    switch result {
+                    case .success(let scan): if let scan { Task { await model.importScan(scan) } }
+                    case .failure(let error): model.error = error.localizedDescription
                     }
                 }
             }

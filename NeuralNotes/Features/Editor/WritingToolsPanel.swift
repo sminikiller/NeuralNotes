@@ -28,10 +28,17 @@ extension EditorViewModel {
             let at = CGPoint(x: point.x, y: point.y)
             if i == 0 { trace.move(to: at) } else { trace.addLine(to: at) }
         }
-        let area = trace.copy(strokingWithWidth: writingOptions.eraserWidth, lineCap: .round, lineJoin: .round, miterLimit: 1)
+        let width = writingOptions.eraserWidth
+        let area: CGPath
+        if let point = samples.first, samples.allSatisfy({ hypot($0.x - point.x, $0.y - point.y) < 0.1 }) {
+            area = CGPath(ellipseIn: CGRect(x: point.x - width / 2, y: point.y - width / 2, width: width, height: width), transform: nil)
+        } else { area = trace.copy(strokingWithWidth: width, lineCap: .round, lineJoin: .round, miterLimit: 1) }
         var strokes: [PKStroke] = []
         for stroke in canvas.drawing.strokes {
-            if stroke.ink.inkType == .marker { strokes += InkScratchEraser.erase(PKDrawing(strokes: [stroke]), in: area).drawing.strokes }
+            if stroke.ink.inkType == .marker {
+                let result = InkScratchEraser.erase(PKDrawing(strokes: [stroke]), in: area)
+                if !result.erased || writingOptions.eraser == .partial { strokes += result.drawing.strokes }
+            }
             else { strokes.append(stroke) }
         }
         canvas.drawing = PKDrawing(strokes: strokes); recordEdit(before, label: "Cancella evidenziatore"); drawingChanged()

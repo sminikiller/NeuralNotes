@@ -29,8 +29,8 @@ extension EditorViewModel {
         let area = InkScratchEraser.coverage(of: scratch)
         var texts = page.texts, textChanged = false
         for index in texts.indices {
-            let corrected = TextScratchEraser.eraseWords(texts[index], in: area, pageHeight: page.height)
-            if corrected != texts[index].text { texts[index].text = corrected; textChanged = true }
+            let corrected = TextScratchEraser.eraseFormattedWords(texts[index], in: area, pageHeight: page.height)
+            if corrected.text != texts[index].text { texts[index] = corrected; textChanged = true }
         }
         let erased = InkScratchEraser.erase(previous, in: area)
         guard textChanged || erased.erased else { return false }

@@ -83,6 +83,18 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             await model.performRedo(); XCTAssertNotEqual(model.canvas.drawing.strokes[0].transform, first.transform)
         }
     }
+    @MainActor func testScratchOnRotatedRichTextPreservesTheRemainingWordsFormatting() throws {
+        let value = NSMutableAttributedString(string: "prima dopo", attributes: [.font: UIFont.systemFont(ofSize: 24)])
+        value.addAttribute(.font, value: UIFont.boldSystemFont(ofSize: 24), range: NSRange(location: 6, length: 4))
+        var text = TextElement(text: value.string); text.x = 100; text.y = 100; text.width = 300; text.rotation = 30; text.rtf = RichText.data(value)
+        let trace = CGPath(rect: CGRect(x: 95, y: 95, width: 70, height: 40), transform: nil)
+        var rotation = RichText.rotation(text, pageHeight: 1024)
+        let area = try XCTUnwrap(trace.copy(using: &rotation))
+        let result = TextScratchEraser.eraseFormattedWords(text, in: area, pageHeight: 1024)
+        XCTAssertEqual(result.text, "dopo"); XCTAssertEqual(result.rotation, 30)
+        let font = RichText.attributed(result).attribute(.font, at: 0, effectiveRange: nil) as? UIFont
+        XCTAssertTrue(font?.fontDescriptor.symbolicTraits.contains(.traitBold) == true)
+    }
     @MainActor func testMarkerOnlyEraserLeavesPenAndSupportsUndo() async throws {
         try await fixture { model in
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(), stroke(.marker)]); model.strokeEnded(); model.finishInkGesture()
@@ -90,6 +102,12 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             model.eraseMarkers(samples: [StrokeSample(x: 140, y: 60), StrokeSample(x: 140, y: 100)])
             XCTAssertNil(model.canvas.drawing.strokes[0].mask); XCTAssertNotNil(model.canvas.drawing.strokes[1].mask)
             await model.performUndo(); XCTAssertNil(model.canvas.drawing.strokes[1].mask)
+            model.eraseMarkers(samples: [StrokeSample(x: 140, y: 80)])
+            XCTAssertNil(model.canvas.drawing.strokes[0].mask); XCTAssertNotNil(model.canvas.drawing.strokes[1].mask)
+            await model.performUndo()
+            model.editWriting { $0.eraser = .stroke }
+            model.eraseMarkers(samples: [StrokeSample(x: 140, y: 80)])
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertEqual(model.canvas.drawing.strokes[0].ink.inkType, .pen)
             model.editWriting { $0.pen = .fountainPen }; model.chooseTool(.pen)
             XCTAssertEqual((model.canvas.tool as? PKInkingTool)?.inkType, .fountainPen)
         }

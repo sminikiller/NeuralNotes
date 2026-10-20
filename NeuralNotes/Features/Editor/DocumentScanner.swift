@@ -5,20 +5,47 @@ import NeuralNotesCore
 
 @MainActor
 struct DocumentScanner: UIViewControllerRepresentable {
-    let completion: ([UIImage]) -> Void
+    let completion: (Result<VNDocumentCameraScan?, Error>) -> Void
     func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
         let camera = VNDocumentCameraViewController(); camera.delegate = context.coordinator; return camera
     }
     func updateUIViewController(_ controller: VNDocumentCameraViewController, context: Context) { }
     func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
     final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
-        let completion: ([UIImage]) -> Void
-        init(completion: @escaping ([UIImage]) -> Void) { self.completion = completion }
+        let completion: (Result<VNDocumentCameraScan?, Error>) -> Void
+        init(completion: @escaping (Result<VNDocumentCameraScan?, Error>) -> Void) { self.completion = completion }
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-            completion((0..<min(scan.pageCount, 50)).map { scan.imageOfPage(at: $0) })
+            completion(.success(scan))
         }
-        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) { completion([]) }
-        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) { completion([]) }
+        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) { completion(.success(nil)) }
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) { completion(.failure(error)) }
+    }
+}
+
+@MainActor
+extension EditorViewModel {
+    func importScan(_ scan: VNDocumentCameraScan) async {
+        for index in 0..<scan.pageCount {
+            do {
+                try Task.checkCancellation()
+                // Decode and normalize one page at a time; do not hold a second
+                // array of full camera-resolution images in memory.
+                let bytes: Data = try autoreleasepool {
+                    let source = scan.imageOfPage(at: index)
+                    let format = UIGraphicsImageRendererFormat()
+                    format.scale = min(1, 2400 / max(1, max(source.size.width, source.size.height)))
+                    let image = UIGraphicsImageRenderer(size: source.size, format: format).image { _ in source.draw(at: .zero) }
+                    guard let data = image.jpegData(compressionQuality: 0.9) else { throw CocoaError(.fileReadCorruptFile) }
+                    return data
+                }
+                if index > 0 {
+                    let previous = page?.id; await addPage()
+                    guard page?.id != previous else { throw CocoaError(.fileWriteUnknown) }
+                }
+                addImage(try await DocumentServices.importImage(data: bytes, into: workspace))
+                guard await flush() else { return }
+            } catch { self.error = "Scansione interrotta alla pagina \(index + 1): \(error.localizedDescription). Le pagine già importate restano salvate."; return }
+        }
     }
 }
 
