@@ -66,6 +66,14 @@ extension DocumentWorkspace {
                 }
             }
             combined.attachments += catalog.attachments; combined.sessions += catalog.sessions
+            if let conversation = catalog.conversation {
+                let importedTurns = conversation.map { turn in
+                    AIConversationTurn(question: turn.question, answer: AIArtifact(text: turn.answer.text,
+                        references: turn.answer.references.map(reference), provider: turn.answer.provider,
+                        createdAt: turn.answer.createdAt, task: turn.answer.task))
+                }
+                combined.conversation = Array(((combined.conversation ?? []) + importedTurns).suffix(20))
+            }
             if let cards = catalog.studyCards {
                 combined.studyCards = (combined.studyCards ?? []) + cards.map { card in
                     var result = card; result.source = reference(card.source); return result

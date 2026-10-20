@@ -72,5 +72,11 @@ final class CloudAndIndexTests: XCTestCase {
         XCTAssertEqual(catalog.conversation?.first?.question, "Domanda")
         XCTAssertEqual(catalog.conversation?.first?.answer.references.first?.documentID, doc)
         XCTAssertEqual(catalog.conversation?.first?.answer.references.first?.pageID, pages.first?.id)
+        let appended = try await copy.appendNative(from: workspace.package)
+        let merged = try await copy.catalog()
+        XCTAssertEqual(merged.conversation?.count, 2)
+        XCTAssertEqual(merged.conversation?.last?.question, "Domanda")
+        XCTAssertEqual(merged.conversation?.last?.answer.references.first?.documentID, doc)
+        XCTAssertEqual(merged.conversation?.last?.answer.references.first?.pageID, appended.first?.id)
     }
 }
