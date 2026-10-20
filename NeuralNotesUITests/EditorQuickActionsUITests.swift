@@ -12,7 +12,7 @@ final class EditorQuickActionsUITests: XCTestCase {
     @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["Inserisci foto o forma"].tap(); app.buttons["Inserisci foto"].tap()
-        let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Annulla"])).firstMatch
+        let cancel = app.navigationBars.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Annulla"])).firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 8)); cancel.tap()
         XCTAssertTrue(app.buttons["editorAddText"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["pencilCanvas"].firstMatch.exists)

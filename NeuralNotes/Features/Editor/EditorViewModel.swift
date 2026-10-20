@@ -33,6 +33,8 @@ final class EditorViewModel {
     var tool = InkTool.pen
     var lensArea: CGRect?
     var lensRequest = 0
+    var searchRequest = 0
+    var focusRequest = 0
     var ink = Color.black
     var thickness: Double = 3
     var fingerDrawing = false

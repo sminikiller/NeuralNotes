@@ -22,23 +22,7 @@ enum PageRenderer {
             context.setFillColor(UIColor(red: 0.55, green: 0.65, blue: 0.68, alpha: 0.55).cgColor)
             context.setLineWidth(0.6)
             let step: CGFloat = CGFloat(appearance.spacing)
-            if page.paper != .plain {
-                for y in stride(from: CGFloat(48), through: rect.height, by: step) {
-                    if page.paper == .dotted {
-                        for x in stride(from: CGFloat(24), through: rect.width, by: step) {
-                            context.fillEllipse(in: CGRect(x: x, y: y, width: 1.5, height: 1.5))
-                        }
-                    } else {
-                        context.move(to: CGPoint(x: 0, y: y)); context.addLine(to: CGPoint(x: rect.width, y: y))
-                    }
-                }
-                if page.paper == .grid {
-                    for x in stride(from: CGFloat(24), through: rect.width, by: step) {
-                        context.move(to: CGPoint(x: x, y: 0)); context.addLine(to: CGPoint(x: x, y: rect.height))
-                    }
-                }
-                context.strokePath()
-            }
+            PaperPatternRenderer.draw(page.paper, step: step, in: rect, context: context)
             if appearance.margin {
                 context.setStrokeColor(UIColor.systemRed.withAlphaComponent(0.45).cgColor)
                 context.move(to: CGPoint(x: 64, y: 0)); context.addLine(to: CGPoint(x: 64, y: rect.height)); context.strokePath()

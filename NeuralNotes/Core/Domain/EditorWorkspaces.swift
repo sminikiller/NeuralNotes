@@ -9,6 +9,13 @@ public struct InkColor: Codable, Equatable, Hashable, Sendable {
     public var isValid: Bool { [red, green, blue].allSatisfy { $0.isFinite && (0...1).contains($0) } }
     public static let black = InkColor(0, 0, 0), blue = InkColor(0.1, 0.35, 0.95), red = InkColor(0.95, 0.15, 0.2)
     public static let yellow = InkColor(1, 0.83, 0.12), green = InkColor(0.2, 0.8, 0.4), orange = InkColor(1, 0.5, 0.1)
+    public var hex: String { isValid ? String(format: "#%02X%02X%02X", Int((red * 255).rounded()), Int((green * 255).rounded()), Int((blue * 255).rounded())) : "#000000" }
+    public init?(hex: String) {
+        let trimmed = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+        guard value.count == 6, value.allSatisfy({ $0.isHexDigit }), let number = UInt32(value, radix: 16) else { return nil }
+        self.init(Double((number >> 16) & 255) / 255, Double((number >> 8) & 255) / 255, Double(number & 255) / 255)
+    }
 }
 
 public enum WorkspaceTool: String, Codable, CaseIterable, Sendable {

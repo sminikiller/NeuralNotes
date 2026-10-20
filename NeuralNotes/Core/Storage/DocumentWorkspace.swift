@@ -343,8 +343,14 @@ public actor DocumentWorkspace {
     public func reviewCard(_ id: UUID, rating: ReviewRating, now: Date = Date()) throws {
         var index = try catalog()
         guard var cards = index.studyCards, let position = cards.firstIndex(where: { $0.id == id }) else { throw LibraryFailure.missingItem }
-        cards[position].review(rating, now: now); index.studyCards = cards
+        if index.adaptiveReview == true { try cards[position].reviewAdaptive(rating, now: now) }
+        else { cards[position].review(rating, now: now) }
+        index.studyCards = cards
         try write(index, "catalog.json")
+    }
+    public func setAdaptiveReview(_ enabled: Bool) throws {
+        var index = try catalog(); guard index.adaptiveReview != enabled else { return }
+        index.adaptiveReview = enabled; try write(index, "catalog.json")
     }
 
     public func removeStudyCard(_ id: UUID) throws {

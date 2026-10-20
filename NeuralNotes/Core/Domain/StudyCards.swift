@@ -10,6 +10,7 @@ public struct StudyCard: Codable, Identifiable, Equatable, Sendable {
     public var dueAt: Date
     public var intervalDays: Int = 0
     public var reviewCount: Int = 0
+    public var memory: Card?
     public init(question: String, answer: String, source: SourceReference, now: Date = Date()) {
         self.question = question; self.answer = answer; self.source = source; dueAt = now
     }
@@ -28,6 +29,20 @@ public struct StudyCard: Codable, Identifiable, Equatable, Sendable {
             intervalDays = intervalDays == 0 ? 3 : min(365, intervalDays * 3)
             dueAt = now.addingTimeInterval(Double(intervalDays) * 86400)
         }
+    }
+    /// FSRS-6 with the upstream default weights and deterministic scheduling.
+    /// Old cards migrate lazily; their contents, IDs and current due date remain.
+    public mutating func reviewAdaptive(_ rating: ReviewRating, now: Date = Date()) throws {
+        let previous = memory ?? Card(due: dueAt, stability: reviewCount > 0 ? Double(max(1, intervalDays)) : 0,
+            difficulty: reviewCount > 0 ? 5 : 0, scheduledDays: Double(max(0, intervalDays)), reps: max(0, reviewCount),
+            state: reviewCount > 0 ? .review : .new,
+            lastReview: reviewCount > 0 ? dueAt.addingTimeInterval(-Double(max(1, intervalDays)) * 86400) : nil)
+        guard previous.stability.isFinite, previous.difficulty.isFinite, previous.elapsedDays.isFinite,
+              previous.scheduledDays.isFinite else { throw LibraryFailure.corruptDocument }
+        let engine = FSRS(parameters: FSRSParameters(w: FSRSDefaults.defaultWv6, enableFuzz: false))
+        let grade: Rating = rating == .again ? .again : rating == .easy ? .easy : .good
+        let next = try engine.next(card: previous, now: now, grade: grade).card
+        memory = next; dueAt = next.due; intervalDays = max(0, Int(next.scheduledDays.rounded())); reviewCount = next.reps
     }
 }
 

@@ -63,6 +63,7 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
     }
     @objc private func finishEditing() {
         model?.endTextEdit(); view.resignFirstResponder(); refresh()
+        host?.becomeFirstResponder()
     }
     func refresh() {
         guard let host, let model else { return }
@@ -93,5 +94,8 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         host.bringSubviewToFront(view)
     }
     func textViewDidChange(_ textView: UITextView) { model?.updateLiveText(textView.attributedText); layout() }
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        !(formatting?.replaceNewline(in: range, replacement: text) ?? false)
+    }
     func textViewDidEndEditing(_ textView: UITextView) { model?.endTextEdit() }
 }

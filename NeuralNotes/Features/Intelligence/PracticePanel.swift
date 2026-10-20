@@ -30,7 +30,7 @@ struct PracticePanel: View {
                         if revealed {
                             Text(card.answer).font(.title2.bold()).foregroundStyle(Brand.accent)
                             HStack {
-                                rating("Ancora · 10 min", .again, card)
+                                rating("Ancora", .again, card)
                                 rating("Bene", .good, card)
                                 rating("Facile", .easy, card)
                             }.buttonStyle(.bordered)
@@ -96,6 +96,7 @@ struct PracticePanel: View {
     }
 
     private func reload() async {
+        try? await model.workspace.setAdaptiveReview(true)
         do { cards = try await model.workspace.catalog().studyCards ?? []; revealed = false }
         catch { self.error = error.localizedDescription }
     }

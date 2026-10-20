@@ -4,6 +4,9 @@ import NeuralNotesCore
 
 @MainActor
 final class CanvasHost: UIView {
+    override var canBecomeFirstResponder: Bool { true }
+    override var keyCommands: [UIKeyCommand]? { editorKeyCommands }
+    override func didMoveToWindow() { super.didMoveToWindow(); if window != nil, model?.editingTextID == nil { becomeFirstResponder() } }
     let surface = PageSurfaceView()
     let paperDetail = VisiblePaperDetail()
     let canvas: PKCanvasView

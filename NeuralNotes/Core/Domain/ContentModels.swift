@@ -1,13 +1,15 @@
 import Foundation
 
 public enum PaperStyle: String, Codable, CaseIterable, Sendable {
-    case plain, ruled, grid, dotted
+    case plain, ruled, grid, dotted, cornell, weekly, music, isometric, millimeter, mindMap
     public var title: String {
         switch self {
         case .plain: return "Libero"
         case .ruled: return "Rigato"
         case .grid: return "Quadrettato"
         case .dotted: return "Puntinato"
+        case .cornell: return "Cornell"; case .weekly: return "Agenda settimanale"; case .music: return "Pentagramma"
+        case .isometric: return "Isometrico"; case .millimeter: return "Millimetrato"; case .mindMap: return "Mappa concettuale"
         }
     }
 }
@@ -127,6 +129,7 @@ public struct DocumentCatalog: Codable, Sendable {
     public var sessions: [AudioSession] = []
     public var coverImageFile: String?
     public var studyCards: [StudyCard]?
+    public var adaptiveReview: Bool?
     public var defaultPageTemplate: PageTemplate?
     public var editorWorkspaces: NotebookWorkspaces?
     public var coverDesign: CoverDesign?

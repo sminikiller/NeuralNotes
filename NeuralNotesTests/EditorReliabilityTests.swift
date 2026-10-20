@@ -7,6 +7,26 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testListReturnKeepsFormattingAndEndsAnEmptyItem() {
+        let view = UITextView(); view.attributedText = NSAttributedString(string: "1. Primo", attributes: [.font: UIFont.boldSystemFont(ofSize: 24)])
+        view.typingAttributes = [.font: UIFont.boldSystemFont(ofSize: 24)]
+        var changes = 0; let commands = TextFormatting(view: view) { changes += 1 }
+        XCTAssertTrue(commands.replaceNewline(in: NSRange(location: view.text.utf16.count, length: 0), replacement: "\n"))
+        XCTAssertEqual(view.text, "1. Primo\n2. ")
+        XCTAssertTrue(commands.replaceNewline(in: NSRange(location: view.text.utf16.count, length: 0), replacement: "\n"))
+        XCTAssertEqual(view.text, "1. Primo\n"); XCTAssertEqual(changes, 2)
+        let font = view.attributedText.attribute(.font, at: 0, effectiveRange: nil) as? UIFont
+        XCTAssertTrue(font?.fontDescriptor.symbolicTraits.contains(.traitBold) == true)
+    }
+    @MainActor func testChecklistCanBeToggledWithoutEnteringTextModeAndUndone() async throws {
+        try await fixture { model in
+            var text = TextElement(text: "☐ Attività"); text.x = 50; text.y = 60
+            model.editText([text]); model.chooseTool(.pen)
+            XCTAssertTrue(model.toggleChecklist(at: CGPoint(x: 56, y: 75)))
+            XCTAssertEqual(model.page?.texts.first?.text, "☑ Attività")
+            await model.performUndo(); XCTAssertEqual(model.page?.texts.first?.text, "☐ Attività")
+        }
+    }
     @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -13,6 +13,7 @@ struct PhotoLibraryImport: UIViewControllerRepresentable {
         var config = PHPickerConfiguration(photoLibrary: .shared())
         config.filter = .images; config.selectionLimit = 1; config.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: config); picker.delegate = context.coordinator
+        picker.view.accessibilityViewIsModal = true
         return picker
     }
     func updateUIViewController(_ picker: PHPickerViewController, context: Context) { }

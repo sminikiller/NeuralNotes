@@ -4,6 +4,7 @@ import NeuralNotesCore
 @MainActor
 struct ToolPalettePanel: View {
     @Bindable var model: EditorViewModel
+    @State private var hex = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(model.tool.rawValue).font(.headline)
@@ -15,6 +16,12 @@ struct ToolPalettePanel: View {
                     Image(systemName: model.activePalette.favorites.contains(InkColor(model.ink)) ? "star.fill" : "star")
                 }.accessibilityLabel("Aggiungi o rimuovi il colore dai preferiti")
             }
+            HStack {
+                TextField("#RRGGBB", text: $hex).textInputAutocapitalization(.characters).autocorrectionDisabled()
+                    .font(.system(.callout, design: .monospaced)).accessibilityLabel("Colore esadecimale")
+                    .onSubmit { applyHex() }
+                Button("Applica") { applyHex() }.disabled(InkColor(hex: hex) == nil)
+            }
             Text("Spessori recenti").font(.caption).foregroundStyle(.secondary)
             HStack {
                 ForEach(widths, id: \.self) { value in
@@ -25,8 +32,10 @@ struct ToolPalettePanel: View {
             }
             Slider(value: Binding(get: { model.thickness }, set: { model.chooseWidth($0) }), in: 0.5...12, step: 0.5)
                 .accessibilityLabel("Spessore personalizzato")
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).onAppear { hex = InkColor(model.ink).hex }
+            .onChange(of: model.ink) { _, _ in hex = InkColor(model.ink).hex }
     }
+    private func applyHex() { if let value = InkColor(hex: hex) { model.chooseInk(value.color) } }
     private var widths: [Double] {
         let recent = model.activePalette.recentWidths
         return Array((recent + [1.5, 3, 6].filter { !recent.contains($0) }).prefix(3))

@@ -9,7 +9,7 @@ struct PageTemplateControls: View {
         Section("Carta") {
             Picker("Tipo", selection: $template.paper) {
                 ForEach(PaperStyle.allCases, id: \.self) { style in Text(style.title).tag(style) }
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.menu)
             Picker("Colore del foglio", selection: $template.appearance.tone) {
                 ForEach(PaperTone.allCases, id: \.self) { tone in
                     Text(tone.title).tag(tone)
@@ -35,7 +35,8 @@ struct PageTemplateControls: View {
     }
     private var paperIcon: String {
         switch template.paper { case .plain: return "doc"; case .ruled: return "line.3.horizontal"
-        case .grid: return "square.grid.3x3"; case .dotted: return "circle.grid.3x3" }
+        case .grid, .millimeter, .isometric: return "square.grid.3x3"; case .dotted: return "circle.grid.3x3"
+        case .cornell: return "rectangle.split.2x1"; case .weekly: return "calendar"; case .music: return "music.note.list"; case .mindMap: return "point.3.connected.trianglepath.dotted" }
     }
 }
 

@@ -15,6 +15,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private var originalDrawing: PKDrawing?
     private let fitTap = UITapGestureRecognizer()
     private let pointerFitTap = UITapGestureRecognizer()
+    private let undoTap = UITapGestureRecognizer(), redoTap = UITapGestureRecognizer()
     private let nextSwipe = UISwipeGestureRecognizer(), previousSwipe = UISwipeGestureRecognizer()
     private let nextVerticalSwipe = UISwipeGestureRecognizer(), previousVerticalSwipe = UISwipeGestureRecognizer()
     private var pageSwipes: [UISwipeGestureRecognizer] { [nextSwipe, previousSwipe, nextVerticalSwipe, previousVerticalSwipe] }
@@ -41,6 +42,13 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         tap.require(toFail: fitTap)
         tap.require(toFail: pointerFitTap)
+        undoTap.numberOfTouchesRequired = 2; redoTap.numberOfTouchesRequired = 3
+        undoTap.addTarget(self, action: #selector(historyTap(_:))); redoTap.addTarget(self, action: #selector(historyTap(_:)))
+        undoTap.require(toFail: fitTap)
+        for gesture in [undoTap, redoTap] {
+            gesture.delegate = self; gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            host.canvas.addGestureRecognizer(gesture)
+        }
         nextSwipe.direction = .left; previousSwipe.direction = .right
         nextVerticalSwipe.direction = .up; previousVerticalSwipe.direction = .down
         for swipe in pageSwipes {
@@ -82,6 +90,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
         guard let model, let host, !model.loading, !model.navigating else { return false }
+        if gesture === undoTap || gesture === redoTap { return model.hasLease && !model.hasActiveStroke && model.editingTextID == nil }
+        if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,
+           model.checklistHit(at: gesture.location(in: host.surface)) != nil { return true }
         if gesture === fitTap || gesture === pointerFitTap { return model.editingTextID == nil }
         if pageSwipes.contains(where: { $0 === gesture }) {
             return model.hasLease && !model.interactionBusy && host.canvas.zoomScale <= host.canvas.minimumZoomScale * 1.05
@@ -113,6 +124,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func fitPage(_ gesture: UITapGestureRecognizer) { host?.togglePageZoom(animated: true) }
+    @objc private func historyTap(_ gesture: UITapGestureRecognizer) {
+        Task { if gesture === undoTap { await model?.performUndo() } else { await model?.performRedo() } }
+    }
 
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         guard let host, let model else { return }
@@ -120,6 +134,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             host.flow?.activateAtPoint(gesture.location(in: host)); return
         }
         let point = gesture.location(in: host.surface)
+        if model.toggleChecklist(at: point) { return }
         if model.tool == .lens { model.lensArea = CGRect(x: point.x - 60, y: point.y - 30, width: 120, height: 60); model.lensRequest += 1; return }
         if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }
         else if model.tool == .audioLink { Task { await model.playAudio(at: point, tolerance: 18 / max(host.canvas.zoomScale, 0.1)) } }

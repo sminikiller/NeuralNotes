@@ -220,6 +220,8 @@ struct EditorView: View {
                 studyInspector
             }
             .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
+            .onChange(of: model.searchRequest) { _, _ in panel = .search }
+            .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
         }
     }
 
@@ -278,18 +280,8 @@ struct EditorView: View {
             await model.importPages(from: url, native: importKind == "native"); return
         }
         guard await model.flush() else { return }
-        let before = model.pages.map(\.id), selectedBefore = model.page?.id
         do {
             switch importKind {
-            case "native":
-                if model.audio?.recording == true { await model.audio?.pause(reason: "Importazione pagine") }
-                let access = url.startAccessingSecurityScopedResource()
-                defer { if access { url.stopAccessingSecurityScopedResource() } }
-                let pages = try await model.workspace.appendNative(from: url)
-                if let page = pages.first { await model.select(page) }
-            case "pdf":
-                let pages = try await DocumentServices.importPDF(from: url, into: model.workspace)
-                if let page = pages.first { await model.select(page) }
             case "image":
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
@@ -297,14 +289,7 @@ struct EditorView: View {
             default: try await DocumentServices.importAttachment(from: url, into: model.workspace)
             }
         } catch { model.error = error.localizedDescription }
-        if importKind == "native" || importKind == "pdf" {
-            // PDF import may retain successfully added pages after a later
-            // failure. Include those in history as well as successful imports.
-            do {
-                model.pages = try await model.workspace.pages()
-                model.recordOrder(before, selectedBefore: selectedBefore, label: "Importa pagine")
-            } catch { model.error = error.localizedDescription }
-        }
+
     }
 
     private func recognize() async {

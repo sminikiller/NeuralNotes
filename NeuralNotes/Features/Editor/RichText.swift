@@ -22,6 +22,15 @@ enum RichText {
         return CGAffineTransform(translationX: box.midX, y: box.midY).rotated(by: CGFloat(text.rotation ?? 0) * .pi / 180).translatedBy(x: -box.midX, y: -box.midY)
     }
     static func link(at point: CGPoint, text: TextElement, pageHeight: Double) -> URL? {
+        guard let index = characterIndex(at: point, text: text, pageHeight: pageHeight) else { return nil }
+        let value = attributed(text)
+        if let url = value.attribute(.link, at: index, effectiveRange: nil) as? URL { return url }
+        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+            return detector.matches(in: text.text, range: NSRange(location: 0, length: value.length)).first(where: { NSLocationInRange(index, $0.range) })?.url
+        }
+        return nil
+    }
+    static func characterIndex(at point: CGPoint, text: TextElement, pageHeight: Double) -> Int? {
         let value = attributed(text), storage = NSTextStorage(attributedString: value), layout = NSLayoutManager()
         let container = NSTextContainer(size: CGSize(width: text.width, height: max(1, pageHeight - text.y)))
         container.lineFragmentPadding = 0; storage.addLayoutManager(layout); layout.addTextContainer(container); layout.ensureLayout(for: container)
@@ -30,19 +39,53 @@ enum RichText {
         guard layout.usedRect(for: container).contains(local) else { return nil }
         let glyph = layout.glyphIndex(for: local, in: container, fractionOfDistanceThroughGlyph: nil), index = layout.characterIndexForGlyph(at: glyph)
         guard index < value.length else { return nil }
-        if let url = value.attribute(.link, at: index, effectiveRange: nil) as? URL { return url }
-        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
-            return detector.matches(in: text.text, range: NSRange(location: 0, length: value.length)).first(where: { NSLocationInRange(index, $0.range) })?.url
-        }
-        return nil
+        guard layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).insetBy(dx: -3, dy: -3).contains(local) else { return nil }
+        return index
     }
 }
 
 @MainActor
-final class TextFormatting: NSObject {
+final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
     weak var view: UITextView?
     var didChange: (() -> Void)?
-    init(view: UITextView, didChange: @escaping () -> Void) { self.view = view; self.didChange = didChange; super.init() }
+    init(view: UITextView, didChange: @escaping () -> Void) {
+        self.view = view; self.didChange = didChange; super.init()
+        let tap = UITapGestureRecognizer(target: self, action: #selector(checklistTapped(_:)))
+        tap.cancelsTouchesInView = false; tap.delegate = self; tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        view.addGestureRecognizer(tap)
+    }
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
+    @objc private func checklistTapped(_ gesture: UITapGestureRecognizer) {
+        guard let view else { return }
+        let point = gesture.location(in: view), local = CGPoint(x: point.x - view.textContainerInset.left, y: point.y - view.textContainerInset.top)
+        let layout = view.layoutManager, container = view.textContainer
+        guard layout.usedRect(for: container).contains(local) else { return }
+        let glyph = layout.glyphIndex(for: local, in: container, fractionOfDistanceThroughGlyph: nil)
+        guard layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).insetBy(dx: -3, dy: -3).contains(local) else { return }
+        let index = layout.characterIndexForGlyph(at: glyph)
+        guard index < view.attributedText.length else { return }
+        let old = (view.text as NSString).substring(with: NSRange(location: index, length: 1))
+        guard old == "☐" || old == "☑" else { return }
+        let selected = view.selectedRange, value = NSMutableAttributedString(attributedString: view.attributedText)
+        value.replaceCharacters(in: NSRange(location: index, length: 1), with: old == "☐" ? "☑" : "☐")
+        view.attributedText = value; view.selectedRange = selected; didChange?()
+    }
+    func replaceNewline(in range: NSRange, replacement: String) -> Bool {
+        guard replacement == "\n", range.length == 0, let view, range.location <= view.attributedText.length else { return false }
+        let source = view.text as NSString, paragraph = source.paragraphRange(for: range)
+        let beforeCaret = source.substring(with: NSRange(location: paragraph.location, length: range.location - paragraph.location))
+        guard let continuation = TextLists.continuation(of: beforeCaret) else { return false }
+        let value = NSMutableAttributedString(attributedString: view.attributedText)
+        if continuation.empty {
+            value.deleteCharacters(in: NSRange(location: paragraph.location, length: continuation.consumed))
+            view.attributedText = value; view.selectedRange = NSRange(location: paragraph.location, length: 0)
+        } else {
+            let insertion = "\n" + continuation.prefix
+            value.insert(NSAttributedString(string: insertion, attributes: view.typingAttributes), at: range.location)
+            view.attributedText = value; view.selectedRange = NSRange(location: range.location + insertion.utf16.count, length: 0)
+        }
+        didChange?(); return true
+    }
     func toolbar(doneTarget: Any?, doneAction: Selector?) -> UIToolbar {
         let bar = UIToolbar()
         let actions: [(String, Selector)] = [("B", #selector(bold)), ("I", #selector(italic)), ("U", #selector(underline)), ("•", #selector(bullet)), ("☐", #selector(checklist)), ("x²", #selector(superscript)), ("x₂", #selector(subscriptText)), ("A", #selector(normalBaseline))]
@@ -112,6 +155,9 @@ struct RichTextEditor: UIViewRepresentable {
         var formatting: TextFormatting?
         init(_ parent: RichTextEditor) { self.parent = parent }
         func textViewDidChange(_ textView: UITextView) { parent.text.text = textView.text; parent.text.rtf = RichText.data(textView.attributedText) }
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            !(formatting?.replaceNewline(in: range, replacement: text) ?? false)
+        }
         @objc func done() { formatting?.view?.resignFirstResponder() }
     }
 }
