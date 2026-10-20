@@ -40,6 +40,42 @@ public enum TranscriptText {
         let lines = minutes(segments).map { "[\(clock($0.start))] \($0.text)" }
         return "\(title)\n\(state) · riferimenti ogni minuto circa\n\n" + lines.joined(separator: "\n\n") + "\n"
     }
+    /// Speech recognition reports one segment per word. Merge them into short
+    /// phrases before saving: a two-hour lecture otherwise stores ~15,000 entries
+    /// in the catalog. A phrase never crosses a minute, so minute corrections and
+    /// exports are unchanged; it also ends after a pause or a sentence mark.
+    public static func phrases(_ segments: [TranscriptSegment], maximum: Double = 10, pause: Double = 1.2) -> [TranscriptSegment] {
+        let words = segments.filter { $0.start.isFinite && $0.start >= 0 && $0.duration.isFinite
+            && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.sorted { $0.start < $1.start }
+        var result: [TranscriptSegment] = []
+        var current: TranscriptSegment?
+        for word in words {
+            let text = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let end = word.start + max(0, word.duration)
+            if var phrase = current {
+                let phraseEnd = phrase.start + phrase.duration
+                let sameMinute = floor(phrase.start / 60) == floor(word.start / 60)
+                let sentenceEnded = phrase.text.last.map { ".?!".contains($0) } ?? false
+                if sameMinute, !sentenceEnded, word.start - phraseEnd <= pause, end - phrase.start <= maximum {
+                    phrase.text += " " + text
+                    phrase.duration = max(phrase.duration, end - phrase.start)
+                    current = phrase
+                    continue
+                }
+                result.append(phrase)
+            }
+            current = TranscriptSegment(start: word.start, duration: max(0, word.duration), text: text)
+        }
+        if let current { result.append(current) }
+        return result
+    }
+    /// Preview text of the first minute without grouping the whole transcript.
+    public static func firstMinuteText(_ segments: [TranscriptSegment]) -> String {
+        let valid = segments.filter { $0.start.isFinite && $0.start >= 0 && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard let first = valid.map(\.start).min() else { return "" }
+        let key = floor(first / 60)
+        return valid.filter { floor($0.start / 60) == key }.sorted { $0.start < $1.start }.map(\.text).joined(separator: " ")
+    }
 }
 
 public extension AudioSession {
