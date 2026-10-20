@@ -3,6 +3,26 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class EditorWorkspacesTests: XCTestCase {
+    func testHeldTriangleAndArrowPreserveGeometryAndRejectOpenTriangle() {
+        func samples(_ vertices: [StrokeSample]) -> [StrokeSample] {
+            var result: [StrokeSample] = []
+            for (a, b) in zip(vertices, vertices.dropFirst()) {
+                for i in 0..<30 {
+                    let t = Double(i) / 30
+                    result.append(StrokeSample(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+                }
+            }
+            if let last = vertices.last { result.append(last) }; return result
+        }
+        let triangle = samples([StrokeSample(x: 45, y: 20), StrokeSample(x: 140, y: 80), StrokeSample(x: 10, y: 120), StrokeSample(x: 45, y: 20)])
+        XCTAssertEqual(HeldShapeRecognition.recognize(triangle), .triangle)
+        XCTAssertEqual(HeldShapeRecognition.triangleVertices(triangle)?.count, 3)
+        XCTAssertNil(HeldShapeRecognition.triangleVertices(Array(triangle.prefix(45))))
+        let arrow = samples([StrokeSample(x: 10, y: 20), StrokeSample(x: 150, y: 20), StrokeSample(x: 125, y: 5), StrokeSample(x: 150, y: 20), StrokeSample(x: 125, y: 35)])
+        XCTAssertEqual(HeldShapeRecognition.recognize(arrow), .arrow)
+        XCTAssertEqual(HeldShapeRecognition.arrowEndpoints(arrow)?.1.x, 150)
+        XCTAssertNil(HeldShapeRecognition.arrowEndpoints(Array(arrow.prefix(65))))
+    }
     func testHeldLineRecognitionHandlesDiagonalAndVerticalDirections() {
         for direction in [-1.0, 1.0] {
             let diagonal = (0...30).map { i -> StrokeSample in

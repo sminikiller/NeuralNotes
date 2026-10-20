@@ -77,9 +77,13 @@ enum BackendCredentials {
     static func save(_ token: String) throws {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service, kSecAttrAccount as String: "session"]
-        let deletion = SecItemDelete(query as CFDictionary)
-        guard deletion == errSecSuccess || deletion == errSecItemNotFound else { throw AIConnectionFailure.configuration }
-        guard !token.isEmpty else { return }
+        if token.isEmpty {
+            let status = SecItemDelete(query as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else { throw AIConnectionFailure.configuration }; return
+        }
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: Data(token.utf8)] as CFDictionary)
+        if status == errSecSuccess { return }
+        guard status == errSecItemNotFound else { throw AIConnectionFailure.configuration }
         var value = query
         value[kSecValueData as String] = Data(token.utf8)
         value[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly

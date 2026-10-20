@@ -172,6 +172,8 @@ enum PreciseStrokeGeometry {
         let rect = CGRect(x: xs.min() ?? a.x, y: ys.min() ?? a.y, width: max(1, (xs.max() ?? b.x) - (xs.min() ?? a.x)), height: max(1, (ys.max() ?? b.y) - (ys.min() ?? a.y)))
         switch kind {
         case .line, .arrow:
+            let endpoints = kind == .arrow ? HeldShapeRecognition.arrowEndpoints(points) : nil
+            let a = endpoints?.0 ?? a, b = endpoints?.1 ?? b
             path.move(to: CGPoint(x: a.x, y: a.y)); path.addLine(to: CGPoint(x: b.x, y: b.y))
             if kind == .arrow {
                 let angle = atan2(b.y - a.y, b.x - a.x)
@@ -181,6 +183,10 @@ enum PreciseStrokeGeometry {
             }
         case .ellipse: return UIBezierPath(ovalIn: rect)
         case .rectangle: return UIBezierPath(rect: rect)
+        case .triangle:
+            let vertices = HeldShapeRecognition.triangleVertices(points) ?? [StrokeSample(x: rect.midX, y: rect.minY), StrokeSample(x: rect.maxX, y: rect.maxY), StrokeSample(x: rect.minX, y: rect.maxY)]
+            path.move(to: CGPoint(x: vertices[0].x, y: vertices[0].y))
+            for point in vertices.dropFirst() { path.addLine(to: CGPoint(x: point.x, y: point.y)) }; path.close()
         }
         return path
     }
@@ -192,16 +198,28 @@ enum PreciseStrokeGeometry {
         let bounds = path.bounds
         if kind == .line, let a = points.first, let b = points.last {
             locations = [CGPoint(x: a.x, y: a.y), CGPoint(x: b.x, y: b.y)]
-        } else if kind == .rectangle {
-            let corners = [CGPoint(x: bounds.minX, y: bounds.minY), CGPoint(x: bounds.maxX, y: bounds.minY), CGPoint(x: bounds.maxX, y: bounds.maxY), CGPoint(x: bounds.minX, y: bounds.maxY), CGPoint(x: bounds.minX, y: bounds.minY)]
-            for (a, b) in zip(corners, corners.dropFirst()) {
-                let count = max(2, min(400, Int(ceil(hypot(b.x - a.x, b.y - a.y) / 4))))
-                for i in 0..<count {
-                    let t = CGFloat(i) / CGFloat(count)
-                    locations.append(CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+        } else if kind == .arrow || kind == .rectangle || kind == .triangle {
+            // Respect move commands (arrow wings): return to the tip rather than
+            // connecting the two wings across their opening.
+            var pen = CGPoint.zero
+            path.cgPath.applyWithBlock { element in
+                let element = element.pointee
+                switch element.type {
+                case .moveToPoint:
+                    pen = element.points[0]; locations.append(pen)
+                case .addLineToPoint:
+                    let end = element.points[0]
+                    let count = max(2, min(400, Int(ceil(hypot(end.x - pen.x, end.y - pen.y) / 4))))
+                    let start = pen
+                    for i in 1...count {
+                        let t = CGFloat(i) / CGFloat(count)
+                        locations.append(CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t))
+                    }; pen = end
+                case .closeSubpath:
+                    if let first = locations.first { locations.append(first) }
+                default: break
                 }
             }
-            locations.append(corners[0])
         } else {
             locations = (0...120).map { i in
                 let angle = Double(i) * 2 * .pi / 120

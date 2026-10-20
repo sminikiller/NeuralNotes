@@ -7,9 +7,9 @@ struct StudyPanel: View {
     let notebook: Notebook
     let library: LibraryViewModel
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("ai.backendURL") private var endpoint = ""
-    @State private var token = ""
-    @State private var consent = false
+    @State private var configuration = AIEngineStore.load()
+    @State private var consentKey: String?
+    @State private var configuring = false
     @State private var task = AITask.summarize
     @State private var question = ""
     @State private var includeFolder = false
@@ -17,7 +17,6 @@ struct StudyPanel: View {
     @State private var error: String?
     @State private var busy = false
     @State private var job: Task<Void, Never>?
-    @State private var remote = false
     @State private var semantic = false
     @State private var history: [AIArtifact] = []
 
@@ -32,20 +31,11 @@ struct StudyPanel: View {
                         ForEach(AITask.allCases, id: \.self) { value in Text(value.title).tag(value) }
                     }
                     TextField("Domanda o istruzioni", text: $question, axis: .vertical).lineLimit(3...6)
-                    Toggle("Usa un backend AI remoto", isOn: $remote)
+                    Button("Motore: \(configuration.engine.title)", systemImage: "slider.horizontal.3") { configuring = true }
                     Toggle("Seleziona le fonti per significato (modello locale)", isOn: $semantic)
                 }
-                if remote {
-                  Section("Connessione AI opzionale") {
-                    Text("Per un modello generativo serve un backend personale: le chiavi del provider restano sul server.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    TextField("Endpoint HTTPS del backend", text: $endpoint).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        .keyboardType(.URL)
-                    SecureField("Token di sessione del backend", text: $token)
-                    Toggle("Consento l’invio delle fonti selezionate al mio backend", isOn: $consent)
-                  }
-                } else {
-                    Section { Text("La sintesi locale seleziona frasi dalle fonti e crea schemi o esercizi di completamento. Funziona offline e non usa un modello generativo.").font(.caption) }
+                if configuration.engine == .offline {
+                    Section { Text("La sintesi locale seleziona frasi dalle fonti. Funziona offline e non usa un modello generativo.").font(.caption) }
                 }
                 Section {
                     if !history.isEmpty {
@@ -55,9 +45,9 @@ struct StudyPanel: View {
                             }
                         }
                     }
-                    Button(busy ? "Elaborazione…" : remote ? "Genera con il backend" : "Elabora sul dispositivo", systemImage: "sparkles") {
+                    Button(busy ? "Elaborazione…" : configuration.engine != .offline ? "Genera con il motore scelto" : "Elabora sul dispositivo", systemImage: "sparkles") {
                         job = Task { await generate() }
-                    }.disabled(busy || (remote && (!consent || endpoint.isEmpty || token.isEmpty)))
+                    }.disabled(busy || (configuration.engine != .offline && consentKey != configuration.consentKey))
                     if busy { Button("Annulla richiesta") { job?.cancel() } }
                 }
                 if let error { Section { Text(error).foregroundStyle(.red) } }
@@ -78,25 +68,21 @@ struct StudyPanel: View {
             }
             .navigationTitle("Studia con le fonti")
             .task {
-                token = BackendCredentials.load()
                 do { history = try await model.workspace.artifacts(); result = history.last }
                 catch { self.error = error.localizedDescription }
             }
+            .sheet(isPresented: $configuring) { AIConnectionPanel(configuration: $configuration, consentKey: $consentKey) }
+            .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { job?.cancel() }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
         }
     }
 
     private func generate() async {
-        let url = URL(string: endpoint)
-        guard !remote || (consent && url?.scheme == "https") else {
-            error = AIConnectionFailure.configuration.localizedDescription; return
-        }
         busy = true; error = nil
         defer { busy = false }
         do {
             guard await model.flush() else { return }
-            if remote { try BackendCredentials.save(token) }
             let books: [Notebook]
             if includeFolder, let folder = notebook.folderID { books = library.notebooksInFolderTree(folder) }
             else { books = [notebook] }
@@ -111,9 +97,7 @@ struct StudyPanel: View {
                 selected = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: question, from: chunks, limit: 40)
             } else { selected = try await LexicalRetrievalService().retrieve(question: question, from: chunks, limit: 40) }
             let request = AIRequest(task: task, question: question, sources: selected)
-            let artifact: AIArtifact
-            if remote, let url { artifact = try await RemoteAIProvider(endpoint: url, sessionToken: token).generate(request) }
-            else { artifact = try await ExtractiveStudyProvider().generate(request) }
+            let artifact = try await AIEngineRouter.generate(request, configuration: configuration, consentKey: consentKey)
             try Task.checkCancellation()
             result = artifact
             try await model.workspace.saveArtifact(artifact)

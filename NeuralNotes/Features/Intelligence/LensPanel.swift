@@ -6,11 +6,9 @@ import NeuralNotesCore
 struct LensPanel: View {
     @Bindable var model: EditorViewModel
     let notebook: Notebook
-    @AppStorage("ai.backendURL") private var endpoint = ""
-    @AppStorage("ai.lens.remote") private var remote = false
+    @State private var configuration = AIEngineStore.load()
+    @State private var consentKey: String?
     @State private var configuring = false
-    @State private var consent = false
-    @State private var token = ""
     @State private var question = ""
     @State private var turns: [AIConversationTurn] = []
     @State private var sources: [IndexedChunk] = []
@@ -23,7 +21,7 @@ struct LensPanel: View {
             HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); settings }.padding(.horizontal)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    Text(remote ? "Risposte sulle fonti selezionate, con riferimenti." : "Modalità offline: estratti delle fonti, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
+                    Text(configuration.engine != .offline ? "Risposte sulle fonti selezionate, con riferimenti." : "Modalità offline: estratti delle fonti, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
                     Text("\(sources.count) fonti · area cerchiata o selezione; altrimenti la pagina corrente").font(.caption)
                     ForEach(turns) { turn in
                         Text(turn.question).font(.headline)
@@ -58,6 +56,7 @@ struct LensPanel: View {
                 if busy { Button("Stop") { job?.cancel() } }
             }.padding()
         }.task(id: selectionKey) { await load() }
+            .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { job?.cancel() }
     }
     private var selectionKey: String {
@@ -67,23 +66,10 @@ struct LensPanel: View {
     }
     private var settings: some View {
         Button { configuring = true } label: { Image(systemName: "slider.horizontal.3") }
-            .popover(isPresented: $configuring) {
-                NavigationStack {
-                    Form {
-                        Toggle("Usa il backend AI", isOn: $remote)
-                        TextField("Endpoint HTTPS", text: $endpoint).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        SecureField("Token del backend", text: $token)
-                        Toggle("Consento l’invio delle fonti selezionate", isOn: $consent)
-                        Text("Le chiavi del provider restano sul server. Senza connessione resta disponibile l’estrazione offline.").font(.caption)
-                        Button("Aggiorna selezione") { Task { await loadSources() } }
-                    }.navigationTitle("Connessione AI")
-                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { configuring = false } } }
-                }.frame(width: 340, height: 420)
-            }
+            .sheet(isPresented: $configuring) { AIConnectionPanel(configuration: $configuration, consentKey: $consentKey) }
     }
     private func load() async {
         job?.cancel()
-        token = BackendCredentials.load()
         turns = (try? await model.workspace.catalog().conversation) ?? []
         await loadSources()
     }
@@ -122,12 +108,7 @@ struct LensPanel: View {
             do {
                 let context = turns.suffix(2).map { "Domanda: \($0.question.prefix(300))\nRisposta precedente: \($0.answer.text.prefix(500))" }.joined(separator: "\n")
                 let request = AIRequest(task: .chat, question: "\(context)\nDomanda attuale: \(prompt)", sources: sources)
-                let answer: AIArtifact
-                if remote {
-                    guard consent, let url = URL(string: endpoint) else { throw AIConnectionFailure.configuration }
-                    try BackendCredentials.save(token)
-                    answer = try await RemoteAIProvider(endpoint: url, sessionToken: token).generateStreaming(request) { partial += $0 }
-                } else { answer = try await ExtractiveStudyProvider().generate(request) }
+                let answer = try await AIEngineRouter.generate(request, configuration: configuration, consentKey: consentKey) { partial += $0 }
                 try Task.checkCancellation()
                 let turn = AIConversationTurn(question: prompt, answer: answer)
                 try await model.workspace.saveConversationTurn(turn); turns = Array((turns + [turn]).suffix(20))

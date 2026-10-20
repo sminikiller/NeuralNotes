@@ -31,6 +31,10 @@ enum ElementRendering {
         switch shape.kind {
         case .ellipse: context.strokeEllipse(in: rect)
         case .rectangle: context.stroke(rect)
+        case .triangle:
+            context.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            context.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); context.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            context.closePath(); context.strokePath()
         case .line, .arrow:
             let start = shape.start ?? ShapeEndpoint(x: 0, y: 1), end = shape.end ?? ShapeEndpoint(x: 1, y: 0)
             let a = CGPoint(x: rect.minX + CGFloat(start.x) * rect.width, y: rect.minY + CGFloat(start.y) * rect.height)

@@ -10,12 +10,12 @@ public struct NormalizedCrop: Codable, Equatable, Sendable {
 }
 
 public enum ShapeKind: String, Codable, CaseIterable, Sendable {
-    case ellipse, rectangle, line, arrow
+    case ellipse, rectangle, line, arrow, triangle
     public var title: String {
-        switch self { case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .line: return "Linea"; case .arrow: return "Freccia" }
+        switch self { case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .line: return "Linea"; case .arrow: return "Freccia"; case .triangle: return "Triangolo" }
     }
     public var icon: String {
-        switch self { case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .line: return "line.diagonal"; case .arrow: return "arrow.up.right" }
+        switch self { case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .line: return "line.diagonal"; case .arrow: return "arrow.up.right"; case .triangle: return "triangle" }
     }
 }
 
