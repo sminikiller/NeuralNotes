@@ -68,6 +68,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             host.addGestureRecognizer(gesture)
         }
         host.canvas.panGestureRecognizer.require(toFail: pan)
+        host.addInteraction(UIContextMenuInteraction(delegate: self))
     }
 
     func refresh() {
@@ -279,5 +280,27 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             return visual ? box.applying(RichText.rotation(text, pageHeight: page.height)) : box
         }
         return nil
+    }
+}
+
+@MainActor
+extension CanvasInteraction: UIContextMenuInteractionDelegate {
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        guard let host, let model, model.hasLease, model.tool == .objects,
+              !model.interactionBusy, !model.navigating, !model.loading,
+              let id = hit(host.surface.convert(location, from: host)), id != inkID else { return nil }
+        if !model.selectedIDs.contains(id) { model.selectedObjectID = id }; refresh()
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            guard let model = self?.model else { return nil }
+            let copy = UIAction(title: "Copia", image: UIImage(systemName: "doc.on.doc")) { _ in model.copySelection() }
+            let duplicate = UIAction(title: "Duplica", image: UIImage(systemName: "plus.square.on.square")) { _ in model.duplicateSelectedObject() }
+            let edit = UIAction(title: "Modifica", image: UIImage(systemName: "slider.horizontal.3")) { _ in model.objectEditorRequest += 1 }
+            let front = UIAction(title: "Porta davanti", image: UIImage(systemName: "square.3.layers.3d.top.filled")) { _ in model.arrangeSelection(front: true) }
+            let back = UIAction(title: "Porta dietro", image: UIImage(systemName: "square.3.layers.3d.bottom.filled")) { _ in model.arrangeSelection(front: false) }
+            let lock = UIAction(title: "Blocca", image: UIImage(systemName: "lock")) { _ in model.lockSelection() }
+            let ai = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkles")) { _ in model.lensRequest += 1 }
+            let remove = UIAction(title: "Elimina", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in model.deleteSelectedObject() }
+            return UIMenu(children: [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove])
+        }
     }
 }

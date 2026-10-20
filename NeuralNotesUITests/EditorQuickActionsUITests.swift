@@ -90,7 +90,12 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(canvas.exists)
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.3)).tap()
         let input = app.textViews["pageTextInput"]
-        XCTAssertTrue(input.waitForExistence(timeout: 5)); input.typeText("Testo sul foglio")
+        let appeared = input.waitForExistence(timeout: 5)
+        if !appeared {
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
+            let hierarchy = XCTAttachment(string: app.debugDescription); hierarchy.lifetime = .keepAlways; add(hierarchy)
+        }
+        XCTAssertTrue(appeared); input.typeText("Testo sul foglio")
         app.buttons["pageTextDone"].tap()
         XCTAssertFalse(app.textViews["pageTextInput"].exists)
         app.buttons["editorFitPage"].tap()

@@ -47,7 +47,7 @@ final class EditorReliabilityTests: XCTestCase {
             coordinator.load(provider)
         }
         let decoded = try DocumentServices.photoPreview(try XCTUnwrap(received))
-        XCTAssertEqual(decoded.size.width, 80, accuracy: 1); XCTAssertEqual(decoded.size.height, 60, accuracy: 1)
+        XCTAssertEqual(decoded.cgImage?.width, image.cgImage?.width); XCTAssertEqual(decoded.cgImage?.height, image.cgImage?.height)
     }
     @MainActor func testAudioReplayDoesNotMutateInkAndRestoresDrawingInteraction() async throws {
         try await fixture { model in

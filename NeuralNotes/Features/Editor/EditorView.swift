@@ -229,6 +229,7 @@ struct EditorView: View {
                 studyInspector
             }
             .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
+            .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
             .onChange(of: model.searchRequest) { _, _ in panel = .search }
             .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
         }

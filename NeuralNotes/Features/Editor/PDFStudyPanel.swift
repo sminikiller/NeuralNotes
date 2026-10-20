@@ -78,7 +78,9 @@ final class PDFStudyController: NSObject {
         guard let view, self.file != file || view.document == nil else { return }
         stopSearch()
         self.file = file; markupStamp = ""; view.document = PDFDocument(url: package.appendingPathComponent(file)); outline = []
+        var visitedNodes = 0
         func visit(_ node: PDFOutline, level: Int) {
+            guard level <= 12, visitedNodes < 5000 else { return }; visitedNodes += 1
             if let destination = node.destination { outline.append(OutlineRow(label: String(repeating: "  ", count: max(0, min(6, level))) + (node.label ?? "Sezione"), destination: destination)) }
             for i in 0..<node.numberOfChildren { if let child = node.child(at: i) { visit(child, level: level + 1) } }
         }
