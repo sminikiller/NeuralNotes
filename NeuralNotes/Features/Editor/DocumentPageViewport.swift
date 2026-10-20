@@ -7,6 +7,7 @@ struct DocumentPageViewport: View {
     var body: some View {
         PencilCanvas(model: model)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("pencilCanvas")
             .accessibilityValue(model.canvasZoomed ? "Ingrandita" : "Pagina intera")
             .overlay(alignment: .bottomLeading) {

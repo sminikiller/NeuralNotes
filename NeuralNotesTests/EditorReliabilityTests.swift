@@ -7,6 +7,25 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testAudioReplayDoesNotMutateInkAndRestoresDrawingInteraction() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            model.canvas.drawing = PKDrawing(strokes: [stroke(.pen), stroke(.marker)])
+            let original = model.canvas.drawing.dataRepresentation(), session = UUID()
+            let firstKey = "\(model.canvas.drawing.strokes[0].path.creationDate.timeIntervalSince1970):0"
+            model.page?.anchors = [StrokeAnchor(signature: firstKey, audioSessionID: session, seconds: 10)]
+            host.surface.page = try XCTUnwrap(model.page)
+            model.audio?.replayInk = true; model.audio?.playingSessionID = session; model.audio?.playback = 0
+            host.inkReplay.update(host)
+            XCTAssertFalse(host.inkReplay.isHidden); XCTAssertEqual(model.canvas.layer.opacity, 0)
+            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), original)
+            model.audio?.playingSessionID = nil; host.inkReplay.update(host)
+            XCTAssertTrue(host.inkReplay.isHidden); XCTAssertEqual(model.canvas.layer.opacity, 1)
+            XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), original)
+        }
+    }
     @MainActor func testPageImageAndMarkdownExportKeepContentAndDoNotChangeNotebook() async throws {
         try await fixture { model in
             model.editText([TextElement(text: "Appunto esportabile")]); _ = await model.flush()

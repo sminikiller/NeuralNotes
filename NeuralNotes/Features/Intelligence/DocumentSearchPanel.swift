@@ -25,7 +25,7 @@ struct DocumentSearchPanel: View {
                         ForEach(Array(results.enumerated()), id: \.offset) { row in
                             Button { Task { await navigate(row.element.reference) } } label: {
                                 VStack(alignment: .leading) {
-                                    Text(row.element.text).lineLimit(5).foregroundStyle(.primary)
+                                    SearchResultText(text: row.element.text, query: query)
                                     Text(location(row.element.reference)).font(.caption).foregroundStyle(.secondary)
                                 }
                             }

@@ -95,7 +95,13 @@ final class EditorViewModel {
             defer { self.maintenanceTask = nil }
             _ = try? await self.workspace.indexedChunks()
             if UserDefaults.standard.object(forKey: "backup.automatic") as? Bool != false, let metadata = self.backupMetadata {
-                do { _ = try await self.workspace.createAutomaticBackup(metadata: metadata); self.backupWarning = nil }
+                do {
+                    let created = try await self.workspace.createAutomaticBackup(metadata: metadata)
+                    let latest: URL?
+                    if let created { latest = created } else { latest = try await self.workspace.automaticBackups().first?.url }
+                    if let latest { _ = try await ExternalBackupWriter.shared.copy(latest, documentID: self.workspace.documentID) }
+                    self.backupWarning = nil
+                }
                 catch { self.backupWarning = "Backup automatico da riprovare: \(error.localizedDescription)" }
             }
             do { try await Task.sleep(for: .seconds(2)) } catch { return }

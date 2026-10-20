@@ -10,6 +10,7 @@ struct StudyPanel: View {
     @State private var configuration = AIEngineStore.load()
     @State private var consentKey: String?
     @State private var configuring = false
+    @State private var glossary = false
     @State private var task = AITask.summarize
     @State private var question = ""
     @State private var includeFolder = false
@@ -32,6 +33,7 @@ struct StudyPanel: View {
                     }
                     TextField("Domanda o istruzioni", text: $question, axis: .vertical).lineLimit(3...6)
                     Button("Motore: \(configuration.engine.title)", systemImage: "slider.horizontal.3") { configuring = true }
+                    Button("Glossario del quaderno", systemImage: "character.book.closed") { glossary = true }
                     Toggle("Seleziona le fonti per significato (modello locale)", isOn: $semantic)
                 }
                 if configuration.engine == .offline {
@@ -71,6 +73,7 @@ struct StudyPanel: View {
                 do { history = try await model.workspace.artifacts(); result = history.last }
                 catch { self.error = error.localizedDescription }
             }
+            .sheet(isPresented: $glossary) { GlossaryPanel(model: model) }
             .sheet(isPresented: $configuring) { AIConnectionPanel(configuration: $configuration, consentKey: $consentKey) }
             .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { job?.cancel() }

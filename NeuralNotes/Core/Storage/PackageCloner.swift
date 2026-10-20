@@ -34,6 +34,9 @@ extension NativeDocumentStore {
                 if catalog.sessions[index].state == "recording" { catalog.sessions[index].state = "paused" }
                 for segment in catalog.sessions[index].segments.indices { catalog.sessions[index].segments[segment].id = UUID() }
                 for segment in catalog.sessions[index].transcript.indices { catalog.sessions[index].transcript[segment].id = UUID() }
+                if var bookmarks = catalog.sessions[index].bookmarks {
+                    for i in bookmarks.indices { bookmarks[i].id = UUID() }; catalog.sessions[index].bookmarks = bookmarks
+                }
                 if var chunks = catalog.sessions[index].transcriptionChunks {
                     for chunk in chunks.indices {
                         for word in chunks[chunk].segments.indices { chunks[chunk].segments[word].id = UUID() }
@@ -77,6 +80,17 @@ extension NativeDocumentStore {
                 catalog.studyCards = cards
                 try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             }
+            catalog.lensCache = nil
+            if var glossary = catalog.glossary {
+                for i in glossary.indices {
+                    glossary[i].id = UUID()
+                    glossary[i].references = glossary[i].references.map { reference in
+                        guard reference.documentID == manifest.documentID else { return reference }
+                        return SourceReference(documentID: documentID, pageID: reference.pageID.flatMap { pageMap[$0] }, audioSessionID: reference.audioSessionID.flatMap { sessionMap[$0] }, seconds: reference.seconds, pageRevision: reference.pageRevision)
+                    }
+                }; catalog.glossary = glossary
+            }
+            try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             if let conversation = catalog.conversation {
                 catalog.conversation = conversation.map { turn in
                     let original = turn.answer

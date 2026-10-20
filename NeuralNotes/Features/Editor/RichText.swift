@@ -102,7 +102,7 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
     }
     func toolbar(doneTarget: Any?, doneAction: Selector?) -> UIToolbar {
         let bar = UIToolbar()
-        let actions: [(String, Selector)] = [("B", #selector(bold)), ("I", #selector(italic)), ("U", #selector(underline)), ("•", #selector(bullet)), ("☐", #selector(checklist)), ("x²", #selector(superscript)), ("x₂", #selector(subscriptText)), ("A", #selector(normalBaseline))]
+        let actions: [(String, Selector)] = [("B", #selector(bold)), ("I", #selector(italic)), ("U", #selector(underline)), ("•", #selector(bullet)), ("☐", #selector(checklist)), ("x²", #selector(superscript)), ("x₂", #selector(subscriptText)), ("A", #selector(normalBaseline)), ("Definisci", #selector(dictionary))]
         bar.items = actions.map { UIBarButtonItem(title: $0.0, style: .plain, target: self, action: $0.1) }
         if let doneAction {
             let done = UIBarButtonItem(title: "Fine", style: .done, target: doneTarget, action: doneAction)
@@ -128,6 +128,10 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
             if traits.contains(trait) { traits.remove(trait) } else { traits.insert(trait) }
             if let descriptor = font.fontDescriptor.withSymbolicTraits(traits) { attrs[.font] = UIFont(descriptor: descriptor, size: font.pointSize) }
         }
+    }
+    @objc func dictionary() {
+        guard let view, view.selectedRange.length > 0, NSMaxRange(view.selectedRange) <= (view.text as NSString).length else { return }
+        SystemDictionary.open(term: (view.text as NSString).substring(with: view.selectedRange), from: view)
     }
     @objc func bold() { trait(.traitBold) }
     @objc func italic() { trait(.traitItalic) }

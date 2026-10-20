@@ -3,7 +3,7 @@ import Observation
 import NeuralNotesCore
 
 enum LibraryScope: Hashable {
-    case all, favorites, trash, folder(UUID)
+    case all, favorites, pinned, inbox, trash, folder(UUID), tag(String)
 }
 
 enum LibrarySort: String, CaseIterable, Identifiable {
@@ -31,6 +31,8 @@ final class LibraryViewModel {
     var lastDeletedID: UUID?
     var importing = false
     var coverRevision = 0
+    var organization: [UUID: NotebookOrganization] = [:]
+    var allTags: [String] { Array(Set(organization.values.flatMap(\.tags))).sorted() }
     var recentIDs: [UUID] = UserDefaults.standard.stringArray(forKey: "library.recentNotebookIDs")?.compactMap(UUID.init(uuidString:)) ?? []
     var recentNotebooks: [Notebook] {
         let available = Dictionary(uniqueKeysWithValues: notebooks.map { ($0.id, $0) })
@@ -52,6 +54,9 @@ final class LibraryViewModel {
         switch scope ?? .all {
         case .all: return "La tua libreria"
         case .favorites: return "Preferiti"
+        case .pinned: return "In primo piano"
+        case .inbox: return "Inbox"
+        case .tag(let tag): return "#" + tag
         case .trash: return "Cestino"
         case .folder(let id): return folders.first { $0.id == id }?.title ?? "Cartella"
         }
@@ -63,11 +68,16 @@ final class LibraryViewModel {
             switch scope ?? .all {
             case .all: inScope = true
             case .favorites: inScope = notebook.isFavorite
+            case .pinned: inScope = organization[notebook.id]?.pinned == true
+            case .inbox: inScope = organization[notebook.id]?.inbox == true
+            case .tag(let tag): inScope = organization[notebook.id]?.tags.contains(tag) == true
             case .trash: inScope = true
             case .folder(let id): inScope = notebook.folderID == id
             }
-            return inScope && (query.isEmpty || notebook.title.localizedStandardContains(query))
+            return inScope && (query.isEmpty || notebook.title.localizedStandardContains(query) || (organization[notebook.id]?.tags.contains(where: { $0.localizedStandardContains(query) }) == true))
         }.sorted { lhs, rhs in
+            let leftPinned = organization[lhs.id]?.pinned == true, rightPinned = organization[rhs.id]?.pinned == true
+            if leftPinned != rightPinned { return leftPinned }
             switch sort {
             case .name:
                 let order = lhs.title.localizedStandardCompare(rhs.title)
@@ -118,6 +128,34 @@ final class LibraryViewModel {
 
     func update(_ notebook: Notebook, title: String, cover: NotebookCover, folderID: UUID?) -> Bool {
         perform { try repository.updateNotebook(id: notebook.id, title: title, folderID: folderID, cover: cover) }
+    }
+
+    func loadOrganization() async {
+        let books = notebooks, live = Set(books.map(\.id))
+        var values = organization.filter { live.contains($0.key) }
+        for book in books {
+            guard !Task.isCancelled else { return }
+            if let workspace = try? workspace(book), let catalog = try? await workspace.catalog() { values[book.id] = catalog.organization ?? NotebookOrganization() }
+        }
+        guard !Task.isCancelled else { return }; organization = values
+    }
+    func setOrganization(_ value: NotebookOrganization, for book: Notebook) async -> Bool {
+        do {
+            try await workspace(book).setOrganization(value); organization[book.id] = value
+            try repository.touchNotebook(id: book.id); try reload(); return true
+        } catch { errorMessage = error.localizedDescription; return false }
+    }
+    func togglePinned(_ book: Notebook) async {
+        var value = organization[book.id] ?? NotebookOrganization(); value.pinned.toggle()
+        _ = await setOrganization(value, for: book)
+    }
+    func createQuickNote() async -> Notebook? {
+        do {
+            let book = try repository.createNotebook(title: "Nota \(Date().formatted(date: .abbreviated, time: .shortened))", folderID: nil, cover: .sand, template: PageTemplate())
+            var value = NotebookOrganization(); value.inbox = true
+            try await workspace(book).setOrganization(value); organization[book.id] = value
+            try reload(); scope = .inbox; query = ""; return book
+        } catch { errorMessage = error.localizedDescription; return nil }
     }
 
     func toggleFavorite(_ notebook: Notebook) {

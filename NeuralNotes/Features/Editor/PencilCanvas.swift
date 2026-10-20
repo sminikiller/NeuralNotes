@@ -10,6 +10,7 @@ final class CanvasHost: UIView {
     let surface = PageSurfaceView()
     let paperDetail = VisiblePaperDetail()
     let foregroundObjects = ForegroundObjectsView()
+    let inkReplay = InkReplayOverlay()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -32,7 +33,7 @@ final class CanvasHost: UIView {
         PaperInk.configure(canvas)
         PaperInk.configureNavigation(canvas, fingerDrawing: false)
         paperDetail.isHidden = true; paperDetail.isUserInteractionEnabled = false
-        addSubview(surface); addSubview(paperDetail); addSubview(canvas)
+        addSubview(surface); addSubview(paperDetail); addSubview(canvas); addSubview(inkReplay)
         foregroundObjects.isUserInteractionEnabled = false; foregroundObjects.isOpaque = false; foregroundObjects.backgroundColor = .clear
         addSubview(foregroundObjects)
         canvas.backgroundColor = .clear; canvas.isOpaque = false
@@ -149,7 +150,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self) }
+        defer { foregroundObjects.update(self); inkReplay.update(self) }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)

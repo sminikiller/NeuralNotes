@@ -32,6 +32,7 @@ struct AudioPanel: View {
     @State private var presentation: AudioPresentation?
     @State private var seekSeconds: Double = 0
     @State private var seeking = false
+    @State private var importingAudio = false
 
     var body: some View {
         NavigationStack {
@@ -54,10 +55,28 @@ struct AudioPanel: View {
                         .font(.caption).foregroundStyle(audio.backgroundAudioConfigured ? Color.secondary : Color.orange)
                 }
                 .disabled(audio.transitioning || audio.transcribingSessionID != nil)
+                Section("Ascolto") {
+                    Picker("Velocità", selection: Binding(get: { audio.playbackRate }, set: { audio.setPlaybackRate($0) })) {
+                        ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], id: \.self) { rate in Text("\(rate, specifier: "%.2g")×").tag(rate) }
+                    }
+                    Toggle("Rivela gli appunti al momento dell’audio", isOn: $audio.replayInk)
+                    Text("Il replay mostra i tratti collegati fino al momento ascoltato. Il disegno originale è conservato.").font(.caption)
+                    Button("Importa audio da File", systemImage: "waveform.badge.plus") { importingAudio = true }
+                        .disabled(audio.recording || audio.transitioning || audio.transcribingSessionID != nil)
+                }
                 ForEach(audio.sessions) { session in
                     Section(session.title) {
                         Text("\(clock(session.duration)) · \(session.state == "finished" ? "Conclusa" : "In corso / recuperata")")
                             .font(.caption).foregroundStyle(.secondary)
+                        Button("Segnalibro qui", systemImage: "bookmark.badge.plus") { Task { await audio.addBookmark(sessionID: session.id) } }.buttonStyle(.borderless)
+                            .disabled(audio.transcribingSessionID != nil)
+                        ForEach(session.bookmarks ?? []) { bookmark in
+                            HStack {
+                                Button("\(clock(bookmark.seconds)) · \(bookmark.title)", systemImage: "bookmark.fill") { Task { await audio.play(session, at: bookmark.seconds) } }.buttonStyle(.borderless)
+                                Spacer()
+                                Button("Elimina segnalibro", systemImage: "xmark", role: .destructive) { Task { await audio.removeBookmark(bookmark, sessionID: session.id) } }.labelStyle(.iconOnly).buttonStyle(.borderless).disabled(audio.transcribingSessionID != nil)
+                            }
+                        }
                         Button("Riproduci", systemImage: "play.circle") { Task { await audio.play(session) } }
                         if audio.playingSessionID == session.id {
                             Slider(value: $seekSeconds, in: 0...max(session.duration, 0.1), onEditingChanged: { editing in
@@ -132,6 +151,12 @@ struct AudioPanel: View {
                 switch item {
                 case .read(let id): TranscriptReader(audio: audio, sessionID: id)
                 case .edit(let session): TranscriptEditor(audio: audio, session: session)
+                }
+            }
+            .fileImporter(isPresented: $importingAudio, allowedContentTypes: [.audio]) { result in
+                switch result {
+                case .success(let url): Task { await audio.importAudio(url) }
+                case .failure(let error): audio.error = error.localizedDescription
                 }
             }
             .onChange(of: audio.playback) { _, value in if !seeking { seekSeconds = value } }

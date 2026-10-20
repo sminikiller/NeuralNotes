@@ -32,10 +32,17 @@ public struct SourceReference: Codable, Equatable, Sendable {
     }
 }
 
+public enum SearchContentKind: String, Codable, CaseIterable, Sendable {
+    case text, pdf, handwriting, audio, glossary
+    public var title: String {
+        switch self { case .text: return "Testo"; case .pdf: return "PDF"; case .handwriting: return "Grafia e OCR"; case .audio: return "Audio"; case .glossary: return "Glossario" }
+    }
+}
 public struct IndexedChunk: Codable, Sendable {
     public let text: String
     public let reference: SourceReference
-    public init(text: String, reference: SourceReference) { self.text = text; self.reference = reference }
+    public let kind: SearchContentKind?
+    public init(text: String, reference: SourceReference, kind: SearchContentKind? = nil) { self.text = text; self.reference = reference; self.kind = kind }
 }
 
 public enum AITask: String, Codable, CaseIterable, Sendable {

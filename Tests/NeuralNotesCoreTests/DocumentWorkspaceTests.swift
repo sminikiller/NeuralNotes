@@ -3,6 +3,62 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class DocumentWorkspaceTests: XCTestCase {
+    func testGlossaryAndBoundedSelectionCacheSurviveReopenAndEnterSearch() async throws {
+        let (root, _, manifest, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let page = try await workspace.addPage(), reference = SourceReference(documentID: manifest.documentID)
+        let entry = GlossaryEntry(term: "Entropia", definition: "Definizione rivista", references: [reference])
+        try await workspace.saveGlossaryEntry(entry)
+        for i in 0..<35 {
+            let key = String(format: "%064x", i)
+            try await workspace.cacheLensAnswer(key: key, artifact: AIArtifact(text: "Risposta \(i)", references: [reference], provider: "fixture"))
+        }
+        let catalog = try await workspace.catalog(); XCTAssertEqual(catalog.glossary?.first, entry); XCTAssertEqual(catalog.lensCache?.count, 32)
+        let absent = try await workspace.cachedLensAnswer(key: String(format: "%064x", 0)); XCTAssertNil(absent)
+        let present = try await workspace.cachedLensAnswer(key: String(format: "%064x", 34)); XCTAssertEqual(present?.text, "Risposta 34")
+        let chunks = try await workspace.indexedChunks(); XCTAssertTrue(chunks.contains { $0.text.contains("Entropia") })
+        XCTAssertNoThrow(try NativePackageInspector.inspect(workspace.package))
+        var invalid = entry; invalid.term = ""
+        do { try await workspace.saveGlossaryEntry(invalid); XCTFail("Empty term accepted") } catch { }
+        try await workspace.removeGlossaryEntry(entry.id)
+        let remaining = try await workspace.catalog().glossary; XCTAssertTrue(remaining?.isEmpty == true)
+        let pages = try await workspace.pages(); XCTAssertEqual(page.id, pages.first?.id)
+    }
+    func testOrganizationTravelsWithNativeNotebookAndValidatesTags() async throws {
+        let (root, _, _, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        _ = try await workspace.addPage()
+        var organization = NotebookOrganization()
+        organization.tags = NotebookOrganization.tags(from: " Matematica, esame , MATEMATICA, "); organization.pinned = true; organization.inbox = true
+        XCTAssertEqual(organization.tags, ["matematica", "esame"])
+        try await workspace.setOrganization(organization)
+        let value = try await workspace.catalog().organization; XCTAssertEqual(value, organization)
+        XCTAssertNoThrow(try NativePackageInspector.inspect(workspace.package))
+        organization.tags = [String(repeating: "x", count: 33)]
+        do { try await workspace.setOrganization(organization); XCTFail("Invalid tag accepted") } catch { }
+        let unchanged = try await workspace.catalog().organization; XCTAssertEqual(unchanged, value)
+    }
+    func testImportedAudioIsAnIndependentFileAndBookmarksSurviveReopen() async throws {
+        let (root, _, _, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        _ = try await workspace.addPage()
+        let source = root.appendingPathComponent("lecture.wav"), bytes = Data(repeating: 7, count: 2_100_000)
+        try bytes.write(to: source)
+        var session = try await workspace.importAudio(from: source, duration: 3600, title: "Lezione")
+        XCTAssertEqual(session.duration, 3600); XCTAssertEqual(session.state, "finished")
+        try Data([8]).write(to: source)
+        let copied = try await workspace.url(session.segments[0].file)
+        XCTAssertEqual(try Data(contentsOf: copied), bytes)
+        session.bookmarks = [AudioBookmark(title: "Definizione", seconds: 123)]; session.revision = 2
+        try await workspace.saveSession(session)
+        let catalog = try await workspace.catalog(); XCTAssertEqual(catalog.sessions.first?.bookmarks?.first?.seconds, 123)
+        XCTAssertNoThrow(try NativePackageInspector.inspect(workspace.package))
+        do { _ = try await workspace.importAudio(from: source, duration: .nan, title: "No"); XCTFail("Invalid duration accepted") } catch { }
+    }
+    func testReplayOnlyFiltersStrokesLinkedToThePlayingSession() {
+        let session = UUID(), other = UUID()
+        let anchors = [StrokeAnchor(signature: "a", audioSessionID: session, seconds: 4), StrokeAnchor(signature: "b", audioSessionID: other, seconds: 100), StrokeAnchor(signature: "c", audioSessionID: session, seconds: 10)]
+        XCTAssertEqual(AudioReplay.visible(signatures: ["a", "b", "c", "free"], anchors: anchors, sessionID: session, seconds: 5), [0, 1, 3])
+        XCTAssertEqual(AudioReplay.visible(signatures: ["a", "b", "c", "free"], anchors: anchors, sessionID: session, seconds: 10), [0, 1, 2, 3])
+        XCTAssertEqual(AudioReplay.visible(signatures: ["a", "b", "c", "free"], anchors: anchors, sessionID: session, seconds: 0), [1, 3])
+    }
     private func fixture() throws -> (URL, NativeDocumentStore, DocumentManifest, DocumentWorkspace) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = try NativeDocumentStore(root: root)

@@ -124,6 +124,7 @@ public struct AudioSession: Codable, Identifiable, Equatable, Sendable {
     public var transcriptionChunks: [TranscriptionChunk]?
     public var transcriptCorrections: [TranscriptCorrection]?
     public var transcriptionComplete: Bool?
+    public var bookmarks: [AudioBookmark]?
     public var duration: Double { segments.map { $0.start + $0.duration }.max() ?? 0 }
     public init(title: String) { self.title = title }
 }
@@ -140,5 +141,8 @@ public struct DocumentCatalog: Codable, Sendable {
     public var coverDesign: CoverDesign?
     public var coverUsesLastEditedPage: Bool?
     public var conversation: [AIConversationTurn]?
+    public var organization: NotebookOrganization?
+    public var glossary: [GlossaryEntry]?
+    public var lensCache: [CachedLensAnswer]?
     public init() { }
 }

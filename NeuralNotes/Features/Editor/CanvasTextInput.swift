@@ -72,15 +72,18 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
             if !view.isHidden { view.resignFirstResponder(); view.isHidden = true }
             host.surface.hiddenTextID = nil; shownID = nil; return
         }
-        if shownID != id {
+        let needsFocus = shownID != id
+        if needsFocus {
             shownID = id; view.attributedText = RichText.attributed(text); view.isHidden = false
-            view.becomeFirstResponder()
         } else if view.text != text.text && view.markedTextRange == nil { view.attributedText = RichText.attributed(text) }
         let tone = page.appearance?.tone ?? .white
         view.backgroundColor = .clear
         if text.rtf == nil { view.textColor = text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black }
         host.surface.hiddenTextID = id
         layout()
+        // Establish a real on-page frame before UIKit starts its text-input and
+        // accessibility session (a zero-sized first responder can lose its AX children).
+        if needsFocus { view.becomeFirstResponder() }
     }
     func layout() {
         guard !view.isHidden, let host, let model, let page = model.page,

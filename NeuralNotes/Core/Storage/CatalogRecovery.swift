@@ -17,13 +17,20 @@ enum CatalogRecovery {
         guard version == 1 else { throw LibraryFailure.unsupportedVersion(version) }
         let value = try decoder.decode(DocumentCatalog.self, from: data)
         guard value.defaultPageTemplate?.appearance.isValid != false,
+              value.organization?.isValid != false,
               value.editorWorkspaces?.isValid != false, value.coverDesign?.isValid != false,
               Set(value.sessions.map(\.id)).count == value.sessions.count else { throw LibraryFailure.corruptDocument }
+        try validateStudy(value)
         for path in references(value) {
             let file = try NativeArchive.fileURL(path, in: package)
             if requireMedia, try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile != true { throw LibraryFailure.corruptDocument }
         }
         return value
+    }
+    static func validateStudy(_ value: DocumentCatalog) throws {
+        let glossary = value.glossary ?? [], cache = value.lensCache ?? []
+        guard glossary.count <= 1000, Set(glossary.map(\.id)).count == glossary.count, glossary.allSatisfy(\.isValid), cache.count <= 32,
+              cache.allSatisfy({ $0.key.count == 64 && $0.key.allSatisfy(\.isHexDigit) && $0.artifact.text.count <= 16000 }) else { throw LibraryFailure.corruptDocument }
     }
     static func references(_ value: DocumentCatalog) -> [String] {
         value.attachments.map(\.file) + value.sessions.flatMap { $0.segments.map(\.file) } + [value.coverImageFile].compactMap { $0 }

@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import NeuralNotesCore
 
 private enum LibrarySheet: Identifiable {
-    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud
+    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook)
     var id: String {
         switch self {
         case .createNotebook: return "new-notebook"
@@ -17,6 +17,7 @@ private enum LibrarySheet: Identifiable {
         case .recovery: return "recovery"
         case .search: return "search"
         case .cloud: return "cloud"
+        case .organization(let book): return "organization-\(book.id)"
         }
     }
 }
@@ -53,6 +54,7 @@ struct LibraryView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .task(id: model.notebooks.map { "\($0.id)|\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: ",")) { await model.loadOrganization() }
         .task {
             guard !checkedResume else { return }; checkedResume = true
             await Task.yield()
@@ -103,6 +105,7 @@ struct LibraryView: View {
                 if let workspace = try? model.workspace(notebook) { StoragePanel(workspace: workspace, metadata: notebook) }
             case .recovery: RecoveryPanel(library: model)
             case .cloud: CloudSyncPanel(library: model)
+            case .organization(let book): NotebookOrganizationPanel(library: model, notebook: book)
             case .search:
                 GlobalSearchPanel(library: model) { book, reference in pendingSearch = (book, reference) }
             }
@@ -138,11 +141,19 @@ struct LibraryView: View {
         .onAppear { model.sort = LibrarySort(rawValue: persistedSort) ?? .modified }
     }
 
+    private func openImmediately(_ book: Notebook) {
+        do { resumeEditor = EditorViewModel(workspace: try model.workspace(book)); resumeNotebook = book }
+        catch { model.errorMessage = error.localizedDescription }
+    }
+
     private var sidebar: some View {
         List(selection: $model.scope) {
             Section {
                 Label("Tutti i quaderni", systemImage: "books.vertical").tag(LibraryScope.all)
                 Label("Preferiti", systemImage: "star").tag(LibraryScope.favorites)
+                Label("In primo piano", systemImage: "pin").tag(LibraryScope.pinned)
+                Label("Inbox", systemImage: "tray").tag(LibraryScope.inbox)
+                Button("Nota rapida", systemImage: "square.and.pencil") { Task { if let book = await model.createQuickNote() { openImmediately(book) } } }
                 Label("Cestino", systemImage: "trash").tag(LibraryScope.trash)
             }
             Section {
@@ -162,6 +173,9 @@ struct LibraryView: View {
                 }
                 .accessibilityIdentifier("newFolderButton")
             } header: { Text("Cartelle") }
+            if !model.allTags.isEmpty {
+                Section("Tag") { ForEach(model.allTags, id: \.self) { tag in Label(tag, systemImage: "number").tag(LibraryScope.tag(tag)) } }
+            }
             Section {
                 Label("Sul tuo iPad", systemImage: "internaldrive")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -214,7 +228,7 @@ struct LibraryView: View {
                 if model.scope != .trash && model.query.isEmpty {
                     LibraryDashboard(notebooks: model.visibleNotebooks,
                         recent: model.recentNotebooks.filter { recent in model.visibleNotebooks.contains { $0.id == recent.id } },
-                        library: model, create: { sheet = .createNotebook }, importFile: { importingNotebook = true }, open: { resumeNotebook = $0 })
+                        library: model, create: { sheet = .createNotebook }, importFile: { importingNotebook = true }, open: { openImmediately($0) })
                 }
                 if model.visibleNotebooks.isEmpty {
                     emptyState.frame(maxWidth: .infinity).padding(.vertical, 36)
@@ -311,6 +325,8 @@ struct LibraryView: View {
         .accessibilityHint("Apri il quaderno. Altre azioni nel menu contestuale.")
         .contextMenu {
             Button("Modifica e rinomina", systemImage: "pencil") { sheet = .editNotebook(notebook) }
+            Button("Tag e organizzazione", systemImage: "tag") { sheet = .organization(notebook) }
+            Button(model.organization[notebook.id]?.pinned == true ? "Rimuovi da primo piano" : "Metti in primo piano", systemImage: "pin") { Task { await model.togglePinned(notebook) } }
             Button("Personalizza copertina", systemImage: "paintpalette") { sheet = .cover(notebook) }
             Button("Spazio e recupero", systemImage: "externaldrive") { sheet = .storage(notebook) }
             Button(notebook.isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti", systemImage: "star") { model.toggleFavorite(notebook) }
@@ -325,7 +341,11 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(notebook.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                if model.organization[notebook.id]?.pinned == true { Image(systemName: "pin.fill").font(.caption).foregroundStyle(Brand.accent) }
                 if notebook.isFavorite { Image(systemName: "star.fill").font(.caption).foregroundStyle(Brand.accent) }
+            }
+            if let tags = model.organization[notebook.id]?.tags, !tags.isEmpty {
+                Text(tags.prefix(3).map { "#" + $0 }.joined(separator: "  ")).font(.caption2).foregroundStyle(Brand.accent).lineLimit(1)
             }
             Text(notebook.updatedAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.caption).foregroundStyle(.secondary)

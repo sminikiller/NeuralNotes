@@ -74,6 +74,11 @@ extension DocumentWorkspace {
                 }
                 combined.conversation = Array(((combined.conversation ?? []) + importedTurns).suffix(20))
             }
+            if let glossary = catalog.glossary {
+                combined.glossary = Array(((combined.glossary ?? []) + glossary.map { entry in
+                    var copy = entry; copy.id = UUID(); copy.references = entry.references.map(reference); return copy
+                }).suffix(1000))
+            }
             if let cards = catalog.studyCards {
                 combined.studyCards = (combined.studyCards ?? []) + cards.map { card in
                     var result = card; result.source = reference(card.source); return result

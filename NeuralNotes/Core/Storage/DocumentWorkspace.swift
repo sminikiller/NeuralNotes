@@ -62,16 +62,11 @@ public actor DocumentWorkspace {
         let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("NeuralNotesSearch").appendingPathComponent("\(documentID).json")
         if let data = try? Data(contentsOf: cache), let snapshot = try? JSONDecoder().decode(SearchSnapshot.self, from: data),
-           snapshot.format == 1, snapshot.generation == generation {
+           snapshot.format == 2, snapshot.generation == generation {
             searchChunks = snapshot.chunks
         } else {
             let ocr = loadOCRCache()
-            let content = try pages().map { source -> PageSnapshot in
-                var page = source
-                if let recognized = ocr[page.id.uuidString], recognized.revision == page.revision { page.recognizedText += "\n" + recognized.text }
-                return page
-            }
-            let snapshot = SearchSnapshot.make(pages: content, catalog: try catalog(), documentID: documentID, generation: generation)
+            let snapshot = SearchSnapshot.make(pages: try pages(), catalog: try catalog(), documentID: documentID, generation: generation, automaticOCR: ocr)
             searchChunks = snapshot.chunks
             // Derived-data failures never fail a notebook save or search.
             try? FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -116,6 +111,10 @@ public actor DocumentWorkspace {
 
     public func pages() throws -> [PageSnapshot] {
         try manifest().pageIDs.map { try readPage($0) }
+    }
+    public func pageSnapshot(_ id: UUID) throws -> PageSnapshot {
+        guard try manifest().pageIDs.contains(id) else { throw LibraryFailure.missingItem }
+        return try readPage(id)
     }
 
     public func lastEditedPage() throws -> PageSnapshot? {

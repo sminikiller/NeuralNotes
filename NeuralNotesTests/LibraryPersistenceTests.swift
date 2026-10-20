@@ -6,6 +6,25 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class LibraryPersistenceTests: XCTestCase {
+    @MainActor func testQuickNoteInboxTagsAndPinnedOrderingSurviveLibraryRecreation() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repo = try repository(at: root), library = LibraryViewModel(repository: repo)
+        try library.reload()
+        let created = await library.createQuickNote(), quick = try XCTUnwrap(created)
+        XCTAssertEqual(library.scope, .inbox); XCTAssertEqual(library.visibleNotebooks.map(\.id), [quick.id])
+        let other = try repo.createNotebook(title: "Altro", folderID: nil, cover: .midnight)
+        var value = NotebookOrganization(); value.tags = ["esame"]; value.pinned = true; value.inbox = true
+        let saved = await library.setOrganization(value, for: quick); XCTAssertTrue(saved)
+        let reopened = LibraryViewModel(repository: repo); try reopened.reload(); await reopened.loadOrganization()
+        reopened.scope = .all; XCTAssertEqual(reopened.visibleNotebooks.first?.id, quick.id)
+        reopened.scope = .tag("esame"); XCTAssertEqual(reopened.visibleNotebooks.map(\.id), [quick.id])
+        reopened.scope = .all; reopened.query = "esame"; XCTAssertEqual(reopened.visibleNotebooks.map(\.id), [quick.id])
+        XCTAssertFalse(reopened.visibleNotebooks.contains(where: { $0.id == other.id }))
+        let editor = EditorViewModel(workspace: try reopened.workspace(quick)); await editor.open(); editor.addText()
+        let closed = await editor.close(); XCTAssertTrue(closed)
+        let catalog = try await reopened.workspace(quick).catalog(); XCTAssertEqual(catalog.organization, value)
+    }
     @MainActor
     func testPDFImportCreatesNotebookWithEditablePagesAndKeepsOriginalBytes() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

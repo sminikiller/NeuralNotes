@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import NeuralNotesCore
 
 @MainActor
@@ -7,6 +8,8 @@ struct StoragePanel: View {
     var editor: EditorViewModel? = nil
     var metadata: Notebook? = nil
     @AppStorage("backup.automatic") private var automaticBackup = true
+    @State private var choosingBackupFolder = false
+    @State private var externalFolderName = ExternalBackupDestination.name
     @State private var backups: [AutomaticBackupInfo] = []
     @Environment(\.dismiss) private var dismiss
     @State private var report: WorkspaceStorageReport?
@@ -31,7 +34,10 @@ struct StoragePanel: View {
                             Task {
                                 busy = true; defer { busy = false }
                                 if let editor, !(await editor.flush()) { return }
-                                do { _ = try await workspace.createAutomaticBackup(metadata: metadata, minimumInterval: 0); await refresh() }
+                                do {
+                                    if let file = try await workspace.createAutomaticBackup(metadata: metadata, minimumInterval: 0) { _ = try await ExternalBackupWriter.shared.copy(file, documentID: workspace.documentID) }
+                                    await refresh()
+                                }
                                 catch { self.error = error.localizedDescription }
                             }
                         }.disabled(busy || editor?.hasActiveStroke == true)
@@ -42,6 +48,15 @@ struct StoragePanel: View {
                         }
                     }
                     if backups.isEmpty { Text("La prima copia viene creata dopo il salvataggio del quaderno.").font(.caption) }
+                }
+                Section("Copia in una cartella di File") {
+                    Text(externalFolderName.map { "Destinazione per tutti i quaderni: \($0)" } ?? "Nessuna destinazione scelta").font(.caption)
+                    Button("Scegli cartella", systemImage: "folder.badge.plus") { choosingBackupFolder = true }
+                    if externalFolderName != nil {
+                        Button("Copia ultimo backup adesso", systemImage: "externaldrive") { Task { await copyExternalBackup() } }.disabled(backups.isEmpty)
+                        Button("Scollega cartella", role: .destructive) { ExternalBackupDestination.remove(); externalFolderName = nil }
+                    }
+                    Text("Le copie locali restano sull’iPad. Nella cartella scelta vengono conservate cinque versioni per quaderno; un errore del provider File non elimina quelle locali.").font(.caption)
                 }
                 if catalogRecovery?.needsRecovery == true, let editor {
                     Section("Catalogo da recuperare") {
@@ -91,6 +106,13 @@ struct StoragePanel: View {
                 ToolbarItem(placement: .primaryAction) { Button("Aggiorna", systemImage: "arrow.clockwise") { Task { await refresh() } } }
                 ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }
             }
+            .fileImporter(isPresented: $choosingBackupFolder, allowedContentTypes: [.folder]) { result in
+                do {
+                    let folder = try result.get(); try ExternalBackupDestination.choose(folder)
+                    externalFolderName = ExternalBackupDestination.name
+                    Task { await copyExternalBackup() }
+                } catch { self.error = error.localizedDescription }
+            }
             .confirmationDialog(deletePages ? "Eliminare definitivamente le pagine rimosse?" : "Eliminare i file non referenziati?", isPresented: $confirmation, titleVisibility: .visible) {
                 Button("Elimina definitivamente", role: .destructive) { Task { await clean() } }
             } message: { Text(deletePages ? "Le pagine rimosse non saranno più recuperabili. I loro media potranno essere rimossi con la pulizia successiva." : "Pagine attive, pagine recuperabili e rispettive revisioni rimangono protette.") }
@@ -105,6 +127,12 @@ struct StoragePanel: View {
                 }
             } message: { Text("Il catalogo attuale e tutti i media saranno conservati. L’editor salva prima la pagina e mantiene le sessioni audio ancora presenti in memoria.") }
         }
+    }
+    private func copyExternalBackup() async {
+        guard let file = backups.first?.url else { return }
+        busy = true; defer { busy = false }
+        do { _ = try await ExternalBackupWriter.shared.copy(file, documentID: workspace.documentID); error = nil }
+        catch { self.error = "Copia esterna da riprovare: \(error.localizedDescription). I backup locali restano disponibili." }
     }
     private func refresh() async {
         backups = (try? await workspace.automaticBackups()) ?? []

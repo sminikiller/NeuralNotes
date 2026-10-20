@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 import PencilKit
 import NeuralNotesCore
 
@@ -9,6 +10,7 @@ struct LensPanel: View {
     @State private var configuration = AIEngineStore.load()
     @State private var consentKey: String?
     @State private var configuring = false
+    @State private var glossary = false
     @State private var question = ""
     @State private var turns: [AIConversationTurn] = []
     @State private var sources: [IndexedChunk] = []
@@ -18,7 +20,7 @@ struct LensPanel: View {
     @State private var job: Task<Void, Never>?
     var body: some View {
         VStack(spacing: 10) {
-            HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); settings }.padding(.horizontal)
+            HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     Text(configuration.engine != .offline ? "Risposte sulle fonti selezionate, con riferimenti." : "Modalità offline: estratti delle fonti, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
@@ -28,6 +30,12 @@ struct LensPanel: View {
                         Text(turn.answer.text).textSelection(.enabled)
                         HStack {
                             Button("Inserisci", systemImage: "text.badge.plus") { insert(turn.answer) }
+                            Button("Glossario", systemImage: "character.book.closed") {
+                                Task {
+                                    do { try await model.workspace.saveGlossaryEntry(GlossaryEntry(term: String(turn.question.prefix(120)), definition: String(turn.answer.text.prefix(16000)), references: turn.answer.references)); glossary = true }
+                                    catch { self.error = error.localizedDescription }
+                                }
+                            }
                             Button("Flashcard", systemImage: "rectangle.on.rectangle") {
                                 guard let reference = turn.answer.references.first else { return }
                                 Task {
@@ -48,14 +56,15 @@ struct LensPanel: View {
                 }.padding()
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack { ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send() }.buttonStyle(.bordered).disabled(busy || sources.isEmpty) } }.padding(.horizontal)
+                HStack { ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(busy || sources.isEmpty) } }.padding(.horizontal)
             }
             HStack {
                 TextField("Chiedi sulle fonti…", text: $question, axis: .vertical).lineLimit(1...4)
                 Button { send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }.disabled(busy || question.isEmpty || sources.isEmpty).accessibilityLabel("Invia alla Lente AI")
                 if busy { Button("Stop") { job?.cancel() } }
             }.padding()
-        }.task(id: selectionKey) { await load() }
+        }.sheet(isPresented: $glossary) { GlossaryPanel(model: model) }
+        .task(id: selectionKey) { await load() }
             .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { job?.cancel() }
     }
@@ -100,15 +109,23 @@ struct LensPanel: View {
         } catch is CancellationError { }
         catch { self.error = error.localizedDescription }
     }
-    private func send() {
+    private func send(continuation: Bool = true) {
         guard !busy, !sources.isEmpty else { return }
         let prompt = String(question.prefix(1000)); question = ""; error = nil; partial = ""; busy = true
         job = Task {
             defer { busy = false; partial = "" }
             do {
-                let context = turns.suffix(2).map { "Domanda: \($0.question.prefix(300))\nRisposta precedente: \($0.answer.text.prefix(500))" }.joined(separator: "\n")
+                let context = (continuation ? Array(turns.suffix(2)) : []).map { "Domanda: \($0.question.prefix(300))\nRisposta precedente: \($0.answer.text.prefix(500))" }.joined(separator: "\n")
                 let request = AIRequest(task: .chat, question: "\(context)\nDomanda attuale: \(prompt)", sources: sources)
-                let answer = try await AIEngineRouter.generate(request, configuration: configuration, consentKey: consentKey) { partial += $0 }
+                let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]; encoder.dateEncodingStrategy = .iso8601
+                var identity = try encoder.encode(request); identity.append(Data(configuration.consentKey.utf8))
+                let cacheKey = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
+                let answer: AIArtifact
+                if let cached = try await model.workspace.cachedLensAnswer(key: cacheKey) { answer = cached }
+                else {
+                    answer = try await AIEngineRouter.generate(request, configuration: configuration, consentKey: consentKey) { partial += $0 }
+                    try Task.checkCancellation(); try await model.workspace.cacheLensAnswer(key: cacheKey, artifact: answer)
+                }
                 try Task.checkCancellation()
                 let turn = AIConversationTurn(question: prompt, answer: answer)
                 try await model.workspace.saveConversationTurn(turn); turns = Array((turns + [turn]).suffix(20))

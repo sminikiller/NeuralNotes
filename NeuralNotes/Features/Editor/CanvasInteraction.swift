@@ -15,6 +15,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private var originalDrawing: PKDrawing?
     private var selectionTrace: [CGPoint] = []
     private let fitTap = UITapGestureRecognizer()
+    private let objectTap = UITapGestureRecognizer()
     private let pointerFitTap = UITapGestureRecognizer()
     private let undoTap = UITapGestureRecognizer(), redoTap = UITapGestureRecognizer()
     private let nextSwipe = UISwipeGestureRecognizer(), previousSwipe = UISwipeGestureRecognizer()
@@ -29,7 +30,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         marquee.fillColor = UIColor.systemTeal.withAlphaComponent(0.1).cgColor
         marquee.strokeColor = UIColor.systemTeal.cgColor; marquee.lineDashPattern = [5, 4]
         for layer in [outline, handle, marquee] { host.layer.addSublayer(layer) }
-        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        let tap = objectTap
+        tap.addTarget(self, action: #selector(tapped(_:)))
+        tap.cancelsTouchesInView = false; tap.delaysTouchesBegan = false
         fitTap.addTarget(self, action: #selector(fitPage(_:)))
         fitTap.numberOfTapsRequired = 2
         fitTap.numberOfTouchesRequired = model.fingerDrawing ? 2 : 1
@@ -119,7 +122,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         // PencilKit's internal scroll/tap recognizers must not swallow our fit
         // or page-turn gesture. Drawing input itself remains Pencil-only.
-        gesture === fitTap || gesture === pointerFitTap || pageSwipes.contains(where: { $0 === gesture })
+        gesture === objectTap || gesture === fitTap || gesture === pointerFitTap || pageSwipes.contains(where: { $0 === gesture })
     }
 
     @objc private func turnPage(_ gesture: UISwipeGestureRecognizer) {

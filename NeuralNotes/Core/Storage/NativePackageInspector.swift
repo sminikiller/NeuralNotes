@@ -78,6 +78,8 @@ public enum NativePackageInspector {
         }
         if FileManager.default.fileExists(atPath: package.appendingPathComponent("catalog.json").path) {
             let catalog: DocumentCatalog = try read("catalog.json")
+            try CatalogRecovery.validateStudy(catalog)
+            guard catalog.organization?.isValid != false else { throw LibraryFailure.corruptDocument }
             if let template = catalog.defaultPageTemplate, !template.appearance.isValid { throw LibraryFailure.corruptDocument }
             if let template = catalog.defaultPageTemplate, let file = template.pdfFile {
                 try media(file)
@@ -92,6 +94,9 @@ public enum NativePackageInspector {
             if let cover = catalog.coverImageFile { try media(cover) }
             for attachment in catalog.attachments { try media(attachment.file) }
             for session in catalog.sessions {
+                let bookmarks = session.bookmarks ?? []
+                guard bookmarks.count <= 1000, Set(bookmarks.map(\.id)).count == bookmarks.count,
+                      bookmarks.allSatisfy({ $0.isValid && $0.seconds <= session.duration + 1 }) else { throw LibraryFailure.corruptDocument }
                 for chunk in session.transcriptionChunks ?? [] {
                     guard chunk.window.start.isFinite, chunk.window.duration.isFinite, chunk.window.start >= 0,
                           chunk.window.duration > 0, chunk.window.duration <= 60,

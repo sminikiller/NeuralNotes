@@ -4,6 +4,22 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class AudioTranscriptionTests: XCTestCase {
+    @MainActor func testAudioFileImportRateAndBookmarkWithoutMicrophonePermission() async throws {
+        let (workspace, root) = try makeWorkspace(); defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("Lezione.caf"); try writeSilentAudio(source)
+        let audio = AudioController(workspace: workspace); await audio.load(); await audio.importAudio(source)
+        XCTAssertNil(audio.error)
+        let session = try XCTUnwrap(audio.sessions.first)
+        XCTAssertGreaterThan(session.duration, 0); XCTAssertEqual(session.state, "finished")
+        audio.setPlaybackRate(1.5); XCTAssertEqual(audio.playbackRate, 1.5)
+        audio.setPlaybackRate(.nan); XCTAssertEqual(audio.playbackRate, 1.5)
+        await audio.addBookmark(sessionID: session.id)
+        XCTAssertEqual(audio.sessions.first?.bookmarks?.count, 1)
+        let bookmark = try XCTUnwrap(audio.sessions.first?.bookmarks?.first)
+        await audio.removeBookmark(bookmark, sessionID: session.id)
+        XCTAssertTrue(audio.sessions.first?.bookmarks?.isEmpty == true)
+        await audio.close()
+    }
     @MainActor
     func testRenamingLegacyTextWithAnEmptyChunkArrayDoesNotEraseIt() async throws {
         let (workspace, root) = try makeWorkspace()

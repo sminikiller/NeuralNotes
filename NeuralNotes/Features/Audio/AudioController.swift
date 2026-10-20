@@ -10,6 +10,8 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     var recording = false
     var paused = false
     var elapsed: Double = 0
+    var replayInk = false
+    private(set) var playbackRate: Double = 1
     var playback: Double = 0
     var playingSessionID: UUID?
     var error: String?
@@ -210,8 +212,49 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
         guard playingSessionID == session.id, !recording, !closed else { throw CancellationError() }
         let audio = try AVAudioPlayer(contentsOf: url)
         audio.delegate = self; audio.currentTime = offset
+        audio.enableRate = true; audio.rate = Float(playbackRate)
+        playback = session.segments[index].start + offset
         guard audio.prepareToPlay(), audio.play() else { throw CocoaError(.fileReadCorruptFile) }
         player = audio; playingIndex = index
+    }
+
+    func setPlaybackRate(_ rate: Double) {
+        guard rate.isFinite, (0.5...2).contains(rate) else { return }
+        playbackRate = rate; player?.enableRate = true; player?.rate = Float(rate)
+    }
+
+    func addBookmark(sessionID: UUID? = nil, title: String = "Momento importante") async {
+        guard transcribingSessionID == nil else { error = "Attendi il termine della trascrizione per aggiungere un segnalibro."; return }
+        let id = sessionID ?? active?.id ?? playingSessionID
+        guard let id else { return }
+        let entry = active?.id == id ? active : sessions.first { $0.id == id }
+        guard var value = entry, (value.bookmarks?.count ?? 0) < 1000 else { return }
+        let seconds = active?.id == id ? (recordingAnchor?.1 ?? elapsed) : playingSessionID == id ? playback : 0
+        if recording, let last = value.segments.indices.last { value.segments[last].duration = max(value.segments[last].duration, recorder?.currentTime ?? 0) }
+        value.bookmarks = (value.bookmarks ?? []) + [AudioBookmark(title: String(title.prefix(120)), seconds: min(value.duration, max(0, seconds)))]
+        value.revision = (value.revision ?? 0) + 1
+        if active?.id == id { active = value }
+        _ = await persist(value)
+    }
+
+    func removeBookmark(_ bookmark: AudioBookmark, sessionID: UUID) async {
+        guard transcribingSessionID == nil, var value = active?.id == sessionID ? active : sessions.first(where: { $0.id == sessionID }) else { return }
+        value.bookmarks?.removeAll { $0.id == bookmark.id }; value.revision = (value.revision ?? 0) + 1
+        if active?.id == sessionID { active = value }
+        _ = await persist(value)
+    }
+
+    func importAudio(_ source: URL) async {
+        guard !recording, !transitioning, transcribingSessionID == nil, !closed else { return }
+        transitioning = true; defer { transitioning = false }
+        let scoped = source.startAccessingSecurityScopedResource(); defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        do {
+            let asset = AVURLAsset(url: source)
+            let duration = try await asset.load(.duration).seconds
+            let session = try await workspace.importAudio(from: source, duration: duration, title: source.deletingPathExtension().lastPathComponent)
+            sessions = try await workspace.catalog().sessions
+            transcriptionStatusSessionID = session.id; transcriptionStatus = "Audio importato. Puoi riprodurlo o trascriverlo sul dispositivo."
+        } catch { self.error = error.localizedDescription }
     }
 
     func stopPlayback() { player?.stop(); player = nil; playingSessionID = nil }
