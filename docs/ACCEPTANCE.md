@@ -11,7 +11,7 @@ Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packa
 - [ ] Recupero/spazio provati su quaderni temporanei; nessuna cancellazione automatica dei contenuti.
 - [ ] Prova sintetica 50 pagine/CAF60s completata e risultati annotati.
 - [ ] Registrazioni reali lunghe, file grandi, interruzioni, memoria e layout/accessibilità verificati secondo il piano.
-- [ ] CI macOS 0.8.2: core test + unit/UI test e build Release senza firma con tools/verify_macos.sh, log e .xcresult conservati. [Esito e due esclusioni specifiche del simulatore](VALIDATION.md).
+- [x] CI macOS 0.8.2: core test + unit/UI test e build Release senza firma con tools/verify_macos.sh, log e .xcresult conservati. [Esito e due esclusioni specifiche del simulatore](VALIDATION.md).
 
 Firma/distribuzione, configurazione backend e futura sincronizzazione hanno gate separati: non sono impliciti in questi controlli.
 

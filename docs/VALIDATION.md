@@ -1,10 +1,24 @@
 # Validazione della consegna 0.8.2
 
-Correzioni descritte in [FIXES_0_8_2.md](FIXES_0_8_2.md). Controlli locali PASS: struttura, grammatica di 100 file Swift, integrità pacchetto iPad e sette test backend senza chiamate esterne. Sono presenti 151 metodi XCTest (77 core, 60 integrazione, 14 UI). La nuova compilazione e le suite Apple sono in corso: il PASS sottostante appartiene alla precedente 0.8.1. Nessuna prova fisica della Pencil o del runner Swift Playground.
+20 ottobre 2026 — correzioni in [FIXES_0_8_2.md](FIXES_0_8_2.md).
+
+**Esito Apple: PASS.** [Esecuzione 39433258233](https://github.com/sminikiller/NeuralNotes/actions/runs/39433258233), commit sorgenti `6080d371b8e840448968cde066762d9228d21c3d`.
+
+- macOS 15 ARM64, Xcode 16.4 / Swift 6.1.2: 77 test core, zero errori.
+- iPad Pro 11 M4, simulatore iPadOS 18.5: 137 metodi unit/integrazione, 135 superati e due esclusi per l'alias filesystem Darwin, eseguiti invece su macOS.
+- Tutti i 14 UI test superati, inclusa scelta della copertina dopo riavvio.
+- Debug: TEST SUCCEEDED. Release per dispositivo iOS generico, senza firma: BUILD SUCCEEDED.
+- Controlli di struttura, grammatica di 100 file Swift, integrità del pacchetto iPad e sette test backend senza chiamate esterne superati in locale e nel job portable.
+
+151 metodi XCTest distinti: 77 core, 60 integrazione, 14 UI. Le nuove prove di scarabocchio reale/trasformato, mantenimento delle forme, undo/redo/riapertura e pagina modificata sono passate. La prima esecuzione (`39431881452`) aveva già superato i 137 metodi unit/integrazione, ma falliva la nuova prova UI: il tocco automatico puntava al centro della riga AX, non al controllo sulla destra. Il test ora attende il caricamento, tocca l'interruttore e ne verifica il valore acceso prima del salvataggio e dopo il riavvio. Nessun UI test escluso. Il pannello impedisce inoltre di salvare prima che sia caricata la configurazione.
+
+Log integrale locale: `.verification/apple-validation-0.8.2.log`; log e `.xcresult` negli artifact della run per 14 giorni. I documenti di stato vengono aggiornati dopo il PASS; i sorgenti della consegna restano quelli verificati. Checksum dei pacchetti: `.verification/release-0.8.2.json`.
+
+**Limiti:** il simulatore non verifica Pencil fisica, qualità del riconoscimento del gesto dell'utente, microfono/standby, prestazioni sull'iPad 10 o il manifest AppleProductTypes/runner Swift Playground. I test del monitor touch usano gli stessi metodi di produzione con campioni deterministici. La prova reale dei quattro casi è in [FIXES_0_8_2.md](FIXES_0_8_2.md). Conservare il vecchio Playground e trasferire i quaderni tramite backup quando si apre un nuovo progetto.
 
 ## Evidenza storica 0.8.1
 
-# Validazione della consegna 0.8.1
+### Validazione della consegna 0.8.1
 
 Data: 20 ottobre 2026. Controlli locali su Windows/PowerShell, Python 3.13 e Node 22; build e test Apple su GitHub Actions macOS 15, Xcode 16.4, Swift 6.1.2, SDK/simulatore iPadOS 18.5 (iPad Pro 11 M4). Non è una prova dell’iPad fisico dell’utente né del suo runner Swift Playground.
 

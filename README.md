@@ -3,7 +3,7 @@
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo, nessuna dipendenza di terze parti nell’app. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
-**Stato della consegna:** correzioni 0.8.2 implementate, controlli locali di struttura/sintassi/ZIP superati; nuova verifica Apple in corso. Il PASS della 0.8.1 riguarda la versione precedente. [Esiti e limiti](docs/VALIDATION.md).
+**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39433258233): 77 test core macOS, 135 unit/integrazione iPad e tutti i 14 UI test superati, più due esclusioni specifiche del simulatore; build Release senza firma riuscita. [Esiti e limiti](docs/VALIDATION.md). La prova della Pencil fisica e del runner Swift Playground resta necessaria.
 
 ## Aprire sul solo iPad
 
@@ -47,7 +47,7 @@ Rimosso il secondo contenitore scorrevole introdotto nella 0.6. Il canvas princi
 - Testo con Pencil: campo UITextView direttamente sul foglio per scrittura e gesti Scribble disponibili in iPadOS, oltre alla tastiera.
 - Visualizza trascrizione apre un lettore completo. Checkpoint recuperati se la proiezione è vuota; risultati senza parole segnalati e ripetibili; rinomina con chunk vuoti conserva il testo.
 
-[Prove, comportamento e limiti della 0.6](docs/TESTING_0_6.md). Quattordici nuovi XCTest forniti, non eseguiti qui.
+[Prove, comportamento e limiti della 0.6](docs/TESTING_0_6.md). Le regressioni della 0.6 sono incluse nella suite Apple corrente.
 
 ## Correzioni 0.5.1
 
@@ -63,7 +63,7 @@ Registrazione senza pausa automatica passando in background, modalità audio dic
 - **Trascrizioni:** continua a usare Apple Speech on-device, ora con blocchi di 45 s, checkpoint persistenti, avanzamento, pausa/ripresa e un retry del blocco fallito. Chiudere il pannello per scrivere non cancella il lavoro; uscita dal quaderno/background lo sospendono. L’utente ha riferito che il riconoscimento precedente ora sembra funzionare: la qualità della nuova versione richiede comunque prova.
 - **Nomi e correzioni:** Audio → Rinomina / correggi cambia titolo e testo per minuto senza toccare il CAF. Le correzioni sono conservate separatamente e protette durante una successiva ripresa. Esporta testo produce un .txt con riferimenti [hh:mm:ss] circa ogni minuto, marcato parziale quando necessario.
 
-La nuova versione fornisce **140 XCTest** e **26 controlli incorporati**. Build Apple e test Swift non eseguiti qui. [Prove e limiti 0.5](docs/TESTING_0_5.md).
+La suite corrente contiene **151 metodi XCTest** e **26 controlli incorporati**. Gli esiti della CI Apple sono in [VALIDATION.md](docs/VALIDATION.md). [Prove e limiti 0.5](docs/TESTING_0_5.md).
 
 ## Novità 0.4
 
