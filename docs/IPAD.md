@@ -8,7 +8,7 @@
 
 Le diverse copie del Playground possono avere dati separati. Per trasferire i quaderni, esportali dalla vecchia app e importa il .nnbackup dalla sidebar della nuova. Controlla la copia prima di abbandonare l’originale. Non premere Elimina i dati dell’app per risolvere un errore del progetto.
 
-Per problemi di compilazione servono nome del file, riga e messaggio completo. Un warning di deprecazione e un errore rosso non sono la stessa cosa. I sorgenti sono controllati sintatticamente su Windows; la compilazione richiede il tuo runner Apple.
+Per problemi di compilazione servono nome del file, riga e messaggio completo. Un warning di deprecazione e un errore rosso non sono la stessa cosa. Il progetto dispone ora di [verifica automatica su macOS](https://github.com/sminikiller/NeuralNotes/actions); i risultati effettivi sono in [VALIDATION.md](VALIDATION.md). Il compilatore e il comportamento del runner Swift Playground restano da verificare sull’iPad.
 
 Il comando Nuova finestra è nel menu dell’editor; funziona solo se il processo ospitante espone più scene. Le schede interne funzionano nello stesso editor e il loro ripristino usa lo stato della scena iPadOS. Per provare il riavvio usa sempre la stessa copia del progetto.
 

@@ -11,6 +11,13 @@ final class EditorIntegrationTests: XCTestCase {
     @MainActor
     func testInkStillSavesWhenWorkspaceSettingsCatalogIsUnreadable() async throws {
         try await withEditor { model in
+            try await model.workspace.setEditorWorkspaces(model.workspaces)
+            try await model.workspace.setCoverAppearance(image: nil, design: CoverDesign())
+            var paused = AudioSession(title: "Registrazione in memoria"); paused.state = "paused"; paused.revision = 2
+            var segment = AudioTimelineSegment(file: "audio/recover-active.caf", start: 0, hostStart: 10)
+            segment.duration = 7; paused.segments = [segment]
+            let media = try await model.workspace.url(segment.file); try Data([1, 2, 3]).write(to: media)
+            model.audio?.active = paused; model.audio?.paused = true
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 200, y: 80)])])
             model.strokeEnded(); model.finishInkGesture(); model.workspaceSaveTask?.cancel()
             let file = try await model.workspace.url("catalog.json")
@@ -20,9 +27,11 @@ final class EditorIntegrationTests: XCTestCase {
             let savedBytes = try await model.workspace.drawing(page), data = try XCTUnwrap(savedBytes)
             XCTAssertEqual(try PKDrawing(data: data).strokes.count, 1)
             XCTAssertTrue(model.workspaceSettingsDirty); XCTAssertFalse(model.dirty)
-            let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
-            try encoder.encode(DocumentCatalog()).write(to: file, options: .atomic)
-            model.error = nil
+            let recovered = await model.recoverCatalog(); XCTAssertTrue(recovered)
+            XCTAssertTrue(model.hasLease); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            let catalog = try await model.workspace.catalog()
+            XCTAssertEqual(catalog.sessions.first?.id, paused.id); XCTAssertEqual(catalog.sessions.first?.duration, 7)
+            XCTAssertEqual(model.audio?.active?.revision, 3)
             let retried = await model.flush(); XCTAssertTrue(retried); XCTAssertFalse(model.workspaceSettingsDirty)
         }
     }

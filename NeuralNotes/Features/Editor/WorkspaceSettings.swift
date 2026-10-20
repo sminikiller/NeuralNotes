@@ -115,4 +115,46 @@ extension EditorViewModel {
         }
         return true
     }
+
+    var canRecoverCatalog: Bool {
+        hasLease && !loading && !navigating && !hasActiveStroke && audio?.recording != true
+            && audio?.transitioning != true && audio?.transcribingSessionID == nil
+    }
+
+    /// The owning editor may recover without closing: a settings failure can
+    /// otherwise prevent close(), making library-only recovery unreachable.
+    func recoverCatalog() async -> Bool {
+        guard canRecoverCatalog else { return false }
+        navigating = true; defer { navigating = false }
+        _ = await flush()
+        guard !dirty, !saving, !hasActiveStroke else { return false }
+        do {
+            let recovery = try await workspace.catalogRecoveryStatus()
+            guard recovery.needsRecovery, recovery.canRestore else { return false }
+            try await workspace.restorePreviousCatalog()
+            // Retain the latest audio metadata still held by this sole writer,
+            // including a paused recording whose last checkpoint failed.
+            var sessions = audio?.sessions ?? []
+            if let active = audio?.active {
+                sessions.removeAll { $0.id == active.id }; sessions.append(active)
+            }
+            let restored = try await workspace.catalog()
+            for var session in sessions {
+                let storedRevision = restored.sessions.first(where: { $0.id == session.id })?.revision ?? 0
+                session.revision = max(storedRevision, session.revision ?? 0) + 1
+                try await workspace.saveSession(session)
+                if audio?.active?.id == session.id { audio?.active = session }
+            }
+            if let audio { audio.sessions = try await workspace.catalog().sessions; audio.error = nil }
+            if page != nil {
+                workspaceSettingsDirty = true
+                guard await saveWorkspaceSettings() else { return false }
+            } else {
+                await open()
+                guard page != nil else { return false }
+            }
+            error = nil; status = "Catalogo recuperato · pagina conservata"
+            return true
+        } catch { self.error = error.localizedDescription; return false }
+    }
 }

@@ -11,12 +11,23 @@ struct StoragePanel: View {
     @State private var busy = false
     @State private var confirmation = false
     @State private var deletePages = false
+    @State private var catalogRecovery: CatalogRecoveryStatus?
+    @State private var confirmCatalogRecovery = false
     private var canClean: Bool { !EditorLeases.shared.isOpen(workspace.documentID) }
     private var canRestore: Bool { canClean || editor?.hasLease == true }
 
     var body: some View {
         NavigationStack {
             List {
+                if catalogRecovery?.needsRecovery == true, let editor {
+                    Section("Catalogo da recuperare") {
+                        Text("Puoi recuperare audio, trascrizioni e configurazioni senza chiudere l’editor. Inchiostro e file originali vengono conservati.")
+                        Button("Ripristina catalogo precedente", systemImage: "clock.arrow.circlepath") { confirmCatalogRecovery = true }
+                            .disabled(catalogRecovery?.canRestore != true || !editor.canRecoverCatalog)
+                        if editor.audio?.recording == true { Text("Metti prima in pausa la registrazione.").font(.caption) }
+                        if catalogRecovery?.canRestore != true { Text("Nessuna copia leggibile disponibile: conserva il quaderno originale.").font(.caption) }
+                    }
+                }
                 if let report {
                     Section("Spazio occupato") {
                         LabeledContent("Totale", value: bytes(report.totalBytes))
@@ -59,9 +70,20 @@ struct StoragePanel: View {
             .confirmationDialog(deletePages ? "Eliminare definitivamente le pagine rimosse?" : "Eliminare i file non referenziati?", isPresented: $confirmation, titleVisibility: .visible) {
                 Button("Elimina definitivamente", role: .destructive) { Task { await clean() } }
             } message: { Text(deletePages ? "Le pagine rimosse non saranno più recuperabili. I loro media potranno essere rimossi con la pulizia successiva." : "Pagine attive, pagine recuperabili e rispettive revisioni rimangono protette.") }
+            .confirmationDialog("Ripristinare il catalogo precedente?", isPresented: $confirmCatalogRecovery, titleVisibility: .visible) {
+                Button("Ripristina catalogo") {
+                    Task {
+                        busy = true; defer { busy = false }
+                        if let editor, await editor.recoverCatalog() { error = nil }
+                        else { error = editor?.error ?? "Recupero non disponibile: attendi la fine delle operazioni." }
+                        await refresh()
+                    }
+                }
+            } message: { Text("Il catalogo attuale e tutti i media saranno conservati. L’editor salva prima la pagina e mantiene le sessioni audio ancora presenti in memoria.") }
         }
     }
     private func refresh() async {
+        catalogRecovery = try? await workspace.catalogRecoveryStatus()
         do { report = try await workspace.storageReport() } catch { self.error = error.localizedDescription }
     }
     private func clean() async {

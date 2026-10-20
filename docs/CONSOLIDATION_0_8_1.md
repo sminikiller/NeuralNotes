@@ -10,6 +10,14 @@ Il flush salva prima l’inchiostro e il testo, poi le configurazioni del worksp
 
 Durante un tratto attivo sono bloccati chiusura/cambio pagina, sostituzione dello strumento e modifiche distruttive alla selezione. Non cambiano coordinate dell’inchiostro, canvas esteso o formato delle pagine.
 
+Se un errore delle configurazioni impedisce di chiudere il quaderno, **Editor → Azioni → Spazio e recupero** consente di ripristinare il catalogo senza uscire. Richiede una copia leggibile e nessuna registrazione/trascrizione in corso; salva prima la pagina e reinserisce le sessioni ancora in memoria, inclusa la registrazione in pausa il cui checkpoint era fallito. Il test di integrazione verifica il recupero con l’editor aperto, l’inchiostro conservato e la sessione audio ripersistita.
+
+## Regressioni emerse nella CI iPad
+
+La compilazione e l’esecuzione completa del simulatore hanno consentito di provare i test fino ad allora soltanto forniti. Il filtro Pencil del pinch viene applicato anche dopo la creazione del riconoscitore da parte di UIScrollView. Il comando Fine ha un pulsante identificabile sopra la tastiera, e il suggerimento del testo è spostato lontano dalla toolbar superiore. La sessione dell’editor ha una copia persistente per il riavvio di una sola finestra; le nuove finestre continuano a preferire lo stato della propria scena, evitando di riaprire automaticamente il documento di un’altra finestra.
+
+Le prove sono state corrette dove l’aspettativa non descriveva UIKit o i dati iniziali: il rebase dello scroll deve conservare la posizione entro un pixel fisico, non entro un millesimo di punto del documento; l’undo della carta confronta l’aspetto originale completo, che può essere già esplicito; il test pinch allestisce un canvas con zoom attivo; il test export scorre la lista per raggiungere il comando. Il foglio di condivisione espone l’identificatore sul controller UIKit effettivo.
+
 ## Recupero del catalogo
 
 Ogni aggiornamento valido di catalog.json conserva la copia precedente in recovery/catalog.previous.json, dentro il formato di pacchetto già ammesso dai backup. Il catalogo comprende sessioni audio, trascrizioni, impostazioni e copertina. Non è un backup esterno del quaderno e non protegge dalla perdita dell’iPad o dell’intero container.
