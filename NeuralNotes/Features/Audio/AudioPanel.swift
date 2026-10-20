@@ -55,19 +55,33 @@ struct AudioPanel: View {
                         .font(.caption).foregroundStyle(audio.backgroundAudioConfigured ? Color.secondary : Color.orange)
                 }
                 .disabled(audio.transitioning || audio.transcribingSessionID != nil)
-                Section("Ascolto") {
-                    Picker("Velocità", selection: Binding(get: { audio.playbackRate }, set: { audio.setPlaybackRate($0) })) {
-                        ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], id: \.self) { rate in Text("\(rate, specifier: "%.2g")×").tag(rate) }
-                    }
-                    Toggle("Rivela gli appunti al momento dell’audio", isOn: $audio.replayInk)
-                    Text("Il replay mostra i tratti collegati fino al momento ascoltato. Il disegno originale è conservato.").font(.caption)
-                    Button("Importa audio da File", systemImage: "waveform.badge.plus") { importingAudio = true }
-                        .disabled(audio.recording || audio.transitioning || audio.transcribingSessionID != nil)
-                }
                 ForEach(audio.sessions) { session in
                     Section(session.title) {
                         Text("\(clock(session.duration)) · \(session.state == "finished" ? "Conclusa" : "In corso / recuperata")")
                             .font(.caption).foregroundStyle(.secondary)
+                        if session.hasTranscriptText {
+                            Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
+                                guard presentation == nil else { return }; presentation = .read(session.id)
+                            }.buttonStyle(.borderless).accessibilityIdentifier("transcriptRead-\(session.id)")
+                            Text(TranscriptText.firstMinuteText(session.readableTranscript))
+                                .lineLimit(3).foregroundStyle(.secondary)
+                        } else if session.transcriptionComplete == true {
+                            Text("Analisi completata senza testo riconosciuto. Ascolta l’audio e premi Riprova trascrizione.")
+                                .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("transcriptEmpty")
+                        }
+                        Button("Rinomina / correggi", systemImage: "pencil") {
+                            guard presentation == nil else { return }; presentation = .edit(session)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("transcriptEdit-\(session.id)")
+                        .disabled(audio.transcribingSessionID != nil)
+                        ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
+                            Label("Esporta testo", systemImage: "square.and.arrow.up")
+                        }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("transcriptExport-\(session.id)")
+                            .disabled(!session.hasTranscriptText)
                         Button("Segnalibro qui", systemImage: "bookmark.badge.plus") { Task { await audio.addBookmark(sessionID: session.id) } }.buttonStyle(.borderless)
                             .disabled(audio.transcribingSessionID != nil)
                         ForEach(session.bookmarks ?? []) { bookmark in
@@ -98,29 +112,6 @@ struct AudioPanel: View {
                             Text(audio.transcriptionStatus).font(.caption).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("transcriptionStatus")
                         }
-                        if session.hasTranscriptText {
-                            Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
-                                guard presentation == nil else { return }; presentation = .read(session.id)
-                            }.buttonStyle(.borderless).accessibilityIdentifier("transcriptRead-\(session.id)")
-                            Text(TranscriptText.firstMinuteText(session.readableTranscript))
-                                .lineLimit(3).foregroundStyle(.secondary)
-                        } else if session.transcriptionComplete == true {
-                            Text("Analisi completata senza testo riconosciuto. Ascolta l’audio e premi Riprova trascrizione.")
-                                .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier("transcriptEmpty")
-                        }
-                        Button("Rinomina / correggi", systemImage: "pencil") {
-                            guard presentation == nil else { return }; presentation = .edit(session)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("transcriptEdit-\(session.id)")
-                        .disabled(audio.transcribingSessionID != nil)
-                        ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
-                            Label("Esporta testo", systemImage: "square.and.arrow.up")
-                        }
-                            .buttonStyle(.borderless)
-                            .accessibilityIdentifier("transcriptExport-\(session.id)")
-                            .disabled(!session.hasTranscriptText)
                         DisclosureGroup("Diagnosi trascrizione") {
                             Button("Prova il primo blocco", systemImage: "stethoscope") { Task { await audio.probeFirstWindow(session) } }
                                 .buttonStyle(.borderless)
@@ -131,6 +122,15 @@ struct AudioPanel: View {
                             TranscriptionLogView()
                         }
                     }
+                }
+                Section("Ascolto") {
+                    Picker("Velocità", selection: Binding(get: { audio.playbackRate }, set: { audio.setPlaybackRate($0) })) {
+                        ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], id: \.self) { rate in Text("\(rate, specifier: "%.2g")×").tag(rate) }
+                    }
+                    Toggle("Rivela gli appunti al momento dell’audio", isOn: $audio.replayInk)
+                    Text("Il replay mostra i tratti collegati fino al momento ascoltato. Il disegno originale è conservato.").font(.caption)
+                    Button("Importa audio da File", systemImage: "waveform.badge.plus") { importingAudio = true }
+                        .disabled(audio.recording || audio.transitioning || audio.transcribingSessionID != nil)
                 }
                 if let page = model.page, !page.anchors.isEmpty {
                     Section("Momenti collegati a questa pagina") {

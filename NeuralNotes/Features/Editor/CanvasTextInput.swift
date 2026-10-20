@@ -7,9 +7,8 @@ extension EditorViewModel {
         guard hasLease, !loading, !navigating, let page else { return }
         endTextEdit()
         let hit = page.texts.reversed().first { text in
-            let size = (text.text as NSString).boundingRect(with: CGSize(width: text.width, height: max(1, page.height - text.y)),
-                options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: UIFont.systemFont(ofSize: text.fontSize)], context: nil)
-            return CGRect(x: text.x, y: text.y, width: text.width, height: max(60, size.height + 16)).contains(point)
+            let box = RichText.bounds(text, pageHeight: page.height).insetBy(dx: 0, dy: -6)
+            return box.contains(point.applying(RichText.rotation(text, pageHeight: page.height).inverted()))
         }
         if let hit { editingTextID = hit.id }
         else {

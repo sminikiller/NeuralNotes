@@ -108,6 +108,7 @@ struct EditorView: View {
                         .accessibilityIdentifier("editorLens")
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
+                        Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
                         Menu("Inserisci", systemImage: "plus.circle") {
                             Button("Testi e immagini", systemImage: "textformat") { panel = .elements }
                             Button("Scatta foto", systemImage: "camera") { Task { await openCamera() } }

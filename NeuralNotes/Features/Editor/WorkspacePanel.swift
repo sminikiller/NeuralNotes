@@ -27,7 +27,7 @@ struct ToolPalettePanel: View {
                 ForEach(widths, id: \.self) { value in
                     Button { model.chooseWidth(value) } label: {
                         VStack { Circle().fill(.primary).frame(width: min(18, value + 3), height: min(18, value + 3)); Text(value, format: .number.precision(.fractionLength(0...1))).font(.caption2) }.frame(width: 44, height: 44)
-                    }.background(abs(model.thickness - value) < 0.01 ? Brand.accent.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 10))
+                    }.accessibilityLabel("Spessore \(value.formatted()) punti").background(abs(model.thickness - value) < 0.01 ? Brand.accent.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 10))
                 }
             }
             Slider(value: Binding(get: { model.thickness }, set: { model.chooseWidth($0) }), in: 0.5...12, step: 0.5)
@@ -49,7 +49,7 @@ struct ToolPalettePanel: View {
                     Button { model.chooseInk(row.element.color) } label: {
                         Circle().fill(row.element.color).frame(width: 26, height: 26).overlay(Circle().stroke(.gray.opacity(0.5)))
                             .padding(5).overlay(Circle().stroke(InkColor(model.ink) == row.element ? Brand.accent : .clear, lineWidth: 2))
-                    }.accessibilityLabel("Seleziona colore \(row.offset + 1)")
+                    }.accessibilityLabel("Colore \(row.element.hex)").accessibilityAddTraits(InkColor(model.ink) == row.element ? .isSelected : [])
                 }
             }
         }

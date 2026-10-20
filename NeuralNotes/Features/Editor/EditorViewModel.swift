@@ -57,6 +57,7 @@ final class EditorViewModel {
     var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape }
     var fitPageRequest = 0
     var canvasZoomed = false
+    var showZoomNavigator = false
     var editingTextID: UUID?
     @ObservationIgnored var textEditBefore: EditorContentState?
     var selectedIDs: Set<UUID> = []
@@ -483,6 +484,10 @@ final class EditorViewModel {
         } else if var tape = page?.tapes?.first(where: { $0.id == id }) {
             tape.id = UUID(); tape.x += 20; tape.y += 20
             page?.tapes?.append(tape); selectedObjectID = tape.id
+        }
+        if let copied = selectedObjectID, copied != id {
+            if page?.aboveInkObjects?.contains(id) == true { page?.aboveInkObjects?.append(copied) }
+            if let order = page?.objectOrder { page?.objectOrder = order + [copied] }
         }
         recordEdit(before, label: "Duplica oggetto")
         drawingChanged()

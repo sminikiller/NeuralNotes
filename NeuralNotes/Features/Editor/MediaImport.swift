@@ -3,6 +3,7 @@ import PhotosUI
 import VisionKit
 import AVFoundation
 import UniformTypeIdentifiers
+import NeuralNotesCore
 
 enum EditorMedia: String, Identifiable { case photos, camera, scanner; var id: String { rawValue } }
 
@@ -24,10 +25,27 @@ struct PhotoLibraryImport: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             guard let provider = results.first?.itemProvider else { completion(.success(nil)); return }
             picker.view.isUserInteractionEnabled = false
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
+            load(provider)
+        }
+        func load(_ provider: NSItemProvider) {
+            // Some providers expose JPEG/HEIC/PNG but cannot vend the abstract
+            // public.image representation. Ask for their concrete image type.
+            guard let type = provider.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .image) == true }) else {
+                completion(.failure(CocoaError(.fileReadUnknown))); return
+            }
+            provider.loadFileRepresentation(forTypeIdentifier: type) { file, error in
+                let result: Result<Data?, Error>
+                do {
+                    guard let file else { throw error ?? CocoaError(.fileReadCorruptFile) }
+                    let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                    guard size > 0, size <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+                    // The provider's temporary URL is valid only in this callback.
+                    let data = try Data(contentsOf: file)
+                    guard data.count <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+                    result = .success(data)
+                } catch { result = .failure(error) }
                 Task { @MainActor in
-                    if let data { self.completion(.success(data)) }
-                    else { self.completion(.failure(error ?? CocoaError(.fileReadCorruptFile))) }
+                    self.completion(result)
                 }
             }
         }

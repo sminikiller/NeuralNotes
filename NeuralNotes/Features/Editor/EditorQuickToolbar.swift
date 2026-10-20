@@ -78,6 +78,7 @@ struct EditorQuickToolbar: View {
         return Button { model.chooseTool(item) } label: { Image(systemName: item.icon).frame(width: 44, height: 44) }
             .background(selected ? Brand.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 14))
             .foregroundStyle(selected ? Brand.accent : .primary)
+            .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityLabel(item.title).help(item.title).accessibilityIdentifier("tool-\(item.title)")
             .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
                 model.chooseTool(item); optionsTool = item
@@ -90,7 +91,7 @@ struct EditorQuickToolbar: View {
         Button { model.chooseInk(color.color) } label: {
             Circle().fill(color.color).frame(width: 22, height: 22).overlay(Circle().stroke(.gray.opacity(0.4)))
                 .padding(5).overlay(Circle().stroke(InkColor(model.ink) == color ? Brand.accent : .clear, lineWidth: 2))
-        }.accessibilityLabel("Colore recente o preferito")
+        }.accessibilityLabel("Colore \(color.hex)").accessibilityAddTraits(InkColor(model.ink) == color ? .isSelected : [])
     }
     private var selectionBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {

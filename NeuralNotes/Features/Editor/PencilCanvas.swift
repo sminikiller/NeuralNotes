@@ -11,6 +11,7 @@ final class CanvasHost: UIView {
     let paperDetail = VisiblePaperDetail()
     let foregroundObjects = ForegroundObjectsView()
     let inkReplay = InkReplayOverlay()
+    let zoomNavigator = ZoomNavigator()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -44,6 +45,7 @@ final class CanvasHost: UIView {
         pullHint.layer.cornerRadius = 12; pullHint.clipsToBounds = true; pullHint.isHidden = true
         pullHint.isUserInteractionEnabled = false; addSubview(pullHint)
         inputShield.isUserInteractionEnabled = true; inputShield.isOpaque = false; addSubview(inputShield)
+        addSubview(zoomNavigator)
     }
     required init?(coder: NSCoder) { return nil }
 
@@ -150,7 +152,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self) }
+        defer { foregroundObjects.update(self); inkReplay.update(self); zoomNavigator.update(self) }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
@@ -171,6 +173,15 @@ final class CanvasHost: UIView {
         paperDetail.update(from: self)
         interaction?.refresh()
         textInput?.layout()
+    }
+    func centerWritingArea(_ point: CGPoint) {
+        guard let model, !model.interactionBusy, !model.navigating, !model.loading else { return }
+        fitsPageWidth = false
+        let zoom = min(canvas.maximumZoomScale, max(canvas.zoomScale, canvas.minimumZoomScale * 3))
+        canvas.setZoomScale(zoom, animated: false); alignSurface()
+        let x = max(-canvas.contentInset.left, min(canvas.contentSize.width + canvas.contentInset.right - bounds.width, point.x * zoom - bounds.width / 2))
+        let y = max(-canvas.contentInset.top, min(canvas.contentSize.height + canvas.contentInset.bottom - bounds.height, point.y * zoom - bounds.height / 2))
+        canvas.setContentOffset(CGPoint(x: x, y: y), animated: false); alignSurface()
     }
 }
 

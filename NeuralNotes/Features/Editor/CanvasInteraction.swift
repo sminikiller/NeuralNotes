@@ -168,7 +168,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
             if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
                 if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
-                for id in model.selectedIDs { original[id] = objectRect(id) }
+                for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
                 if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
                 if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
                     resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
@@ -253,7 +253,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private var allIDs: [UUID] {
         guard let page = model?.page else { return [] }
         let locked = Set(page.lockedObjects ?? [])
-        return page.orderedObjectIDs.filter { !locked.contains($0) }
+        let above = Set(page.aboveInkObjects ?? []), tapes = Set((page.tapes ?? []).map(\.id)), ordered = page.orderedObjectIDs
+        let visualOrder = ordered.filter { !above.contains($0) && !tapes.contains($0) } + ordered.filter { above.contains($0) && !tapes.contains($0) } + ordered.filter { tapes.contains($0) }
+        return visualOrder.filter { !locked.contains($0) }
     }
     private func hit(_ point: CGPoint) -> UUID? {
         guard let host, let model else { return nil }
@@ -263,15 +265,18 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if let id = allIDs.reversed().first(where: { objectRect($0)?.contains(point) == true }) { return id }
         return model.selectionIncludesInk && model.selectedInkBounds.contains(point) ? inkID : nil
     }
-    private func objectRect(_ id: UUID) -> CGRect? {
+    private func objectRect(_ id: UUID, visual: Bool = true) -> CGRect? {
         guard let page = model?.page else { return nil }
         if let tape = page.tapes?.first(where: { $0.id == id }) { return CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height) }
         if let image = page.images.first(where: { $0.id == id }) { return CGRect(x: image.x, y: image.y, width: image.width, height: image.height) }
-        if let shape = page.shapes?.first(where: { $0.id == id }) { return CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height) }
+        if let shape = page.shapes?.first(where: { $0.id == id }) {
+            let box = CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
+            let rotation = CGAffineTransform(translationX: box.midX, y: box.midY).rotated(by: CGFloat(shape.rotation ?? 0) * .pi / 180).translatedBy(x: -box.midX, y: -box.midY)
+            return visual ? box.applying(rotation) : box
+        }
         if let text = page.texts.first(where: { $0.id == id }) {
-            let size = (text.text as NSString).boundingRect(with: CGSize(width: text.width, height: max(1, page.height - text.y)),
-                options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: UIFont.systemFont(ofSize: text.fontSize)], context: nil)
-            return CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize + 10, size.height))
+            let box = RichText.bounds(text, pageHeight: page.height)
+            return visual ? box.applying(RichText.rotation(text, pageHeight: page.height)) : box
         }
         return nil
     }

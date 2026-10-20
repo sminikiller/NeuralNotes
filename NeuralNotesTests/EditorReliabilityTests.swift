@@ -3,10 +3,52 @@ import UIKit
 import PencilKit
 import PDFKit
 import PhotosUI
+import UniformTypeIdentifiers
 import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testPDFSearchHighlightsMatchesAndClearsWithoutChangingTheOriginal() async throws {
+        try await fixture { model in
+            let file = model.workspace.package.appendingPathComponent("attachments/search.pdf")
+            let original = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 400, height: 600)).pdfData { renderer in
+                for _ in 0..<2 { renderer.beginPage(); ("Entropia e calore" as NSString).draw(at: CGPoint(x: 40, y: 80), withAttributes: [.font: UIFont.systemFont(ofSize: 24)]) }
+            }; try original.write(to: file)
+            let view = PDFView(), controller = PDFStudyController()
+            controller.attach(view); controller.load(file: "attachments/search.pdf", package: model.workspace.package, index: 0)
+            controller.search("entropia")
+            for _ in 0..<250 { if !controller.finding { break }; try await Task.sleep(for: .milliseconds(20)) }
+            XCTAssertFalse(controller.finding); XCTAssertEqual(controller.matches.count, 2)
+            XCTAssertEqual(view.highlightedSelections?.count, 2)
+            controller.search(""); XCTAssertTrue(controller.matches.isEmpty); XCTAssertTrue(view.highlightedSelections?.isEmpty ?? true)
+            XCTAssertEqual(try Data(contentsOf: file), original); controller.detach()
+        }
+    }
+    @MainActor func testZoomNavigatorUsesTheSameCanvasAndKeepsInkUntouched() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 1000, height: 700); host.layoutIfNeeded()
+            model.canvas.drawing = PKDrawing(strokes: [stroke(.pen)]); let before = model.canvas.drawing.dataRepresentation()
+            let fit = model.canvas.minimumZoomScale; model.showZoomNavigator = true; host.alignSurface()
+            XCTAssertFalse(host.zoomNavigator.isHidden)
+            host.centerWritingArea(CGPoint(x: 500, y: 600))
+            XCTAssertGreaterThan(model.canvas.zoomScale, fit * 2)
+            XCTAssertTrue(host.canvas === model.canvas); XCTAssertEqual(model.canvas.drawing.dataRepresentation(), before)
+            model.showZoomNavigator = false; host.alignSurface(); XCTAssertTrue(host.zoomNavigator.isHidden)
+            host.fitPage(animated: false); XCTAssertEqual(model.canvas.zoomScale, fit, accuracy: 0.01)
+        }
+    }
+    @MainActor func testPhotoPickerLoadsAConcretePNGProviderBeforeItsTemporaryFileDisappears() async throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 60)).image { context in UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 80, height: 60)) }
+        let data = try XCTUnwrap(image.pngData()), provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.png.identifier, visibility: .all) { completion in completion(data, nil); return nil }
+        let received: Data? = try await withCheckedThrowingContinuation { continuation in
+            let coordinator = PhotoLibraryImport.Coordinator { continuation.resume(with: $0) }
+            coordinator.load(provider)
+        }
+        let decoded = try DocumentServices.photoPreview(try XCTUnwrap(received))
+        XCTAssertEqual(decoded.size.width, 80, accuracy: 1); XCTAssertEqual(decoded.size.height, 60, accuracy: 1)
+    }
     @MainActor func testAudioReplayDoesNotMutateInkAndRestoresDrawingInteraction() async throws {
         try await fixture { model in
             let host = CanvasHost(canvas: model.canvas); host.model = model
