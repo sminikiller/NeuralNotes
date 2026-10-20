@@ -7,7 +7,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 
 **0.9.1 — trascrizione delle registrazioni lunghe:** ogni blocco viene letto direttamente dalla registrazione, senza conversione; il silenzio iniziale non ferma più il lavoro; un blocco che fallisce viene saltato e riprovato con Riprendi; parole salvate in frasi brevi; schermo acceso durante la trascrizione; "Prova il primo blocco" e registro diagnostico. [Prova sull'iPad](docs/TESTING_0_9_1.md).
 
-**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39449039047): 86 core macOS, 153 unit/integrazione iPad e tutti i 16 UI test, più due esclusioni specifiche del simulatore; build Release senza firma riuscita. Dodici test backend superati. [Esiti e limiti](docs/VALIDATION.md). Pencil fisica e runner Swift Playground restano da provare.
+**Stato della consegna:** [CI Apple superata per la 0.9.1](https://github.com/sminikiller/NeuralNotes/actions/runs/39472735749): 91 test core macOS, 164 unit/integrazione iPad (2 esclusioni del simulatore) e 16 UI test; build Release senza firma riuscita; 12 test backend. [Esiti e limiti](docs/VALIDATION.md). Apple Speech reale, Pencil fisica e runner Swift Playground restano da provare sull'iPad.
 
 ## Aprire sul solo iPad
 

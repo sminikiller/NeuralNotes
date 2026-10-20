@@ -1,4 +1,21 @@
-# Validazione della consegna 0.9.0
+# Validazione della consegna 0.9.1
+
+20 ottobre 2026 — trascrizione delle registrazioni lunghe, [prova sull'iPad](TESTING_0_9_1.md).
+
+**Esito Apple: PASS.** Esecuzioni [39472735749](https://github.com/sminikiller/NeuralNotes/actions/runs/39472735749) (push) e [39472754680](https://github.com/sminikiller/NeuralNotes/actions/runs/39472754680) (PR), commit sorgenti `4bc1487`. Ambiente: macOS 15, Xcode 16.4, simulatore iPadOS 18.5.
+
+- macOS `swift test`: **91 test superati**, zero errori (5 nuovi su frasi della trascrizione, copertura dei frame su 2 ore e anteprima del primo minuto).
+- Simulatore, unit/integrazione: **164 eseguiti, 2 esclusi** (alias Darwin, eseguiti su macOS), zero errori. Nuove prove: lettura diretta dei blocchi da CAF reali, 160 blocchi simulati con blocchi falliti saltati e ripresi, regola di stop dopo tre errori consecutivi, classificazione del silenzio.
+- Simulatore, interfaccia: **16 test superati**.
+- Debug `xcodebuild test`: **TEST SUCCEEDED**; Release per dispositivo generico senza firma: **BUILD SUCCEEDED**.
+- Backend: 12 test Node superati.
+- Pacchetto iPad: `NeuralNotes-iPad-0.9.1.zip`, 108 sorgenti/risorse invariati più manifest, SHA-256 `371f9a11ffd6747e179ea2063050f2b9286c7306f509d5bae691e24da9613e06`.
+
+**Non eseguito:** Apple Speech reale (il simulatore non lo esegue), iPad fisico e runner Swift Playground. La prova decisiva è la trascrizione della registrazione di 2 ore sul tuo iPad.
+
+## Evidenza storica precedente
+
+### Validazione della consegna 0.9.0
 
 20 ottobre 2026 — funzioni e limiti in [STUDY_WORKSPACE_0_9.md](STUDY_WORKSPACE_0_9.md).
 
