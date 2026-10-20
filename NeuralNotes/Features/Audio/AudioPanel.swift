@@ -91,7 +91,9 @@ struct AudioPanel: View {
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("transcriptEdit-\(session.id)")
                         .disabled(audio.transcribingSessionID != nil)
-                        ShareLink(item: TranscriptFile(session: session)) { Label("Esporta testo", systemImage: "square.and.arrow.up") }
+                        ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
+                            Label("Esporta testo", systemImage: "square.and.arrow.up")
+                        }
                             .buttonStyle(.borderless)
                             .accessibilityIdentifier("transcriptExport-\(session.id)")
                             .disabled(!session.hasTranscriptText)
