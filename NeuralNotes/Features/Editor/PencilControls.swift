@@ -52,7 +52,7 @@ final class PencilControls: NSObject, UIPencilInteractionDelegate {
         presenter.present(controller, animated: true)
     }
     @objc private func hovered(_ gesture: UIHoverGestureRecognizer) {
-        guard let host, let model, UIPencilInteraction.prefersHoverToolPreview, !model.hasActiveStroke,
+        guard #available(iOS 17.5, *), let host, let model, UIPencilInteraction.prefersHoverToolPreview, !model.hasActiveStroke,
               gesture.state == .began || gesture.state == .changed else { cursor.path = nil; return }
         let at = gesture.location(in: host)
         let width = model.tool == .eraser ? model.writingOptions.eraserWidth : model.tool == .marker ? max(12, model.thickness * 5) : model.thickness
