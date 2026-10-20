@@ -16,6 +16,7 @@ final class CanvasHost: UIView {
     var interaction: CanvasInteraction?
     var textInput: CanvasTextInput?
     var drawingAssistant: CanvasDrawingAssistant?
+    var pencilControls: PencilControls?
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
     private let inputShield = PendingPageInputShield()
@@ -90,6 +91,7 @@ final class CanvasHost: UIView {
             if flow?.restorePendingViewport(for: page.id) != true { resetPage() }
         }
         interaction?.refresh(); textInput?.refresh(); alignSurface()
+        pencilControls?.trackTool()
     }
 
     func resetPage() {
@@ -188,6 +190,7 @@ struct PencilCanvas: UIViewRepresentable {
         host.textInput = CanvasTextInput(host: host, model: model)
         host.drawingAssistant = CanvasDrawingAssistant(host: host, model: model)
         model.drawingAssistant = host.drawingAssistant
+        host.pencilControls = PencilControls(host: host, model: model)
         PaperInk.configureNavigation(model.canvas, fingerDrawing: model.fingerDrawing)
         return host
     }

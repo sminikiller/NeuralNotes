@@ -79,6 +79,11 @@ public enum NativePackageInspector {
         if FileManager.default.fileExists(atPath: package.appendingPathComponent("catalog.json").path) {
             let catalog: DocumentCatalog = try read("catalog.json")
             if let template = catalog.defaultPageTemplate, !template.appearance.isValid { throw LibraryFailure.corruptDocument }
+            if let template = catalog.defaultPageTemplate, let file = template.pdfFile {
+                try media(file)
+                guard let index = template.pdfIndex, index >= 0, let width = template.sourceWidth, let height = template.sourceHeight,
+                      width.isFinite, height.isFinite, (1...20000).contains(width), (1...20000).contains(height) else { throw LibraryFailure.corruptDocument }
+            }
             if let settings = catalog.editorWorkspaces, !settings.isValid { throw LibraryFailure.corruptDocument }
             if let design = catalog.coverDesign, !design.isValid { throw LibraryFailure.corruptDocument }
             guard catalog.schemaVersion == 1, Set(catalog.sessions.map(\.id)).count == catalog.sessions.count else {

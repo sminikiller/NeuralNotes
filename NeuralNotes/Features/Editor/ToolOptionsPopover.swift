@@ -61,8 +61,12 @@ struct ToolOptionsPopover: View {
     private var selectionOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
             Button("Lazo PencilKit", systemImage: "lasso") { model.chooseTool(.lasso) }
-            Button("Area: inchiostro e oggetti", systemImage: "rectangle.dashed") { model.chooseTool(.objects); model.selectRectangle = true }
+            Button("Lazo libero: inchiostro e oggetti", systemImage: "lasso.and.sparkles") { model.chooseTool(.objects); model.selectRectangle = false; model.selectFreehand = true }
+            Button("Area: inchiostro e oggetti", systemImage: "rectangle.dashed") { model.chooseTool(.objects); model.selectFreehand = false; model.selectRectangle = true }
             Toggle("Aggiungi alla selezione", isOn: $model.multiSelection)
+            Text("Spessore selezione · \(model.selectionWidth, specifier: "%.1f") pt").font(.caption)
+            Slider(value: $model.selectionWidth, in: 0.5...40)
+            Button("Applica spessore a tratti e forme") { model.changeSelectionWidth(model.selectionWidth) }
             Button("Seleziona tutto", systemImage: "checkmark.square") { model.chooseTool(.objects); model.selectAll() }
             Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensRequest += 1 }
         }

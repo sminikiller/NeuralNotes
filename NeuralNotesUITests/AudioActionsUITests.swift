@@ -36,7 +36,9 @@ final class AudioActionsUITests: XCTestCase {
         let export = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptExport-")).firstMatch
         for _ in 0..<4 where !export.exists { app.swipeUp() }
         XCTAssertTrue(export.waitForExistence(timeout: 5)); export.tap()
-        let activity = app.otherElements["ActivityListView"]
+        // The system share UI can be in-process or a remote extension. Both
+        // variants are visible in the exported AX evidence from iPadOS 18.5.
+        let activity = app.otherElements.matching(NSPredicate(format: "identifier IN %@", ["ActivityListView", "ShareSheet.RemoteContainerView"])).firstMatch
         let visible = activity.waitForExistence(timeout: 10)
         if !visible {
             let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)

@@ -43,6 +43,10 @@ public struct PageTemplate: Codable, Equatable, Sendable {
     public var appearance: PaperAppearance
     public var format: PageFormat
     public var landscape: Bool
+    public var pdfFile: String?
+    public var pdfIndex: Int?
+    public var sourceWidth: Double?
+    public var sourceHeight: Double?
     public init(paper: PaperStyle = .plain, appearance: PaperAppearance = PaperAppearance(), format: PageFormat = .standard, landscape: Bool = false) {
         self.paper = paper; self.appearance = appearance; self.format = format; self.landscape = landscape
     }
@@ -50,6 +54,10 @@ public struct PageTemplate: Codable, Equatable, Sendable {
         var page = PageSnapshot(); page.paper = paper; page.appearance = appearance
         let size = format.size
         page.width = landscape ? size.height : size.width; page.height = landscape ? size.width : size.height
+        if let file = pdfFile, let index = pdfIndex, let width = sourceWidth, let height = sourceHeight,
+           width.isFinite, height.isFinite, width > 0, height > 0 {
+            page.pdfFile = file; page.pdfIndex = index; page.width = width; page.height = height
+        }
         return page
     }
 }

@@ -37,6 +37,7 @@ final class EditorViewModel {
     var focusRequest = 0
     var ink = Color.black
     var thickness: Double = 3
+    var selectionWidth: Double = 3
     var fingerDrawing = false
     var workspaces = NotebookWorkspaces.starter()
     var shapeKind = ShapeKind.line
@@ -73,6 +74,7 @@ final class EditorViewModel {
     }
     var multiSelection = false
     var selectRectangle = false
+    var selectFreehand = false
     var history = EditHistory<EditorEdit>()
     var applyingHistory = false
     @ObservationIgnored var editBeforeGesture: EditorContentState?

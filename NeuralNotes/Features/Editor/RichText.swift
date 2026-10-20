@@ -4,7 +4,21 @@ import NeuralNotesCore
 
 @MainActor
 enum RichText {
+    private final class CachedText {
+        let source: TextElement, color: UIColor, value: NSAttributedString
+        init(_ source: TextElement, color: UIColor, value: NSAttributedString) { self.source = source; self.color = color; self.value = value }
+    }
+    private static let cache: NSCache<NSUUID, CachedText> = {
+        let cache = NSCache<NSUUID, CachedText>(); cache.totalCostLimit = 8 * 1024 * 1024; cache.countLimit = 256; return cache
+    }()
     static func attributed(_ text: TextElement, color: UIColor = .black) -> NSAttributedString {
+        if let cached = cache.object(forKey: text.id as NSUUID), cached.source.rtf == text.rtf,
+           cached.source.text == text.text, cached.source.fontSize == text.fontSize, cached.color.isEqual(color) { return cached.value }
+        let value = decode(text, color: color)
+        cache.setObject(CachedText(text, color: color, value: value), forKey: text.id as NSUUID, cost: (text.rtf?.count ?? 0) + value.length * 4)
+        return value
+    }
+    private static func decode(_ text: TextElement, color: UIColor) -> NSAttributedString {
         if let data = text.rtf, data.count <= 2 * 1024 * 1024,
            let value = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil),
            value.string == text.text { return value }

@@ -96,12 +96,15 @@ struct EditorQuickToolbar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 18) {
                 Toggle(isOn: $model.multiSelection) { Image(systemName: "checkmark.circle") }.toggleStyle(.button).accessibilityLabel("Selezione multipla")
-                Toggle(isOn: $model.selectRectangle) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
+                Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
                 Menu {
                     Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
+                    Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensRequest += 1 }
+                    Button("Converti in testo", systemImage: "text.viewfinder") { Task { await model.convertSelectionToText() } }
+                    Button("Copia area come immagine", systemImage: "photo.on.rectangle") { model.copySelectionImage() }
                     Button("Porta dietro", systemImage: "square.3.layers.3d.bottom.filled") { model.arrangeSelection(front: false) }
                     Button("Blocca oggetti", systemImage: "lock") { model.lockSelection() }
                     Button("Sblocca tutti gli oggetti", systemImage: "lock.open") { model.unlockObjects() }

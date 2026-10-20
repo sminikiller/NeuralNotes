@@ -13,6 +13,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private var resizing = false
     private let inkID = UUID()
     private var originalDrawing: PKDrawing?
+    private var selectionTrace: [CGPoint] = []
     private let fitTap = UITapGestureRecognizer()
     private let pointerFitTap = UITapGestureRecognizer()
     private let undoTap = UITapGestureRecognizer(), redoTap = UITapGestureRecognizer()
@@ -101,7 +102,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         if gesture is UIPanGestureRecognizer {
             if model.tool == .lens { return true }
-            return model.tool == .objects && (model.selectRectangle || hit(gesture.location(in: host.surface)) != nil)
+            return model.tool == .objects && (model.selectRectangle || model.selectFreehand || hit(gesture.location(in: host.surface)) != nil)
         }
         if model.pageNavigation == .vertical, host.flow?.page(at: gesture.location(in: host)) != model.page?.id { return true }
         return model.tool == .objects || model.tool == .audioLink || model.tool == .text || model.tool == .lens
@@ -160,8 +161,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let point = gesture.location(in: host.surface)
         if gesture.state == .began {
             start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
+            selectionTrace = [point]
             originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
-            if !model.selectRectangle && model.tool != .lens {
+            if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
                 if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
                 for id in model.selectedIDs { original[id] = objectRect(id) }
                 if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
@@ -170,20 +172,35 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 } else { resizing = false }
             }
         }
-        if model.selectRectangle || model.tool == .lens {
+        if model.selectRectangle || model.selectFreehand || model.tool == .lens {
             let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
-            marquee.path = UIBezierPath(rect: host.surface.convert(rect, to: host)).cgPath
+            let selection: UIBezierPath
+            if model.selectFreehand {
+                selectionTrace.append(point); selection = UIBezierPath(); selection.move(to: start)
+                for point in selectionTrace.dropFirst() { selection.addLine(to: point) }; selection.close()
+            } else { selection = UIBezierPath(rect: rect) }
+            let display = UIBezierPath(cgPath: selection.cgPath)
+            var transform = host.surface.transform; transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
+            display.apply(transform); marquee.path = display.cgPath
             if gesture.state == .ended {
                 if model.tool == .lens {
                     model.lensArea = rect; model.lensRequest += 1; marquee.path = nil; before = nil; originalDrawing = nil; return
                 }
-                let ids = allIDs.filter { objectRect($0)?.intersects(rect) == true }
+                let box = selection.bounds
+                let ids = allIDs.filter { id in
+                    guard let frame = objectRect(id), frame.intersects(box) else { return false }
+                    return !model.selectFreehand || selection.contains(CGPoint(x: frame.midX, y: frame.midY))
+                }
                 model.selectedIDs = model.multiSelection ? model.selectedIDs.union(ids) : Set(ids)
-                let strokes = Set(model.canvas.drawing.strokes.indices.filter { model.canvas.drawing.strokes[$0].renderBounds.intersects(rect) })
+                let strokes = Set(model.canvas.drawing.strokes.indices.filter { index in
+                    let stroke = model.canvas.drawing.strokes[index]
+                    guard stroke.renderBounds.intersects(box) else { return false }
+                    return !model.selectFreehand || stroke.path.interpolatedPoints(by: .distance(8)).contains { selection.contains($0.location.applying(stroke.transform)) }
+                })
                 let previous = model.selectionIncludesInk ? (model.selectedStrokeIndices ?? Set(model.canvas.drawing.strokes.indices)) : []
                 model.selectedStrokeIndices = model.multiSelection ? previous.union(strokes) : strokes
                 model.selectionIncludesInk = !(model.selectedStrokeIndices?.isEmpty ?? true)
-                model.selectRectangle = false; marquee.path = nil; before = nil; originalDrawing = nil; refresh()
+                model.selectRectangle = false; model.selectFreehand = false; marquee.path = nil; before = nil; originalDrawing = nil; refresh()
             }
             if gesture.state == .cancelled { marquee.path = nil; before = nil; originalDrawing = nil }
             return

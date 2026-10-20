@@ -137,6 +137,14 @@ struct EditorView: View {
                             Button("PDF vettoriale", systemImage: "doc") { Task { await export(native: false) } }
                             Button("PDF con aspetto PencilKit", systemImage: "paintbrush") { Task { await export(native: false, vector: false) } }
                             Button("Quaderno nativo e backup", systemImage: "externaldrive") { Task { await export(native: true) } }
+                            Button("Pagina PNG", systemImage: "photo") { Task { await exportExtra("png") } }
+                            Button("Pagina JPEG", systemImage: "photo") { Task { await exportExtra("jpeg") } }
+                            Button("Area selezionata PNG", systemImage: "selection.pin.in.out") { Task { await exportExtra("selection") } }
+                                .disabled(model.selectionBounds.isNull)
+                            Button("Appunti Markdown", systemImage: "text.document") { Task { await exportExtra("markdown") } }
+                            Button("Appunti testo", systemImage: "text.alignleft") { Task { await exportExtra("text") } }
+                            Button("Raccolta evidenziazioni PDF", systemImage: "highlighter") { Task { await exportExtra("highlights") } }
+                            Button("Stampa", systemImage: "printer") { Task { await exportExtra("print") } }
                         }
                     } label: { Label("Azioni", systemImage: "ellipsis.circle") }
                     .disabled(working || model.loading || model.navigating || !model.hasLease)
@@ -322,6 +330,24 @@ struct EditorView: View {
         guard let from = ids.firstIndex(of: page.id) else { return }
         let to = max(0, min(ids.count - 1, from + offset))
         ids.remove(at: from); ids.insert(page.id, at: to); await model.reorder(ids)
+    }
+    private func exportExtra(_ kind: String) async {
+        working = true; defer { working = false }
+        guard await model.flush() else { return }
+        do {
+            let url: URL
+            switch kind {
+            case "png", "jpeg", "selection": url = try model.exportPageImage(jpeg: kind == "jpeg", selection: kind == "selection")
+            case "print": url = try await DocumentServices.exportPDF(workspace: model.workspace)
+            default: url = try await model.exportNotebookText(markdown: kind != "text", highlightsOnly: kind == "highlights")
+            }
+            if kind == "print", let anchor = model.pagePresenter as? UIView {
+                let controller = UIPrintInteractionController.shared, info = UIPrintInfo(dictionary: nil)
+                info.jobName = notebook.title; info.outputType = .general
+                controller.printInfo = info; controller.printingItem = url
+                controller.present(from: CGRect(x: max(0, anchor.bounds.width - 44), y: 0, width: 44, height: 44), in: anchor, animated: true, completionHandler: nil)
+            } else { shareURL = url; sharing = true }
+        } catch { model.error = error.localizedDescription }
     }
 
     private var selectedCrop: NormalizedCrop { model.page?.images.first(where: { $0.id == model.selectedObjectID })?.crop ?? .full }

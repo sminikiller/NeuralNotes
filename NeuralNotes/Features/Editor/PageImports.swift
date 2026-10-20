@@ -4,6 +4,13 @@ import NeuralNotesCore
 
 @MainActor
 extension EditorViewModel {
+    func useCurrentPDFAsTemplate() async -> Bool {
+        guard let page, let file = page.pdfFile, let index = page.pdfIndex, !hasActiveStroke, await flush() else { return false }
+        var template = PageTemplate(paper: page.paper, appearance: page.appearance ?? PaperAppearance())
+        template.pdfFile = file; template.pdfIndex = index; template.sourceWidth = page.width; template.sourceHeight = page.height
+        do { try await workspace.setDefaultPageTemplate(template); return true }
+        catch { self.error = error.localizedDescription; return false }
+    }
     /// Keep page selection and Pencil input locked for the entire import, not
     /// only its last load. The continuous viewport must not rebase mid-import.
     func importPages(from url: URL, native: Bool = false) async {

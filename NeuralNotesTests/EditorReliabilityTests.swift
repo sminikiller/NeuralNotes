@@ -7,11 +7,35 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testPageImageAndMarkdownExportKeepContentAndDoNotChangeNotebook() async throws {
+        try await fixture { model in
+            model.editText([TextElement(text: "Appunto esportabile")]); _ = await model.flush()
+            let original = try await model.workspace.pages()
+            let png = try model.exportPageImage(), jpeg = try model.exportPageImage(jpeg: true)
+            let markdown = try await model.exportNotebookText()
+            defer { for file in [png, jpeg, markdown] { try? FileManager.default.removeItem(at: file) } }
+            XCTAssertNotNil(UIImage(contentsOfFile: png.path)); XCTAssertNotNil(UIImage(contentsOfFile: jpeg.path))
+            XCTAssertTrue(try String(contentsOf: markdown, encoding: .utf8).contains("Appunto esportabile"))
+            let after = try await model.workspace.pages(); XCTAssertEqual(original, after)
+        }
+    }
+    @MainActor func testSelectionWidthKeepsOtherStrokesAndSupportsUndo() async throws {
+        try await fixture { model in
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.pen), stroke(.marker)]); model.strokeEnded(); model.finishInkGesture()
+            let second = model.canvas.drawing.strokes[1].path[0].size
+            model.chooseTool(.objects); model.selectionIncludesInk = true; model.selectedStrokeIndices = [0]
+            model.changeSelectionWidth(3)
+            XCTAssertEqual(model.canvas.drawing.strokes[0].path[0].size.width, 3, accuracy: 0.01)
+            XCTAssertEqual(model.canvas.drawing.strokes[1].path[0].size, second)
+            await model.performUndo(); XCTAssertEqual(model.canvas.drawing.strokes[0].path[0].size.width, 12, accuracy: 0.01)
+        }
+    }
     @MainActor func testStudyTapeStickyNotesAndLocksSurviveUndoAndPageDuplication() async throws {
         try await fixture { model in
             model.addStickyNote("Definizione")
             let note = try XCTUnwrap(model.page?.texts.first)
-            XCTAssertNotNil(note.background); XCTAssertTrue(model.page?.aboveInkObjects?.contains(note.id) == true)
+            XCTAssertNotNil(note.background)
+            model.arrangeSelection(front: true); XCTAssertTrue(model.page?.aboveInkObjects?.contains(note.id) == true)
             model.lockSelection(); model.selectAll(); XCTAssertFalse(model.selectedIDs.contains(note.id))
             model.unlockObjects(); model.selectedObjectID = nil
             model.addStudyTape(); let tape = try XCTUnwrap(model.page?.tapes?.first)
@@ -88,6 +112,9 @@ final class EditorReliabilityTests: XCTestCase {
                 let bytes = try await model.workspace.drawing(page)
                 XCTAssertNil(bytes); XCTAssertTrue(page.texts.isEmpty); XCTAssertTrue(page.images.isEmpty)
             }
+            let templateSaved = await model.useCurrentPDFAsTemplate(); XCTAssertTrue(templateSaved)
+            await model.addPage()
+            XCTAssertEqual(model.page?.pdfFile, imported.first?.pdfFile); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
             await model.select(try XCTUnwrap(model.pages.first(where: { $0.id == original })))
             XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertEqual(model.page?.texts.first?.text, "Appunti della pagina precedente")
             await model.select(try XCTUnwrap(imported.first)); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)

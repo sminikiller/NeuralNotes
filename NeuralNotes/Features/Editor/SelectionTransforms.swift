@@ -85,4 +85,25 @@ extension EditorViewModel {
         }
         recordEdit(before, label: "Colore selezione"); drawingChanged()
     }
+    func changeSelectionWidth(_ width: Double) {
+        finishInkGesture()
+        guard hasLease, !interactionBusy, !navigating, !loading, width.isFinite, (0.5...40).contains(width) else { return }
+        let before = captureEdit(ink: selectionIncludesInk)
+        if selectionIncludesInk {
+            canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().map { index, stroke in
+                guard selectedStrokeIndices == nil || selectedStrokeIndices?.contains(index) == true else { return stroke }
+                let points = Array(stroke.path), peak = max(0.1, points.map { $0.size.width }.max() ?? 1)
+                let scale = max(0.001, hypot(stroke.transform.a, stroke.transform.b))
+                let ratio = CGFloat(width) / (peak * scale)
+                let resized = points.map { point in PKStrokePoint(location: point.location, timeOffset: point.timeOffset,
+                    size: CGSize(width: point.size.width * ratio, height: point.size.height * ratio), opacity: point.opacity,
+                    force: point.force, azimuth: point.azimuth, altitude: point.altitude) }
+                return PKStroke(ink: stroke.ink, path: PKStrokePath(controlPoints: resized, creationDate: stroke.path.creationDate), transform: stroke.transform, mask: stroke.mask)
+            })
+        }
+        if var shapes = page?.shapes {
+            for i in shapes.indices where selectedIDs.contains(shapes[i].id) { shapes[i].lineWidth = width }; page?.shapes = shapes
+        }
+        recordEdit(before, label: "Spessore selezione"); drawingChanged()
+    }
 }

@@ -57,8 +57,13 @@ struct LensPanel: View {
                 Button { send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }.disabled(busy || question.isEmpty || sources.isEmpty).accessibilityLabel("Invia alla Lente AI")
                 if busy { Button("Stop") { job?.cancel() } }
             }.padding()
-        }.task(id: model.lensRequest) { await load() }
+        }.task(id: selectionKey) { await load() }
             .onDisappear { job?.cancel() }
+    }
+    private var selectionKey: String {
+        let objects = model.selectedIDs.map(\.uuidString).sorted().joined(separator: ",")
+        let strokes = (model.selectedStrokeIndices ?? []).sorted().map(String.init).joined(separator: ",")
+        return "\(model.page?.id.uuidString ?? "")|\(objects)|\(strokes)|\(model.selectionIncludesInk)|\(String(describing: model.lensArea))|\(model.lensRequest)"
     }
     private var settings: some View {
         Button { configuring = true } label: { Image(systemName: "slider.horizontal.3") }
@@ -86,7 +91,9 @@ struct LensPanel: View {
         guard await model.flush(), let page = model.page else { return }
         do {
             var text = page.texts.filter { model.selectedIDs.isEmpty || model.selectedIDs.contains($0.id) }.map(\.text).joined(separator: "\n")
-            let area = model.lensArea ?? (model.selectionIncludesInk ? model.selectionBounds : nil)
+            let visual = model.selectionIncludesInk || page.images.contains(where: { model.selectedIDs.contains($0.id) })
+                || (page.shapes ?? []).contains(where: { model.selectedIDs.contains($0.id) })
+            let area = model.lensArea ?? (visual ? model.selectionBounds : nil)
             if let area, !area.isNull, area.width > 3, area.height > 3 {
                 let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 1600)
                 let box = area.intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
@@ -101,9 +108,11 @@ struct LensPanel: View {
                     if let data = image.pngData() { text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n") }
                 }
             }
+            try Task.checkCancellation()
             sources = text.split(separator: "\n").prefix(20).map { IndexedChunk(text: String($0.prefix(4000)), reference: SourceReference(documentID: notebook.documentID, pageID: page.id, pageRevision: page.revision)) }
             if sources.isEmpty { error = "Nessun testo riconoscibile nella selezione. Seleziona testo o un’area più leggibile." } else { error = nil }
-        } catch { self.error = error.localizedDescription }
+        } catch is CancellationError { }
+        catch { self.error = error.localizedDescription }
     }
     private func send() {
         guard !busy, !sources.isEmpty else { return }

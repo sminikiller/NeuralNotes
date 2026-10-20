@@ -51,6 +51,14 @@ struct PageTemplatePanel: View {
         NavigationStack {
             Form {
                 PageTemplateControls(template: $template, allowFormat: model.page?.pdfFile == nil)
+                if model.page?.pdfFile != nil {
+                    Section("Modello PDF personale") {
+                        Button("Usa questa pagina PDF per le nuove pagine", systemImage: "doc.badge.plus") {
+                            Task { if await model.useCurrentPDFAsTemplate() { dismiss() } }
+                        }
+                        Text("Il PDF originale viene riusato come sfondo. Le nuove pagine partono senza annotazioni.").font(.caption)
+                    }
+                }
                 Section("Navigazione delle pagine") {
                     Picker("Modalità", selection: Binding(get: { model.pageNavigation }, set: { model.pageNavigation = $0 })) {
                         ForEach(PageNavigationMode.allCases, id: \.self) { mode in Label(mode.title, systemImage: mode.icon).tag(mode) }

@@ -144,6 +144,11 @@ public actor DocumentWorkspace {
 
     public func setDefaultPageTemplate(_ template: PageTemplate) throws {
         guard template.appearance.isValid else { throw LibraryFailure.corruptDocument }
+        if let file = template.pdfFile {
+            guard let index = template.pdfIndex, index >= 0, let width = template.sourceWidth, let height = template.sourceHeight,
+                  width.isFinite, height.isFinite, (1...20000).contains(width), (1...20000).contains(height),
+                  FileManager.default.fileExists(atPath: try url(file).path) else { throw LibraryFailure.corruptDocument }
+        }
         var value = try catalog(); value.defaultPageTemplate = template
         try write(value, "catalog.json")
     }

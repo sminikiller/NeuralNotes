@@ -7,7 +7,7 @@ extension EditorViewModel {
     func addStickyNote(_ label: String = "Nuovo post-it") {
         var text = TextElement(text: label); text.width = min(260, max(40, (page?.width ?? 768) - 96)); text.fontSize = 20
         text.background = InkColor(1, 0.94, 0.55)
-        mutatePage("Inserisci post-it") { page in page.texts.append(text); page.aboveInkObjects = (page.aboveInkObjects ?? []) + [text.id] }
+        mutatePage("Inserisci post-it") { $0.texts.append(text) }
         tool = .objects; selectedObjectID = text.id; configureTool()
     }
     func addStudyTape() {
