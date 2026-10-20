@@ -1,0 +1,223 @@
+import UIKit
+import PencilKit
+import NeuralNotesCore
+
+@MainActor
+final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
+    weak var host: CanvasHost?
+    weak var model: EditorViewModel?
+    private let outline = CAShapeLayer(), handle = CAShapeLayer(), marquee = CAShapeLayer()
+    private var before: EditorContentState?
+    private var start = CGPoint.zero
+    private var original: [UUID: CGRect] = [:]
+    private var resizing = false
+    private let inkID = UUID()
+    private var originalDrawing: PKDrawing?
+    private let fitTap = UITapGestureRecognizer()
+    private let pointerFitTap = UITapGestureRecognizer()
+    private let nextSwipe = UISwipeGestureRecognizer(), previousSwipe = UISwipeGestureRecognizer()
+    private let nextVerticalSwipe = UISwipeGestureRecognizer(), previousVerticalSwipe = UISwipeGestureRecognizer()
+    private var pageSwipes: [UISwipeGestureRecognizer] { [nextSwipe, previousSwipe, nextVerticalSwipe, previousVerticalSwipe] }
+
+    init(host: CanvasHost, model: EditorViewModel) {
+        self.host = host; self.model = model
+        super.init()
+        outline.fillColor = UIColor.clear.cgColor; outline.strokeColor = UIColor.systemTeal.cgColor; outline.lineWidth = 2
+        handle.fillColor = UIColor.systemTeal.cgColor
+        marquee.fillColor = UIColor.systemTeal.withAlphaComponent(0.1).cgColor
+        marquee.strokeColor = UIColor.systemTeal.cgColor; marquee.lineDashPattern = [5, 4]
+        for layer in [outline, handle, marquee] { host.layer.addSublayer(layer) }
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        fitTap.addTarget(self, action: #selector(fitPage(_:)))
+        fitTap.numberOfTapsRequired = 2
+        fitTap.numberOfTouchesRequired = model.fingerDrawing ? 2 : 1
+        fitTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        pointerFitTap.addTarget(self, action: #selector(fitPage(_:))); pointerFitTap.numberOfTapsRequired = 2
+        pointerFitTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        for gesture in [fitTap, pointerFitTap] {
+            gesture.cancelsTouchesInView = false; gesture.delaysTouchesBegan = false
+            gesture.requiresExclusiveTouchType = false
+            gesture.delegate = self; host.canvas.addGestureRecognizer(gesture)
+        }
+        tap.require(toFail: fitTap)
+        tap.require(toFail: pointerFitTap)
+        nextSwipe.direction = .left; previousSwipe.direction = .right
+        nextVerticalSwipe.direction = .up; previousVerticalSwipe.direction = .down
+        for swipe in pageSwipes {
+            swipe.addTarget(self, action: #selector(turnPage(_:))); swipe.delegate = self
+            swipe.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            host.canvas.addGestureRecognizer(swipe)
+        }
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        pan.maximumNumberOfTouches = 1
+        for gesture in [tap as UIGestureRecognizer, pan] {
+            gesture.delegate = self
+            gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+            host.addGestureRecognizer(gesture)
+        }
+        host.canvas.panGestureRecognizer.require(toFail: pan)
+    }
+
+    func refresh() {
+        let touches = model?.fingerDrawing == true ? 2 : 1
+        if fitTap.numberOfTouchesRequired != touches { fitTap.numberOfTouchesRequired = touches }
+        for swipe in pageSwipes {
+            let horizontal = swipe === nextSwipe || swipe === previousSwipe
+            let enabled = horizontal && model?.pageNavigation == .horizontal
+            if swipe.isEnabled != enabled { swipe.isEnabled = enabled }
+            if swipe.numberOfTouchesRequired != touches { swipe.numberOfTouchesRequired = touches }
+        }
+        guard let host, let model, model.tool == .objects else { outline.path = nil; handle.path = nil; return }
+        let path = UIBezierPath()
+        for id in model.selectedIDs { if let rect = objectRect(id) { path.append(UIBezierPath(rect: host.surface.convert(rect, to: host))) } }
+        if model.selectionIncludesInk { path.append(UIBezierPath(rect: host.surface.convert(model.selectedInkBounds, to: host))) }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        outline.path = path.cgPath
+        if model.selectedIDs.count == 1, !model.selectionIncludesInk, let id = model.selectedObjectID, let rect = objectRect(id) {
+            let display = host.surface.convert(rect, to: host)
+            handle.path = UIBezierPath(ovalIn: CGRect(x: display.maxX - 7, y: display.maxY - 7, width: 14, height: 14)).cgPath
+        } else { handle.path = nil }
+        CATransaction.commit()
+    }
+
+    func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+        guard let model, let host, !model.loading, !model.navigating else { return false }
+        if gesture === fitTap || gesture === pointerFitTap { return model.editingTextID == nil }
+        if pageSwipes.contains(where: { $0 === gesture }) {
+            return model.hasLease && !model.interactionBusy && host.canvas.zoomScale <= host.canvas.minimumZoomScale * 1.05
+        }
+        if gesture is UIPanGestureRecognizer {
+            return model.tool == .objects && (model.selectRectangle || hit(gesture.location(in: host.surface)) != nil)
+        }
+        if model.pageNavigation == .vertical, host.flow?.page(at: gesture.location(in: host)) != model.page?.id { return true }
+        return model.tool == .objects || model.tool == .audioLink || model.tool == .text
+    }
+
+    func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if pageSwipes.contains(where: { $0 === gesture }) && touch.type != .direct { return false }
+        if let input = host?.textInput?.view, let touched = touch.view, touched.isDescendant(of: input) { return false }
+        return true
+    }
+
+    func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        // PencilKit's internal scroll/tap recognizers must not swallow our fit
+        // or page-turn gesture. Drawing input itself remains Pencil-only.
+        gesture === fitTap || gesture === pointerFitTap || pageSwipes.contains(where: { $0 === gesture })
+    }
+
+    @objc private func turnPage(_ gesture: UISwipeGestureRecognizer) {
+        guard gesture.state == .recognized else { return }
+        let delta = gesture.direction == .left || gesture.direction == .up ? 1 : -1
+        Task { await model?.turnPage(delta) }
+    }
+
+    @objc private func fitPage(_ gesture: UITapGestureRecognizer) { host?.togglePageZoom(animated: true) }
+
+    @objc private func tapped(_ gesture: UITapGestureRecognizer) {
+        guard let host, let model else { return }
+        if model.pageNavigation == .vertical, host.flow?.page(at: gesture.location(in: host)) != model.page?.id {
+            host.flow?.activateAtPoint(gesture.location(in: host)); return
+        }
+        let point = gesture.location(in: host.surface)
+        if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }
+        else if model.tool == .audioLink { Task { await model.playAudio(at: point, tolerance: 18 / max(host.canvas.zoomScale, 0.1)) } }
+        else if let id = hit(point) {
+            if id == inkID { refresh(); return }
+            if model.multiSelection {
+                if model.selectedIDs.contains(id) { model.selectedIDs.remove(id) } else { model.selectedIDs.insert(id) }
+            } else { model.selectedObjectID = id }
+        } else if !model.multiSelection { model.selectedObjectID = nil }
+        refresh()
+    }
+
+    @objc private func panned(_ gesture: UIPanGestureRecognizer) {
+        guard let host, let model, let page = model.page else { return }
+        let point = gesture.location(in: host.surface)
+        if gesture.state == .began {
+            start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
+            originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
+            if !model.selectRectangle {
+                if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
+                for id in model.selectedIDs { original[id] = objectRect(id) }
+                if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
+                if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
+                    resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
+                } else { resizing = false }
+            }
+        }
+        if model.selectRectangle {
+            let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
+            marquee.path = UIBezierPath(rect: host.surface.convert(rect, to: host)).cgPath
+            if gesture.state == .ended {
+                let ids = allIDs.filter { objectRect($0)?.intersects(rect) == true }
+                model.selectedIDs = model.multiSelection ? model.selectedIDs.union(ids) : Set(ids)
+                let strokes = Set(model.canvas.drawing.strokes.indices.filter { model.canvas.drawing.strokes[$0].renderBounds.intersects(rect) })
+                let previous = model.selectionIncludesInk ? (model.selectedStrokeIndices ?? Set(model.canvas.drawing.strokes.indices)) : []
+                model.selectedStrokeIndices = model.multiSelection ? previous.union(strokes) : strokes
+                model.selectionIncludesInk = !(model.selectedStrokeIndices?.isEmpty ?? true)
+                model.selectRectangle = false; marquee.path = nil; before = nil; originalDrawing = nil; refresh()
+            }
+            if gesture.state == .cancelled { marquee.path = nil; before = nil; originalDrawing = nil }
+            return
+        }
+        var dx = Double(point.x - start.x), dy = Double(point.y - start.y)
+        if !resizing, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
+            let a = -Double(group.minX), b = page.width - Double(group.maxX)
+            let c = -Double(group.minY), d = page.height - Double(group.maxY)
+            dx = max(min(a, b), min(max(a, b), dx)); dy = max(min(c, d), min(max(c, d), dy))
+        }
+        for (id, rect) in original {
+            let x = Double(rect.minX), y = Double(rect.minY), w = Double(rect.width), h = Double(rect.height)
+            if let i = page.images.firstIndex(where: { $0.id == id }) {
+                if resizing {
+                    let ratio = h / max(1, w), available = min(max(1, page.width - x), max(1, page.height - y) / max(0.01, ratio))
+                    let width = max(min(24, available), min(available, w + dx))
+                    model.page?.images[i].width = width; model.page?.images[i].height = width * ratio
+                } else { model.page?.images[i].x = x + dx; model.page?.images[i].y = y + dy }
+            } else if let i = page.texts.firstIndex(where: { $0.id == id }) {
+                if resizing { model.page?.texts[i].width = max(24, min(page.width - x, w + dx)) }
+                else { model.page?.texts[i].x = x + dx; model.page?.texts[i].y = y + dy }
+            } else if let i = page.shapes?.firstIndex(where: { $0.id == id }) {
+                if resizing {
+                    model.page?.shapes?[i].width = max(10, min(page.width - x, w + dx))
+                    model.page?.shapes?[i].height = max(10, min(page.height - y, h + dy))
+                } else { model.page?.shapes?[i].x = x + dx; model.page?.shapes?[i].y = y + dy }
+            }
+        }
+        if model.selectionIncludesInk, let drawing = originalDrawing {
+            let transform = CGAffineTransform(translationX: dx, y: dy)
+            model.canvas.drawing = PKDrawing(strokes: drawing.strokes.enumerated().map { index, stroke in
+                guard model.selectedStrokeIndices == nil || model.selectedStrokeIndices?.contains(index) == true else { return stroke }
+                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
+            })
+        }
+        model.drawingChanged(); refresh()
+        if gesture.state == .ended || gesture.state == .cancelled {
+            model.recordEdit(before, label: resizing ? "Ridimensiona" : "Sposta selezione"); before = nil; original = [:]; originalDrawing = nil
+        }
+    }
+
+    private var allIDs: [UUID] {
+        guard let page = model?.page else { return [] }
+        return page.images.map(\.id) + (page.shapes ?? []).map(\.id) + page.texts.map(\.id)
+    }
+    private func hit(_ point: CGPoint) -> UUID? {
+        guard let host, let model else { return nil }
+        let margin = 14 / max(host.canvas.zoomScale, 0.1)
+        if model.selectedIDs.count == 1, let id = model.selectedObjectID,
+           let rect = objectRect(id), CGRect(x: rect.maxX - margin, y: rect.maxY - margin, width: margin * 2, height: margin * 2).contains(point) { return id }
+        if let id = allIDs.reversed().first(where: { objectRect($0)?.contains(point) == true }) { return id }
+        return model.selectionIncludesInk && model.selectedInkBounds.contains(point) ? inkID : nil
+    }
+    private func objectRect(_ id: UUID) -> CGRect? {
+        guard let page = model?.page else { return nil }
+        if let image = page.images.first(where: { $0.id == id }) { return CGRect(x: image.x, y: image.y, width: image.width, height: image.height) }
+        if let shape = page.shapes?.first(where: { $0.id == id }) { return CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height) }
+        if let text = page.texts.first(where: { $0.id == id }) {
+            let size = (text.text as NSString).boundingRect(with: CGSize(width: text.width, height: max(1, page.height - text.y)),
+                options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: UIFont.systemFont(ofSize: text.fontSize)], context: nil)
+            return CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize + 10, size.height))
+        }
+        return nil
+    }
+}

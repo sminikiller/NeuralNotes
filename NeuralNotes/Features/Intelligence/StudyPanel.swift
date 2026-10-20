@@ -1,0 +1,146 @@
+import SwiftUI
+import NeuralNotesCore
+
+@MainActor
+struct StudyPanel: View {
+    let model: EditorViewModel
+    let notebook: Notebook
+    let library: LibraryViewModel
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("ai.backendURL") private var endpoint = ""
+    @State private var token = ""
+    @State private var consent = false
+    @State private var task = AITask.summarize
+    @State private var question = ""
+    @State private var includeFolder = false
+    @State private var result: AIArtifact?
+    @State private var error: String?
+    @State private var busy = false
+    @State private var job: Task<Void, Never>?
+    @State private var remote = false
+    @State private var semantic = false
+    @State private var history: [AIArtifact] = []
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Fonti") {
+                    Text("L’AI usa il testo digitato, il testo dei PDF, l’OCR e le trascrizioni già salvate. Esegui prima OCR sulle pagine scritte a mano.")
+                        .font(.callout)
+                    if notebook.folderID != nil { Toggle("Includi quaderni della stessa cartella", isOn: $includeFolder) }
+                    Picker("Attività", selection: $task) {
+                        ForEach(AITask.allCases, id: \.self) { value in Text(value.title).tag(value) }
+                    }
+                    TextField("Domanda o istruzioni", text: $question, axis: .vertical).lineLimit(3...6)
+                    Toggle("Usa un backend AI remoto", isOn: $remote)
+                    Toggle("Seleziona le fonti per significato (modello locale)", isOn: $semantic)
+                }
+                if remote {
+                  Section("Connessione AI opzionale") {
+                    Text("Per un modello generativo serve un backend personale: le chiavi del provider restano sul server.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    TextField("Endpoint HTTPS del backend", text: $endpoint).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .keyboardType(.URL)
+                    SecureField("Token di sessione del backend", text: $token)
+                    Toggle("Consento l’invio delle fonti selezionate al mio backend", isOn: $consent)
+                  }
+                } else {
+                    Section { Text("La sintesi locale seleziona frasi dalle fonti e crea schemi o esercizi di completamento. Funziona offline e non usa un modello generativo.").font(.caption) }
+                }
+                Section {
+                    if !history.isEmpty {
+                        Menu("Elaborazioni salvate · \(history.count)") {
+                            ForEach(history.reversed()) { artifact in
+                                Button("\(artifact.task?.title ?? "Elaborazione") · \(artifact.createdAt.formatted(date: .abbreviated, time: .shortened))") { result = artifact }
+                            }
+                        }
+                    }
+                    Button(busy ? "Elaborazione…" : remote ? "Genera con il backend" : "Elabora sul dispositivo", systemImage: "sparkles") {
+                        job = Task { await generate() }
+                    }.disabled(busy || (remote && (!consent || endpoint.isEmpty || token.isEmpty)))
+                    if busy { Button("Annulla richiesta") { job?.cancel() } }
+                }
+                if let error { Section { Text(error).foregroundStyle(.red) } }
+                if let result {
+                    if result.references.contains(where: { reference in
+                        guard reference.documentID == notebook.documentID, let id = reference.pageID,
+                              let revision = reference.pageRevision else { return false }
+                        return model.pages.first(where: { $0.id == id })?.revision != revision
+                    }) { Section { Text("Alcune pagine sono cambiate dopo questa elaborazione. Eseguila di nuovo per aggiornarla.").foregroundStyle(.secondary) } }
+                    Section("Risposta · \(result.provider)") { Text(result.text).textSelection(.enabled) }
+                    Section { ShareLink("Condividi elaborazione", item: result.text) }
+                    Section("Riferimenti restituiti") {
+                        ForEach(Array(result.references.enumerated()), id: \.offset) { row in
+                            Button(referenceTitle(row.element)) { Task { await openSource(row.element) } }.font(.caption)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Studia con le fonti")
+            .task {
+                token = BackendCredentials.load()
+                do { history = try await model.workspace.artifacts(); result = history.last }
+                catch { self.error = error.localizedDescription }
+            }
+            .onDisappear { job?.cancel() }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
+        }
+    }
+
+    private func generate() async {
+        let url = URL(string: endpoint)
+        guard !remote || (consent && url?.scheme == "https") else {
+            error = AIConnectionFailure.configuration.localizedDescription; return
+        }
+        busy = true; error = nil
+        defer { busy = false }
+        do {
+            guard await model.flush() else { return }
+            if remote { try BackendCredentials.save(token) }
+            let books: [Notebook]
+            if includeFolder, let folder = notebook.folderID { books = library.notebooksInFolderTree(folder) }
+            else { books = [notebook] }
+            var chunks: [IndexedChunk] = []
+            for book in books {
+                let workspace = try library.workspace(book)
+                chunks += try await FileDocumentIndexingService(workspace: workspace, id: book.documentID).index(documentID: book.documentID)
+            }
+            guard !chunks.isEmpty else { error = "Non c’è testo da analizzare. Aggiungi testo, importa un PDF o esegui OCR/trascrizione."; return }
+            let selected: [IndexedChunk]
+            if semantic, !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                selected = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: question, from: chunks, limit: 40)
+            } else { selected = try await LexicalRetrievalService().retrieve(question: question, from: chunks, limit: 40) }
+            let request = AIRequest(task: task, question: question, sources: selected)
+            let artifact: AIArtifact
+            if remote, let url { artifact = try await RemoteAIProvider(endpoint: url, sessionToken: token).generate(request) }
+            else { artifact = try await ExtractiveStudyProvider().generate(request) }
+            try Task.checkCancellation()
+            result = artifact
+            try await model.workspace.saveArtifact(artifact)
+            history.append(artifact)
+        } catch is CancellationError { }
+        catch { self.error = error.localizedDescription }
+    }
+
+    private func referenceTitle(_ reference: SourceReference) -> String {
+        let book = library.notebooks.first { $0.documentID == reference.documentID }?.title ?? "Documento"
+        if let page = reference.pageID {
+            if reference.documentID == notebook.documentID, let index = model.pages.firstIndex(where: { $0.id == page }) {
+                return "\(book) · pagina \(index + 1)"
+            }
+            return "\(book) · pagina \(page.uuidString.prefix(8))"
+        }
+        if let seconds = reference.seconds { return "\(book) · \(Int(seconds) / 60):\(String(format: "%02d", Int(seconds) % 60))" }
+        return book
+    }
+
+    private func openSource(_ source: SourceReference) async {
+        guard source.documentID == notebook.documentID else {
+            error = "Apri \(library.notebooks.first(where: { $0.documentID == source.documentID })?.title ?? "il quaderno indicato") in un’altra scheda per consultare questa fonte."; return
+        }
+        if let id = source.pageID, let page = model.pages.first(where: { $0.id == id }) { await model.select(page); dismiss() }
+        else if let id = source.audioSessionID, let session = model.audio?.sessions.first(where: { $0.id == id }) {
+            await model.audio?.play(session, at: source.seconds ?? 0)
+        }
+    }
+}
