@@ -82,7 +82,7 @@ struct EditorView: View {
                             library.didEdit(notebook)
                             dismiss()
                         }
-                    }.disabled(working || model.loading || model.navigating)
+                    }.disabled(working || model.loading || model.navigating).accessibilityIdentifier("editorReturnToLibrary")
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { model.fitPageRequest += 1 } label: { Label("Pagina intera", systemImage: "arrow.up.left.and.arrow.down.right") }
@@ -106,6 +106,7 @@ struct EditorView: View {
                     Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
                     Button { if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true } } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
                     Button { sidePDF = false; sideOpen = true; model.lensArea = nil; model.lensRequest += 1 } label: { Label("Lente AI", systemImage: "sparkle.magnifyingglass") }.keyboardShortcut("k", modifiers: .command)
+                        .accessibilityIdentifier("editorLens")
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
                         Menu("Inserisci", systemImage: "plus.circle") {
@@ -232,10 +233,7 @@ struct EditorView: View {
             }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
             .inspector(isPresented: $sideOpen) {
-                Group {
-                    if sidePDF { PDFStudyPanel(model: model) }
-                    else { LensPanel(model: model, notebook: notebook) }
-                }.inspectorColumnWidth(min: 320, ideal: 420, max: 600)
+                studyInspector
             }
             .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
         }
@@ -243,6 +241,13 @@ struct EditorView: View {
 
     private var toolbarAlignment: Alignment {
         switch model.currentWorkspace.dock { case .top: return .top; case .bottom: return .bottom; case .leading: return .leading; case .trailing: return .trailing }
+    }
+    private var studyInspector: some View {
+        VStack(spacing: 0) {
+            HStack { Spacer(); Button("Chiudi pannello", systemImage: "xmark") { sideOpen = false }.accessibilityIdentifier("closeStudyInspector") }.padding()
+            if sidePDF { PDFStudyPanel(model: model) }
+            else { LensPanel(model: model, notebook: notebook) }
+        }.inspectorColumnWidth(min: 320, ideal: 420, max: 600)
     }
     private var floatingToolbar: some View {
         EditorQuickToolbar(model: model, photo: { choosingPhoto = true }, camera: { Task { await openCamera() } },
@@ -269,6 +274,7 @@ struct EditorView: View {
                 Button { Task { await model.addPage() } } label: { Label("Pagina", systemImage: "plus") }
                     .accessibilityIdentifier("editorAddPage")
                 Menu {
+                    Button("Pagina bianca dopo questa") { Task { await model.insertBlankPageAfterCurrent() } }
                     Button("Duplica pagina") { Task { await model.duplicatePage() } }
                     Button("Sposta indietro") { Task { await movePage(-1) } }
                     Button("Sposta avanti") { Task { await movePage(1) } }

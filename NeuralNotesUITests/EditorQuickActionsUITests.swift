@@ -147,4 +147,31 @@ final class EditorQuickActionsUITests: XCTestCase {
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
         XCTAssertTrue(app.buttons["editorAddText"].waitForExistence(timeout: 15))
     }
+    @MainActor
+    func testLensInspectorOpensAndClosesWithoutReplacingTheWritingCanvas() {
+        let app = XCUIApplication(); openEditor(app)
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5)); let original = canvas.frame
+        app.buttons["editorLens"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["lensPanelTitle"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(canvas.exists); XCTAssertGreaterThan(canvas.frame.width, 0)
+        app.buttons["closeStudyInspector"].tap()
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in abs(canvas.frame.width - original.width) <= 2 }, object: canvas)
+        wait(for: [restored], timeout: 5)
+        XCTAssertTrue(app.buttons["editorAddText"].exists)
+    }
+    @MainActor
+    func testWorkspaceProvidesNativePenKindsAndEraserSettings() {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["editorWorkspace"].tap()
+        let options = app.buttons["Penne, preset e gomma"]
+        XCTAssertTrue(options.waitForExistence(timeout: 5)); options.tap()
+        let kind = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Tipo")).firstMatch
+        XCTAssertTrue(kind.waitForExistence(timeout: 5)); kind.tap()
+        let fountain = app.buttons["Stilografica"]
+        if fountain.waitForExistence(timeout: 3) { fountain.tap() }
+        else { app.staticTexts["Stilografica"].tap() }
+        XCTAssertTrue(app.switches["Solo evidenziatore"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Torna alla penna dopo aver cancellato"].exists)
+    }
 }

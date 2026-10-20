@@ -387,6 +387,18 @@ final class EditorViewModel {
         do { let new = try await workspace.duplicatePage(page.id); try await load(new); recordOrder(before, selectedBefore: page.id, label: "Duplica pagina") }
         catch { self.error = error.localizedDescription }
     }
+    func insertBlankPageAfterCurrent() async {
+        guard hasLease, !navigating, !hasActiveStroke, let current = page, await flush() else { return }
+        navigating = true; defer { navigating = false }
+        do {
+            let before = try await workspace.pages().map(\.id)
+            var blank = PageSnapshot(); blank.width = current.width; blank.height = current.height; blank.paper = current.paper; blank.appearance = current.appearance
+            let created = try await workspace.addPage(blank)
+            var order = before; order.insert(created.id, at: min(order.count, (order.firstIndex(of: current.id) ?? order.count - 1) + 1))
+            try await workspace.reorderPages(order); try await load(created)
+            recordOrder(before, selectedBefore: current.id, label: "Inserisci pagina bianca")
+        } catch { self.error = error.localizedDescription }
+    }
 
     func deletePage() async {
         guard hasLease, !navigating, !hasActiveStroke else { return }

@@ -20,7 +20,7 @@ struct LensPanel: View {
     @State private var job: Task<Void, Never>?
     var body: some View {
         VStack(spacing: 10) {
-            HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline); Spacer(); settings }.padding(.horizontal)
+            HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); settings }.padding(.horizontal)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     Text(remote ? "Risposte sulle fonti selezionate, con riferimenti." : "Modalità offline: estratti delle fonti, senza modello generativo.").font(.caption).foregroundStyle(.secondary)

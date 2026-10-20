@@ -81,6 +81,18 @@ extension NativeDocumentStore {
                 catalog.studyCards = cards
                 try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             }
+            if let conversation = catalog.conversation {
+                catalog.conversation = conversation.map { turn in
+                    let original = turn.answer
+                    let references = original.references.map { reference -> SourceReference in
+                        guard reference.documentID == manifest.documentID else { return reference }
+                        return SourceReference(documentID: documentID, pageID: reference.pageID.flatMap { pageMap[$0] },
+                            audioSessionID: reference.audioSessionID.flatMap { sessionMap[$0] }, seconds: reference.seconds, pageRevision: reference.pageRevision)
+                    }
+                    return AIConversationTurn(question: turn.question, answer: AIArtifact(text: original.text, references: references, provider: original.provider, createdAt: original.createdAt, task: original.task))
+                }
+                try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
+            }
             // Artifacts belong to the copied document too; remap only local sources.
             let artifacts = destination.appendingPathComponent("artifacts")
             if FileManager.default.fileExists(atPath: artifacts.path) {

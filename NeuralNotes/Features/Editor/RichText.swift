@@ -13,6 +13,20 @@ enum RichText {
     static func data(_ text: NSAttributedString) -> Data? {
         try? text.data(from: NSRange(location: 0, length: text.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
     }
+    static func link(at point: CGPoint, text: TextElement, pageHeight: Double) -> URL? {
+        let value = attributed(text), storage = NSTextStorage(attributedString: value), layout = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: text.width, height: max(1, pageHeight - text.y)))
+        container.lineFragmentPadding = 0; storage.addLayoutManager(layout); layout.addTextContainer(container); layout.ensureLayout(for: container)
+        let local = CGPoint(x: point.x - text.x, y: point.y - text.y)
+        guard layout.usedRect(for: container).contains(local) else { return nil }
+        let glyph = layout.glyphIndex(for: local, in: container, fractionOfDistanceThroughGlyph: nil), index = layout.characterIndexForGlyph(at: glyph)
+        guard index < value.length else { return nil }
+        if let url = value.attribute(.link, at: index, effectiveRange: nil) as? URL { return url }
+        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+            return detector.matches(in: text.text, range: NSRange(location: 0, length: value.length)).first(where: { NSLocationInRange(index, $0.range) })?.url
+        }
+        return nil
+    }
 }
 
 @MainActor

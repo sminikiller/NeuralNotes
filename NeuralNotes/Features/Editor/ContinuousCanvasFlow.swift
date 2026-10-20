@@ -127,6 +127,21 @@ final class ContinuousCanvasFlow {
         if let ready = cache[id], model.activatePreparedPage(ready.page, drawing: ready.drawing) {
             host.synchronizePage(); return true
         }
+        // A cold, small native drawing can be installed synchronously before
+        // UIKit dispatches the very first Pencil touch. No preview rasterization
+        // belongs on this input path; larger files keep the safe async route.
+        if !model.dirty, !model.saving, let target = model.pages.first(where: { $0.id == id }) {
+            do {
+                let drawing: PKDrawing
+                if let file = target.drawingFile {
+                    let url = try NativeArchive.fileURL(file, in: model.workspace.package)
+                    let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                    guard size <= 8 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+                    drawing = try PKDrawing(data: Data(contentsOf: url, options: .mappedIfSafe))
+                } else { drawing = PKDrawing() }
+                if model.activatePreparedPage(target, drawing: drawing) { host.synchronizePage(); return true }
+            } catch { /* The asynchronous reader retains recovery/error handling. */ }
+        }
         pending = nil
         pendingInputHint = true
         host.showPageInputHint("Apertura pagina…")

@@ -125,6 +125,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         else if model.tool == .audioLink { Task { await model.playAudio(at: point, tolerance: 18 / max(host.canvas.zoomScale, 0.1)) } }
         else if let id = hit(point) {
             if id == inkID { refresh(); return }
+            if model.selectedObjectID == id, let text = model.page?.texts.first(where: { $0.id == id }),
+               let url = RichText.link(at: point, text: text, pageHeight: model.page?.height ?? 1024),
+               ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { UIApplication.shared.open(url); return }
             if model.multiSelection {
                 if model.selectedIDs.contains(id) { model.selectedIDs.remove(id) } else { model.selectedIDs.insert(id) }
             } else { model.selectedObjectID = id }

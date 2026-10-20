@@ -114,6 +114,13 @@ extension EditorViewModel {
                 if var value = page {
                     for i in value.texts.indices {
                         value.texts[i].x *= sx; value.texts[i].y *= sy; value.texts[i].width *= sx
+                        if value.texts[i].rtf != nil {
+                            let rich = NSMutableAttributedString(attributedString: RichText.attributed(value.texts[i]))
+                            rich.enumerateAttribute(.font, in: NSRange(location: 0, length: rich.length)) { font, range, _ in
+                                if let font = font as? UIFont { rich.addAttribute(.font, value: font.withSize(min(1000, max(1, font.pointSize * fontScale))), range: range) }
+                            }
+                            value.texts[i].rtf = RichText.data(rich)
+                        }
                         value.texts[i].fontSize = min(1000, max(1, value.texts[i].fontSize * fontScale))
                     }
                     for i in value.images.indices {

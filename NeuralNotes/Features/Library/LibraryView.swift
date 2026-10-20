@@ -28,6 +28,7 @@ struct LibraryView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("library.usesGrid") private var usesGrid = true
     @AppStorage("library.sort") private var persistedSort = LibrarySort.modified.rawValue
+    @State private var pendingSearch: (Notebook, SourceReference)?
     @State private var sheet: LibrarySheet?
     @State private var pendingDeletion: Notebook?
     @State private var pendingFolderDeletion: LibraryFolder?
@@ -90,7 +91,7 @@ struct LibraryView: View {
             case .failure(let error): model.errorMessage = error.localizedDescription
             }
         }
-        .sheet(item: $sheet) { item in
+        .sheet(item: $sheet, onDismiss: finishSearch) { item in
             switch item {
             case .createNotebook: NotebookForm(model: model)
             case .editNotebook(let notebook): NotebookForm(model: model, notebook: notebook)
@@ -103,17 +104,7 @@ struct LibraryView: View {
             case .recovery: RecoveryPanel(library: model)
             case .cloud: CloudSyncPanel(library: model)
             case .search:
-                GlobalSearchPanel(library: model) { book, reference in
-                    Task {
-                        do {
-                            let editor = EditorViewModel(workspace: try model.workspace(book)); await editor.open()
-                            guard editor.hasLease else { model.errorMessage = editor.error; return }
-                            if let id = reference.pageID, let page = editor.pages.first(where: { $0.id == id }) { await editor.select(page) }
-                            if let id = reference.audioSessionID, let session = editor.audio?.sessions.first(where: { $0.id == id }) { await editor.audio?.play(session, at: reference.seconds ?? 0) }
-                            resumeEditor = editor; resumeNotebook = book
-                        } catch { model.errorMessage = error.localizedDescription }
-                    }
-                }
+                GlobalSearchPanel(library: model) { book, reference in pendingSearch = (book, reference) }
             }
         }
         .alert("Operazione non riuscita", isPresented: Binding(
@@ -187,6 +178,19 @@ struct LibraryView: View {
         }
         .navigationTitle("NeuralNotes")
         .navigationSplitViewColumnWidth(min: 230, ideal: 270, max: 340)
+    }
+
+    private func finishSearch() {
+        guard let (book, reference) = pendingSearch else { return }; pendingSearch = nil
+        Task {
+            do {
+                let editor = EditorViewModel(workspace: try model.workspace(book)); await editor.open()
+                guard editor.hasLease, editor.page != nil else { model.errorMessage = editor.error; _ = await editor.close(); return }
+                if let id = reference.pageID, let page = editor.pages.first(where: { $0.id == id }) { await editor.select(page) }
+                if let id = reference.audioSessionID, let session = editor.audio?.sessions.first(where: { $0.id == id }) { await editor.audio?.play(session, at: reference.seconds ?? 0) }
+                resumeEditor = editor; resumeNotebook = book
+            } catch { model.errorMessage = error.localizedDescription }
+        }
     }
 
     private var collection: some View {

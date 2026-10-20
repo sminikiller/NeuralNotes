@@ -58,19 +58,20 @@ final class CloudNotebookSync {
                 guard EditorLeases.shared.reserveCloud(book.documentID) else { continue }
                 defer { EditorLeases.shared.releaseCloud(book.documentID) }
                 let workspace = try library.workspace(book)
-                let snapshot = try await workspace.cloudSnapshot(metadata: book)
-                defer { try? FileManager.default.removeItem(at: snapshot.archive.deletingLastPathComponent()) }
+                let localDigest = try await workspace.cloudDigest(metadata: book)
                 let remote = try await record(CKRecord.ID(recordName: book.documentID.uuidString), database: database)
                 let remoteDigest = remote?["digest"] as? String
-                switch CloudSyncPolicy.action(local: snapshot.digest, remote: remoteDigest, checkpoint: checkpoint(book.documentID)) {
-                case .unchanged: remember(book.documentID, digest: snapshot.digest)
+                switch CloudSyncPolicy.action(local: localDigest, remote: remoteDigest, checkpoint: checkpoint(book.documentID)) {
+                case .unchanged: remember(book.documentID, digest: localDigest)
                 case .upload:
+                    let snapshot = try await workspace.cloudSnapshot(metadata: book)
+                    defer { try? FileManager.default.removeItem(at: snapshot.archive.deletingLastPathComponent()) }
                     _ = try await upload(snapshot.archive, digest: snapshot.digest, book: book, previous: remote, database: database)
                     remember(book.documentID, digest: snapshot.digest)
                 case .download:
                     guard let remote, let digest = remoteDigest else { throw CloudNotebookFailure.invalidSnapshot }
                     let archive = try await download(remote, database: database); defer { try? FileManager.default.removeItem(at: archive) }
-                    _ = try await library.installCloudArchive(archive, expectedLocal: snapshot.digest, expectedRemote: digest)
+                    _ = try await library.installCloudArchive(archive, expectedLocal: localDigest, expectedRemote: digest)
                     remember(book.documentID, digest: digest)
                 case .conflict: if let remote { conflicts[book.documentID] = remote }; continue
                 }

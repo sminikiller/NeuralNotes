@@ -1,5 +1,6 @@
 import SwiftUI
 import VisionKit
+import UniformTypeIdentifiers
 import NeuralNotesCore
 
 @MainActor
@@ -34,7 +35,18 @@ enum PageDrop {
                         }
                     }
                     var image = try await DocumentServices.importImage(data: data, into: model.workspace)
-                    image.x = max(0, Double(point.x)); image.y = max(0, Double(point.y)); model.addImage(image)
+                    image.x = max(0, min(Double(point.x), (model.page?.width ?? 768) - image.width)); image.y = max(0, min(Double(point.y), (model.page?.height ?? 1024) - image.height)); model.addImage(image)
+                } else if provider.canLoadObject(ofClass: NSURL.self) {
+                    let url: URL = try await withCheckedThrowingContinuation { continuation in
+                        _ = provider.loadObject(ofClass: NSURL.self) { value, error in
+                            if let url = value as? URL { continuation.resume(returning: url) }
+                            else { continuation.resume(throwing: error ?? CocoaError(.fileReadCorruptFile)) }
+                        }
+                    }
+                    guard ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") else { continue }
+                    var element = TextElement(text: url.absoluteString); element.x = max(0, Double(point.x)); element.y = max(0, Double(point.y))
+                    element.rtf = RichText.data(NSAttributedString(string: element.text, attributes: [.link: url, .font: UIFont.systemFont(ofSize: 24)]))
+                    model.mutatePage("Trascina collegamento") { $0.texts.append(element) }
                 } else if provider.canLoadObject(ofClass: NSString.self) {
                     let text: String = try await withCheckedThrowingContinuation { continuation in
                         _ = provider.loadObject(ofClass: NSString.self) { value, error in

@@ -20,7 +20,14 @@ public actor DocumentWorkspace {
     public nonisolated let documentID: UUID
     private var searchDirty = true
     private var searchChunks: [IndexedChunk] = []
-    public func invalidateDerivedSearch() { searchDirty = true; searchChunks = []; ocrCache = nil }
+    private var cachedCloudDigest: (metadata: String, digest: String)?
+    public func cloudDigest(metadata: Notebook) throws -> String {
+        let key = "\(metadata.title)|\(metadata.cover.rawValue)|\(metadata.isFavorite)"
+        if let cachedCloudDigest, cachedCloudDigest.metadata == key { return cachedCloudDigest.digest }
+        let digest = try SnapshotDigest.package(package, metadata: metadata)
+        cachedCloudDigest = (key, digest); return digest
+    }
+    public func invalidateDerivedSearch() { searchDirty = true; searchChunks = []; ocrCache = nil; cachedCloudDigest = nil }
     private var ocrCache: [String: AutomaticOCRPage]?
     private var ocrCacheURL: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -376,6 +383,7 @@ public actor DocumentWorkspace {
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(value)
         searchDirty = true
+        cachedCloudDigest = nil
         if path == "catalog.json" { try CatalogRecovery.preserveCurrent(in: package) }
         if path == "manifest.json" {
             let current = try url(path)
