@@ -34,6 +34,7 @@ final class AudioActionsUITests: XCTestCase {
     func testExportOpensOnlyTheShareSheet() {
         let app = XCUIApplication(); openAudio(app)
         let export = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptExport-")).firstMatch
+        for _ in 0..<4 where !export.exists { app.swipeUp() }
         XCTAssertTrue(export.waitForExistence(timeout: 5)); export.tap()
         XCTAssertTrue(app.descendants(matching: .any)["transcriptShare"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields["transcriptTitle"].exists)

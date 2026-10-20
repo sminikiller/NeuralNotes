@@ -48,7 +48,15 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         view.overrideUserInterfaceStyle = .light
         view.layer.borderWidth = 1; view.layer.borderColor = UIColor.systemTeal.cgColor
         view.accessibilityIdentifier = "pageTextInput"; view.accessibilityLabel = "Testo sul foglio"
+        let toolbar = UIToolbar()
+        let done = UIBarButtonItem(title: "Fine", style: .done, target: self, action: #selector(finishEditing))
+        done.accessibilityIdentifier = "pageTextDone"
+        toolbar.items = [UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil), done]
+        toolbar.sizeToFit(); view.inputAccessoryView = toolbar
         view.isHidden = true; host.addSubview(view)
+    }
+    @objc private func finishEditing() {
+        model?.endTextEdit(); view.resignFirstResponder(); refresh()
     }
     func refresh() {
         guard let host, let model else { return }

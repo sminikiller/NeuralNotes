@@ -75,7 +75,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.3)).tap()
         let input = app.textViews["pageTextInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 5)); input.typeText("Testo sul foglio")
-        app.buttons["Fine"].firstMatch.tap()
+        app.buttons["pageTextDone"].tap()
         XCTAssertFalse(app.textViews["pageTextInput"].exists)
         app.buttons["editorFitPage"].tap()
     }

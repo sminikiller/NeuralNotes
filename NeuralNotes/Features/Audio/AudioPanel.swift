@@ -102,7 +102,7 @@ struct AudioPanel: View {
                 switch item {
                 case .read(let id): TranscriptReader(audio: audio, sessionID: id)
                 case .edit(let session): TranscriptEditor(audio: audio, session: session)
-                case .export(let url): ShareDocument(url: url).accessibilityIdentifier("transcriptShare")
+                case .export(let url): ShareDocument(url: url, accessibilityID: "transcriptShare")
                 }
             }
             .onChange(of: audio.playback) { _, value in if !seeking { seekSeconds = value } }

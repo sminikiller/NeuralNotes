@@ -20,6 +20,7 @@ struct NotebookDesk: View {
     @State private var switching = false
     @State private var error: String?
     @SceneStorage("desk.session") private var savedSession = ""
+    @AppStorage("desk.lastSession") private var lastSession = ""
     @State private var restored = false
     @SceneStorage("editor.focus") private var focus = false
 
@@ -151,6 +152,8 @@ struct NotebookDesk: View {
 
     private func persist() {
         let value = DeskSession(notebookIDs: tabs.map(\.id), selectedID: selected)
-        if let data = try? JSONEncoder().encode(value), let text = String(data: data, encoding: .utf8) { savedSession = text }
+        if let data = try? JSONEncoder().encode(value), let text = String(data: data, encoding: .utf8) {
+            savedSession = text; lastSession = text
+        }
     }
 }

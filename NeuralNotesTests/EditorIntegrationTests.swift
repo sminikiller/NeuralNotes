@@ -86,6 +86,9 @@ final class EditorIntegrationTests: XCTestCase {
             await model.select(first); XCTAssertEqual(model.page?.id, current.id)
             let closed = await model.close(); XCTAssertFalse(closed); XCTAssertTrue(model.hasLease)
             model.chooseTool(.marker); XCTAssertEqual(model.tool, .pen)
+            model.addText(); model.addShape(.ellipse)
+            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.page?.texts.isEmpty ?? false)
+            XCTAssertTrue(model.page?.shapes?.isEmpty ?? true)
             model.canvas.drawing = PKDrawing(strokes: [inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 200, y: 80)])])
             model.strokeEnded(); model.finishInkGesture()
             await model.select(first); XCTAssertEqual(model.page?.id, first.id)
@@ -198,7 +201,9 @@ final class EditorIntegrationTests: XCTestCase {
             XCTAssertEqual(model.page?.id, second.id)
             XCTAssertEqual(host.surface.frame.minY, 80, accuracy: 1)
             let rebasedY = host.canvas.contentOffset.y / z + CGFloat(frame.y)
-            XCTAssertEqual(rebasedY, documentY, accuracy: 0.001)
+            // UIScrollView rounds offsets to display pixels when rebasing.
+            let pixel = 1 / max(1, host.traitCollection.displayScale)
+            XCTAssertEqual((rebasedY - documentY) * z, 0, accuracy: pixel)
             XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
             await model.select(first)
             XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
@@ -282,7 +287,10 @@ final class EditorIntegrationTests: XCTestCase {
             let key = "editor.navigation.\(model.workspace.documentID)"
             defer { UserDefaults.standard.removeObject(forKey: key) }
             let host = CanvasHost(canvas: model.canvas), interaction = CanvasInteraction(host: host, model: model)
-            host.interaction = interaction
+            host.interaction = interaction; host.model = model
+            host.frame = CGRect(x: 0, y: 0, width: 1024, height: 768)
+            host.setNeedsLayout(); host.layoutIfNeeded()
+            let pinch = try XCTUnwrap(model.canvas.pinchGestureRecognizer)
             let pencil = NSNumber(value: UITouch.TouchType.pencil.rawValue)
             let finger = NSNumber(value: UITouch.TouchType.direct.rawValue)
             let swipes = (model.canvas.gestureRecognizers ?? []).compactMap { $0 as? UISwipeGestureRecognizer }.filter { $0.delegate === interaction }
@@ -294,7 +302,7 @@ final class EditorIntegrationTests: XCTestCase {
                 XCTAssertTrue(model.canvas.panGestureRecognizer.allowedTouchTypes.contains(finger))
                 XCTAssertFalse(model.canvas.panGestureRecognizer.allowedTouchTypes.contains(pencil))
                 XCTAssertEqual(model.canvas.panGestureRecognizer.minimumNumberOfTouches, fingerDrawing ? 2 : 1)
-                XCTAssertFalse(model.canvas.pinchGestureRecognizer?.allowedTouchTypes.contains(pencil) ?? true)
+                XCTAssertFalse(pinch.allowedTouchTypes.contains(pencil))
                 for mode in PageNavigationMode.allCases {
                     model.pageNavigation = mode; interaction.refresh()
                     let enabled = swipes.filter(\.isEnabled)
@@ -540,11 +548,12 @@ final class EditorIntegrationTests: XCTestCase {
             model.addText()
             let originalWidth = try XCTUnwrap(model.page?.width)
             let originalTextX = try XCTUnwrap(model.page?.texts.first?.x)
+            let originalAppearance = model.page?.appearance
             let template = PageTemplate(paper: .grid, appearance: PaperAppearance(tone: .cream, spacing: 28), format: .a4)
             let applied = await model.applyTemplate(template, useForNext: true)
             XCTAssertTrue(applied); XCTAssertEqual(model.page?.appearance?.tone, .cream)
             XCTAssertEqual(try XCTUnwrap(model.page?.texts.first?.x), originalTextX * template.format.size.width / originalWidth, accuracy: 0.01)
-            await model.performUndo(); XCTAssertEqual(model.page?.width, originalWidth); XCTAssertNil(model.page?.appearance)
+            await model.performUndo(); XCTAssertEqual(model.page?.width, originalWidth); XCTAssertEqual(model.page?.appearance, originalAppearance)
             await model.addPage(); XCTAssertEqual(model.page?.paper, .grid); XCTAssertEqual(model.page?.appearance?.tone, .cream)
         }
     }

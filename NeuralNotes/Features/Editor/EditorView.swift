@@ -348,9 +348,11 @@ struct EditorView: View {
 @MainActor
 struct ShareDocument: UIViewControllerRepresentable {
     let url: URL
+    var accessibilityID: String? = nil
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
         controller.modalPresentationStyle = .pageSheet
+        controller.view.accessibilityIdentifier = accessibilityID
         return controller
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) { }

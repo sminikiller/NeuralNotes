@@ -55,6 +55,10 @@ final class CanvasHost: UIView {
             canvas.zoomScale = canvas.minimumZoomScale
             lastSize = bounds.size
         }
+        // UIScrollView creates its pinch recognizer when zoom is enabled.
+        // Configure it after setting the range, as well as on tool changes.
+        PaperInk.configureNavigation(canvas, fingerDrawing: model?.fingerDrawing ?? false)
+        if model?.tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
         alignSurface()
         if resized { fitPage(animated: false) }
     }

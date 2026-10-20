@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 import NeuralNotesCore
 
@@ -31,6 +32,7 @@ struct LibraryView: View {
     @State private var showIntegrityReport = false
     @State private var importingNotebook = false
     @SceneStorage("desk.session") private var savedSession = ""
+    @AppStorage("desk.lastSession") private var lastSession = ""
     @State private var resumeNotebook: Notebook?
     @State private var checkedResume = false
 
@@ -48,9 +50,17 @@ struct LibraryView: View {
         .navigationSplitViewStyle(.balanced)
         .task {
             guard !checkedResume else { return }; checkedResume = true
-            if let data = savedSession.data(using: .utf8), let stored = try? JSONDecoder().decode(DeskSession.self, from: data) {
+            // SceneStorage may not be flushed before the process is killed.
+            // Only a sole window may use the durable last-desk fallback; new
+            // windows must not reopen the document owned by an existing scene.
+            var candidates = [savedSession]
+            if UIApplication.shared.openSessions.count <= 1 { candidates.append(lastSession) }
+            for candidate in candidates {
+                guard let data = candidate.data(using: .utf8), let stored = try? JSONDecoder().decode(DeskSession.self, from: data) else { continue }
                 let valid = stored.available(in: Set(model.notebooks.map(\.id)))
-                resumeNotebook = model.notebooks.first { $0.id == valid.selectedID }
+                if let notebook = model.notebooks.first(where: { $0.id == valid.selectedID }) {
+                    resumeNotebook = notebook; break
+                }
             }
         }
         .fullScreenCover(item: $resumeNotebook) { notebook in

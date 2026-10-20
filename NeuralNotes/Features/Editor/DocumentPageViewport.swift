@@ -9,11 +9,11 @@ struct DocumentPageViewport: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityIdentifier("pencilCanvas")
             .accessibilityValue(model.canvasZoomed ? "Ingrandita" : "Pagina intera")
-            .overlay(alignment: .topLeading) {
+            .overlay(alignment: .bottomLeading) {
                 if model.tool == .text {
                     HStack {
                         Text("Tocca il foglio o una casella, poi scrivi con Pencil o tastiera.").font(.caption)
-                        if model.editingTextID != nil { Button("Fine") { model.endTextEdit() } }
+                        if model.editingTextID != nil { Button("Fine") { model.endTextEdit() }.accessibilityIdentifier("pageTextDoneOverlay") }
                     }.padding(10).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(8)
                 }
             }

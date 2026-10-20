@@ -92,13 +92,16 @@ extension EditorViewModel {
     }
 
     func addText() {
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         let text = TextElement(text: "Nuovo testo")
         mutatePage("Aggiungi testo") { $0.texts.append(text) }; selectedObjectID = text.id; tool = .objects
     }
     func addImage(_ image: ImageElement) {
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         mutatePage("Inserisci immagine") { $0.images.append(image) }; selectedObjectID = image.id; tool = .objects
     }
     func addShape(_ kind: ShapeKind) {
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         PaperInk.color(ink).getRed(&r, green: &g, blue: &b, alpha: &a)
         let shape = ShapeElement(kind: kind, red: Double(r), green: Double(g), blue: Double(b), lineWidth: thickness)
