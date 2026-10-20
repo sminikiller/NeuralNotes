@@ -12,7 +12,8 @@ final class DocumentWorkspaceTests: XCTestCase {
             let key = String(format: "%064x", i)
             try await workspace.cacheLensAnswer(key: key, artifact: AIArtifact(text: "Risposta \(i)", references: [reference], provider: "fixture"))
         }
-        let catalog = try await workspace.catalog(); XCTAssertEqual(catalog.glossary?.first, entry); XCTAssertEqual(catalog.lensCache?.count, 32)
+        let catalog = try await workspace.catalog(); XCTAssertEqual(catalog.glossary?.first?.id, entry.id); XCTAssertEqual(catalog.glossary?.first?.definition, entry.definition)
+        XCTAssertEqual(catalog.glossary?.first?.updatedAt.timeIntervalSince1970 ?? 0, entry.updatedAt.timeIntervalSince1970, accuracy: 1); XCTAssertEqual(catalog.lensCache?.count, 32)
         let absent = try await workspace.cachedLensAnswer(key: String(format: "%064x", 0)); XCTAssertNil(absent)
         let present = try await workspace.cachedLensAnswer(key: String(format: "%064x", 34)); XCTAssertEqual(present?.text, "Risposta 34")
         let chunks = try await workspace.indexedChunks(); XCTAssertTrue(chunks.contains { $0.text.contains("Entropia") })

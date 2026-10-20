@@ -5,11 +5,15 @@ import PencilKit
 import NeuralNotesCore
 
 @MainActor @Observable
-final class PDFStudyController {
+final class PDFStudyController: NSObject {
     weak var view: PDFView?
     var file: String?
     var hasSelection = false
     var outline: [OutlineRow] = []
+    var matches: [PDFSelection] = []
+    var finding = false
+    @ObservationIgnored private var searchTerm = ""
+    @ObservationIgnored private weak var searchedDocument: PDFDocument?
     @ObservationIgnored private var observer: NSObjectProtocol?
     @ObservationIgnored private let annotationOwner = "NeuralNotes.study.\(UUID())"
     struct OutlineRow: Identifiable {
@@ -44,9 +48,35 @@ final class PDFStudyController {
         }
     }
     @ObservationIgnored private var markupStamp = ""
-    func detach() { if let observer { NotificationCenter.default.removeObserver(observer) }; observer = nil }
+    func detach() {
+        if let observer { NotificationCenter.default.removeObserver(observer) }; observer = nil
+        stopSearch()
+    }
+    private func stopSearch() {
+        searchedDocument?.cancelFindString()
+        NotificationCenter.default.removeObserver(self, name: .PDFDocumentDidFindMatch, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .PDFDocumentDidEndFind, object: nil)
+        searchedDocument = nil; finding = false; matches = []; view?.highlightedSelections = nil
+    }
+    func search(_ query: String) {
+        searchTerm = String(query.prefix(200)); stopSearch()
+        guard searchTerm.count >= 2, let document = view?.document else { return }
+        searchedDocument = document; finding = true
+        NotificationCenter.default.addObserver(self, selector: #selector(found(_:)), name: .PDFDocumentDidFindMatch, object: document)
+        NotificationCenter.default.addObserver(self, selector: #selector(ended(_:)), name: .PDFDocumentDidEndFind, object: document)
+        document.beginFindString(searchTerm, withOptions: [.caseInsensitive, .diacriticInsensitive])
+    }
+    @objc private func found(_ notification: Notification) {
+        guard let document = notification.object as? PDFDocument, document === searchedDocument,
+              let selection = notification.userInfo?["PDFDocumentFoundSelection"] as? PDFSelection else { return }
+        guard matches.count < 200 else { document.cancelFindString(); finding = false; return }
+        selection.color = .systemOrange.withAlphaComponent(0.45); matches.append(selection)
+        view?.highlightedSelections = matches
+    }
+    @objc private func ended(_ notification: Notification) { if (notification.object as? PDFDocument) === searchedDocument { finding = false } }
     func load(file: String, package: URL, index: Int) {
-        guard let view, self.file != file else { return }
+        guard let view, self.file != file || view.document == nil else { return }
+        stopSearch()
         self.file = file; markupStamp = ""; view.document = PDFDocument(url: package.appendingPathComponent(file)); outline = []
         func visit(_ node: PDFOutline, level: Int) {
             if let destination = node.destination { outline.append(OutlineRow(label: String(repeating: "  ", count: max(0, min(6, level))) + (node.label ?? "Sezione"), destination: destination)) }
@@ -54,6 +84,7 @@ final class PDFStudyController {
         }
         if let root = view.document?.outlineRoot { visit(root, level: -1) }
         if let page = view.document?.page(at: index) { view.go(to: page) }
+        search(searchTerm)
     }
     func markups(kind: PDFMarkupKind, pages: [PageSnapshot]) -> [(UUID, PDFMarkup)] {
         guard let view, let selection = view.currentSelection, let document = view.document, let file else { return [] }
@@ -94,6 +125,8 @@ struct PDFStudyPanel: View {
     @Bindable var model: EditorViewModel
     @State private var controller = PDFStudyController()
     @State private var selectedFile = ""
+    @State private var query = ""
+    @State private var matchIndex = 0
     private var files: [String] { Array(Set(model.pages.compactMap(\.pdfFile))).sorted() }
     var body: some View {
         VStack(spacing: 8) {
@@ -112,6 +145,13 @@ struct PDFStudyPanel: View {
                 Button("Evidenzia", systemImage: "highlighter") { mark(.highlight) }.disabled(!controller.hasSelection)
                 Button("Sottolinea", systemImage: "underline") { mark(.underline) }.disabled(!controller.hasSelection)
             }.font(.caption).buttonStyle(.bordered)
+            HStack {
+                TextField("Cerca nel PDF", text: $query).textFieldStyle(.roundedBorder)
+                if controller.finding { ProgressView().controlSize(.small) }
+                Text("\(controller.matches.count)\(controller.matches.count == 200 ? "+" : "")").font(.caption.monospacedDigit())
+                Button("Risultato precedente", systemImage: "chevron.up") { showMatch(-1) }.labelStyle(.iconOnly).disabled(controller.matches.isEmpty)
+                Button("Risultato successivo", systemImage: "chevron.down") { showMatch(1) }.labelStyle(.iconOnly).disabled(controller.matches.isEmpty)
+            }.padding(.horizontal)
             if !selectedFile.isEmpty {
                 StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package, index: model.page?.pdfIndex ?? 0, pages: model.pages)
             } else { ContentUnavailableView("Nessun PDF", systemImage: "doc", description: Text("Importa un PDF nel quaderno per leggerlo accanto agli appunti.")) }
@@ -120,10 +160,27 @@ struct PDFStudyPanel: View {
                       let page = model.pages.first(where: { $0.pdfFile == selectedFile && $0.pdfIndex == document.index(for: source) }) else { return }
                 Task { await model.select(page) }
             }
+            Button("Inserisci estratto con fonte negli appunti", systemImage: "text.badge.plus") { insertExcerpt() }.disabled(!controller.hasSelection)
             Text("Seleziona il testo nel PDF per copiarlo o evidenziarlo. Gli appunti a sinistra restano scrivibili.").font(.caption).foregroundStyle(.secondary).padding(.horizontal)
         }.padding(.vertical)
             .onAppear { selectedFile = model.page?.pdfFile ?? files.first ?? "" }
+            .task(id: selectedFile + "|" + query) {
+                do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                matchIndex = 0; controller.search(query)
+            }
             .onDisappear { controller.detach() }
+    }
+    private func showMatch(_ delta: Int) {
+        guard !controller.matches.isEmpty else { return }
+        matchIndex = (matchIndex + delta + controller.matches.count) % controller.matches.count
+        let selection = controller.matches[matchIndex]; controller.view?.setCurrentSelection(selection, animate: true); controller.view?.go(to: selection)
+    }
+    private func insertExcerpt() {
+        guard let view = controller.view, let selection = view.currentSelection, let text = selection.string,
+              let source = selection.pages.first, let document = view.document,
+              let pageIndex = model.pages.firstIndex(where: { $0.pdfFile == selectedFile && $0.pdfIndex == document.index(for: source) }) else { return }
+        let element = TextElement(text: "«\(text.prefix(12000))»\nFonte: PDF · pagina \(pageIndex + 1)")
+        model.mutatePage("Inserisci estratto PDF") { $0.texts.append(element) }
     }
     private func mark(_ kind: PDFMarkupKind) {
         let marks = controller.markups(kind: kind, pages: model.pages)
