@@ -61,6 +61,20 @@ final class CloudAndIndexTests: XCTestCase {
         _ = try NativeDocumentStore(root: root)
         XCTAssertNoThrow(try store.read(documentID: book.documentID, notebookID: book.id))
     }
+    func testInterruptedCloudInstallRetainsPartialDestinationAndRestoresCompletePrevious() async throws {
+        let (root, store, workspace, book) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let page = try await workspace.addPage()
+        let previous = root.appendingPathComponent("\(book.documentID).cloudPrevious", isDirectory: true)
+        try FileManager.default.moveItem(at: workspace.package, to: previous)
+        try FileManager.default.createDirectory(at: workspace.package, withIntermediateDirectories: false)
+        try Data("partial incoming data".utf8).write(to: workspace.package.appendingPathComponent("partial.bin"))
+        _ = try NativeDocumentStore(root: root)
+        let manifest = try store.read(documentID: book.documentID, notebookID: book.id)
+        XCTAssertEqual(manifest.pageIDs, [page.id])
+        let retained = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).filter { $0.pathExtension == "cloudInterrupted" }
+        XCTAssertEqual(retained.count, 1)
+        XCTAssertEqual(try Data(contentsOf: retained[0].appendingPathComponent("partial.bin")), Data("partial incoming data".utf8))
+    }
     func testConversationCloningRemapsSourcesAndPreservesQuestions() async throws {
         let (root, store, workspace, book) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
         let page = try await workspace.addPage()

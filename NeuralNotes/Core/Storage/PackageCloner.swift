@@ -27,6 +27,7 @@ extension NativeDocumentStore {
             if FileManager.default.fileExists(atPath: catalogURL.path) {
                 catalog = try decoder.decode(DocumentCatalog.self, from: Data(contentsOf: catalogURL))
             }
+            try NotebookSections.validate(catalog.sections ?? [])
             var sessionMap: [UUID: UUID] = [:]
             for index in catalog.sessions.indices {
                 let id = UUID(); sessionMap[catalog.sessions[index].id] = id
@@ -64,13 +65,24 @@ extension NativeDocumentStore {
                 try FileManager.default.removeItem(at: oldURL)
             }
             let updated = DocumentManifest(documentID: documentID, notebookID: notebookID, pageIDs: pageIDs)
+            // Resolve forward links only after every destination page ID exists.
+            for id in pageIDs {
+                let file = destination.appendingPathComponent("pages/\(id).json")
+                var page = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: file))
+                guard page.texts.contains(where: { $0.pageLink != nil }) else { continue }
+                for i in page.texts.indices {
+                    page.texts[i].pageLink = page.texts[i].pageLink?.remapped(from: manifest.documentID, to: documentID, pages: pageMap)
+                }
+                try encoder.encode(page).write(to: file, options: .atomic)
+            }
             try encoder.encode(updated).write(to: destination.appendingPathComponent("manifest.json"), options: .atomic)
             // A source backup references source page IDs. Seed a valid recovery
             // index for the copied identity instead of retaining that old index.
             try encoder.encode(updated).write(to: destination.appendingPathComponent("manifest.previous.json"), options: .atomic)
+            var cardMap: [UUID: UUID] = [:]
             if var cards = catalog.studyCards {
                 for index in cards.indices {
-                    cards[index].id = UUID()
+                    let id = UUID(); cardMap[cards[index].id] = id; cards[index].id = id
                     let ref = cards[index].source
                     if ref.documentID == manifest.documentID {
                         cards[index].source = SourceReference(documentID: documentID, pageID: ref.pageID.flatMap { pageMap[$0] },
@@ -80,7 +92,20 @@ extension NativeDocumentStore {
                 catalog.studyCards = cards
                 try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             }
+            if let reviews = catalog.reviewLog {
+                catalog.reviewLog = reviews.map { event in
+                    if cardMap[event.cardID] == nil { cardMap[event.cardID] = UUID() }
+                    var copy = event; copy.id = UUID(); copy.cardID = cardMap[event.cardID]!; return copy
+                }
+            }
             catalog.lensCache = nil
+            if let sections = catalog.sections {
+                let sectionMap = Dictionary(uniqueKeysWithValues: sections.map { ($0.id, UUID()) })
+                catalog.sections = sections.map { section in
+                    NotebookSection(id: sectionMap[section.id]!, title: section.title,
+                        parentID: section.parentID.flatMap { sectionMap[$0] }, pageIDs: section.pageIDs.compactMap { pageMap[$0] })
+                }
+            }
             if var glossary = catalog.glossary {
                 for i in glossary.indices {
                     glossary[i].id = UUID()

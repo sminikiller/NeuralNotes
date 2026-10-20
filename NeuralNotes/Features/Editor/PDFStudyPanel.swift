@@ -181,7 +181,8 @@ struct PDFStudyPanel: View {
         guard let view = controller.view, let selection = view.currentSelection, let text = selection.string,
               let source = selection.pages.first, let document = view.document,
               let pageIndex = model.pages.firstIndex(where: { $0.pdfFile == selectedFile && $0.pdfIndex == document.index(for: source) }) else { return }
-        let element = TextElement(text: "«\(text.prefix(12000))»\nFonte: PDF · pagina \(pageIndex + 1)")
+        var element = TextElement(text: "«\(text.prefix(12000))»\n↗ Fonte: PDF · pagina \(pageIndex + 1)")
+        element.pageLink = PageLinkTarget(documentID: model.workspace.documentID, pageID: model.pages[pageIndex].id)
         model.mutatePage("Inserisci estratto PDF") { $0.texts.append(element) }
     }
     private func mark(_ kind: PDFMarkupKind) {

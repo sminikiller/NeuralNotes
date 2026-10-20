@@ -24,6 +24,7 @@ public struct TextElement: Codable, Identifiable, Equatable, Sendable {
     public var rtf: Data?
     public var rotation: Double?
     public var background: InkColor?
+    public var pageLink: PageLinkTarget?
     public init(text: String) { self.text = text }
 }
 
@@ -144,5 +145,7 @@ public struct DocumentCatalog: Codable, Sendable {
     public var organization: NotebookOrganization?
     public var glossary: [GlossaryEntry]?
     public var lensCache: [CachedLensAnswer]?
+    public var sections: [NotebookSection]?
+    public var reviewLog: [StudyReviewEvent]?
     public init() { }
 }

@@ -71,6 +71,27 @@ struct DirectAIProvider: AIProvider {
 
 @MainActor
 enum AIEngineRouter {
+    static func lookup(_ input: LookupRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> LookupCard {
+        guard input.isValid, consentKey == configuration.consentKey, let url = configuration.lookupURL else { throw AIWireFailure.configuration }
+        let credential = EngineCredentials.load(.backend)
+        guard !credential.isEmpty else { throw AIWireFailure.configuration }
+        var call = URLRequest(url: url); call.httpMethod = "POST"; call.timeoutInterval = 90
+        call.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization"); call.httpBody = try JSONEncoder().encode(input)
+        let config = URLSessionConfiguration.ephemeral; config.urlCache = nil; config.httpShouldSetCookies = false
+        let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        let (bytes, response) = try await session.bytes(for: call)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw AIConnectionFailure.backend("Scheda non disponibile: controlla connessione, token e aggiornamento del backend /v1/lookup.")
+        }
+        var data = Data()
+        for try await byte in bytes {
+            try Task.checkCancellation(); guard data.count < DirectAIWire.maximumResponseBytes else { throw AIWireFailure.response }; data.append(byte)
+        }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(LookupCard.self, from: data).validated(for: input)
+    }
     static func generate(_ input: AIRequest, configuration: AIEngineConfiguration, consentKey: String?, onDelta: @MainActor (String) -> Void = { _ in }) async throws -> AIArtifact {
         if configuration.engine == .offline { return try await ExtractiveStudyProvider().generate(input) }
         guard consentKey == configuration.consentKey, let url = configuration.url else { throw AIWireFailure.configuration }

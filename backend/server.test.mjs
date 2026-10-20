@@ -1,8 +1,53 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { issueToken, verifyToken, validateRequest, artifactFromResult, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
+import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
 import { partialText } from './streaming.mjs';
+
+function lookupRequest() { return { term: 'Entropia', sources: request().sources }; }
+function lookupResult() { return { term: 'Entropia', definition: 'Definizione dalle fonti [1]', explanation: 'Spiegazione [1]', examples: ['Esempio [1]'], relatedTerms: ['Calore'], citations: [1] }; }
+
+test('lookup validates term and sources without accepting generated identities', () => {
+  assert.equal(validateLookupRequest(lookupRequest()).term, 'Entropia');
+  for (const term of ['', 'x'.repeat(121), 'A\nB', 4]) assert.throws(() => validateLookupRequest({ ...lookupRequest(), term }), { code: 'invalid_lookup' });
+  assert.throws(() => validateLookupRequest({ ...lookupRequest(), sources: [] }), { code: 'invalid_request' });
+  const result = lookupFromResult(lookupResult(), lookupRequest(), 'fixture');
+  assert.deepEqual(result.references, request().sources.map(s => s.reference));
+  assert.equal(result.term, 'Entropia'); assert.deepEqual(result.examples, ['Esempio [1]']);
+});
+
+test('lookup rejects wrong terms, unsupported field citations and excessive lists', () => {
+  for (const mutation of [{ term: 'Altro' }, { definition: '' }, { examples: Array(6).fill('x') }, { explanation: 'Inventato [9]' }, { citations: [2] }]) {
+    assert.throws(() => lookupFromResult({ ...lookupResult(), ...mutation }, lookupRequest(), 'fixture'));
+  }
+});
+
+test('lookup adapter uses a strict card schema and a completed provider response', async () => {
+  const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async (_url, options) => {
+    const body = JSON.parse(options.body); assert.equal(body.store, false);
+    assert.equal(body.text.format.name, 'neuralnotes_lookup'); assert.equal(body.text.format.strict, true);
+    assert.deepEqual(body.text.format.schema.required, ['term', 'definition', 'explanation', 'examples', 'relatedTerms', 'citations']);
+    assert.equal(JSON.parse(body.input[0].content).term, 'Entropia');
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(lookupResult()) }] }] });
+  });
+  const card = await adapter.lookup(lookupRequest(), new AbortController().signal);
+  assert.equal(card.definition, 'Definizione dalle fonti [1]'); assert.equal(card.provider, 'OpenAI / fixture-model');
+});
+
+test('lookup HTTP shares authentication and limits and returns a structured card', async () => {
+  let calls = 0;
+  const adapter = { async lookup(input) { calls++; return lookupFromResult(lookupResult(), input, 'fixture'); } };
+  const server = createApp({ secret, adapter, limiter: new UsageLimiter({ perMinute: 1 }) });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}/v1/lookup`;
+  try {
+    const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lookupRequest()) };
+    let response = await fetch(url, options); assert.equal(response.status, 401); await response.body.cancel(); assert.equal(calls, 0);
+    options.headers.Authorization = `Bearer ${issueToken(secret, 'lookup-tester', Math.floor(Date.now() / 1000) + 60)}`;
+    response = await fetch(url, options); assert.equal(response.status, 200); assert.equal((await response.json()).term, 'Entropia');
+    response = await fetch(url, options); assert.equal(response.status, 429); await response.body.cancel(); assert.equal(calls, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
 
 test('streamed JSON text waits for complete escapes and Unicode pairs', () => {
   const value = 'Una riga\ncon "citazione", caffè e 😀';

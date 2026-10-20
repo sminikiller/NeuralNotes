@@ -11,6 +11,7 @@ struct LensPanel: View {
     @State private var consentKey: String?
     @State private var configuring = false
     @State private var glossary = false
+    @State private var lookup = false
     @State private var question = ""
     @State private var turns: [AIConversationTurn] = []
     @State private var sources: [IndexedChunk] = []
@@ -56,7 +57,10 @@ struct LensPanel: View {
                 }.padding()
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack { ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(busy || sources.isEmpty) } }.padding(.horizontal)
+                HStack {
+                    Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }.buttonStyle(.bordered).disabled(busy || sources.isEmpty)
+                    ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(busy || sources.isEmpty) }
+                }.padding(.horizontal)
             }
             HStack {
                 TextField("Chiedi sulle fonti…", text: $question, axis: .vertical).lineLimit(1...4)
@@ -64,6 +68,7 @@ struct LensPanel: View {
                 if busy { Button("Stop") { job?.cancel() } }
             }.padding()
         }.sheet(isPresented: $glossary) { GlossaryPanel(model: model) }
+        .sheet(isPresented: $lookup) { LookupPanel(model: model, sources: sources, configuration: configuration, consentKey: consentKey) }
         .task(id: selectionKey) { await load() }
             .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { job?.cancel() }

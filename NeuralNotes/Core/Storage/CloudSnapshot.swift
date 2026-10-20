@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 
 public enum SnapshotDigest {
     public static func package(_ package: URL, metadata: Notebook) throws -> String {
@@ -29,7 +33,16 @@ public extension DocumentWorkspace {
         let parent = package.deletingLastPathComponent(), name = "\(documentID).cloudPrevious"
         let previous = try NativeArchive.fileURL(name, in: parent)
         if FileManager.default.fileExists(atPath: previous.path) { try FileManager.default.removeItem(at: previous) }
+        #if os(Linux)
+        // swift-corelibs Foundation cannot replace non-empty directories with
+        // replaceItemAt. Keep the same recovery directory throughout the two
+        // renames; the store restores it if the incoming move is interrupted.
+        try FileManager.default.moveItem(at: package, to: previous)
+        do { try FileManager.default.moveItem(at: incoming, to: package) }
+        catch { _ = try? NativeDocumentStore(root: parent); invalidateDerivedSearch(); throw error }
+        #else
         _ = try FileManager.default.replaceItemAt(package, withItemAt: incoming, backupItemName: name, options: .withoutDeletingBackupItem)
+        #endif
         invalidateDerivedSearch()
         // The committed .nnbackup retains the old data; avoid a second full copy.
         try? FileManager.default.removeItem(at: previous)

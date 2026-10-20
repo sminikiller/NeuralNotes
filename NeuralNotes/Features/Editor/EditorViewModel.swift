@@ -29,6 +29,7 @@ final class EditorViewModel {
     @ObservationIgnored let canvas = PKCanvasView()
     @ObservationIgnored weak var pagePresenter: (any EditorPagePresenter)?
     var pages: [PageSnapshot] = []
+    var sections: [NotebookSection] = []
     var page: PageSnapshot?
     var tool = InkTool.pen
     var lensArea: CGRect?
@@ -150,6 +151,7 @@ final class EditorViewModel {
         hasLease = true
         do {
             let catalog = try await workspace.catalog()
+            sections = catalog.sections ?? []
             workspaces = catalog.editorWorkspaces ?? .starter(
                 scratchErase: UserDefaults.standard.object(forKey: "editor.scratchErase") as? Bool ?? true,
                 pullNext: UserDefaults.standard.object(forKey: "editor.pullNextPage") as? Bool ?? true)

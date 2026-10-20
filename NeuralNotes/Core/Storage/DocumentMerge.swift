@@ -51,6 +51,11 @@ extension DocumentWorkspace {
             page.previousDrawingFile = try page.previousDrawingFile.map(mapped)
             page.pdfFile = try page.pdfFile.map(mapped)
             for position in page.images.indices { page.images[position].file = try mapped(page.images[position].file) }
+            for position in page.texts.indices {
+                if var link = page.texts[position].pageLink, link.documentID == importedID {
+                    link.documentID = index.documentID; page.texts[position].pageLink = link
+                }
+            }
             try encoder.encode(page).write(to: url("pages/\(page.id).json"), options: .atomic)
             pages.append(page)
         }
@@ -66,6 +71,13 @@ extension DocumentWorkspace {
                 }
             }
             combined.attachments += catalog.attachments; combined.sessions += catalog.sessions
+            if let sections = catalog.sections {
+                let merged = (combined.sections ?? []) + sections
+                try NotebookSections.validate(merged); combined.sections = merged
+            }
+            if let reviews = catalog.reviewLog {
+                combined.reviewLog = Array(((combined.reviewLog ?? []) + reviews).sorted { $0.date < $1.date }.suffix(10_000))
+            }
             if let conversation = catalog.conversation {
                 let importedTurns = conversation.map { turn in
                     AIConversationTurn(question: turn.question, answer: AIArtifact(text: turn.answer.text,

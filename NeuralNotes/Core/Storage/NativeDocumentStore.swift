@@ -12,10 +12,15 @@ public struct NativeDocumentStore: Sendable {
         for previous in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) where previous.pathExtension == "cloudPrevious" {
             guard let id = UUID(uuidString: previous.deletingPathExtension().lastPathComponent) else { continue }
             let destination = root.appendingPathComponent("\(id).nnbook", isDirectory: true)
-            if !FileManager.default.fileExists(atPath: destination.path),
-               let inspected = try? NativePackageInspector.inspect(previous), inspected.manifest.documentID == id {
-                try FileManager.default.moveItem(at: previous, to: destination)
+            guard let inspected = try? NativePackageInspector.inspect(previous), inspected.manifest.documentID == id else { continue }
+            if FileManager.default.fileExists(atPath: destination.path) {
+                if (try? NativePackageInspector.inspect(destination)) != nil { continue }
+                // Retain a partially installed destination instead of allowing
+                // it to hide the last complete snapshot after a crash.
+                let retained = root.appendingPathComponent("\(id)-\(UUID()).cloudInterrupted", isDirectory: true)
+                try FileManager.default.moveItem(at: destination, to: retained)
             }
+            try FileManager.default.moveItem(at: previous, to: destination)
         }
     }
 

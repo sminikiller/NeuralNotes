@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ReviewRating: String, Sendable { case again, good, easy }
+public enum ReviewRating: String, Codable, Sendable { case again, good, easy }
 
 public struct StudyCard: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()

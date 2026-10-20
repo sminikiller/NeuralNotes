@@ -55,6 +55,34 @@ function outputSchema(count) {
   }, required: ['text', 'citations'], additionalProperties: false };
 }
 
+export function validateLookupRequest(value) {
+  if (!value || typeof value.term !== 'string' || !value.term.trim() || value.term.length > 120
+      || /[\r\n]/u.test(value.term)) throw new RequestFailure(400, 'invalid_lookup');
+  validateRequest({ task: 'chat', question: value.term, sources: value.sources });
+  return { term: value.term.trim(), sources: value.sources };
+}
+
+function lookupSchema(count) {
+  return { type: 'object', properties: {
+    term: { type: 'string' }, definition: { type: 'string' }, explanation: { type: 'string' },
+    examples: { type: 'array', items: { type: 'string' } }, relatedTerms: { type: 'array', items: { type: 'string' } },
+    citations: { type: 'array', items: { type: 'integer', enum: Array.from({ length: count }, (_, i) => i + 1) } }
+  }, required: ['term', 'definition', 'explanation', 'examples', 'relatedTerms', 'citations'], additionalProperties: false };
+}
+
+export function lookupFromResult(result, request, provider, now = new Date()) {
+  const shortList = value => Array.isArray(value) && value.length <= 5 && value.every(s => typeof s === 'string' && s.trim() && s.length <= 1000);
+  if (!result || typeof result.term !== 'string' || result.term.trim().normalize('NFKC').toLowerCase() !== request.term.normalize('NFKC').toLowerCase()
+      || typeof result.definition !== 'string' || !result.definition.trim() || result.definition.length > 8000
+      || typeof result.explanation !== 'string' || result.explanation.length > 8000
+      || !shortList(result.examples) || !shortList(result.relatedTerms)) throw new RequestFailure(502, 'invalid_lookup_card');
+  // The source references are copied from the request, never generated UUIDs.
+  const artifact = artifactFromResult({ text: result.definition, citations: result.citations }, { ...request, task: 'chat' }, provider, now);
+  const remap = text => text.trim() ? artifactFromResult({ text, citations: result.citations }, { ...request, task: 'chat' }, provider, now).text : text;
+  return { id: artifact.id, term: request.term, definition: artifact.text, explanation: remap(result.explanation),
+    examples: result.examples.map(remap), relatedTerms: result.relatedTerms.map(remap), references: artifact.references, provider, createdAt: artifact.createdAt };
+}
+
 export function artifactFromResult(result, request, provider, now = new Date()) {
   if (!result || typeof result.text !== 'string' || !result.text.trim() || result.text.length > 100_000
       || !Array.isArray(result.citations) || !result.citations.length || result.citations.length > 40
@@ -99,6 +127,23 @@ export class ResponsesAdapter {
     if (!key || !model || new URL(url).protocol !== 'https:' || !Number.isInteger(maxOutputTokens)
         || maxOutputTokens < 256 || maxOutputTokens > 8192) throw new Error('Invalid upstream configuration');
     Object.assign(this, { key, model, url, name, maxOutputTokens, transport });
+  }
+  async lookup(request, signal) {
+    const body = { model: this.model, store: false, max_output_tokens: this.maxOutputTokens,
+      instructions: instructions + '\nPrepara una scheda del termine richiesto: definizione, spiegazione, esempi e termini correlati. Usa solo le fonti; se insufficienti dichiaralo, lascia vuoti esempi o termini non supportati. Mantieni il termine esattamente come ricevuto.',
+      input: [{ role: 'user', content: JSON.stringify({ term: request.term, sources: request.sources.map((s, i) => ({ id: i + 1, text: s.text })) }) }],
+      text: { format: { type: 'json_schema', name: 'neuralnotes_lookup', strict: true, schema: lookupSchema(request.sources.length) } } };
+    const response = await this.transport(this.url, { method: 'POST', redirect: 'error', signal,
+      headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!response.ok) { await response.body?.cancel(); throw new RequestFailure(response.status === 429 ? 429 : 502, 'provider_unavailable'); }
+    const data = await boundedJSON(response);
+    if (data.status !== 'completed' || !Array.isArray(data.output)) throw new RequestFailure(502, 'provider_incomplete');
+    const content = data.output.flatMap(item => item.type === 'message' ? item.content ?? [] : []);
+    if (content.some(item => item.type === 'refusal')) throw new RequestFailure(422, 'provider_refusal');
+    let result;
+    try { result = JSON.parse(content.filter(item => item.type === 'output_text').map(item => item.text).join('')); }
+    catch { throw new RequestFailure(502, 'invalid_provider_response'); }
+    return lookupFromResult(result, request, `${this.name} / ${this.model}`);
   }
   async generate(request, signal) {
     const body = {
@@ -182,7 +227,8 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
     let counted = false;
     try {
       if (req.method === 'GET' && req.url === '/health') { reply(200, { status: 'ok' }); return; }
-      if (req.method !== 'POST' || req.url !== '/v1/study') throw new RequestFailure(404, 'not_found');
+      const lookup = req.url === '/v1/lookup';
+      if (req.method !== 'POST' || (!lookup && req.url !== '/v1/study')) throw new RequestFailure(404, 'not_found');
       const subject = verifyToken(secret, String(req.headers.authorization ?? '').replace(/^Bearer /, ''));
       if (!subject) throw new RequestFailure(401, 'unauthorized');
       if (!limiter.take(subject)) throw new RequestFailure(429, 'request_limit');
@@ -202,10 +248,14 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
       let data;
       try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { throw new RequestFailure(400, 'invalid_json'); }
-      const request = validateRequest(data);
+      const request = lookup ? validateLookupRequest(data) : validateRequest(data);
       const cancelled = new AbortController();
       res.on('close', () => { if (!res.writableEnded) cancelled.abort(); });
       const signal = AbortSignal.any([cancelled.signal, AbortSignal.timeout(timeoutMs)]);
+      if (lookup) {
+        if (typeof adapter.lookup !== 'function') throw new RequestFailure(503, 'lookup_unavailable');
+        reply(200, await adapter.lookup(request, signal)); return;
+      }
       if (req.headers.accept === 'application/x-ndjson' && typeof adapter.generateStream === 'function') {
         res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff' });
         res.flushHeaders();

@@ -11,13 +11,25 @@ struct PageBrowser: View {
     @State private var renaming: PageSnapshot?
     @State private var title = ""
     @State private var busy = false
+    @State private var sectionFilter = ""
+    @State private var managingSections = false
+    @State private var showingLinks = false
 
-    private var visible: [PageSnapshot] { model.pages.filter { !onlyBookmarks || $0.isBookmarked == true } }
+    private var outline: [(section: NotebookSection, depth: Int)] { NotebookSections.outline(model.sections) }
+    private var visible: [PageSnapshot] {
+        let assigned = Set(model.sections.flatMap(\.pageIDs))
+        let selected = UUID(uuidString: sectionFilter).map { NotebookSections.pages(in: $0, sections: model.sections) }
+        return model.pages.filter { page in
+            (!onlyBookmarks || page.isBookmarked == true) &&
+            (sectionFilter == "unassigned" ? !assigned.contains(page.id) : selected?.contains(page.id) ?? true)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 Toggle("Solo segnalibri", isOn: $onlyBookmarks).padding().disabled(reorder)
+                if !model.sections.isEmpty && !reorder { sectionPicker.padding(.horizontal).padding(.bottom, 8) }
                 if reorder {
                     List {
                         ForEach(model.pages) { page in
@@ -33,7 +45,7 @@ struct PageBrowser: View {
                         }
                     }.environment(\.editMode, .constant(.active))
                 } else if visible.isEmpty {
-                    ContentUnavailableView("Nessun segnalibro", systemImage: "bookmark", description: Text("Tieni premuta una pagina e aggiungila ai segnalibri."))
+                    ContentUnavailableView("Nessuna pagina in questa vista", systemImage: "doc", description: Text("Cambia filtro o assegna una pagina a questa sezione dal menu dell’anteprima."))
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230))], spacing: 20) {
@@ -55,6 +67,7 @@ struct PageBrowser: View {
                                         Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
                                     }
                                     Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
+                                    assignmentMenu(page)
                                 }
                             }
                         }.padding()
@@ -65,6 +78,17 @@ struct PageBrowser: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(reorder ? "Fine riordino" : "Riordina") { onlyBookmarks = false; reorder.toggle() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }
+                ToolbarItem(placement: .bottomBar) { Button("Sezioni", systemImage: "folder") { managingSections = true } }
+                ToolbarItem(placement: .bottomBar) { Button("Collegamenti", systemImage: "link") { showingLinks = true } }
+            }
+            .sheet(isPresented: $managingSections) { SectionsPanel(model: model) }
+            .sheet(isPresented: $showingLinks) { PageLinksPanel(model: model) }
+            .task {
+                do { model.sections = try await model.workspace.catalog().sections ?? [] }
+                catch { model.error = error.localizedDescription }
+            }
+            .onChange(of: model.sections) { _, sections in
+                if let id = UUID(uuidString: sectionFilter), !sections.contains(where: { $0.id == id }) { sectionFilter = "" }
             }
             .alert("Nome della pagina", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
                 TextField("Titolo", text: $title)
@@ -78,6 +102,27 @@ struct PageBrowser: View {
                 Button("Annulla", role: .cancel) { renaming = nil }
             }
         }
+    }
+
+    private var sectionPicker: some View {
+        Picker("Sezione", selection: $sectionFilter) {
+            Text("Tutte le pagine").tag("")
+            Text("Senza sezione").tag("unassigned")
+            ForEach(outline, id: \.section.id) { row in Text(String(repeating: "  ", count: row.depth) + row.section.title).tag(row.section.id.uuidString) }
+        }.pickerStyle(.menu)
+    }
+
+    private func assignmentMenu(_ page: PageSnapshot) -> some View {
+        Menu("Sposta nella sezione", systemImage: "folder") {
+            Button("Senza sezione") { assign(page, sectionID: nil) }
+            ForEach(outline, id: \.section.id) { row in
+                Button(String(repeating: "  ", count: row.depth) + row.section.title) { assign(page, sectionID: row.section.id) }
+            }
+            Button("Gestisci sezioni…") { managingSections = true }
+        }
+    }
+    private func assign(_ page: PageSnapshot, sectionID: UUID?) {
+        Task { busy = true; defer { busy = false }; _ = await model.changeSections { try await $0.assignPages([page.id], toSection: sectionID) } }
     }
 
     private func label(_ page: PageSnapshot) -> String {

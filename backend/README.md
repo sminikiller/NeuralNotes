@@ -1,6 +1,6 @@
 # NeuralNotes backend personale — 0.3
 
-Server Node 22+ senza dipendenze npm. Implementa `POST /v1/study` secondo il contratto dell’app e un adapter reale per la Responses REST API con output JSON strutturato. Il modello è una configurazione obbligatoria: non viene scelto un modello a pagamento automaticamente. Non vengono eseguite chiamate provider durante i test.
+Server Node 22+ senza dipendenze npm. Implementa `POST /v1/study` e `POST /v1/lookup` secondo il contratto dell’app e un adapter reale per la Responses REST API con output JSON strutturato. Il modello è una configurazione obbligatoria: non viene scelto un modello a pagamento automaticamente. Non vengono eseguite chiamate provider durante i test.
 
 ## Esecuzione su un server proprio
 
@@ -22,6 +22,8 @@ Opzionali: `PORT`, `NN_MAX_OUTPUT_TOKENS` (256–8192, default 4096), `NN_UPSTRE
 - Errori di autenticazione, quote, rifiuto o output incompleto non diventano risposte simulate. Nessun costo o richiesta esterna avviati per consegnare questo codice.
 
 ## Streaming della Lente AI
+
+La scheda `POST /v1/lookup` riceve `{term, sources}`: termine su una sola riga di massimo 120 caratteri e le stesse fonti ammesse da study. Restituisce `LookupCard` con definizione, spiegazione, fino a cinque esempi e cinque termini correlati, riferimenti, provider e data. Il server verifica che il termine corrisponda, ricostruisce i riferimenti esclusivamente dalla richiesta e controlla le citazioni in tutti i campi. L’endpoint condivide autenticazione, quote, timeout e limite di concorrenza di study; non usa streaming. L’app deriva il percorso `/v1/lookup` dall’URL `/v1/study` configurato e richiede lo stesso consenso. Il dizionario di sistema non richiede il backend.
 
 Con `Accept: application/x-ndjson`, `POST /v1/study` invia un oggetto JSON per riga: `{"type":"delta","text":"…"}`, poi `{"type":"result","artifact":{…}}` soltanto dopo la validazione finale. Un errore dopo l’inizio della risposta è un evento `{"type":"error","code":"…"}` e non un artifact. Il client considera i frammenti provvisori e non li salva se manca il risultato finale. Senza questo header resta disponibile la risposta JSON completa precedente.
 

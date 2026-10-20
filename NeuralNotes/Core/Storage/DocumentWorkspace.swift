@@ -346,6 +346,9 @@ public actor DocumentWorkspace {
         if index.adaptiveReview == true { try cards[position].reviewAdaptive(rating, now: now) }
         else { cards[position].review(rating, now: now) }
         index.studyCards = cards
+        let event = StudyReviewEvent(cardID: id, rating: rating, date: now, intervalDays: cards[position].intervalDays)
+        guard event.isValid else { throw LibraryFailure.corruptDocument }
+        index.reviewLog = Array(((index.reviewLog ?? []) + [event]).suffix(10_000))
         try write(index, "catalog.json")
     }
     public func setAdaptiveReview(_ enabled: Bool) throws {

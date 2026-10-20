@@ -13,6 +13,7 @@ struct PracticePanel: View {
     @State private var reviewed = 0
     @State private var manualQuestion = ""
     @State private var manualAnswer = ""
+    @State private var statistics = false
 
     private var due: [StudyCard] { cards.filter { $0.dueAt <= Date() }.sorted { $0.dueAt < $1.dueAt } }
 
@@ -82,13 +83,17 @@ struct PracticePanel: View {
             .disabled(busy)
             .navigationTitle("Flashcard e ripasso")
             .task { await reload() }
+            .sheet(isPresented: $statistics) { StudyStatisticsPanel(model: model) }
+            .toolbar { ToolbarItem(placement: .primaryAction) { Button("Statistiche", systemImage: "chart.bar") { statistics = true } } }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
         }
     }
 
     private func rating(_ label: String, _ rating: ReviewRating, _ card: StudyCard) -> some View {
         Button(label) {
+            guard !busy else { return }; busy = true
             Task {
+                defer { busy = false }
                 do { try await model.workspace.reviewCard(card.id, rating: rating); reviewed += 1; await reload() }
                 catch { self.error = error.localizedDescription }
             }
