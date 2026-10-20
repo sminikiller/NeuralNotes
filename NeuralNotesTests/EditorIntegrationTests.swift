@@ -710,7 +710,8 @@ final class EditorIntegrationTests: XCTestCase {
             let output = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: output) }
             let document = try XCTUnwrap(CGPDFDocument(output as CFURL)), page = try XCTUnwrap(document.page(at: 1))
-            XCTAssertFalse(PDFResourceProbe.hasImages(page.dictionary))
+            let dictionary = try XCTUnwrap(page.dictionary)
+            XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
             let pdf = try XCTUnwrap(PDFDocument(url: output)), preview = try XCTUnwrap(pdf.page(at: 0))
             let cgImage = try XCTUnwrap(preview.thumbnail(of: CGSize(width: 192, height: 256), for: .mediaBox).cgImage)
             var pixels = [UInt8](repeating: 255, count: 192 * 256 * 4)
@@ -741,7 +742,7 @@ private final class PDFResourceProbe {
             let box = Unmanaged<PDFResourceProbe>.fromOpaque(context).takeUnretainedValue()
             var stream: CGPDFStreamRef?
             guard CGPDFObjectGetValue(object, .stream, &stream), let stream else { return }
-            let dictionary = CGPDFStreamGetDictionary(stream)
+            guard let dictionary = CGPDFStreamGetDictionary(stream) else { return }
             var name: UnsafePointer<CChar>?
             if CGPDFDictionaryGetName(dictionary, "Subtype", &name), let name, String(cString: name) == "Image" { box.found = true }
             if hasImages(dictionary, depth: box.depth + 1) { box.found = true }
