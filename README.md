@@ -3,7 +3,7 @@
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo, nessuna dipendenza di terze parti nell’app. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
-**Stato della consegna:** implementazione e pacchetti aggiornati; controlli locali di struttura, sintassi e integrità ZIP superati. La 0.8.1 non è stata compilata né eseguita in questo ambiente Windows, privo di Swift/Xcode/SDK Apple. Sono forniti 140 metodi XCTest, non eseguiti qui. Le conferme e le foto dell’utente riguardano le versioni precedenti.
+**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39406620801): 74 test core macOS, 125 unit/integrazione iPad più due esclusioni specifiche del simulatore, tutti i 13 UI test e build Release senza firma. Controlli locali di struttura, sintassi e integrità ZIP superati. [Esiti e limiti](docs/VALIDATION.md). La prova fisica del nuovo Playground sull’iPad resta necessaria.
 
 ## Aprire sul solo iPad
 
@@ -17,7 +17,7 @@ Il nuovo Playground può avere un container diverso: non elimina né aggiorna au
 
 ## Consolidamento 0.8.1
 
-Corretto il type-check troppo lento di HeldShapeRecognition segnalato sull’iPad, dividendo le formule in passaggi Double espliciti. Salvataggio dell’inchiostro indipendente dagli errori delle impostazioni, modifiche arrivate durante IO salvate prima del cambio pagina, protezione dei tratti attivi e recupero esplicito del catalogo precedente senza eliminare originali/media. Ambiente SDK/compilatore visibile nella Verifica e workflow Apple predisposto. [Prove e limiti](docs/CONSOLIDATION_0_8_1.md).
+Corretto il type-check troppo lento di HeldShapeRecognition segnalato sull’iPad, dividendo le formule in passaggi Double espliciti. Salvataggio dell’inchiostro indipendente dagli errori delle impostazioni, modifiche arrivate durante IO salvate prima del cambio pagina, protezione dei tratti attivi e recupero esplicito del catalogo precedente anche dall’editor, conservando originali/media e sessioni in memoria. Fine sopra la tastiera, ripristino persistente della sessione e trasferimento nativo del file della trascrizione. Ambiente SDK/compilatore visibile nella Verifica e workflow Apple attivo. [Prove e limiti](docs/CONSOLIDATION_0_8_1.md).
 
 ## Workspace e strumenti 0.8
 
@@ -29,7 +29,7 @@ Il doppio tocco/doppio clic alterna foglio intero centrato e foglio a tutta larg
 
 ## Scorrimento continuo e voltata a libro 0.7
 
-Il verticale ora mostra fogli consecutivi con distacco di 12 punti del documento e decelerazione continua nel PKCanvasView principale. Il cambio della pagina attiva mantiene la posizione del documento, senza ricreare il contenitore esterno della 0.6. Prefetch delle pagine vicine e protezione del primo contatto se una pagina non è pronta. L’orizzontale usa una voltata curl nei due sensi; Riduci movimento usa una dissolvenza. [Comportamento e prove](docs/TESTING_0_7.md). Sei regressioni aggiunte, ancora da eseguire con SDK Apple.
+Il verticale ora mostra fogli consecutivi con distacco di 12 punti del documento e decelerazione continua nel PKCanvasView principale. Il cambio della pagina attiva mantiene la posizione del documento, senza ricreare il contenitore esterno della 0.6. Prefetch delle pagine vicine e protezione del primo contatto se una pagina non è pronta. L’orizzontale usa una voltata curl nei due sensi; Riduci movimento usa una dissolvenza. [Comportamento e prove](docs/TESTING_0_7.md). Le sei regressioni sono incluse nella suite Apple.
 
 ## Correzione layout e Pencil 0.6.1
 

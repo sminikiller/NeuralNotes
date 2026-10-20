@@ -66,7 +66,7 @@ ExtractiveStudyProvider seleziona frasi delle fonti per sintesi/schema/quiz; non
 
 Generatore Xcode deterministico con target app/core/test e schema condiviso. Playground dagli stessi sorgenti, Core separato, risorse Bundle.module; capability microfono/camera/Speech e Info.plist aggiuntivo per scene multiple. Nuova finestra controlla supportsMultipleScenes del processo. La disponibilità nel runner Playground va verificata.
 
-140 XCTest forniti, 26 controlli temporanei incorporati e prova sintetica 50 pagine/CAF60s/PDF/backup. Su Windows si eseguono soltanto controlli strutturali, grammatica e packaging. [Evidenze effettive](docs/VALIDATION.md). Macro, tipi e API richiedono SDK Apple; [verify_macos.sh](tools/verify_macos.sh) è pronto ma non eseguito qui.
+140 metodi XCTest, 26 controlli temporanei incorporati e prova sintetica 50 pagine/CAF60s/PDF/backup. Su Windows si eseguono controlli strutturali, grammatica e packaging; la CI privata esegue [verify_macos.sh](tools/verify_macos.sh) su macOS con SDK Apple, inclusi unit e UI test del simulatore. [Esiti effettivi e limiti fisici](docs/VALIDATION.md).
 
 CloudKit disabilitato come previsto dal piano iniziale. Architettura futura: outbox transazionale, asset separati, retry/backoff, tombstone, revisioni alternative per conflitti e un solo writer di sync. Collaborazione separata. Firma, account e distribuzione App Store non configurati.
 

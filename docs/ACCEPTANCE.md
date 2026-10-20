@@ -1,6 +1,6 @@
 # Gate di accettazione 0.8.1
 
-Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packaging passano; build Apple e test Swift non eseguiti qui. Il vecchio piano della Fase 1, già autorizzato dall’utente dopo le proprie prove, è conservato in [history/ACCEPTANCE_PHASE_1.md](history/ACCEPTANCE_PHASE_1.md).
+Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packaging passano; build e test Apple vengono eseguiti dalla CI privata, con esiti in [VALIDATION.md](VALIDATION.md). Il vecchio piano della Fase 1, già autorizzato dall’utente dopo le proprie prove, è conservato in [history/ACCEPTANCE_PHASE_1.md](history/ACCEPTANCE_PHASE_1.md).
 
 - [ ] Il nuovo Playground compila e apre la libreria senza eliminare dati esistenti.
 - [ ] Tutti i 26 controlli incorporati passano, in particolare il backup precedentemente fallito.
@@ -11,7 +11,7 @@ Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packa
 - [ ] Recupero/spazio provati su quaderni temporanei; nessuna cancellazione automatica dei contenuti.
 - [ ] Prova sintetica 50 pagine/CAF60s completata e risultati annotati.
 - [ ] Registrazioni reali lunghe, file grandi, interruzioni, memoria e layout/accessibilità verificati secondo il piano.
-- [ ] Su Mac: core test + unit/UI test e build Release senza firma con tools/verify_macos.sh, log e .xcresult conservati.
+- [x] CI macOS: core test + unit/UI test e build Release senza firma con tools/verify_macos.sh, log e .xcresult conservati. [Esito e due esclusioni specifiche del simulatore](VALIDATION.md).
 
 Firma/distribuzione, configurazione backend e futura sincronizzazione hanno gate separati: non sono impliciti in questi controlli.
 

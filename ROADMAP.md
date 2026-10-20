@@ -1,4 +1,6 @@
-# Roadmap NeuralNotes — 0.7
+# Roadmap NeuralNotes — 0.8.1
+
+**Stato attuale:** consolidamento del salvataggio/recupero, correzione del compilatore e CI macOS privata attiva. Gli esiti correnti sono in [VALIDATION.md](docs/VALIDATION.md); le indicazioni di mancata verifica nelle voci precedenti descrivono lo stato storico di quelle consegne. La prova fisica su iPad resta separata.
 
 **0.7:** verticale continuo con fogli ravvicinati nello scroll del canvas, offset preservato, prefetch e attivazione sicura; voltata orizzontale curl e alternativa Riduci movimento. [Prove correnti](docs/TESTING_0_7.md). Nessuna verifica SDK/animazione reale eseguita qui.
 
