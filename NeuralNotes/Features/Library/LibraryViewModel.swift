@@ -179,6 +179,10 @@ final class LibraryViewModel {
     }
 
     func workspace(_ notebook: Notebook) throws -> DocumentWorkspace { try repository.workspace(id: notebook.id) }
+    func installCloudArchive(_ url: URL, expectedLocal: String?, expectedRemote: String) async throws -> Notebook {
+        guard let native = repository as? SwiftDataLibraryRepository else { throw LibraryFailure.missingItem }
+        let book = try await native.installCloudArchive(url, expectedLocal: expectedLocal, expectedRemote: expectedRemote); try reload(); return book
+    }
     func recoverablePackages() throws -> [URL] { try repository.recoverablePackages() }
     func recover(_ url: URL) async throws { try await repository.recoverPackage(url); try reload() }
     func damagedNotebooks() -> [Notebook] { notebooks.filter { (try? repository.openNotebook(id: $0.id)) == nil } }

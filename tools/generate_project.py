@@ -96,12 +96,12 @@ def make_project():
         settings = {
             "PRODUCT_NAME": "$(TARGET_NAME)", "PRODUCT_BUNDLE_IDENTIFIER": "com.neuralnotes." + target,
             "TARGETED_DEVICE_FAMILY": "2", "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
-            "SUPPORTS_MACCATALYST": "NO", "CODE_SIGN_STYLE": "Automatic",
+            "SUPPORTS_MACCATALYST": "NO", "CODE_SIGN_STYLE": "Automatic", "DEVELOPMENT_TEAM": "64R668842U",
             "MARKETING_VERSION": "0.8.2", "CURRENT_PROJECT_VERSION": "17",
             "GENERATE_INFOPLIST_FILE": "YES", "SWIFT_EMIT_LOC_STRINGS": "YES",
         }
         if target == "NeuralNotes":
-            settings.update({"GENERATE_INFOPLIST_FILE": "NO", "INFOPLIST_FILE": "NeuralNotes/Resources/Info.plist",
+            settings.update({"GENERATE_INFOPLIST_FILE": "NO", "INFOPLIST_FILE": "NeuralNotes/Resources/Info.plist", "CODE_SIGN_ENTITLEMENTS": "NeuralNotes/Resources/NeuralNotes.entitlements",
                 "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon", "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
                 "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/Frameworks"})
         else:

@@ -208,6 +208,30 @@ final class SwiftDataLibraryRepository: LibraryRepository {
     func recoverablePackages() throws -> [URL] {
         try documents.unreferencedPackages(referencedDocumentIDs: Set(allRecords().map(\.documentID)))
     }
+    func installCloudArchive(_ archive: URL, expectedLocal: String?, expectedRemote: String) async throws -> Notebook {
+        let staged = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-\(UUID()).nnbook", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: staged) }
+        let inspected = try await Task.detached(priority: .utility) {
+            try NativeArchive.extract(from: archive, to: staged); return try NativePackageInspector.inspect(staged)
+        }.value
+        guard let metadata = inspected.metadata else { throw LibraryFailure.corruptDocument }
+        guard try SnapshotDigest.package(staged, metadata: metadata) == expectedRemote else { throw LibraryFailure.corruptDocument }
+        let all = try allRecords()
+        if let record = all.first(where: { $0.documentID == metadata.documentID }) {
+            guard record.id == metadata.id, record.deletedAt == nil, let expectedLocal else { throw WorkspaceFailure.staleRevision }
+            let writer = try workspace(id: record.id)
+            try await writer.installCloudSnapshot(staged, metadata: record.snapshot, expectedLocal: expectedLocal)
+            record.title = metadata.title; record.coverRawValue = metadata.cover.rawValue; record.isFavorite = metadata.isFavorite
+            record.updatedAt = metadata.updatedAt; try commit(); return record.snapshot
+        }
+        guard !all.contains(where: { $0.id == metadata.id }), expectedLocal == nil else { throw WorkspaceFailure.staleRevision }
+        let destination = documents.packageURL(for: metadata.documentID)
+        guard !FileManager.default.fileExists(atPath: destination.path) else { throw LibraryFailure.recoveryRequired("Un quaderno con questa identità è già conservato sul dispositivo. Apri Recupero quaderni.") }
+        try FileManager.default.moveItem(at: staged, to: destination)
+        let record = NotebookRecord(id: metadata.id, documentID: metadata.documentID, title: try LibraryName.validated(metadata.title), folderID: nil, cover: metadata.cover)
+        record.createdAt = metadata.createdAt; record.updatedAt = metadata.updatedAt; record.isFavorite = metadata.isFavorite
+        context.insert(record); try commit(); return record.snapshot
+    }
     func repairNotebookIndex(id: UUID) throws {
         guard !EditorLeases.shared.isOpen(try notebook(id).documentID) else {
             throw LibraryFailure.recoveryRequired("Chiudi il quaderno nelle finestre prima del recupero.")

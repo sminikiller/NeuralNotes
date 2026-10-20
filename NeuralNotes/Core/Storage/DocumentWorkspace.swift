@@ -20,23 +20,51 @@ public actor DocumentWorkspace {
     public nonisolated let documentID: UUID
     private var searchDirty = true
     private var searchChunks: [IndexedChunk] = []
+    public func invalidateDerivedSearch() { searchDirty = true; searchChunks = []; ocrCache = nil }
+    private var ocrCache: [String: AutomaticOCRPage]?
+    private var ocrCacheURL: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("NeuralNotesSearch").appendingPathComponent("\(documentID)-ocr.json")
+    }
+    private func loadOCRCache() -> [String: AutomaticOCRPage] {
+        if let ocrCache { return ocrCache }
+        let value = (try? Data(contentsOf: ocrCacheURL)).flatMap { try? JSONDecoder().decode([String: AutomaticOCRPage].self, from: $0) } ?? [:]
+        ocrCache = value; return value
+    }
+    public func needsAutomaticOCR(pageID: UUID, revision: Int) -> Bool { loadOCRCache()[pageID.uuidString]?.revision != revision }
+    @discardableResult
+    public func storeAutomaticOCR(pageID: UUID, revision: Int, text: String) throws -> Bool {
+        guard try readPage(pageID).revision == revision else { return false }
+        var value = loadOCRCache()
+        value[pageID.uuidString] = AutomaticOCRPage(revision: revision, text: String(text.prefix(20_000)))
+        let live = Set(try manifest().pageIDs.map(\.uuidString)); value = value.filter { live.contains($0.key) }
+        try FileManager.default.createDirectory(at: ocrCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(value).write(to: ocrCacheURL, options: .atomic)
+        ocrCache = value; searchDirty = true; return true
+    }
 
     public func indexedChunks() throws -> [IndexedChunk] {
         if !searchDirty { return searchChunks }
         let ids = try manifest().pageIDs
         let paths = ["manifest.json", "catalog.json"] + ids.map { "pages/\($0).json" }
-        let generation = try paths.map { path -> String in
+        let generation = try (paths.map { path -> String in
             let file = try url(path)
             let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
             return "\(path):\(values?.contentModificationDate?.timeIntervalSince1970 ?? 0):\(values?.fileSize ?? 0)"
-        }.joined(separator: "|")
+        } + ["ocr:\((try? ocrCacheURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate?.timeIntervalSince1970 ?? 0)"]).joined(separator: "|")
         let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("NeuralNotesSearch").appendingPathComponent("\(documentID).json")
         if let data = try? Data(contentsOf: cache), let snapshot = try? JSONDecoder().decode(SearchSnapshot.self, from: data),
            snapshot.format == 1, snapshot.generation == generation {
             searchChunks = snapshot.chunks
         } else {
-            let snapshot = SearchSnapshot.make(pages: try pages(), catalog: try catalog(), documentID: documentID, generation: generation)
+            let ocr = loadOCRCache()
+            let content = try pages().map { source -> PageSnapshot in
+                var page = source
+                if let recognized = ocr[page.id.uuidString], recognized.revision == page.revision { page.recognizedText += "\n" + recognized.text }
+                return page
+            }
+            let snapshot = SearchSnapshot.make(pages: content, catalog: try catalog(), documentID: documentID, generation: generation)
             searchChunks = snapshot.chunks
             // Derived-data failures never fail a notebook save or search.
             try? FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)

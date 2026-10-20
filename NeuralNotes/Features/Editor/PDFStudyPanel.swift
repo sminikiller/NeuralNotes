@@ -12,7 +12,10 @@ final class PDFStudyController {
     var outline: [OutlineRow] = []
     @ObservationIgnored private var observer: NSObjectProtocol?
     struct OutlineRow: Identifiable {
-        let id = UUID(), label: String, destination: PDFDestination
+        let id: UUID
+        let label: String
+        let destination: PDFDestination
+        init(label: String, destination: PDFDestination) { id = UUID(); self.label = label; self.destination = destination }
     }
     func attach(_ view: PDFView) {
         self.view = view

@@ -10,6 +10,7 @@ struct GlobalSearchPanel: View {
     @State private var hits: [Hit] = []
     @State private var busy = false
     @State private var error: String?
+    @AppStorage("search.automaticOCR") private var automaticOCR = true
     private struct Hit: Identifiable {
         let id: Int
         let notebook: Notebook
@@ -18,6 +19,7 @@ struct GlobalSearchPanel: View {
     var body: some View {
         NavigationStack {
             List {
+                Toggle("Indicizza la grafia nelle pause di scrittura", isOn: $automaticOCR)
                 if busy { ProgressView("Ricerca nei quaderni…") }
                 if let error { Text(error).foregroundStyle(.orange) }
                 ForEach(hits) { hit in

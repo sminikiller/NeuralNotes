@@ -90,10 +90,22 @@ final class EditorViewModel {
             guard let self else { return }
             defer { self.maintenanceTask = nil }
             _ = try? await self.workspace.indexedChunks()
-            guard UserDefaults.standard.object(forKey: "backup.automatic") as? Bool != false,
-                  let metadata = self.backupMetadata else { return }
-            do { _ = try await self.workspace.createAutomaticBackup(metadata: metadata); self.backupWarning = nil }
-            catch { self.backupWarning = "Backup automatico da riprovare: \(error.localizedDescription)" }
+            if UserDefaults.standard.object(forKey: "backup.automatic") as? Bool != false, let metadata = self.backupMetadata {
+                do { _ = try await self.workspace.createAutomaticBackup(metadata: metadata); self.backupWarning = nil }
+                catch { self.backupWarning = "Backup automatico da riprovare: \(error.localizedDescription)" }
+            }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            guard self.hasLease, !self.hasActiveStroke, !self.dirty, self.audio?.recording != true,
+                  UserDefaults.standard.object(forKey: "search.automaticOCR") as? Bool != false,
+                  let page = self.page, page.revision > 0,
+                  await self.workspace.needsAutomaticOCR(pageID: page.id, revision: page.revision) else { return }
+            do {
+                let image = DocumentServices.image(page: page, drawing: self.canvas.drawing, workspace: self.workspace, maxDimension: 1600)
+                guard let data = image.pngData() else { return }
+                let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
+                _ = try await self.workspace.storeAutomaticOCR(pageID: page.id, revision: page.revision, text: text)
+                _ = try await self.workspace.indexedChunks()
+            } catch { /* OCR is derived and optional; notebook contents remain authoritative. */ }
         }
     }
     var saving = false

@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import NeuralNotesCore
 
 private enum LibrarySheet: Identifiable {
-    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search
+    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud
     var id: String {
         switch self {
         case .createNotebook: return "new-notebook"
@@ -16,12 +16,14 @@ private enum LibrarySheet: Identifiable {
         case .storage(let notebook): return "storage-\(notebook.id)"
         case .recovery: return "recovery"
         case .search: return "search"
+        case .cloud: return "cloud"
         }
     }
 }
 
 @MainActor
 struct LibraryView: View {
+    @AppStorage("cloud.automatic") private var cloudAutomatic = false
     @Bindable var model: LibraryViewModel
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("library.usesGrid") private var usesGrid = true
@@ -75,6 +77,13 @@ struct LibraryView: View {
                 NotebookDesk(notebook: notebook, model: resumeEditor, library: model)
             }
         }
+        .task(id: cloudAutomatic) {
+            guard cloudAutomatic else { return }
+            while !Task.isCancelled {
+                if scenePhase == .active { await CloudNotebookSync.shared.synchronize(model) }
+                do { try await Task.sleep(for: .seconds(120)) } catch { return }
+            }
+        }
         .fileImporter(isPresented: $importingNotebook, allowedContentTypes: [.pdf, .data, .folder, .package]) { result in
             switch result {
             case .success(let url): Task { await model.importNotebook(from: url) }
@@ -92,6 +101,7 @@ struct LibraryView: View {
             case .storage(let notebook):
                 if let workspace = try? model.workspace(notebook) { StoragePanel(workspace: workspace, metadata: notebook) }
             case .recovery: RecoveryPanel(library: model)
+            case .cloud: CloudSyncPanel(library: model)
             case .search:
                 GlobalSearchPanel(library: model) { book, reference in
                     Task {
@@ -165,6 +175,7 @@ struct LibraryView: View {
                 Label("Sul tuo iPad", systemImage: "internaldrive")
                     .font(.footnote).foregroundStyle(.secondary)
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
+                Button { sheet = .cloud } label: { Label("Sincronizzazione iCloud", systemImage: "icloud") }
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }

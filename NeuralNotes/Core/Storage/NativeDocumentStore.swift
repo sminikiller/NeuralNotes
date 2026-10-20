@@ -8,6 +8,15 @@ public struct NativeDocumentStore: Sendable {
     public init(root: URL) throws {
         self.root = root
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        // Recover an interrupted directory replacement before opening the library.
+        for previous in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) where previous.pathExtension == "cloudPrevious" {
+            guard let id = UUID(uuidString: previous.deletingPathExtension().lastPathComponent) else { continue }
+            let destination = root.appendingPathComponent("\(id).nnbook", isDirectory: true)
+            if !FileManager.default.fileExists(atPath: destination.path),
+               let inspected = try? NativePackageInspector.inspect(previous), inspected.manifest.documentID == id {
+                try FileManager.default.moveItem(at: previous, to: destination)
+            }
+        }
     }
 
     public func packageURL(for documentID: UUID) -> URL {
