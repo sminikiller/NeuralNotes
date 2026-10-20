@@ -66,7 +66,7 @@ ExtractiveStudyProvider seleziona frasi delle fonti per sintesi/schema/quiz; non
 
 Generatore Xcode deterministico con target app/core/test e schema condiviso. Playground dagli stessi sorgenti, Core separato, risorse Bundle.module; capability microfono/camera/Speech e Info.plist aggiuntivo per scene multiple. Nuova finestra controlla supportsMultipleScenes del processo. La disponibilità nel runner Playground va verificata.
 
-129 XCTest forniti, 25 controlli temporanei incorporati e prova sintetica 50 pagine/CAF60s/PDF/backup. Su Windows si eseguono soltanto controlli strutturali, grammatica e packaging. [Evidenze effettive](docs/VALIDATION.md). Macro, tipi e API richiedono SDK Apple; [verify_macos.sh](tools/verify_macos.sh) è pronto ma non eseguito qui.
+140 XCTest forniti, 26 controlli temporanei incorporati e prova sintetica 50 pagine/CAF60s/PDF/backup. Su Windows si eseguono soltanto controlli strutturali, grammatica e packaging. [Evidenze effettive](docs/VALIDATION.md). Macro, tipi e API richiedono SDK Apple; [verify_macos.sh](tools/verify_macos.sh) è pronto ma non eseguito qui.
 
 CloudKit disabilitato come previsto dal piano iniziale. Architettura futura: outbox transazionale, asset separati, retry/backoff, tombstone, revisioni alternative per conflitti e un solo writer di sync. Collaborazione separata. Firma, account e distribuzione App Store non configurati.
 
@@ -99,3 +99,7 @@ CanvasHost alterna lo zoom minimo e la larghezza esatta della pagina attiva, eli
 ## Workspace e input 0.8
 
 Il catalogo v1 aggiunge campi opzionali editorWorkspaces e coverDesign; gli endpoint normalizzati opzionali delle forme mantengono compatibilità con le diagonali precedenti. Workspace e palette per attività sono validati e salvati con mutatori del catalogo che conservano sessioni/media. Il monitor touch osserva PencilKit senza impedire i recognizer nativi, mostra anteprime e corregge un solo tratto dopo il commit. La toolbar è un overlay sul canvas; la mini toolbar focus usa i primi tre preferiti. Recenti della libreria locali, stile copertina incluso nel backup. [Prove e limiti](docs/TESTING_0_8.md).
+
+## Consolidamento 0.8.1
+
+Flush inchiostro/testo prima delle configurazioni e svuotamento delle modifiche concorrenti; blocco cambio pagina/strumento durante il tratto. Catalogo precedente dentro recovery, ripristino esplicito con conservazione dei byte interrotti e protezione dei media. Clone/import aggiorna le identità del catalogo recuperabile. Classificatore geometrico riscritto in operazioni Double esplicite dopo errore reale di Playground. Workflow macOS e baseline Git. [Prove](docs/CONSOLIDATION_0_8_1.md).

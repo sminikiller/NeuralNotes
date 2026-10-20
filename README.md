@@ -1,19 +1,23 @@
-# NeuralNotes 0.8 — app nativa iPad
+# NeuralNotes 0.8.1 — app nativa iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo, nessuna dipendenza di terze parti nell’app. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
-**Stato della consegna:** implementazione e pacchetti aggiornati; controlli locali di struttura, sintassi e integrità ZIP superati. La 0.8 non è stata compilata né eseguita in questo ambiente Windows, privo di Swift/Xcode/SDK Apple. Sono forniti 129 metodi XCTest, non eseguiti qui. Le conferme e le foto dell’utente riguardano le versioni precedenti.
+**Stato della consegna:** implementazione e pacchetti aggiornati; controlli locali di struttura, sintassi e integrità ZIP superati. La 0.8.1 non è stata compilata né eseguita in questo ambiente Windows, privo di Swift/Xcode/SDK Apple. Sono forniti 140 metodi XCTest, non eseguiti qui. Le conferme e le foto dell’utente riguardano le versioni precedenti.
 
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.8.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.8.1.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
-4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: 25 controlli temporanei.
+4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: 26 controlli temporanei.
 5. Prova [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md), poi segui [le prove di scorrimento e voltata 0.7](docs/TESTING_0_7.md), poi le regressioni precedenti e la prova di carico facoltativa.
 
 Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
+
+## Consolidamento 0.8.1
+
+Corretto il type-check troppo lento di HeldShapeRecognition segnalato sull’iPad, dividendo le formule in passaggi Double espliciti. Salvataggio dell’inchiostro indipendente dagli errori delle impostazioni, modifiche arrivate durante IO salvate prima del cambio pagina, protezione dei tratti attivi e recupero esplicito del catalogo precedente senza eliminare originali/media. Ambiente SDK/compilatore visibile nella Verifica e workflow Apple predisposto. [Prove e limiti](docs/CONSOLIDATION_0_8_1.md).
 
 ## Workspace e strumenti 0.8
 
@@ -55,7 +59,7 @@ Registrazione senza pausa automatica passando in background, modalità audio dic
 - **Trascrizioni:** continua a usare Apple Speech on-device, ora con blocchi di 45 s, checkpoint persistenti, avanzamento, pausa/ripresa e un retry del blocco fallito. Chiudere il pannello per scrivere non cancella il lavoro; uscita dal quaderno/background lo sospendono. L’utente ha riferito che il riconoscimento precedente ora sembra funzionare: la qualità della nuova versione richiede comunque prova.
 - **Nomi e correzioni:** Audio → Rinomina / correggi cambia titolo e testo per minuto senza toccare il CAF. Le correzioni sono conservate separatamente e protette durante una successiva ripresa. Esporta testo produce un .txt con riferimenti [hh:mm:ss] circa ogni minuto, marcato parziale quando necessario.
 
-La nuova versione fornisce **129 XCTest** e **25 controlli incorporati**. Build Apple e test Swift non eseguiti qui. [Prove e limiti 0.5](docs/TESTING_0_5.md).
+La nuova versione fornisce **140 XCTest** e **26 controlli incorporati**. Build Apple e test Swift non eseguiti qui. [Prove e limiti 0.5](docs/TESTING_0_5.md).
 
 ## Novità 0.4
 

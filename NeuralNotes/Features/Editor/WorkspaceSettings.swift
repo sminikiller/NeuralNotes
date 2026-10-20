@@ -60,6 +60,7 @@ extension EditorViewModel {
         workspaces.profiles.removeAll { $0.id == id }; selectWorkspace(workspaces.profiles[0].id)
     }
     func chooseTool(_ item: WorkspaceTool) {
+        guard !hasActiveStroke else { return }
         if item == .ruler {
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
             rulerActive.toggle(); configureTool(); return
@@ -76,8 +77,8 @@ extension EditorViewModel {
         ink = (palette.recentColors.first ?? palette.favorites.first ?? .black).color
         thickness = palette.recentWidths.first ?? 3
     }
-    func chooseInk(_ color: Color) { ink = color; rememberPalette(); configureTool() }
-    func chooseWidth(_ value: Double) { thickness = value; rememberPalette(); configureTool() }
+    func chooseInk(_ color: Color) { guard !hasActiveStroke else { return }; ink = color; rememberPalette(); configureTool() }
+    func chooseWidth(_ value: Double) { guard !hasActiveStroke else { return }; thickness = value; rememberPalette(); configureTool() }
     func rememberPalette() {
         let item = tool.workspaceTool, color = InkColor(ink), width = thickness
         editWorkspace { profile in
@@ -101,12 +102,17 @@ extension EditorViewModel {
         }
     }
     func saveWorkspaceSettings() async -> Bool {
-        guard hasLease, workspaceSettingsDirty else { return true }
-        let settings = workspaces
-        do {
-            try await workspace.setEditorWorkspaces(settings)
-            if workspaces == settings { workspaceSettingsDirty = false }
-            return true
-        } catch { self.error = error.localizedDescription; return false }
+        while hasLease && workspaceSettingsDirty {
+            let settings = workspaces
+            do {
+                try await workspace.setEditorWorkspaces(settings)
+                if workspaces == settings { workspaceSettingsDirty = false }
+            } catch {
+                self.error = error.localizedDescription
+                status = dirty ? "Modifiche da salvare · errore impostazioni" : "Pagina salvata · impostazioni da recuperare"
+                return false
+            }
+        }
+        return true
     }
 }

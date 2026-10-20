@@ -163,13 +163,13 @@ public actor DocumentWorkspace {
 
     public func catalog() throws -> DocumentCatalog {
         let file = try url("catalog.json")
-        guard FileManager.default.fileExists(atPath: file.path) else { return DocumentCatalog() }
-        let result: DocumentCatalog = try read("catalog.json")
-        guard result.schemaVersion == 1 else { throw LibraryFailure.unsupportedVersion(result.schemaVersion) }
-        if let template = result.defaultPageTemplate, !template.appearance.isValid { throw LibraryFailure.corruptDocument }
-        if let settings = result.editorWorkspaces, !settings.isValid { throw LibraryFailure.corruptDocument }
-        if let design = result.coverDesign, !design.isValid { throw LibraryFailure.corruptDocument }
-        return result
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            if FileManager.default.fileExists(atPath: try url(CatalogRecovery.previousPath).path) {
+                throw LibraryFailure.recoveryRequired("Catalogo mancante: apri Recupero quaderni dalla libreria.")
+            }
+            return DocumentCatalog()
+        }
+        return try CatalogRecovery.read("catalog.json", package: package)
     }
 
     public func setEditorWorkspaces(_ settings: NotebookWorkspaces) throws {
@@ -304,6 +304,7 @@ public actor DocumentWorkspace {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(value)
+        if path == "catalog.json" { try CatalogRecovery.preserveCurrent(in: package) }
         if path == "manifest.json" {
             let current = try url(path)
             let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601

@@ -36,6 +36,31 @@ struct DiagnosticsPanel: View {
                     if running { ProgressView() }
                     Button("Prova di carico facoltativa", systemImage: "speedometer") { stress = true }.disabled(running)
                 }
+                Section {
+                    DisclosureGroup("Ambiente di esecuzione") {
+                        LabeledContent("Sistema", value: ProcessInfo.processInfo.operatingSystemVersionString)
+                        LabeledContent("Versione app", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Non esposta dal runner")
+                        LabeledContent("SDK dichiarato", value: Bundle.main.object(forInfoDictionaryKey: "DTSDKName") as? String ?? "Non esposto dal runner")
+                        #if compiler(>=6.2)
+                        Text("Compilatore Swift 6.2 o successivo")
+                        #elseif compiler(>=6.0)
+                        Text("Compilatore Swift 6.0–6.1")
+                        #else
+                        Text("Compilatore Swift precedente alla 6.0")
+                        #endif
+                        #if canImport(FoundationModels)
+                        Text("FoundationModels presente nell’SDK")
+                        #else
+                        Text("FoundationModels assente nell’SDK")
+                        #endif
+                        #if canImport(PaperKit)
+                        Text("PaperKit presente nell’SDK")
+                        #else
+                        Text("PaperKit assente nell’SDK")
+                        #endif
+                        Text("La presenza di un modulo nell’SDK non conferma il supporto del sistema, dei modelli installati o dell’hardware.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 ForEach(results) { result in
                     VStack(alignment: .leading, spacing: 6) {
                         Label(result.title, systemImage: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -80,6 +105,28 @@ struct DiagnosticsPanel: View {
             let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID),
                 documentID: manifest.documentID, notebookID: manifest.notebookID)
             var saved: PageSnapshot?
+            await check("Catalogo: recupero conserva originali e media") {
+                let recoveryStore = try NativeDocumentStore(root: root.appendingPathComponent("CatalogRecovery"))
+                let index = DocumentManifest(documentID: UUID(), notebookID: UUID()); try recoveryStore.create(index)
+                let writer = DocumentWorkspace(package: recoveryStore.packageURL(for: index.documentID), documentID: index.documentID, notebookID: index.notebookID)
+                _ = try await writer.addPage()
+                let settings = NotebookWorkspaces.starter()
+                try await writer.setEditorWorkspaces(settings); try await writer.setCoverAppearance(image: nil, design: CoverDesign())
+                let catalog = try await writer.url("catalog.json"), media = try await writer.url("audio/retained.caf")
+                let broken = Data("interrupted catalog".utf8), bytes = Data([7, 8, 9])
+                try bytes.write(to: media); try broken.write(to: catalog)
+                try await writer.restorePreviousCatalog()
+                let reopened = try await writer.catalog()
+                _ = try await writer.cleanUnusedFiles()
+                let recoveryURL = try await writer.url("recovery")
+                let files = try FileManager.default.contentsOfDirectory(at: recoveryURL, includingPropertiesForKeys: nil)
+                let original = files.first { $0.lastPathComponent.hasPrefix("catalog-interrupted-") }
+                let retainedBytes = try Data(contentsOf: media)
+                try require(reopened.editorWorkspaces == settings && retainedBytes == bytes, "Catalogo o media non conservati.")
+                guard let original else { throw DiagnosticFailure.assertion("Catalogo originale non conservato.") }
+                let originalBytes = try Data(contentsOf: original)
+                try require(originalBytes == broken, "I byte originali del catalogo differiscono.")
+            }
             await check("Workspace: configurazioni indipendenti e riapertura") {
                 var settings = NotebookWorkspaces.starter()
                 let first = settings.profiles[0]

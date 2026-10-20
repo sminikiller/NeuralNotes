@@ -1,43 +1,94 @@
 import Foundation
 
-/// Conservative geometry recognition. Called only after the endpoint has stayed
-/// still for the hold interval, never on an ordinary lifted handwriting stroke.
+/// Conservative recognition after an explicit hold. Numeric steps are kept
+/// small and Double-typed so the iPad Playground compiler can check them quickly.
 public enum HeldShapeRecognition {
     public static func recognize(_ input: [StrokeSample]) -> ShapeKind? {
-        guard input.count >= 5, input.allSatisfy({ $0.x.isFinite && $0.y.isFinite }), !ScratchGesture.matches(input) else { return nil }
+        guard input.count >= 5 else { return nil }
+        for point in input where !point.x.isFinite || !point.y.isFinite { return nil }
+        guard !ScratchGesture.matches(input) else { return nil }
         let points = Array(input.suffix(2000))
         guard let first = points.first, let last = points.last else { return nil }
-        let xs = points.map(\.x), ys = points.map(\.y)
-        let x0 = xs.min()!, x1 = xs.max()!, y0 = ys.min()!, y1 = ys.max()!
-        let w = x1 - x0, h = y1 - y0, span = hypot(w, h)
-        guard span >= 24 else { return nil }
-        let length = zip(points, points.dropFirst()).reduce(0.0) { $0 + hypot($1.1.x - $1.0.x, $1.1.y - $1.0.y) }
-        let chord = hypot(last.x - first.x, last.y - first.y)
-        if chord >= 24, length / chord < 1.18 {
-            let error = points.map { abs((last.y - first.y) * ($0.x - first.x) - (last.x - first.x) * ($0.y - first.y)) / chord }.max() ?? .infinity
-            if error <= max(3, chord * 0.045) { return .line }
+        var x0: Double = first.x, x1: Double = first.x
+        var y0: Double = first.y, y1: Double = first.y
+        var length: Double = 0
+        var previous = first
+        for point in points {
+            x0 = min(x0, point.x); x1 = max(x1, point.x)
+            y0 = min(y0, point.y); y1 = max(y1, point.y)
+            length += distance(previous, point); previous = point
         }
-        guard w >= 20, h >= 20, chord < span * 0.22, length > span * 1.5, length < span * 4.5 else { return nil }
-        // Arc-length weighted samples avoid mistaking a circle with a few
-        // heavily sampled corners for a rectangle (or a fast polygon for ink).
-        var sampled: [StrokeSample] = []
-        let step = max(1, length / 160)
-        for (a, b) in zip(points, points.dropFirst()) {
-            let distance = hypot(b.x - a.x, b.y - a.y)
-            let count = min(300, max(1, Int(ceil(distance / step))))
-            for i in 0..<count {
-                let t = Double(i) / Double(count)
-                sampled.append(StrokeSample(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+        let width: Double = x1 - x0, height: Double = y1 - y0
+        let span: Double = hypot(width, height)
+        guard span >= 24, length.isFinite else { return nil }
+        let chord: Double = distance(first, last)
+        if chord >= 24 && length / chord < 1.18 {
+            let dx: Double = last.x - first.x, dy: Double = last.y - first.y
+            var maximumError: Double = 0
+            for point in points {
+                let offsetX: Double = point.x - first.x
+                let offsetY: Double = point.y - first.y
+                let cross: Double = dy * offsetX - dx * offsetY
+                let error: Double = abs(cross) / chord
+                maximumError = max(maximumError, error)
+            }
+            let tolerance: Double = max(3, chord * 0.045)
+            if maximumError <= tolerance { return .line }
+        }
+        guard width >= 20, height >= 20, chord < span * 0.22,
+              length > span * 1.5, length < span * 4.5 else { return nil }
+        let sampled = resample(points, length: length)
+        guard !sampled.isEmpty else { return nil }
+        let tolerance: Double = max(3, min(width, height) * 0.09)
+        var edgeCount = 0
+        for point in sampled {
+            let horizontal: Double = min(abs(point.x - x0), abs(point.x - x1))
+            let vertical: Double = min(abs(point.y - y0), abs(point.y - y1))
+            if min(horizontal, vertical) <= tolerance { edgeCount += 1 }
+        }
+        let edgeRatio: Double = Double(edgeCount) / Double(sampled.count)
+        let corners = [StrokeSample(x: x0, y: y0), StrokeSample(x: x1, y: y0),
+                       StrokeSample(x: x1, y: y1), StrokeSample(x: x0, y: y1)]
+        var cornersFound = 0
+        let cornerTolerance: Double = min(width, height) * 0.19
+        for corner in corners {
+            for point in sampled {
+                if distance(point, corner) < cornerTolerance { cornersFound += 1; break }
             }
         }
-        let tolerance = max(3, min(w, h) * 0.09)
-        let edgeRatio = Double(sampled.filter { min(min(abs($0.x - x0), abs($0.x - x1)), min(abs($0.y - y0), abs($0.y - y1))) <= tolerance }.count) / Double(max(1, sampled.count))
-        let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-        if edgeRatio > 0.88, corners.allSatisfy({ c in sampled.contains { hypot($0.x - c.0, $0.y - c.1) < min(w, h) * 0.19 } }) { return .rectangle }
-        let cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
-        let errors = sampled.map { abs(hypot(($0.x - cx) / (w / 2), ($0.y - cy) / (h / 2)) - 1) }
-        let mean = errors.reduce(0, +) / Double(max(1, errors.count))
-        if mean < 0.14, (errors.max() ?? 1) < 0.4 { return .ellipse }
+        if edgeRatio > 0.88 && cornersFound == 4 { return .rectangle }
+        let centerX: Double = (x0 + x1) / 2, centerY: Double = (y0 + y1) / 2
+        let radiusX: Double = width / 2, radiusY: Double = height / 2
+        var totalError: Double = 0, maximumError: Double = 0
+        for point in sampled {
+            let nx: Double = (point.x - centerX) / radiusX
+            let ny: Double = (point.y - centerY) / radiusY
+            let error: Double = abs(hypot(nx, ny) - 1)
+            totalError += error; maximumError = max(maximumError, error)
+        }
+        let meanError: Double = totalError / Double(sampled.count)
+        if meanError < 0.14 && maximumError < 0.4 { return .ellipse }
         return nil
+    }
+    private static func distance(_ a: StrokeSample, _ b: StrokeSample) -> Double {
+        let dx: Double = b.x - a.x, dy: Double = b.y - a.y
+        return hypot(dx, dy)
+    }
+    private static func resample(_ points: [StrokeSample], length: Double) -> [StrokeSample] {
+        var sampled: [StrokeSample] = []
+        let step: Double = max(1, length / 160)
+        for index in 1..<points.count {
+            let a = points[index - 1], b = points[index]
+            let segmentLength: Double = distance(a, b)
+            let estimate: Double = min(300, max(1, ceil(segmentLength / step)))
+            let count = Int(estimate)
+            for i in 0..<count {
+                let t: Double = Double(i) / Double(count)
+                let x: Double = a.x + (b.x - a.x) * t
+                let y: Double = a.y + (b.y - a.y) * t
+                sampled.append(StrokeSample(x: x, y: y))
+            }
+        }
+        return sampled
     }
 }

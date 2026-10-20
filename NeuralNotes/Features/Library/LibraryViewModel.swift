@@ -11,6 +11,12 @@ enum LibrarySort: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct CatalogRecoveryItem: Identifiable {
+    let notebook: Notebook
+    let canRestore: Bool
+    var id: UUID { notebook.id }
+}
+
 @MainActor @Observable
 final class LibraryViewModel {
     private let repository: any LibraryRepository
@@ -177,6 +183,22 @@ final class LibraryViewModel {
     func recover(_ url: URL) async throws { try await repository.recoverPackage(url); try reload() }
     func damagedNotebooks() -> [Notebook] { notebooks.filter { (try? repository.openNotebook(id: $0.id)) == nil } }
     func repair(_ notebook: Notebook) throws { try repository.repairNotebookIndex(id: notebook.id); try reload() }
+    func catalogRecoveryItems() async -> [CatalogRecoveryItem] {
+        var items: [CatalogRecoveryItem] = []
+        for notebook in notebooks {
+            guard let workspace = try? repository.workspace(id: notebook.id),
+                  let status = try? await workspace.catalogRecoveryStatus(), status.needsRecovery else { continue }
+            items.append(CatalogRecoveryItem(notebook: notebook, canRestore: status.canRestore))
+        }
+        return items
+    }
+    func repairCatalog(_ notebook: Notebook) async throws {
+        guard !EditorLeases.shared.isOpen(notebook.documentID) else {
+            throw LibraryFailure.recoveryRequired("Chiudi il quaderno nelle finestre prima del recupero.")
+        }
+        try await repository.workspace(id: notebook.id).restorePreviousCatalog()
+        try reload()
+    }
 
     func didEdit(_ notebook: Notebook) {
         perform { try repository.touchNotebook(id: notebook.id) }

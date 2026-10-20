@@ -100,6 +100,11 @@ extension NativeDocumentStore {
                 }
             }
             // Imported metadata is a snapshot of the source identity, never the copy.
+            // Recovery catalogs must use the cloned session/page identities too.
+            let previousCatalog = try NativeArchive.fileURL(CatalogRecovery.previousPath, in: destination)
+            if FileManager.default.fileExists(atPath: previousCatalog.path) {
+                try encoder.encode(catalog).write(to: previousCatalog, options: .atomic)
+            }
             let metadata = destination.appendingPathComponent("metadata.json")
             if FileManager.default.fileExists(atPath: metadata.path) { try FileManager.default.removeItem(at: metadata) }
         } catch {

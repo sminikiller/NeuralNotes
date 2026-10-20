@@ -1,0 +1,32 @@
+# NeuralNotes 0.8.1 — build 16
+
+## Correzione del compilatore segnalata sull’iPad
+
+La foto dell’utente mostra un errore reale in HeldShapeRecognition: “The compiler is unable to type-check this expression in reasonable time”. Le formule annidate per distanza dalla retta, lunghezza, bordi e scostamento dall’ellisse sono state riscritte in cicli e passaggi Double espliciti. Sono mantenute le soglie precedenti; aggiunta una regressione per rette diagonali nei due versi e verticali. Il parsing grammaticale non dimostrava la compilabilità dell’espressione originale.
+
+## Salvataggio
+
+Il flush salva prima l’inchiostro e il testo, poi le configurazioni del workspace. Un catalogo non leggibile non impedisce più di mettere su disco una pagina valida; la chiusura resta bloccata e segnala l’errore delle configurazioni da recuperare. Se arrivano modifiche durante una scrittura, il flush salva anche lo stato successivo prima di consentire il cambio pagina. Scrittura simulata interrotta e spazio esaurito mantengono lo stato da salvare e consentono un nuovo tentativo.
+
+Durante un tratto attivo sono bloccati chiusura/cambio pagina, sostituzione dello strumento e modifiche distruttive alla selezione. Non cambiano coordinate dell’inchiostro, canvas esteso o formato delle pagine.
+
+## Recupero del catalogo
+
+Ogni aggiornamento valido di catalog.json conserva la copia precedente in recovery/catalog.previous.json, dentro il formato di pacchetto già ammesso dai backup. Il catalogo comprende sessioni audio, trascrizioni, impostazioni e copertina. Non è un backup esterno del quaderno e non protegge dalla perdita dell’iPad o dell’intero container.
+
+Se il catalogo corrente manca ma esiste la copia precedente, l’app richiede il recupero anziché creare silenziosamente un catalogo vuoto. **Libreria → Recupero quaderni** distingue problemi dell’indice delle pagine e del catalogo. Il ripristino è esplicito, richiede il quaderno chiuso e rifiuta schemi futuri o copie prive dei media necessari. Conserva i byte del catalogo attuale e protegge dalla pulizia tutti i media presenti al momento del recupero, anche se il catalogo danneggiato non permette più di ricostruirne le relazioni. La copia precedente protegge inoltre i propri media durante la pulizia ordinaria. Questi file conservati possono occupare spazio: non sono rimossi automaticamente.
+
+Duplicazione/importazione aggiorna anche la copia del catalogo con le nuove identità, per non ripristinare riferimenti audio del documento sorgente. I quaderni precedenti senza copia del catalogo restano leggibili; la protezione viene creata dopo aggiornamenti del catalogo nella nuova versione.
+
+## Prove
+
+1. Apri il nuovo Playground in una cartella separata, senza eliminare il precedente. Conferma che HeldShapeRecognition compili; poi esegui Verifica sul dispositivo e le prove della 0.8.
+2. Su un quaderno temporaneo prova scrittura, cambio pagina, Annulla/Ripristina, chiusura/riapertura, focus e workspace. Prova il cambio pagina con un tratto in corso: non deve interrompere il tratto né perderlo.
+3. Le prove automatiche simulano catalogo interrotto/mancante, schema futuro, media mancanti, ripristino, pulizia, backup reimportato, errore di spazio e modifiche durante una scrittura. Non danneggiare i tuoi quaderni reali per eseguire queste prove.
+4. In Verifica sul dispositivo → Ambiente di esecuzione puoi leggere sistema, versione app, SDK se esposto dal runner, fascia del compilatore e moduli disponibili nell’SDK. La presenza del modulo non certifica il supporto dell’hardware o del sistema.
+
+## Automazione Apple
+
+Il workflow .github/workflows/verify.yml esegue prima controlli strutturali/grammaticali e i sette test Node senza chiamate AI, quindi build, Swift test e UI test iPad su un runner macOS. Usa tools/verify_macos.sh e conserva log e .xcresult. Le azioni sono fissate a commit verificati delle rispettive release. Il workflow non carica l’app su TestFlight e non distribuisce servizi.
+
+I test del simulatore non provano Pencil fisica, standby, microfono reale o il compilatore specifico di Swift Playground: servono ancora le prove dell’iPad. Il risultato della CI deve essere indicato nei log della consegna; non viene dedotto dalla semplice presenza del workflow.

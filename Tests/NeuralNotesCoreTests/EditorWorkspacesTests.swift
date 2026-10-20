@@ -3,6 +3,17 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class EditorWorkspacesTests: XCTestCase {
+    func testHeldLineRecognitionHandlesDiagonalAndVerticalDirections() {
+        for direction in [-1.0, 1.0] {
+            let diagonal = (0...30).map { i -> StrokeSample in
+                let t = Double(i)
+                return StrokeSample(x: 200 + direction * t * 4, y: 300 + t * 3 + sin(t) * 0.5)
+            }
+            XCTAssertEqual(HeldShapeRecognition.recognize(diagonal), .line)
+        }
+        let vertical = (0...30).map { StrokeSample(x: 140, y: Double($0) * 4) }
+        XCTAssertEqual(HeldShapeRecognition.recognize(vertical), .line)
+    }
     func testToolRecentsAreIndependentBoundedAndKeepFavorites() {
         var pen = ToolPalette.standard(for: .pen), marker = ToolPalette.standard(for: .marker)
         let favorites = pen.favorites

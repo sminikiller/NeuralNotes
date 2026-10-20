@@ -1,9 +1,9 @@
-# Gate di accettazione 0.8
+# Gate di accettazione 0.8.1
 
 Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packaging passano; build Apple e test Swift non eseguiti qui. Il vecchio piano della Fase 1, già autorizzato dall’utente dopo le proprie prove, è conservato in [history/ACCEPTANCE_PHASE_1.md](history/ACCEPTANCE_PHASE_1.md).
 
 - [ ] Il nuovo Playground compila e apre la libreria senza eliminare dati esistenti.
-- [ ] Tutti i 25 controlli incorporati passano, in particolare il backup precedentemente fallito.
+- [ ] Tutti i 26 controlli incorporati passano, in particolare il backup precedentemente fallito.
 - [ ] Foto/camera, crop/rotazione, forme e selezione mista superano il percorso [TESTING_0_5.md](TESTING_0_5.md).
 - [ ] Undo/redo ripristina oggetti e pagine senza perdere tratti, anche dopo cambio pagina.
 - [ ] Schede/ultima pagina riaperte nella stessa installazione; verifica multiwindow o registra il limite del runner.
@@ -19,14 +19,14 @@ Firma/distribuzione, configurazione backend e futura sincronizzazione hanno gate
 Data e versione app:
 iPad / iPadOS / Swift Playground:
 Build: PASS / FAIL + messaggio completo
-Controlli incorporati: 25/25 oppure elenco errori
+Controlli incorporati: 26/26 oppure elenco errori
 Foto / gruppi / undo / schede / finestre:
 PDF / backup reimportato / recupero:
 Prova sintetica: tempo, spazio, risultato
 Registrazione reale: durata, pause, interruzioni, drift
 Documento grande: pagine, dimensione, tempi, problemi
 Build/test Mac e percorso .xcresult, se disponibili:
-Gate 0.8: PASS / FAIL / INCOMPLETO
+Gate 0.8.1: PASS / FAIL / INCOMPLETO
 ```
 
 Gate specifici 0.6: import PDF come quaderno dalla libreria; carta per pagina/default; focus completo e pulsante trascinabile; avanzamento al fondo; scarabocchio configurabile con undo; trascrizione con pausa/riapertura pannello, rinomina/correzione ed export temporizzato. Non spuntati prima della prova reale.
@@ -53,4 +53,6 @@ Gate aggiuntivi 0.7: [scorrimento e voltata](TESTING_0_7.md).
 
 Gate zoom 0.7.1: [doppio tocco e margini laterali](FIXES_0_7_1.md).
 
-Gate 0.8: [workspace, toolbar, forme, righello e copertine](TESTING_0_8.md). Richiedono prova iPad, soprattutto l’anteprima durante il contatto Pencil.
+Gate 0.8.1: [workspace, toolbar, forme, righello e copertine](TESTING_0_8.md). Richiedono prova iPad, soprattutto l’anteprima durante il contatto Pencil.
+
+Gate 0.8.1: [compilazione reale del riconoscitore, salvataggio e recupero](CONSOLIDATION_0_8_1.md).

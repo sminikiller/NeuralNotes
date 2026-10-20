@@ -46,6 +46,7 @@ final class EditorViewModel {
         }
     }
     var drawingShape = false
+    var hasActiveStroke: Bool { usingInkTool || drawingShape }
     var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape }
     var fitPageRequest = 0
     var canvasZoomed = false
@@ -86,9 +87,13 @@ final class EditorViewModel {
     @ObservationIgnored private var strokeTime: (UUID, Double)?
     @ObservationIgnored private var signaturesBeforeStroke = Set<String>()
     @ObservationIgnored private var recoveredFromPrevious = false
+    @ObservationIgnored private let pageWriter: @MainActor (PageSnapshot, Data, Bool) async throws -> PageSnapshot
 
-    init(workspace: DocumentWorkspace) {
+    init(workspace: DocumentWorkspace, pageWriter: (@MainActor (PageSnapshot, Data, Bool) async throws -> PageSnapshot)? = nil) {
         self.workspace = workspace
+        self.pageWriter = pageWriter ?? { page, data, recovered in
+            try await workspace.save(page, drawing: data, recoveredFromPrevious: recovered)
+        }
         pageNavigation = UserDefaults.standard.string(forKey: "editor.navigation.\(workspace.documentID)")
             .flatMap(PageNavigationMode.init(rawValue:)) ?? .single
     }
@@ -146,7 +151,9 @@ final class EditorViewModel {
     }
 
     func close() async -> Bool {
+        guard !hasActiveStroke else { return false }
         guard await flush() else { return false }
+        guard !hasActiveStroke else { return false }
         await audio?.close()
         EditorLeases.shared.release(document: workspace.documentID, owner: leaseOwner); hasLease = false
         return true
@@ -210,50 +217,61 @@ final class EditorViewModel {
 
     @discardableResult
     func flush() async -> Bool {
-        guard await saveWorkspaceSettings() else { return false }
-        finishInkGesture()
-        commitTextEdit()
-        debounce?.cancel(); debounce = nil
-        while saving, let task = savingTask {
-            if !(await task.value) { return false }
-            await Task.yield()
-        }
-        guard dirty, var snapshot = page else { return true }
-        snapshot.revision += 1
-        let data = canvas.drawing.dataRepresentation()
-        let recovering = recoveredFromPrevious
-        dirty = false; saving = true; status = "Salvataggio…"
-        let task = Task { [weak self, workspace] () -> Bool in
-            do {
-                let saved = try await workspace.save(snapshot, drawing: data, recoveredFromPrevious: recovering)
-                guard let self else { return true }
-                if self.page?.id == saved.id {
-                    self.recoveredFromPrevious = false
-                    self.page?.revision = saved.revision
-                    self.page?.drawingFile = saved.drawingFile
-                    self.page?.previousDrawingFile = saved.previousDrawingFile
-                    if let index = self.pages.firstIndex(where: { $0.id == saved.id }), let current = self.page {
-                        self.pages[index] = current
-                    }
-                }
-                self.status = self.dirty ? "Modifiche da salvare" : "Salvato sul dispositivo"
-                return true
-            } catch {
-                self?.dirty = true; self?.error = error.localizedDescription
-                self?.status = "Salvataggio non riuscito — riprova"
-                return false
+        // Ink is committed before optional toolbar settings. A damaged catalog
+        // must never stop an otherwise valid page from reaching disk.
+        while true {
+            finishInkGesture()
+            commitTextEdit()
+            debounce?.cancel(); debounce = nil
+            while saving, let task = savingTask {
+                if !(await task.value) { return false }
+                await Task.yield()
             }
+            guard dirty, var snapshot = page else {
+                guard await saveWorkspaceSettings() else { return false }
+                if dirty { continue }
+                return true
+            }
+            guard hasLease else { return false }
+            snapshot.revision += 1
+            let data = canvas.drawing.dataRepresentation()
+            let recovering = recoveredFromPrevious
+            dirty = false; saving = true; status = "Salvataggio…"
+            let task = Task { [weak self, pageWriter] () -> Bool in
+                do {
+                    let saved = try await pageWriter(snapshot, data, recovering)
+                    guard let self else { return true }
+                    if self.page?.id == saved.id {
+                        self.recoveredFromPrevious = false
+                        self.page?.revision = saved.revision
+                        self.page?.drawingFile = saved.drawingFile
+                        self.page?.previousDrawingFile = saved.previousDrawingFile
+                        if let index = self.pages.firstIndex(where: { $0.id == saved.id }), let current = self.page {
+                            self.pages[index] = current
+                        }
+                    }
+                    self.status = self.dirty ? "Modifiche da salvare" : "Salvato sul dispositivo"
+                    return true
+                } catch {
+                    self?.dirty = true; self?.error = error.localizedDescription
+                    self?.status = "Salvataggio non riuscito — riprova"
+                    return false
+                }
+            }
+            savingTask = task
+            let result = await task.value
+            savingTask = nil; saving = false
+            guard result else { return false }
+            // An edit can arrive while the actor writes this snapshot. Drain those
+            // changes before a caller is allowed to navigate or close the editor.
         }
-        savingTask = task
-        let result = await task.value
-        savingTask = nil; saving = false
-        return result
     }
 
     func select(_ target: PageSnapshot) async {
-        guard hasLease, !loading, !navigating else { return }
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
         guard await flush() else { return }
+        guard !hasActiveStroke else { return }
         guard target.id != page?.id else { return }
         do {
             if pageNavigation == .horizontal, let pagePresenter {
@@ -307,9 +325,9 @@ final class EditorViewModel {
     }
 
     func addPage() async {
-        guard hasLease, !navigating else { return }
+        guard hasLease, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
-        guard await flush() else { return }
+        guard await flush(), !hasActiveStroke else { return }
         let before = pages.map(\.id), selected = page?.id
         do {
             let catalog = try await workspace.catalog()
@@ -324,18 +342,18 @@ final class EditorViewModel {
     }
 
     func duplicatePage() async {
-        guard hasLease, !navigating else { return }
+        guard hasLease, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
-        guard let page, await flush() else { return }
+        guard let page, await flush(), !hasActiveStroke else { return }
         let before = pages.map(\.id)
         do { let new = try await workspace.duplicatePage(page.id); try await load(new); recordOrder(before, selectedBefore: page.id, label: "Duplica pagina") }
         catch { self.error = error.localizedDescription }
     }
 
     func deletePage() async {
-        guard hasLease, !navigating else { return }
+        guard hasLease, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
-        guard let page, await flush() else { return }
+        guard let page, await flush(), !hasActiveStroke else { return }
         let before = pages.map(\.id)
         do {
             try await workspace.deletePage(page.id)
@@ -348,9 +366,9 @@ final class EditorViewModel {
 
     func setPaper(_ paper: PaperStyle) { mutatePage("Sfondo") { $0.paper = paper } }
     func setPageDetails(_ target: PageSnapshot, title: String?, bookmarked: Bool) async {
-        guard hasLease, !navigating, !loading else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
-        guard await flush() else { return }
+        guard await flush(), !hasActiveStroke else { return }
         let before = target.id == page?.id ? captureEdit() : EditorContentState(page: target, drawing: nil)
         do {
             let saved = try await workspace.setPageDetails(target.id, title: title, bookmarked: bookmarked)
@@ -367,6 +385,7 @@ final class EditorViewModel {
     }
 
     func deleteSelectedObject() {
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         finishInkGesture(); endTextEdit()
         let before = captureEdit(ink: selectionIncludesInk)
         let ids = selectedIDs
@@ -381,6 +400,7 @@ final class EditorViewModel {
     }
 
     func duplicateSelectedObject() {
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         finishInkGesture(); endTextEdit()
         if selectedIDs.count > 1 || selectionIncludesInk { copySelection(); Task { await pasteSelection() }; return }
         let before = captureEdit()

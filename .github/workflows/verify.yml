@@ -1,0 +1,56 @@
+name: NeuralNotes verification
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: neuralnotes-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Install Swift grammar parser
+        run: python -m pip install --target .verification/python-tooling tree-sitter==0.26.0 tree-sitter-swift==0.7.4
+      - name: Check project and Swift grammar
+        run: python tools/check_project.py --swift-syntax
+      - name: Backend unit tests (no provider calls)
+        run: node --test backend/server.test.mjs
+      - name: Verify iPad package
+        run: python tools/package_ipad.py
+  apple:
+    needs: portable
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Build, run Swift tests and iPad UI tests
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .verification
+          bash tools/verify_macos.sh 2>&1 | tee .verification/apple-validation.log
+      - name: Preserve Apple logs and test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: apple-validation-${{ github.run_id }}
+          retention-days: 14
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            .verification/apple-validation.log
+            .verification/**/*.xcresult

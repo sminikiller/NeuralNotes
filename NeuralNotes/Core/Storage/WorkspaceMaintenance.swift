@@ -34,6 +34,14 @@ extension DocumentWorkspace {
                 _ = try url(path); referenced.insert(path)
             }
         } catch { unreadable.append("catalog.json") }
+        if names.contains(CatalogRecovery.previousPath) {
+            do {
+                let previous = try CatalogRecovery.read(CatalogRecovery.previousPath, package: package)
+                for path in CatalogRecovery.references(previous) { referenced.insert(path) }
+            } catch { unreadable.append(CatalogRecovery.previousPath) }
+        }
+        do { referenced.formUnion(try CatalogRecovery.retainedMedia(in: package)) }
+        catch { unreadable.append(CatalogRecovery.retainedPath) }
         var total: Int64 = 0, unused: Int64 = 0, unusedFiles: [String] = [], categories: [String: Int64] = [:]
         for file in files {
             let size = Int64(try file.url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)

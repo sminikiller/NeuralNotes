@@ -35,7 +35,7 @@ extension EditorViewModel {
     func mutatePage(_ label: String, _ action: (inout PageSnapshot) -> Void) {
         finishInkGesture()
         commitTextEdit()
-        guard hasLease, !navigating, !loading, var value = page else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke, var value = page else { return }
         let before = captureEdit()
         action(&value); page = value; recordEdit(before, label: label); drawingChanged()
     }
@@ -50,7 +50,7 @@ extension EditorViewModel {
 
     private func applyHistory(undo: Bool) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, !navigating, !loading, let entry = undo ? history.undo : history.redo else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke, let entry = undo ? history.undo : history.redo else { return }
         navigating = true; defer { navigating = false }
         guard await flush() else { return }
         applyingHistory = true; defer { applyingHistory = false }
@@ -81,7 +81,7 @@ extension EditorViewModel {
     }
 
     func reorder(_ ids: [UUID]) async {
-        guard hasLease, !navigating, !loading else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
         guard await flush() else { return }
         let before = pages.map(\.id), selected = page?.id

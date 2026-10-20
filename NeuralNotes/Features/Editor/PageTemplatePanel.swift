@@ -96,7 +96,7 @@ struct PageTemplatePanel: View {
 @MainActor
 extension EditorViewModel {
     func applyTemplate(_ template: PageTemplate, useForNext: Bool) async -> Bool {
-        guard hasLease, !navigating, !loading, let current = page else { return false }
+        guard hasLease, !navigating, !loading, !hasActiveStroke, let current = page else { return false }
         guard template.appearance.isValid else { return false }
         navigating = true; defer { navigating = false }
         guard await flush() else { return false }

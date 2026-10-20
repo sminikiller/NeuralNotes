@@ -27,10 +27,10 @@ La 0.4 implementa le tre priorità richieste: editor con cronologia oggetti/pagi
 
 ## Gate 0.4
 
-1. Compilare il Playground 0.7; eseguire i 25 controlli incorporati, incluso il backup precedentemente fallito.
+1. Compilare il Playground 0.7; eseguire i 26 controlli incorporati, incluso il backup precedentemente fallito.
 2. Completare [TESTING_0_4.md](docs/TESTING_0_4.md) su una copia temporanea: foto/crop, gruppi, cronologia, riavvio, finestre, PDF e recupero.
 3. Eseguire la prova sintetica facoltativa e poi le prove reali lunghe, annotando tempi e risultati.
-4. Appena disponibile un ambiente Apple completo, eseguire i 129 XCTest e build Debug/Release. Nessuna prova manuale sostituisce questi controlli.
+4. Appena disponibile un ambiente Apple completo, eseguire i 140 XCTest e build Debug/Release. Nessuna prova manuale sostituisce questi controlli.
 5. Valutare i problemi misurati prima di aggiungere indicizzazione persistente, cache più aggressive o un renderer differente.
 
 Non si dichiara raggiunta la parità funzionale o qualitativa con Goodnotes. L’AI locale estrattiva non viene presentata come modello generativo e la disponibilità di embedding non viene simulata. Il vecchio gate di Fase 1 è conservato nello storico: l’utente ha autorizzato il proseguimento dopo le proprie prove manuali.
@@ -42,3 +42,7 @@ CanvasHost alterna lo zoom minimo e la larghezza esatta della pagina attiva, eli
 ## Workspace e input 0.8
 
 Il catalogo v1 aggiunge campi opzionali editorWorkspaces e coverDesign; gli endpoint normalizzati opzionali delle forme mantengono compatibilità con le diagonali precedenti. Workspace e palette per attività sono validati e salvati con mutatori del catalogo che conservano sessioni/media. Il monitor touch osserva PencilKit senza impedire i recognizer nativi, mostra anteprime e corregge un solo tratto dopo il commit. La toolbar è un overlay sul canvas; la mini toolbar focus usa i primi tre preferiti. Recenti della libreria locali, stile copertina incluso nel backup. [Prove e limiti](docs/TESTING_0_8.md).
+
+## Consolidamento 0.8.1
+
+Flush inchiostro/testo prima delle configurazioni e svuotamento delle modifiche concorrenti; blocco cambio pagina/strumento durante il tratto. Catalogo precedente dentro recovery, ripristino esplicito con conservazione dei byte interrotti e protezione dei media. Clone/import aggiorna le identità del catalogo recuperabile. Classificatore geometrico riscritto in operazioni Double esplicite dopo errore reale di Playground. Workflow macOS e baseline Git. [Prove](docs/CONSOLIDATION_0_8_1.md).

@@ -9,6 +9,90 @@ import NeuralNotesCore
 
 final class EditorIntegrationTests: XCTestCase {
     @MainActor
+    func testInkStillSavesWhenWorkspaceSettingsCatalogIsUnreadable() async throws {
+        try await withEditor { model in
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 200, y: 80)])])
+            model.strokeEnded(); model.finishInkGesture(); model.workspaceSaveTask?.cancel()
+            let file = try await model.workspace.url("catalog.json")
+            try Data("broken catalog".utf8).write(to: file)
+            let result = await model.flush(); XCTAssertFalse(result)
+            let pages = try await model.workspace.pages(), page = try XCTUnwrap(pages.first)
+            let savedBytes = try await model.workspace.drawing(page), data = try XCTUnwrap(savedBytes)
+            XCTAssertEqual(try PKDrawing(data: data).strokes.count, 1)
+            XCTAssertTrue(model.workspaceSettingsDirty); XCTAssertFalse(model.dirty)
+            let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+            try encoder.encode(DocumentCatalog()).write(to: file, options: .atomic)
+            model.error = nil
+            let retried = await model.flush(); XCTAssertTrue(retried); XCTAssertFalse(model.workspaceSettingsDirty)
+        }
+    }
+
+    @MainActor
+    func testFlushDrainsEditsArrivingWhileFirstSnapshotIsBeingWritten() async throws {
+        try await withEditor { original in
+            _ = await original.close()
+            let started = expectation(description: "First page write suspended")
+            var released = false, count = 0
+            var release: CheckedContinuation<Void, Never>?
+            let workspace = original.workspace
+            let model = EditorViewModel(workspace: workspace, pageWriter: { page, bytes, recovered in
+                count += 1
+                if count == 1 {
+                    started.fulfill()
+                    if !released { await withCheckedContinuation { release = $0 } }
+                }
+                return try await workspace.save(page, drawing: bytes, recoveredFromPrevious: recovered)
+            })
+            await model.open(); model.addText()
+            let saving = Task { @MainActor in await model.flush() }
+            await fulfillment(of: [started], timeout: 5)
+            model.addText(); released = true; release?.resume(); release = nil
+            let result = await saving.value; XCTAssertTrue(result); XCTAssertFalse(model.dirty)
+            let pages = try await workspace.pages()
+            XCTAssertEqual(pages.first?.texts.count, 2); XCTAssertGreaterThanOrEqual(count, 2)
+            _ = await model.close()
+        }
+    }
+
+    @MainActor
+    func testFailedPageWriteKeepsDirtyStateAndCanRetryWithoutLosingInk() async throws {
+        try await withEditor { original in
+            _ = await original.close()
+            var attempts = 0
+            let workspace = original.workspace
+            let model = EditorViewModel(workspace: workspace, pageWriter: { page, bytes, recovered in
+                attempts += 1
+                if attempts == 1 { throw CocoaError(.fileWriteOutOfSpace) }
+                return try await workspace.save(page, drawing: bytes, recoveredFromPrevious: recovered)
+            })
+            await model.open()
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 200, y: 80)])])
+            model.strokeEnded(); model.finishInkGesture()
+            let failed = await model.flush(); XCTAssertFalse(failed); XCTAssertTrue(model.dirty)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            let retry = await model.flush(); XCTAssertTrue(retry); XCTAssertFalse(model.dirty)
+            let page = try XCTUnwrap(model.page), bytes = try await workspace.drawing(page)
+            XCTAssertEqual(try PKDrawing(data: try XCTUnwrap(bytes)).strokes.count, 1)
+            _ = await model.close()
+        }
+    }
+
+    @MainActor
+    func testAnActivePencilStrokePreventsNavigationCloseAndToolReplacement() async throws {
+        try await withEditor { model in
+            let first = try XCTUnwrap(model.page); await model.addPage()
+            let current = try XCTUnwrap(model.page)
+            model.strokeBegan()
+            await model.select(first); XCTAssertEqual(model.page?.id, current.id)
+            let closed = await model.close(); XCTAssertFalse(closed); XCTAssertTrue(model.hasLease)
+            model.chooseTool(.marker); XCTAssertEqual(model.tool, .pen)
+            model.canvas.drawing = PKDrawing(strokes: [inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 200, y: 80)])])
+            model.strokeEnded(); model.finishInkGesture()
+            await model.select(first); XCTAssertEqual(model.page?.id, first.id)
+            await model.select(current); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+        }
+    }
+    @MainActor
     func testWorkspacesPersistPerNotebookAndKeepToolPalettesAndPersonalPreferencesSeparate() async throws {
         let scratch = UserDefaults.standard.object(forKey: "editor.scratchErase") as? Bool
         let pull = UserDefaults.standard.object(forKey: "editor.pullNextPage") as? Bool

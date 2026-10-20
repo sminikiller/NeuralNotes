@@ -44,7 +44,7 @@ extension EditorViewModel {
         status = "Selezione copiata"
     }
     func pasteSelection() async {
-        guard hasLease, !navigating else { return }
+        guard hasLease, !navigating, !hasActiveStroke else { return }
         guard let copy = EditorClipboard.page, let source = EditorClipboard.package else { return }
         navigating = true; defer { navigating = false }
         let before = captureEdit(ink: EditorClipboard.drawing != nil)

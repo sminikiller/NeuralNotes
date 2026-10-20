@@ -80,7 +80,7 @@ extension DocumentWorkspace {
                     provider: artifact.provider, createdAt: artifact.createdAt, task: artifact.task))
             }
         }
-        try encoder.encode(combined).write(to: url("catalog.json"), options: .atomic)
+        try write(combined, "catalog.json")
         index.pageIDs += imported.pageIDs
         try write(index, "manifest.json")
         return pages
