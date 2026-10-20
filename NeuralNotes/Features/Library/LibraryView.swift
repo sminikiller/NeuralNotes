@@ -34,6 +34,7 @@ struct LibraryView: View {
     @SceneStorage("desk.session") private var savedSession = ""
     @AppStorage("desk.lastSession") private var lastSession = ""
     @State private var resumeNotebook: Notebook?
+    @State private var resumeEditor: EditorViewModel?
     @State private var checkedResume = false
 
     var body: some View {
@@ -50,6 +51,7 @@ struct LibraryView: View {
         .navigationSplitViewStyle(.balanced)
         .task {
             guard !checkedResume else { return }; checkedResume = true
+            await Task.yield()
             // SceneStorage may not be flushed before the process is killed.
             // Only a sole window may use the durable last-desk fallback; new
             // windows must not reopen the document owned by an existing scene.
@@ -59,13 +61,17 @@ struct LibraryView: View {
                 guard let data = candidate.data(using: .utf8), let stored = try? JSONDecoder().decode(DeskSession.self, from: data) else { continue }
                 let valid = stored.available(in: Set(model.notebooks.map(\.id)))
                 if let notebook = model.notebooks.first(where: { $0.id == valid.selectedID }) {
-                    resumeNotebook = notebook; break
+                    do {
+                        resumeEditor = EditorViewModel(workspace: try model.workspace(notebook))
+                        resumeNotebook = notebook
+                    } catch { model.errorMessage = error.localizedDescription }
+                    break
                 }
             }
         }
-        .fullScreenCover(item: $resumeNotebook) { notebook in
-            if let workspace = try? model.workspace(notebook) {
-                NotebookDesk(notebook: notebook, model: EditorViewModel(workspace: workspace), library: model)
+        .fullScreenCover(item: $resumeNotebook, onDismiss: { resumeEditor = nil }) { notebook in
+            if let resumeEditor {
+                NotebookDesk(notebook: notebook, model: resumeEditor, library: model)
             }
         }
         .fileImporter(isPresented: $importingNotebook, allowedContentTypes: [.pdf, .data, .folder, .package]) { result in

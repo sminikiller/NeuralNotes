@@ -144,6 +144,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         let app = XCUIApplication(); openEditor(app)
         XCTAssertTrue(app.descendants(matching: .any)["pencilCanvas"].waitForExistence(timeout: 10))
         app.terminate(); app.launchArguments = ["--ui-testing"]; app.launch()
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
         XCTAssertTrue(app.buttons["editorAddText"].waitForExistence(timeout: 15))
     }
 }

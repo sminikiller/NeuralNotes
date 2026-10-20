@@ -36,7 +36,13 @@ final class AudioActionsUITests: XCTestCase {
         let export = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptExport-")).firstMatch
         for _ in 0..<4 where !export.exists { app.swipeUp() }
         XCTAssertTrue(export.waitForExistence(timeout: 5)); export.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["transcriptShare"].waitForExistence(timeout: 5))
+        let activity = app.otherElements["ActivityListView"]
+        let visible = activity.waitForExistence(timeout: 10)
+        if !visible {
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
+            let hierarchy = XCTAttachment(string: app.debugDescription); hierarchy.lifetime = .keepAlways; add(hierarchy)
+        }
+        XCTAssertTrue(visible)
         XCTAssertFalse(app.textFields["transcriptTitle"].exists)
     }
 }

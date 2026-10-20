@@ -1,12 +1,26 @@
 import SwiftUI
+import CoreTransferable
+import UniformTypeIdentifiers
 import NeuralNotesCore
 
 private enum AudioPresentation: Identifiable {
-    case read(UUID), edit(AudioSession), export(URL)
+    case read(UUID), edit(AudioSession)
     var id: String {
         switch self { case .read(let id): return "read-\(id)"
-        case .edit(let session): return "edit-\(session.id)"
-        case .export(let url): return "export-\(url.lastPathComponent)" }
+        case .edit(let session): return "edit-\(session.id)" }
+    }
+}
+
+private struct TranscriptFile: Transferable {
+    let session: AudioSession
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .plainText) { item in
+            let text = TranscriptText.export(title: item.session.title, segments: item.session.readableTranscript,
+                complete: item.session.hasCompletedTranscript)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("Trascrizione-\(UUID()).txt")
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            return SentTransferredFile(url)
+        }
     }
 }
 
@@ -77,7 +91,7 @@ struct AudioPanel: View {
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("transcriptEdit-\(session.id)")
                         .disabled(audio.transcribingSessionID != nil)
-                        Button("Esporta testo", systemImage: "square.and.arrow.up") { export(session) }
+                        ShareLink(item: TranscriptFile(session: session)) { Label("Esporta testo", systemImage: "square.and.arrow.up") }
                             .buttonStyle(.borderless)
                             .accessibilityIdentifier("transcriptExport-\(session.id)")
                             .disabled(!session.hasTranscriptText)
@@ -102,7 +116,6 @@ struct AudioPanel: View {
                 switch item {
                 case .read(let id): TranscriptReader(audio: audio, sessionID: id)
                 case .edit(let session): TranscriptEditor(audio: audio, session: session)
-                case .export(let url): ShareDocument(url: url, accessibilityID: "transcriptShare")
                 }
             }
             .onChange(of: audio.playback) { _, value in if !seeking { seekSeconds = value } }
@@ -118,16 +131,6 @@ struct AudioPanel: View {
         if session.transcriptionComplete == true && !session.hasTranscriptText { return "Riprova trascrizione" }
         return session.transcriptionChunks?.isEmpty == false ? "Riprendi trascrizione" : "Trascrivi in italiano sul dispositivo"
     }
-    private func export(_ session: AudioSession) {
-        guard presentation == nil else { return }
-        do {
-            let text = TranscriptText.export(title: session.title, segments: session.readableTranscript, complete: isComplete(session))
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("Trascrizione-\(UUID()).txt")
-            try text.write(to: url, atomically: true, encoding: .utf8)
-            presentation = .export(url)
-        } catch { audio.error = error.localizedDescription }
-    }
-
     private func clock(_ seconds: Double) -> String {
         let value = max(0, Int(seconds)); return String(format: "%02d:%02d", value / 60, value % 60)
     }
