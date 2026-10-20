@@ -37,7 +37,7 @@ extension EditorViewModel {
         commitTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke, var value = page else { return }
         let before = captureEdit()
-        action(&value); page = value; recordEdit(before, label: label); drawingChanged()
+        action(&value); value.pruneObjectReferences(); page = value; recordEdit(before, label: label); drawingChanged()
     }
 
     func recordOrder(_ before: [UUID], selectedBefore: UUID?, label: String) {

@@ -23,6 +23,7 @@ public struct TextElement: Codable, Identifiable, Equatable, Sendable {
     public var fontSize: Double = 24
     public var rtf: Data?
     public var rotation: Double?
+    public var background: InkColor?
     public init(text: String) { self.text = text }
 }
 
@@ -83,6 +84,10 @@ public struct PageSnapshot: Codable, Identifiable, Equatable, Sendable {
     public var appearance: PaperAppearance?
     public var lastEditedAt: Double?
     public var pdfMarkups: [PDFMarkup]?
+    public var tapes: [StudyTape]?
+    public var objectOrder: [UUID]?
+    public var lockedObjects: [UUID]?
+    public var aboveInkObjects: [UUID]?
     public init(id: UUID = UUID()) { self.id = id }
 }
 

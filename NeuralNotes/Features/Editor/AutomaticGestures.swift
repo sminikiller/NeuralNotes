@@ -35,6 +35,7 @@ extension EditorViewModel {
         let erased = InkScratchEraser.erase(previous, in: area)
         guard textChanged || erased.erased else { return false }
         self.page?.texts = texts.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        self.page?.pruneObjectReferences()
         canvas.drawing = erased.drawing
         selectedObjectID = nil
         return true

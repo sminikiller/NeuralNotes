@@ -13,7 +13,7 @@ private enum EditorClipboard {
 extension EditorViewModel {
     func selectAll() {
         guard let page else { return }
-        selectedIDs = Set(page.texts.map(\.id) + page.images.map(\.id) + (page.shapes ?? []).map(\.id))
+        selectedIDs = Set(page.objectIDs).subtracting(page.lockedObjects ?? [])
         selectionIncludesInk = !canvas.drawing.strokes.isEmpty
         selectedStrokeIndices = nil
     }
@@ -35,6 +35,7 @@ extension EditorViewModel {
         guard var copy = page else { return }
         copy.texts.removeAll { !selectedIDs.contains($0.id) }; copy.images.removeAll { !selectedIDs.contains($0.id) }
         copy.shapes = copy.shapes?.filter { selectedIDs.contains($0.id) }
+        copy.tapes = copy.tapes?.filter { selectedIDs.contains($0.id) }; copy.pruneObjectReferences()
         let drawing: PKDrawing
         if let selectedStrokeIndices { drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
         else { drawing = canvas.drawing }
@@ -45,7 +46,8 @@ extension EditorViewModel {
     }
     func pasteSelection() async {
         guard hasLease, !navigating, !hasActiveStroke else { return }
-        guard let copy = EditorClipboard.page, let source = EditorClipboard.package else { return }
+        guard var copy = EditorClipboard.page, let source = EditorClipboard.package else { return }
+        copy.renewObjectIDs()
         navigating = true; defer { navigating = false }
         let before = captureEdit(ink: EditorClipboard.drawing != nil)
         do {
@@ -61,11 +63,15 @@ extension EditorViewModel {
                 }
             }
             var ids = Set<UUID>()
-            for var text in copy.texts { text.id = UUID(); text.x += 20; text.y += 20; page?.texts.append(text); ids.insert(text.id) }
-            for var image in images { image.id = UUID(); image.x += 20; image.y += 20; page?.images.append(image); ids.insert(image.id) }
+            for var text in copy.texts { text.x += 20; text.y += 20; page?.texts.append(text); ids.insert(text.id) }
+            for var image in images { image.x += 20; image.y += 20; page?.images.append(image); ids.insert(image.id) }
             for var shape in copy.shapes ?? [] {
-                shape.id = UUID(); shape.x += 20; shape.y += 20
+                shape.x += 20; shape.y += 20
                 page?.shapes = (page?.shapes ?? []) + [shape]; ids.insert(shape.id)
+            }
+            for var tape in copy.tapes ?? [] {
+                tape.x += 20; tape.y += 20
+                page?.tapes = (page?.tapes ?? []) + [tape]; ids.insert(tape.id)
             }
             if let copied = copiedDrawing {
                 let strokes = copied.strokes.enumerated().map { index, stroke in
@@ -74,6 +80,10 @@ extension EditorViewModel {
                         transform: stroke.transform.concatenating(CGAffineTransform(translationX: 20, y: 20)), mask: stroke.mask)
                 }
                 canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes + strokes)
+            }
+            if let current = page {
+                page?.objectOrder = current.orderedObjectIDs.filter { !ids.contains($0) } + copy.orderedObjectIDs
+                page?.aboveInkObjects = Array(Set(current.aboveInkObjects ?? []).union(copy.aboveInkObjects ?? []))
             }
             selectedIDs = ids; selectionIncludesInk = false; selectedStrokeIndices = nil
             recordEdit(before, label: "Incolla selezione"); drawingChanged()

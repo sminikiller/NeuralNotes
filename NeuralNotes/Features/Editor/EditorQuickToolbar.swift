@@ -35,6 +35,11 @@ struct EditorQuickToolbar: View {
                     Menu {
                         Button("Inserisci foto", systemImage: "photo.badge.plus", action: photo)
                         Button("Scatta foto", systemImage: "camera", action: camera)
+                        Button("Post-it", systemImage: "note.text") { model.addStickyNote() }
+                        Button("Nastro per il ripasso", systemImage: "rectangle.fill") { model.addStudyTape() }
+                        Menu("Timbri", systemImage: "seal") {
+                            ForEach(["★ Importante", "Definizione", "Domanda per il prof", "Da ripassare"], id: \.self) { label in Button(label) { model.addStickyNote(label) } }
+                        }
                         ForEach(ShapeKind.allCases, id: \.self) { kind in
                             Button(kind.title, systemImage: kind.icon) { model.shapeKind = kind; model.tool = .shape; model.configureTool() }
                         }
@@ -96,6 +101,10 @@ struct EditorQuickToolbar: View {
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
                 Menu {
+                    Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
+                    Button("Porta dietro", systemImage: "square.3.layers.3d.bottom.filled") { model.arrangeSelection(front: false) }
+                    Button("Blocca oggetti", systemImage: "lock") { model.lockSelection() }
+                    Button("Sblocca tutti gli oggetti", systemImage: "lock.open") { model.unlockObjects() }
                     Button("Ingrandisci 10%") { model.transformSelection(scale: 1.1) }
                     Button("Riduci 10%") { model.transformSelection(scale: 1 / 1.1) }
                     Button("Ruota a destra 15°") { model.transformSelection(degrees: 15) }

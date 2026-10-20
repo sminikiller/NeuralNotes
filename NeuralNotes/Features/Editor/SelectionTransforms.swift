@@ -11,6 +11,7 @@ extension EditorViewModel {
             result = result.union(RichText.bounds(text, pageHeight: page.height).applying(RichText.rotation(text, pageHeight: page.height)))
         }
         for image in page.images where selectedIDs.contains(image.id) { result = result.union(CGRect(x: image.x, y: image.y, width: image.width, height: image.height)) }
+        for tape in page.tapes ?? [] where selectedIDs.contains(tape.id) { result = result.union(CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)) }
         for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) { result = result.union(CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)) }
         return result
     }
@@ -47,6 +48,13 @@ extension EditorViewModel {
                 shapes[i].x = at.x - shapes[i].width / 2; shapes[i].y = at.y - shapes[i].height / 2
                 shapes[i].lineWidth = min(200, shape.lineWidth * Double(scale)); shapes[i].rotation = (shape.rotation ?? 0) + Double(degrees)
             }; page.shapes = shapes
+        }
+        if var tapes = page.tapes {
+            for i in tapes.indices where selectedIDs.contains(tapes[i].id) {
+                let tape = tapes[i], at = center(tape.x, tape.y, tape.width, tape.height)
+                tapes[i].width *= Double(scale); tapes[i].height *= Double(scale)
+                tapes[i].x = at.x - tapes[i].width / 2; tapes[i].y = at.y - tapes[i].height / 2
+            }; page.tapes = tapes
         }
         self.page = page
         if selectionIncludesInk {

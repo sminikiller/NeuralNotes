@@ -62,6 +62,12 @@ public enum NativePackageInspector {
                 if let rotation = image.rotation, !rotation.isFinite { throw LibraryFailure.corruptDocument }
             }
             if let appearance = page.appearance, !appearance.isValid { throw LibraryFailure.corruptDocument }
+            guard page.tapes?.allSatisfy(\.isValid) != false, page.texts.allSatisfy({ $0.background?.isValid != false }) else { throw LibraryFailure.corruptDocument }
+            let objectIDs = Set(page.objectIDs)
+            guard objectIDs.count == page.objectIDs.count else { throw LibraryFailure.corruptDocument }
+            for references in [page.objectOrder, page.lockedObjects, page.aboveInkObjects].compactMap({ $0 }) {
+                guard Set(references).count == references.count, Set(references).isSubset(of: objectIDs) else { throw LibraryFailure.corruptDocument }
+            }
             for shape in page.shapes ?? [] {
                 guard [shape.x, shape.y, shape.width, shape.height, shape.red, shape.green, shape.blue, shape.lineWidth].allSatisfy(\.isFinite),
                       shape.width > 0, shape.height > 0, (0...1).contains(shape.red), (0...1).contains(shape.green), (0...1).contains(shape.blue),

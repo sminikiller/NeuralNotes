@@ -7,6 +7,23 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testStudyTapeStickyNotesAndLocksSurviveUndoAndPageDuplication() async throws {
+        try await fixture { model in
+            model.addStickyNote("Definizione")
+            let note = try XCTUnwrap(model.page?.texts.first)
+            XCTAssertNotNil(note.background); XCTAssertTrue(model.page?.aboveInkObjects?.contains(note.id) == true)
+            model.lockSelection(); model.selectAll(); XCTAssertFalse(model.selectedIDs.contains(note.id))
+            model.unlockObjects(); model.selectedObjectID = nil
+            model.addStudyTape(); let tape = try XCTUnwrap(model.page?.tapes?.first)
+            model.toggleTape(tape.id); XCTAssertTrue(model.page?.tapes?.first?.revealed == true)
+            await model.performUndo(); XCTAssertFalse(model.page?.tapes?.first?.revealed ?? true)
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            let copy = try await model.workspace.duplicatePage(try XCTUnwrap(model.page?.id))
+            XCTAssertNotEqual(copy.texts.first?.id, note.id); XCTAssertNotEqual(copy.tapes?.first?.id, tape.id)
+            XCTAssertEqual(copy.aboveInkObjects?.first, copy.texts.first?.id)
+            XCTAssertNoThrow(try NativePackageInspector.inspect(model.workspace.package))
+        }
+    }
     @MainActor func testListReturnKeepsFormattingAndEndsAnEmptyItem() {
         let view = UITextView(); view.attributedText = NSAttributedString(string: "1. Primo", attributes: [.font: UIFont.boldSystemFont(ofSize: 24)])
         view.typingAttributes = [.font: UIFont.boldSystemFont(ofSize: 24)]

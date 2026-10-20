@@ -51,11 +51,7 @@ extension NativeDocumentStore {
                 guard page.id == original else { throw LibraryFailure.corruptDocument }
                 page.id = UUID()
                 pageMap[original] = page.id
-                for index in page.texts.indices { page.texts[index].id = UUID() }
-                for index in page.images.indices { page.images[index].id = UUID() }
-                if var shapes = page.shapes {
-                    for index in shapes.indices { shapes[index].id = UUID() }; page.shapes = shapes
-                }
+                page.renewObjectIDs()
                 for index in page.anchors.indices {
                     page.anchors[index].id = UUID()
                     if let mapped = sessionMap[page.anchors[index].audioSessionID] { page.anchors[index].audioSessionID = mapped }

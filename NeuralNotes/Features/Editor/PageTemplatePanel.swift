@@ -50,7 +50,7 @@ struct PageTemplatePanel: View {
     var body: some View {
         NavigationStack {
             Form {
-                PageTemplateControls(template: $template)
+                PageTemplateControls(template: $template, allowFormat: model.page?.pdfFile == nil)
                 Section("Navigazione delle pagine") {
                     Picker("Modalità", selection: Binding(get: { model.pageNavigation }, set: { model.pageNavigation = $0 })) {
                         ForEach(PageNavigationMode.allCases, id: \.self) { mode in Label(mode.title, systemImage: mode.icon).tag(mode) }
@@ -126,6 +126,10 @@ extension EditorViewModel {
                     }
                     for i in value.images.indices {
                         value.images[i].x *= sx; value.images[i].y *= sy; value.images[i].width *= sx; value.images[i].height *= sy
+                    }
+                    if var tapes = value.tapes {
+                        for i in tapes.indices { tapes[i].x *= sx; tapes[i].y *= sy; tapes[i].width *= sx; tapes[i].height *= sy }
+                        value.tapes = tapes
                     }
                     if var shapes = value.shapes {
                         for i in shapes.indices {

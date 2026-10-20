@@ -2,6 +2,15 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class ExpandedEditorTests: XCTestCase {
+    func testObjectLayersAndLocksRemapToIndependentIDs() throws {
+        var page = PageSnapshot(); let text = TextElement(text: "Nota"), tape = StudyTape()
+        page.texts = [text]; page.tapes = [tape]; page.objectOrder = [tape.id, text.id]
+        page.lockedObjects = [text.id]; page.aboveInkObjects = [text.id]
+        let map = page.renewObjectIDs()
+        XCTAssertEqual(page.objectOrder, [map[tape.id]!, map[text.id]!])
+        XCTAssertEqual(page.lockedObjects, [page.texts[0].id]); XCTAssertEqual(page.aboveInkObjects, [page.texts[0].id])
+        page.texts = []; page.pruneObjectReferences(); XCTAssertEqual(page.lockedObjects, []); XCTAssertEqual(page.objectOrder, [page.tapes![0].id])
+    }
     func testHexColorsRoundTripAndRejectMalformedValues() {
         for value in ["#000000", "#FFFFFF", "#173A80", "#00FF2A"] { XCTAssertEqual(InkColor(hex: value)?.hex, value) }
         for value in ["#F00", "##FF0000", "FF00000", "zz0000", "#FF 000"] { XCTAssertNil(InkColor(hex: value)) }

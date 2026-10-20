@@ -448,6 +448,7 @@ final class EditorViewModel {
         let ids = selectedIDs
         page?.texts.removeAll { ids.contains($0.id) }; page?.images.removeAll { ids.contains($0.id) }
         page?.shapes?.removeAll { ids.contains($0.id) }
+        page?.tapes?.removeAll { ids.contains($0.id) }; page?.pruneObjectReferences()
         if selectionIncludesInk {
             if let selectedStrokeIndices { canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { !selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
             else { canvas.drawing = PKDrawing() }
@@ -471,6 +472,9 @@ final class EditorViewModel {
         } else if var shape = page?.shapes?.first(where: { $0.id == id }) {
             shape.id = UUID(); shape.x += 20; shape.y += 20
             page?.shapes?.append(shape); selectedObjectID = shape.id
+        } else if var tape = page?.tapes?.first(where: { $0.id == id }) {
+            tape.id = UUID(); tape.x += 20; tape.y += 20
+            page?.tapes?.append(tape); selectedObjectID = tape.id
         }
         recordEdit(before, label: "Duplica oggetto")
         drawingChanged()

@@ -93,6 +93,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if gesture === undoTap || gesture === redoTap { return model.hasLease && !model.hasActiveStroke && model.editingTextID == nil }
         if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,
            model.checklistHit(at: gesture.location(in: host.surface)) != nil { return true }
+        if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,
+           model.tapeHit(at: gesture.location(in: host.surface)) != nil { return true }
         if gesture === fitTap || gesture === pointerFitTap { return model.editingTextID == nil }
         if pageSwipes.contains(where: { $0 === gesture }) {
             return model.hasLease && !model.interactionBusy && host.canvas.zoomScale <= host.canvas.minimumZoomScale * 1.05
@@ -106,6 +108,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if touch.type == .pencil, gesture is UITapGestureRecognizer,
+           model?.tool == .pen || model?.tool == .marker || model?.tool == .eraser { return false }
         if pageSwipes.contains(where: { $0 === gesture }) && touch.type != .direct { return false }
         if let input = host?.textInput?.view, let touched = touch.view, touched.isDescendant(of: input) { return false }
         return true
@@ -135,6 +139,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         let point = gesture.location(in: host.surface)
         if model.toggleChecklist(at: point) { return }
+        if let tape = model.tapeHit(at: point), model.tool != .objects { model.toggleTape(tape); return }
         if model.tool == .lens { model.lensArea = CGRect(x: point.x - 60, y: point.y - 30, width: 120, height: 60); model.lensRequest += 1; return }
         if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }
         else if model.tool == .audioLink { Task { await model.playAudio(at: point, tolerance: 18 / max(host.canvas.zoomScale, 0.1)) } }
@@ -205,6 +210,11 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                     model.page?.shapes?[i].width = max(10, min(page.width - x, w + dx))
                     model.page?.shapes?[i].height = max(10, min(page.height - y, h + dy))
                 } else { model.page?.shapes?[i].x = x + dx; model.page?.shapes?[i].y = y + dy }
+            } else if let i = page.tapes?.firstIndex(where: { $0.id == id }) {
+                if resizing {
+                    model.page?.tapes?[i].width = max(10, min(page.width - x, w + dx))
+                    model.page?.tapes?[i].height = max(10, min(page.height - y, h + dy))
+                } else { model.page?.tapes?[i].x = x + dx; model.page?.tapes?[i].y = y + dy }
             }
         }
         if model.selectionIncludesInk, let drawing = originalDrawing {
@@ -222,7 +232,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 
     private var allIDs: [UUID] {
         guard let page = model?.page else { return [] }
-        return page.images.map(\.id) + (page.shapes ?? []).map(\.id) + page.texts.map(\.id)
+        let locked = Set(page.lockedObjects ?? [])
+        return page.orderedObjectIDs.filter { !locked.contains($0) }
     }
     private func hit(_ point: CGPoint) -> UUID? {
         guard let host, let model else { return nil }
@@ -234,6 +245,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
     private func objectRect(_ id: UUID) -> CGRect? {
         guard let page = model?.page else { return nil }
+        if let tape = page.tapes?.first(where: { $0.id == id }) { return CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height) }
         if let image = page.images.first(where: { $0.id == id }) { return CGRect(x: image.x, y: image.y, width: image.width, height: image.height) }
         if let shape = page.shapes?.first(where: { $0.id == id }) { return CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height) }
         if let text = page.texts.first(where: { $0.id == id }) {

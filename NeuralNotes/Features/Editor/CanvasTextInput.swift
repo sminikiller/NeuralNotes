@@ -78,7 +78,7 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         } else if view.text != text.text && view.markedTextRange == nil { view.attributedText = RichText.attributed(text) }
         let tone = page.appearance?.tone ?? .white
         view.backgroundColor = .clear
-        if text.rtf == nil { view.textColor = tone == .slate && page.pdfFile == nil ? .white : .black }
+        if text.rtf == nil { view.textColor = text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black }
         host.surface.hiddenTextID = id
         layout()
     }

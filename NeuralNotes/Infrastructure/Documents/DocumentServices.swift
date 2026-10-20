@@ -87,6 +87,7 @@ enum DocumentServices {
         return UIGraphicsImageRenderer(bounds: bounds, format: format).image { result in
             PageRenderer.draw(page, package: workspace.package, in: result.cgContext)
             PaperInk.image(drawing, from: bounds, scale: format.scale).draw(in: bounds)
+            PageRenderer.drawForeground(page, package: workspace.package, in: result.cgContext)
         }
     }
 
@@ -125,6 +126,7 @@ enum DocumentServices {
                     if vectorInk { VectorInkRenderer.draw(drawing, in: context) }
                     else { PaperInk.image(drawing, from: box, scale: min(2, 4096 / max(box.width, box.height))).draw(in: box) }
                 }
+                PageRenderer.drawForeground(page, package: workspace.package, in: context)
             }
             await Task.yield()
         }

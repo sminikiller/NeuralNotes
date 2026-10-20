@@ -177,11 +177,7 @@ public actor DocumentWorkspace {
         var copy = original
         copy.id = UUID(); copy.revision = 0; copy.previousDrawingFile = nil
         copy.lastEditedAt = Date().timeIntervalSince1970
-        for index in copy.texts.indices { copy.texts[index].id = UUID() }
-        for index in copy.images.indices { copy.images[index].id = UUID() }
-        if var shapes = copy.shapes {
-            for index in shapes.indices { shapes[index].id = UUID() }; copy.shapes = shapes
-        }
+        copy.renewObjectIDs()
         for index in copy.anchors.indices { copy.anchors[index].id = UUID() }
         if let file = original.drawingFile {
             let newFile = "drawings/\(copy.id)-\(UUID()).drawing"

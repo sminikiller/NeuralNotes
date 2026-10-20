@@ -35,17 +35,53 @@ enum PageRenderer {
             else { context.setStrokeColor(UIColor.systemRed.cgColor); context.setLineWidth(1); context.move(to: CGPoint(x: box.minX, y: box.maxY)); context.addLine(to: CGPoint(x: box.maxX, y: box.maxY)); context.strokePath() }
             context.restoreGState()
         }
-        for image in page.images {
-            ElementRendering.drawImage(image, package: package, context: context)
+        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
+        for id in page.orderedObjectIDs where !above.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
-        for shape in page.shapes ?? [] { ElementRendering.drawShape(shape, context: context) }
-        for text in page.texts where text.id != hidingTextID {
-            let value = RichText.attributed(text, color: appearance.tone == .slate && page.pdfFile == nil ? .white : .black)
-            let size = value.boundingRect(with: CGSize(width: text.width, height: max(0, page.height - text.y)), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
-            let box = CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize + 4, size.height))
+    }
+    static func drawForeground(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil) {
+        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
+        for id in page.orderedObjectIDs where above.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+        }
+        for tape in page.tapes ?? [] {
+            let box = CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)
+            context.saveGState()
+            if tape.revealed {
+                context.setStrokeColor(UIColor.systemOrange.withAlphaComponent(0.5).cgColor); context.setLineWidth(1)
+                context.setLineDash(phase: 0, lengths: [4, 3]); context.stroke(box)
+            } else {
+                context.setFillColor(UIColor(red: 1, green: 0.82, blue: 0.25, alpha: 1).cgColor)
+                context.fill(box)
+                ("Tocca per scoprire" as NSString).draw(in: box.insetBy(dx: 8, dy: 5), withAttributes: [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.darkGray])
+            }
+            context.restoreGState()
+        }
+    }
+    private struct ObjectLookup {
+        let texts: [UUID: TextElement], images: [UUID: ImageElement], shapes: [UUID: ShapeElement]
+        init(_ page: PageSnapshot) {
+            texts = Dictionary(page.texts.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+            images = Dictionary(page.images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+            shapes = Dictionary((page.shapes ?? []).map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        }
+    }
+    private static func drawObject(_ id: UUID, objects: ObjectLookup, page: PageSnapshot, package: URL, context: CGContext, hidingTextID: UUID?) {
+        if let image = objects.images[id] { ElementRendering.drawImage(image, package: package, context: context) }
+        else if let shape = objects.shapes[id] { ElementRendering.drawShape(shape, context: context) }
+        else if let text = objects.texts[id] {
+            let tone = page.appearance?.tone ?? .white
+            let value = RichText.attributed(text, color: text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black)
+            let box = RichText.bounds(text, pageHeight: page.height)
             context.saveGState(); context.translateBy(x: box.midX, y: box.midY)
             context.rotate(by: CGFloat(text.rotation ?? 0) * .pi / 180)
-            value.draw(in: CGRect(x: -box.width / 2, y: -box.height / 2, width: box.width, height: box.height))
+            let local = CGRect(x: -box.width / 2, y: -box.height / 2, width: box.width, height: box.height)
+            if let color = text.background {
+                context.setFillColor(UIColor(red: color.red, green: color.green, blue: color.blue, alpha: 1).cgColor)
+                context.addPath(UIBezierPath(roundedRect: local.insetBy(dx: -8, dy: -8), cornerRadius: 6).cgPath); context.fillPath()
+            }
+            if id != hidingTextID { value.draw(in: local) }
             context.restoreGState()
         }
     }

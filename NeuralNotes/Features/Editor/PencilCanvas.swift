@@ -9,6 +9,7 @@ final class CanvasHost: UIView {
     override func didMoveToWindow() { super.didMoveToWindow(); if window != nil, model?.editingTextID == nil { becomeFirstResponder() } }
     let surface = PageSurfaceView()
     let paperDetail = VisiblePaperDetail()
+    let foregroundObjects = ForegroundObjectsView()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -31,6 +32,8 @@ final class CanvasHost: UIView {
         PaperInk.configureNavigation(canvas, fingerDrawing: false)
         paperDetail.isHidden = true; paperDetail.isUserInteractionEnabled = false
         addSubview(surface); addSubview(paperDetail); addSubview(canvas)
+        foregroundObjects.isUserInteractionEnabled = false; foregroundObjects.isOpaque = false; foregroundObjects.backgroundColor = .clear
+        addSubview(foregroundObjects)
         canvas.backgroundColor = .clear; canvas.isOpaque = false
         canvas.alwaysBounceVertical = true
         pullHint.text = "Rilascia per avanzare · nuova pagina se sei all’ultima"
@@ -144,6 +147,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
+        defer { foregroundObjects.update(self) }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
