@@ -76,6 +76,53 @@ final class DocumentWorkspaceTests: XCTestCase {
         XCTAssertEqual(remaining.map(\.id), [copy.id])
     }
 
+    func testLatestEditKeepsSubsecondPrecisionAndIgnoresPageOrderAndDeletedPages() async throws {
+        let (root, store, manifest, workspace) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var first = PageSnapshot(); first.lastEditedAt = 100.1
+        var second = PageSnapshot(); second.lastEditedAt = 100.2
+        _ = try await workspace.addPage(first); _ = try await workspace.addPage(second)
+        _ = try await workspace.addPage()
+        try await workspace.movePage(second.id, offset: -1)
+        let reopened = DocumentWorkspace(package: store.packageURL(for: manifest.documentID),
+            documentID: manifest.documentID, notebookID: manifest.notebookID)
+        let latest = try await reopened.lastEditedPage()
+        XCTAssertEqual(latest?.id, second.id); XCTAssertEqual(latest?.lastEditedAt, 100.2)
+        try await reopened.deletePage(second.id)
+        let remaining = try await reopened.lastEditedPage()
+        XCTAssertEqual(remaining?.id, first.id)
+    }
+
+    func testSavingAndPageDetailsCommitAnEditDateButReadingDoesNot() async throws {
+        let (root, _, _, workspace) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var page = try await workspace.addPage()
+        let before = try await workspace.lastEditedPage(); XCTAssertNil(before)
+        page.revision = 1
+        let start = Date().timeIntervalSince1970
+        page = try await workspace.save(page, drawing: Data([1]))
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(page.lastEditedAt), start)
+        _ = try await workspace.drawing(page); _ = try await workspace.pages()
+        let unchanged = try await workspace.lastEditedPage()
+        XCTAssertEqual(unchanged?.lastEditedAt, page.lastEditedAt)
+        let renamed = try await workspace.setPageDetails(page.id, title: "Titolo", bookmarked: true)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(renamed.lastEditedAt), try XCTUnwrap(page.lastEditedAt))
+    }
+
+    func testCoverPreviewCanBeDisabledWithoutLosingTheCustomPhoto() async throws {
+        let (root, _, _, workspace) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let photo = Data([1, 2, 3])
+        try await workspace.setCoverAppearance(image: photo, design: CoverDesign(), useLastEditedPage: true)
+        // Existing callers that only change the design preserve the selected mode.
+        try await workspace.setCoverAppearance(image: photo, design: CoverDesign())
+        let active = try await workspace.catalog(); XCTAssertEqual(active.coverUsesLastEditedPage, true)
+        try await workspace.setCoverAppearance(image: photo, design: CoverDesign(), useLastEditedPage: false)
+        let custom = try await workspace.catalog(); XCTAssertEqual(custom.coverUsesLastEditedPage, false)
+        let file = try await workspace.url(try XCTUnwrap(custom.coverImageFile))
+        XCTAssertEqual(try Data(contentsOf: file), photo)
+    }
+
     func testUnsafePathsAreRejected() async throws {
         let (root, _, _, workspace) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -57,6 +57,12 @@ public actor DocumentWorkspace {
         try manifest().pageIDs.map { try readPage($0) }
     }
 
+    public func lastEditedPage() throws -> PageSnapshot? {
+        try pages().filter { $0.lastEditedAt != nil }.max {
+            ($0.lastEditedAt ?? 0) < ($1.lastEditedAt ?? 0)
+        }
+    }
+
     public func drawing(_ page: PageSnapshot) throws -> Data? {
         guard let file = page.drawingFile else { return nil }
         return try Data(contentsOf: url(file))
@@ -91,6 +97,7 @@ public actor DocumentWorkspace {
         let current = try readPage(input.id)
         guard input.revision > current.revision else { throw WorkspaceFailure.staleRevision }
         var page = input
+        page.lastEditedAt = Date().timeIntervalSince1970
         let newFile = "drawings/\(page.id)-\(UUID()).drawing"
         try drawing.write(to: url(newFile), options: .atomic)
         page.drawingFile = newFile
@@ -108,6 +115,7 @@ public actor DocumentWorkspace {
         let original = try readPage(pageID)
         var copy = original
         copy.id = UUID(); copy.revision = 0; copy.previousDrawingFile = nil
+        copy.lastEditedAt = Date().timeIntervalSince1970
         for index in copy.texts.indices { copy.texts[index].id = UUID() }
         for index in copy.images.indices { copy.images[index].id = UUID() }
         if var shapes = copy.shapes {
@@ -157,6 +165,7 @@ public actor DocumentWorkspace {
         var page = try readPage(id)
         page.title = try title.map { try LibraryName.validated($0) }
         page.isBookmarked = bookmarked; page.revision += 1
+        page.lastEditedAt = Date().timeIntervalSince1970
         try write(page, "pages/\(id).json")
         return page
     }
@@ -178,9 +187,10 @@ public actor DocumentWorkspace {
         try write(index, "catalog.json")
     }
 
-    public func setCoverAppearance(image: Data?, design: CoverDesign) throws {
+    public func setCoverAppearance(image: Data?, design: CoverDesign, useLastEditedPage: Bool? = nil) throws {
         guard design.isValid else { throw LibraryFailure.corruptDocument }
         var index = try catalog(); index.coverImageFile = try image.map { try storeImage($0) }; index.coverDesign = design
+        if let useLastEditedPage { index.coverUsesLastEditedPage = useLastEditedPage }
         try write(index, "catalog.json")
     }
 
@@ -292,6 +302,7 @@ public actor DocumentWorkspace {
             _ = try url(path)
         }
         if let appearance = page.appearance, !appearance.isValid { throw LibraryFailure.corruptDocument }
+        if let time = page.lastEditedAt, !time.isFinite || time < 0 { throw LibraryFailure.corruptDocument }
         return page
     }
 

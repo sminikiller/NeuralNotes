@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import ImageIO
+import PencilKit
 import NeuralNotesCore
 
 @MainActor
@@ -14,14 +15,20 @@ struct PhotoCoverPanel: View {
     @State private var busy = false
     @State private var error: String?
     @State private var design = CoverDesign()
+    @State private var usesLastEditedPage = false
+    @State private var pagePreview: UIImage?
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    NotebookCoverView(notebook: notebook, photo: preview, design: design).frame(maxWidth: 300).frame(maxWidth: .infinity)
+                    NotebookCoverView(notebook: notebook, photo: usesLastEditedPage ? pagePreview : preview,
+                        design: design, isPagePreview: usesLastEditedPage).frame(maxWidth: 300).frame(maxWidth: .infinity)
+                    Toggle("Ultima pagina modificata", isOn: $usesLastEditedPage)
+                        .accessibilityIdentifier("coverLastEditedPage")
+                    Text("La copertina mostra la pagina salvata più di recente, con inchiostro, immagini e PDF. Si aggiorna quando torni in libreria.").font(.caption)
                     PhotosPicker(selection: $selection, matching: .images) { Label("Scegli una foto", systemImage: "photo.on.rectangle") }
-                    Button("Usa copertina a colori", role: .destructive) { preview = nil; data = nil }
+                    Button("Usa copertina a colori", role: .destructive) { usesLastEditedPage = false; preview = nil; data = nil }
                 }
                 Section("Colore e motivo") {
                     ColorPicker("Colore personalizzato", selection: Binding(get: { design.color?.color ?? notebook.cover.color }, set: { design.color = InkColor($0) }), supportsOpacity: false)
@@ -47,6 +54,8 @@ struct PhotoCoverPanel: View {
                     let workspace = try library.workspace(notebook)
                     let catalog = try await workspace.catalog()
                     design = catalog.coverDesign ?? .suggested(id: notebook.id, title: notebook.title)
+                    usesLastEditedPage = catalog.coverUsesLastEditedPage == true
+                    pagePreview = try await LastEditedCover.image(workspace: workspace)
                     if let file = catalog.coverImageFile {
                         data = try Data(contentsOf: await workspace.url(file)); preview = data.flatMap { UIImage(data: $0) }
                     }
@@ -64,7 +73,7 @@ struct PhotoCoverPanel: View {
                             kCGImageSourceCreateThumbnailFromImageAlways: true,
                             kCGImageSourceCreateThumbnailWithTransform: true,
                             kCGImageSourceThumbnailMaxPixelSize: 900] as CFDictionary) else { throw CocoaError(.fileReadCorruptFile) }
-                    preview = UIImage(cgImage: image); data = preview?.pngData(); error = nil
+                    preview = UIImage(cgImage: image); data = preview?.pngData(); usesLastEditedPage = false; error = nil
                 } catch is CancellationError { }
                 catch { self.error = error.localizedDescription }
             }
@@ -75,7 +84,7 @@ struct PhotoCoverPanel: View {
                         Task {
                             busy = true; defer { busy = false }
                             do {
-                                try await library.workspace(notebook).setCoverAppearance(image: data, design: design)
+                                try await library.workspace(notebook).setCoverAppearance(image: data, design: design, useLastEditedPage: usesLastEditedPage)
                                 library.didEdit(notebook); library.coverRevision += 1; dismiss()
                             } catch { self.error = error.localizedDescription }
                         }
@@ -93,19 +102,43 @@ struct LibraryNotebookCover: View {
     var compact = false
     @State private var photo: UIImage?
     @State private var design: CoverDesign?
+    @State private var isPagePreview = false
 
     var body: some View {
-        NotebookCoverView(notebook: notebook, compact: compact, photo: photo, design: design)
+        NotebookCoverView(notebook: notebook, compact: compact, photo: photo, design: design, isPagePreview: isPagePreview)
             .task(id: "\(notebook.updatedAt.timeIntervalSince1970)-\(library.coverRevision)") {
                 do {
                     let workspace = try library.workspace(notebook)
                     let catalog = try await workspace.catalog(); design = catalog.coverDesign
-                    if let path = catalog.coverImageFile {
+                    isPagePreview = catalog.coverUsesLastEditedPage == true
+                    if isPagePreview {
+                        photo = try await LastEditedCover.image(workspace: workspace)
+                    } else if let path = catalog.coverImageFile {
                         let url = try await workspace.url(path)
                         let bytes = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }.value
                         try Task.checkCancellation(); photo = UIImage(data: bytes)
                     } else { photo = nil }
                 } catch { photo = nil }
             }
+    }
+}
+
+@MainActor
+enum LastEditedCover {
+    static func image(workspace: DocumentWorkspace) async throws -> UIImage? {
+        let latest = try await workspace.lastEditedPage()
+        let pages = try await workspace.pages()
+        guard let page = latest ?? pages.first else { return nil }
+        let drawing: PKDrawing
+        do {
+            let data = try await workspace.drawing(page)
+            drawing = try data.map { try PKDrawing(data: $0) } ?? PKDrawing()
+        } catch {
+            guard let backup = page.previousDrawingFile else { throw error }
+            let file = try await workspace.url(backup)
+            drawing = try PKDrawing(data: Data(contentsOf: file))
+        }
+        try Task.checkCancellation()
+        return DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: 700)
     }
 }

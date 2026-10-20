@@ -1,4 +1,4 @@
-# Gate di accettazione 0.8.1
+# Gate di accettazione 0.8.2
 
 Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packaging passano; build e test Apple vengono eseguiti dalla CI privata, con esiti in [VALIDATION.md](VALIDATION.md). Il vecchio piano della Fase 1, già autorizzato dall’utente dopo le proprie prove, è conservato in [history/ACCEPTANCE_PHASE_1.md](history/ACCEPTANCE_PHASE_1.md).
 
@@ -11,7 +11,7 @@ Stato: **INCOMPLETO sul dispositivo**. I controlli di struttura/sintassi e packa
 - [ ] Recupero/spazio provati su quaderni temporanei; nessuna cancellazione automatica dei contenuti.
 - [ ] Prova sintetica 50 pagine/CAF60s completata e risultati annotati.
 - [ ] Registrazioni reali lunghe, file grandi, interruzioni, memoria e layout/accessibilità verificati secondo il piano.
-- [x] CI macOS: core test + unit/UI test e build Release senza firma con tools/verify_macos.sh, log e .xcresult conservati. [Esito e due esclusioni specifiche del simulatore](VALIDATION.md).
+- [ ] CI macOS 0.8.2: core test + unit/UI test e build Release senza firma con tools/verify_macos.sh, log e .xcresult conservati. [Esito e due esclusioni specifiche del simulatore](VALIDATION.md).
 
 Firma/distribuzione, configurazione backend e futura sincronizzazione hanno gate separati: non sono impliciti in questi controlli.
 
@@ -26,7 +26,7 @@ Prova sintetica: tempo, spazio, risultato
 Registrazione reale: durata, pause, interruzioni, drift
 Documento grande: pagine, dimensione, tempi, problemi
 Build/test Mac e percorso .xcresult, se disponibili:
-Gate 0.8.1: PASS / FAIL / INCOMPLETO
+Gate 0.8.2: PASS / FAIL / INCOMPLETO
 ```
 
 Gate specifici 0.6: import PDF come quaderno dalla libreria; carta per pagina/default; focus completo e pulsante trascinabile; avanzamento al fondo; scarabocchio configurabile con undo; trascrizione con pausa/riapertura pannello, rinomina/correzione ed export temporizzato. Non spuntati prima della prova reale.
@@ -53,6 +53,8 @@ Gate aggiuntivi 0.7: [scorrimento e voltata](TESTING_0_7.md).
 
 Gate zoom 0.7.1: [doppio tocco e margini laterali](FIXES_0_7_1.md).
 
-Gate 0.8.1: [workspace, toolbar, forme, righello e copertine](TESTING_0_8.md). Richiedono prova iPad, soprattutto l’anteprima durante il contatto Pencil.
+Gate 0.8.2: [workspace, toolbar, forme, righello e copertine](TESTING_0_8.md). Richiedono prova iPad, soprattutto l’anteprima durante il contatto Pencil.
 
-Gate 0.8.1: [compilazione reale del riconoscitore, salvataggio e recupero](CONSOLIDATION_0_8_1.md).
+Gate 0.8.2: [compilazione reale del riconoscitore, salvataggio e recupero](CONSOLIDATION_0_8_1.md).
+
+Gate aggiuntivi 0.8.2: scarabocchio senza rettangolo, forma confermata fino al sollevamento, riapertura ultima pagina modificata e copertina automatica. Seguire [FIXES_0_8_2.md](FIXES_0_8_2.md).

@@ -37,27 +37,35 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 
     func begin(_ touch: UITouch) {
+        guard let host else { return }
+        begin(at: touch.location(in: host.surface))
+    }
+    func begin(at: CGPoint) {
         cancel()
         guard let host, let model, let page = model.page else { return }
-        let at = touch.location(in: host.surface)
         guard host.surface.bounds.contains(at) else { return }
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
         if model.tool == .shape { model.drawingShape = true }
     }
     func move(_ touch: UITouch, event: UIEvent) {
+        guard let host else { return }
+        move(samples: (event.coalescedTouches(for: touch) ?? [touch]).map { $0.location(in: host.surface) })
+    }
+    func move(samples: [CGPoint]) {
         guard let host, let model, model.page?.id == pageID, let page = model.page else { return }
-        for sample in event.coalescedTouches(for: touch) ?? [touch] {
-            let raw = sample.location(in: host.surface)
+        // Recognition is latched until lift. Coalesced final samples and tiny
+        // Pencil motion must never cancel an already confirmed preview.
+        guard !held else { return }
+        for raw in samples {
             let p = CGPoint(x: max(0, min(CGFloat(page.width), raw.x)), y: max(0, min(CGFloat(page.height), raw.y)))
             points.append(StrokeSample(x: Double(p.x), y: Double(p.y)))
         }
         if points.count > 2000 { points = points.enumerated().filter { $0.offset % 2 == 0 || $0.offset == points.count - 1 }.map(\.element) }
         if model.tool == .shape { drawPreview(model.shapeKind); return }
-        let at = touch.location(in: host.surface)
+        guard let at = samples.last else { return }
         if hypot(at.x - anchor.x, at.y - anchor.y) > max(1.5, 3 / host.canvas.zoomScale) {
             anchor = at; holdTask?.cancel()
-            if held { model.pendingHeldShape = nil; finishPreview() }
             holdTask = Task { [weak self] in
                 do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
                 self?.recognizeHold()
@@ -85,7 +93,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         }
         pageID = nil
     }
-    private func recognizeHold() {
+    func recognizeHold() {
         guard let host, let model, let page = model.page, page.id == pageID,
               model.currentWorkspace.holdShapes, !model.rulerActive, model.tool == .pen || model.tool == .marker,
               let kind = HeldShapeRecognition.recognize(points) else { return }

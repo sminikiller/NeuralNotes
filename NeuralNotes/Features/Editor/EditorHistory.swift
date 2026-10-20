@@ -6,7 +6,7 @@ struct EditorContentState: Equatable {
     var page: PageSnapshot
     var drawing: Data?
     var normalized: PageSnapshot {
-        var copy = page; copy.revision = 0; copy.drawingFile = nil; copy.previousDrawingFile = nil; return copy
+        var copy = page; copy.revision = 0; copy.drawingFile = nil; copy.previousDrawingFile = nil; copy.lastEditedAt = nil; return copy
     }
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.normalized == rhs.normalized && lhs.drawing == rhs.drawing }
 }

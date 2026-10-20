@@ -43,6 +43,7 @@ public enum NativePackageInspector {
             let page: PageSnapshot = try read("pages/\(id).json")
             guard page.id == id, page.width.isFinite, page.height.isFinite,
                   page.width > 0, page.height > 0, page.width <= 20000, page.height <= 20000 else { throw LibraryFailure.corruptDocument }
+            if let time = page.lastEditedAt, !time.isFinite || time < 0 { throw LibraryFailure.corruptDocument }
             for path in [page.drawingFile, page.previousDrawingFile, page.pdfFile].compactMap({ $0 }) + page.images.map(\.file) { try media(path) }
             for text in page.texts {
                 guard [text.x, text.y, text.width, text.fontSize].allSatisfy(\.isFinite),

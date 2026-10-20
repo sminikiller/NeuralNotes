@@ -29,6 +29,7 @@ struct NotebookCoverView: View {
     var compact = false
     var photo: UIImage? = nil
     var design: CoverDesign? = nil
+    var isPagePreview = false
     private var appearance: CoverDesign { design ?? .suggested(id: notebook.id, title: notebook.title) }
 
     var body: some View {
@@ -56,10 +57,12 @@ struct NotebookCoverView: View {
         .overlay {
             if let photo {
                 GeometryReader { geometry in
-                    Image(uiImage: photo).resizable().scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    Image(uiImage: photo).resizable()
+                        .aspectRatio(contentMode: isPagePreview ? .fit : .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .background(isPagePreview ? Color(white: 0.94) : .clear).clipped()
                         .overlay(alignment: .bottomLeading) {
-                            if !compact {
+                            if !compact && !isPagePreview {
                                 Text(notebook.title).font(.title3.bold()).foregroundStyle(.white)
                                     .padding().frame(maxWidth: .infinity, alignment: .leading)
                                     .background(.black.opacity(0.45))

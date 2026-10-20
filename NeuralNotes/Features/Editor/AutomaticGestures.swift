@@ -26,7 +26,7 @@ extension EditorViewModel {
             return StrokeSample(x: Double(location.x), y: Double(location.y))
         }
         guard ScratchGesture.matches(samples) else { return false }
-        let area = scratch.renderBounds.insetBy(dx: 0, dy: -6)
+        let area = InkScratchEraser.coverage(of: scratch)
         var texts = page.texts, textChanged = false
         for index in texts.indices {
             let corrected = TextScratchEraser.eraseWords(texts[index], in: area, pageHeight: page.height)

@@ -2,6 +2,31 @@ import XCTest
 
 final class LibraryLifecycleUITests: XCTestCase {
     @MainActor
+    func testLastEditedPageCoverChoicePersistsThroughProcessRelaunch() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()
+        let create = app.buttons["newNotebookButton"]
+        XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
+        let name = app.textFields["notebookNameField"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Anteprima")
+        app.buttons["saveNotebookButton"].tap()
+        let notebook = app.buttons.matching(NSPredicate(format: "label == %@", "Anteprima")).firstMatch
+        XCTAssertTrue(notebook.waitForExistence(timeout: 5)); notebook.press(forDuration: 1)
+        let cover = app.buttons["Personalizza copertina"]
+        XCTAssertTrue(cover.waitForExistence(timeout: 5)); cover.tap()
+        let toggle = app.switches["coverLastEditedPage"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5)); toggle.tap()
+        app.buttons["Salva"].tap()
+        XCTAssertTrue(notebook.waitForExistence(timeout: 5))
+        app.terminate(); app.launchArguments = ["--ui-testing"]; app.launch()
+        XCTAssertTrue(notebook.waitForExistence(timeout: 10)); notebook.press(forDuration: 1)
+        XCTAssertTrue(cover.waitForExistence(timeout: 5)); cover.tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "1")
+    }
+
+    @MainActor
     func testNotebookSurvivesRenameAndProcessRelaunch() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

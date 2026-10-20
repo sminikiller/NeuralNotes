@@ -97,7 +97,7 @@ def make_project():
             "PRODUCT_NAME": "$(TARGET_NAME)", "PRODUCT_BUNDLE_IDENTIFIER": "com.neuralnotes." + target,
             "TARGETED_DEVICE_FAMILY": "2", "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
             "SUPPORTS_MACCATALYST": "NO", "CODE_SIGN_STYLE": "Automatic",
-            "MARKETING_VERSION": "0.8.1", "CURRENT_PROJECT_VERSION": "16",
+            "MARKETING_VERSION": "0.8.2", "CURRENT_PROJECT_VERSION": "17",
             "GENERATE_INFOPLIST_FILE": "YES", "SWIFT_EMIT_LOC_STRINGS": "YES",
         }
         if target == "NeuralNotes":

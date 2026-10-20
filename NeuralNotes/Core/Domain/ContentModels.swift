@@ -77,6 +77,7 @@ public struct PageSnapshot: Codable, Identifiable, Equatable, Sendable {
     public var isBookmarked: Bool?
     public var shapes: [ShapeElement]?
     public var appearance: PaperAppearance?
+    public var lastEditedAt: Double?
     public init(id: UUID = UUID()) { self.id = id }
 }
 
@@ -126,5 +127,6 @@ public struct DocumentCatalog: Codable, Sendable {
     public var defaultPageTemplate: PageTemplate?
     public var editorWorkspaces: NotebookWorkspaces?
     public var coverDesign: CoverDesign?
+    public var coverUsesLastEditedPage: Bool?
     public init() { }
 }

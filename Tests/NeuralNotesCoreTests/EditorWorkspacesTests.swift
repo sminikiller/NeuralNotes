@@ -36,6 +36,7 @@ final class EditorWorkspacesTests: XCTestCase {
     func testOldCatalogAndShapeDecodeWithoutNewSettingsOrEndpoints() throws {
         let catalog = try JSONDecoder().decode(DocumentCatalog.self, from: Data(#"{"schemaVersion":1,"attachments":[],"sessions":[]}"#.utf8))
         XCTAssertNil(catalog.editorWorkspaces); XCTAssertNil(catalog.coverDesign)
+        XCTAssertNil(catalog.coverUsesLastEditedPage)
         let original = ShapeElement(kind: .arrow)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
         object.removeValue(forKey: "start"); object.removeValue(forKey: "end")
@@ -92,18 +93,24 @@ final class EditorWorkspacesTests: XCTestCase {
         let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
         try store.create(manifest)
         let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
-        _ = try await workspace.addPage()
+        var page = try await workspace.addPage(); page.revision = 1
+        page = try await workspace.save(page, drawing: Data([42]))
         let session = AudioSession(title: "Lezione")
         try await workspace.saveSession(session)
         var settings = NotebookWorkspaces.starter(); settings.profiles[1].dock = .trailing
         try await workspace.setEditorWorkspaces(settings)
         var design = CoverDesign(); design.color = .red; design.symbol = "atom"; design.pattern = .grid
-        try await workspace.setCoverAppearance(image: nil, design: design)
+        try await workspace.setCoverAppearance(image: nil, design: design, useLastEditedPage: true)
+        try await workspace.setEditorWorkspaces(settings)
         let documentID = UUID(), notebookID = UUID()
         try await workspace.clone(to: store, documentID: documentID, notebookID: notebookID)
         let copy = DocumentWorkspace(package: store.packageURL(for: documentID), documentID: documentID, notebookID: notebookID)
         let catalog = try await copy.catalog()
         XCTAssertEqual(catalog.editorWorkspaces, settings); XCTAssertEqual(catalog.coverDesign, design)
+        XCTAssertEqual(catalog.coverUsesLastEditedPage, true)
+        let lastEdited = try await copy.lastEditedPage()
+        XCTAssertNotEqual(lastEdited?.id, page.id)
+        XCTAssertEqual(lastEdited?.lastEditedAt, page.lastEditedAt)
         XCTAssertEqual(catalog.sessions.first?.title, session.title)
         var invalid = settings; invalid.profiles = []
         do { try await copy.setEditorWorkspaces(invalid); XCTFail("Invalid state saved") } catch LibraryFailure.corruptDocument { }

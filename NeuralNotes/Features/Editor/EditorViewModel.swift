@@ -114,7 +114,8 @@ final class EditorViewModel {
             pages = try await workspace.pages()
             if pages.isEmpty { pages = [try await workspace.addDefaultPage()] }
             let savedID = UserDefaults.standard.string(forKey: "editor.page.\(workspace.documentID)").flatMap(UUID.init(uuidString:))
-            if let first = pages.first(where: { $0.id == savedID }) ?? pages.first { try await load(first) }
+            let lastEdited = try await workspace.lastEditedPage()
+            if let first = lastEdited ?? pages.first(where: { $0.id == savedID }) ?? pages.first { try await load(first) }
             let recorder = AudioController(workspace: workspace)
             await recorder.load(); audio = recorder
         } catch { self.error = error.localizedDescription; status = "Apertura non riuscita" }
@@ -246,6 +247,7 @@ final class EditorViewModel {
                         self.page?.revision = saved.revision
                         self.page?.drawingFile = saved.drawingFile
                         self.page?.previousDrawingFile = saved.previousDrawingFile
+                        self.page?.lastEditedAt = saved.lastEditedAt
                         if let index = self.pages.firstIndex(where: { $0.id == saved.id }), let current = self.page {
                             self.pages[index] = current
                         }

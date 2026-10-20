@@ -172,6 +172,103 @@ final class EditorIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testHeldLineAndEllipseRemainConfirmedThroughFinalPencilMotionAndReload() async throws {
+        for kind in [ShapeKind.line, .ellipse] {
+            try await withEditor { model in
+                model.editWorkspace { $0.holdShapes = true }
+                let host = CanvasHost(canvas: model.canvas); host.model = model
+                host.surface.page = try XCTUnwrap(model.page)
+                host.frame = CGRect(x: 0, y: 0, width: 1200, height: 900); host.setNeedsLayout(); host.layoutIfNeeded()
+                let assistant = CanvasDrawingAssistant(host: host, model: model); model.drawingAssistant = assistant
+                var locations: [CGPoint] = []
+                for i in 0...60 {
+                    let t = Double(i) / 60
+                    if kind == .line { locations.append(CGPoint(x: 80 + t * 240, y: 180 + sin(t * 15))) }
+                    else {
+                        let angle = t * 2 * Double.pi
+                        locations.append(CGPoint(x: 200 + cos(angle) * 60, y: 200 + sin(angle) * 45))
+                    }
+                }
+                model.strokeBegan(); assistant.begin(at: locations[0]); assistant.move(samples: Array(locations.dropFirst()))
+                model.canvas.drawing = PKDrawing(strokes: [inkStroke(locations)])
+                assistant.recognizeHold()
+                XCTAssertEqual(model.pendingHeldShape?.kind, kind)
+                let confirmed = try XCTUnwrap(model.pendingHeldShape?.samples.count)
+                let end = try XCTUnwrap(locations.last)
+                // Includes the final coalesced samples delivered by touchesEnded.
+                assistant.move(samples: [CGPoint(x: end.x + 8, y: end.y + 5), CGPoint(x: end.x + 12, y: end.y + 6)])
+                XCTAssertEqual(model.pendingHeldShape?.kind, kind)
+                XCTAssertEqual(model.pendingHeldShape?.samples.count, confirmed)
+                assistant.end(cancelled: false); model.strokeEnded(); model.finishInkGesture()
+                XCTAssertNil(model.pendingHeldShape); XCTAssertEqual(model.canvas.layer.opacity, 1)
+                let corrected = try XCTUnwrap(model.canvas.drawing.strokes.first)
+                XCTAssertEqual(corrected.path.count, kind == .line ? 2 : 121)
+                await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+                await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+                let saved = await model.flush(); XCTAssertTrue(saved)
+                try await model.load(try XCTUnwrap(model.page))
+                XCTAssertEqual(model.canvas.drawing.strokes.first?.path.count, corrected.path.count)
+                assistant.cancel()
+            }
+        }
+    }
+
+    @MainActor
+    func testCancelledHoldRestoresCanvasVisibilityAndKeepsFreehandInk() async throws {
+        try await withEditor { model in
+            model.editWorkspace { $0.holdShapes = true }
+            let host = CanvasHost(canvas: model.canvas); host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 1200, height: 900); host.setNeedsLayout(); host.layoutIfNeeded()
+            let assistant = CanvasDrawingAssistant(host: host, model: model); model.drawingAssistant = assistant
+            let locations = (0...30).map { CGPoint(x: 80 + Double($0) * 6, y: 180 + sin(Double($0))) }
+            model.strokeBegan(); assistant.begin(at: locations[0]); assistant.move(samples: Array(locations.dropFirst()))
+            model.canvas.drawing = PKDrawing(strokes: [inkStroke(locations)])
+            assistant.recognizeHold(); XCTAssertNotNil(model.pendingHeldShape)
+            assistant.end(cancelled: true)
+            XCTAssertNil(model.pendingHeldShape); XCTAssertEqual(model.canvas.layer.opacity, 1)
+            model.strokeEnded(); model.finishInkGesture()
+            XCTAssertGreaterThan(try XCTUnwrap(model.canvas.drawing.strokes.first?.path.count), 2)
+        }
+    }
+
+    @MainActor
+    func testReopenPrefersLastEditedPageOverLastViewedAndCoverUsesItsFormat() async throws {
+        try await withEditor { model in
+            let editedID = try XCTUnwrap(model.page?.id)
+            _ = await model.applyTemplate(PageTemplate(format: .square), useForNext: false)
+            model.addText()
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            let edited = try XCTUnwrap(model.page)
+            let timestamp = try XCTUnwrap(edited.lastEditedAt)
+            let other = try await model.workspace.addPage()
+            await model.select(other)
+            // Viewing and changing the order must not replace the content edit date.
+            await model.reorder([other.id, editedID])
+            _ = await model.close()
+            let reopened = EditorViewModel(workspace: model.workspace); await reopened.open()
+            XCTAssertEqual(reopened.page?.id, editedID)
+            XCTAssertEqual(reopened.page?.lastEditedAt, timestamp)
+            let cover = try await LastEditedCover.image(workspace: model.workspace)
+            let image = try XCTUnwrap(cover)
+            XCTAssertEqual(image.size.width, image.size.height, accuracy: 0.01)
+            _ = await reopened.close()
+        }
+    }
+
+    @MainActor
+    func testLegacyNotebookWithoutEditDatesStillRestoresTheLastViewedPage() async throws {
+        try await withEditor { model in
+            await model.addPage()
+            let viewed = try XCTUnwrap(model.page?.id)
+            XCTAssertNil(model.page?.lastEditedAt)
+            _ = await model.close()
+            let reopened = EditorViewModel(workspace: model.workspace); await reopened.open()
+            XCTAssertEqual(reopened.page?.id, viewed)
+            _ = await reopened.close()
+        }
+    }
+
+    @MainActor
     func testRulerUsesNativeCanvasAndShapeModeNeverEnablesPencilPanning() async throws {
         try await withEditor { model in
             model.chooseTool(.ellipse); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
@@ -454,6 +551,62 @@ final class EditorIntegrationTests: XCTestCase {
         }
         let untouched = InkScratchEraser.erase(PKDrawing(strokes: [inkStroke(circle)]), in: CGRect(x: 195, y: 195, width: 10, height: 10))
         XCTAssertFalse(untouched.erased)
+    }
+
+    @MainActor
+    func testLoopedScratchCutsOnlyItsActualTraceAndLeavesInteriorAndNearbyInkAfterUndoAndReload() async throws {
+        try await withEditor { model in
+            model.editWorkspace { $0.scratchErase = true }
+            let crossing = inkStroke([CGPoint(x: 20, y: 200), CGPoint(x: 320, y: 200)])
+            let interior = inkStroke([CGPoint(x: 185, y: 210), CGPoint(x: 215, y: 210)])
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [crossing, interior])
+            model.strokeEnded(); model.finishInkGesture()
+            var loop: [CGPoint] = []
+            for i in 0...240 {
+                let angle = Double(i) * 6 * Double.pi / 240
+                loop.append(CGPoint(x: 200 + cos(angle) * 60, y: 200 + sin(angle) * 40))
+            }
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [crossing, interior, inkStroke(loop)])
+            model.strokeEnded(); model.finishInkGesture()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+            let mask = try XCTUnwrap(model.canvas.drawing.strokes.first?.mask)
+            XCTAssertFalse(mask.contains(CGPoint(x: 260, y: 200)))
+            XCTAssertFalse(mask.contains(CGPoint(x: 140, y: 200)))
+            XCTAssertTrue(mask.contains(CGPoint(x: 200, y: 200)))
+            XCTAssertTrue(mask.contains(CGPoint(x: 300, y: 200)))
+            XCTAssertNil(model.canvas.drawing.strokes[1].mask)
+            await model.performUndo(); XCTAssertNil(model.canvas.drawing.strokes.first?.mask)
+            await model.performRedo(); XCTAssertNotNil(model.canvas.drawing.strokes.first?.mask)
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            try await model.load(try XCTUnwrap(model.page))
+            XCTAssertTrue(try XCTUnwrap(model.canvas.drawing.strokes.first?.mask).contains(CGPoint(x: 200, y: 200)))
+            XCTAssertNil(model.canvas.drawing.strokes[1].mask)
+        }
+    }
+
+    @MainActor
+    func testSparseScratchDoesNotDeleteAnEnclosedTypedWordOrAWordTouchedOnlyAtItsEdge() {
+        var text = TextElement(text: "parola"); text.x = 170; text.y = 180; text.width = 200
+        let loop = UIBezierPath(ovalIn: CGRect(x: 145, y: 160, width: 170, height: 100))
+        let area = loop.cgPath.copy(strokingWithWidth: 8, lineCap: .round, lineJoin: .round, miterLimit: 1)
+        XCTAssertEqual(TextScratchEraser.eraseWords(text, in: area, pageHeight: 1024), text.text)
+        XCTAssertEqual(TextScratchEraser.eraseWords(text, in: CGRect(x: 170, y: 180, width: 2, height: 30), pageHeight: 1024), text.text)
+    }
+
+    @MainActor
+    func testScratchCutsTransformedInkInDocumentCoordinatesAndKeepsItsNativePath() throws {
+        let original = inkStroke([CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)])
+        let transform = CGAffineTransform(a: 0, b: 2, c: -2, d: 0, tx: 200, ty: 100)
+        let moved = PKStroke(ink: original.ink, path: original.path, transform: transform)
+        let scratch = inkStroke([CGPoint(x: 170, y: 200), CGPoint(x: 230, y: 200)])
+        let result = InkScratchEraser.erase(PKDrawing(strokes: [moved]), in: InkScratchEraser.coverage(of: scratch))
+        XCTAssertTrue(result.erased)
+        let reopened = try PKDrawing(data: result.drawing.dataRepresentation())
+        let stroke = try XCTUnwrap(reopened.strokes.first), mask = try XCTUnwrap(stroke.mask)
+        XCTAssertEqual(stroke.transform, transform)
+        XCTAssertEqual(stroke.path.creationDate, original.path.creationDate)
+        XCTAssertTrue(mask.contains(CGPoint(x: 10, y: 0))); XCTAssertTrue(mask.contains(CGPoint(x: 90, y: 0)))
+        XCTAssertFalse(mask.contains(CGPoint(x: 50, y: 0)))
     }
 
     @MainActor

@@ -1,19 +1,23 @@
-# NeuralNotes 0.8.1 — app nativa iPad
+# NeuralNotes 0.8.2 — app nativa iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo, nessuna dipendenza di terze parti nell’app. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
-**Stato della consegna:** [CI Apple superata](https://github.com/sminikiller/NeuralNotes/actions/runs/39406620801): 74 test core macOS, 125 unit/integrazione iPad più due esclusioni specifiche del simulatore, tutti i 13 UI test e build Release senza firma. Controlli locali di struttura, sintassi e integrità ZIP superati. [Esiti e limiti](docs/VALIDATION.md). La prova fisica del nuovo Playground sull’iPad resta necessaria.
+**Stato della consegna:** correzioni 0.8.2 implementate, controlli locali di struttura/sintassi/ZIP superati; nuova verifica Apple in corso. Il PASS della 0.8.1 riguarda la versione precedente. [Esiti e limiti](docs/VALIDATION.md).
 
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.8.1.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.8.2.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: 26 controlli temporanei.
 5. Prova [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md), poi segui [le prove di scorrimento e voltata 0.7](docs/TESTING_0_7.md), poi le regressioni precedenti e la prova di carico facoltativa.
 
 Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
+
+## Correzioni 0.8.2
+
+Scarabocchio lungo la traccia reale, forme riconosciute confermate fino al sollevamento, riapertura sull’ultima pagina modificata e copertina opzionale con anteprima della stessa pagina. [Comportamento e prova iPad](docs/FIXES_0_8_2.md).
 
 ## Consolidamento 0.8.1
 

@@ -1,3 +1,9 @@
+# Validazione della consegna 0.8.2
+
+Correzioni descritte in [FIXES_0_8_2.md](FIXES_0_8_2.md). Controlli locali PASS: struttura, grammatica di 100 file Swift, integrità pacchetto iPad e sette test backend senza chiamate esterne. Sono presenti 151 metodi XCTest (77 core, 60 integrazione, 14 UI). La nuova compilazione e le suite Apple sono in corso: il PASS sottostante appartiene alla precedente 0.8.1. Nessuna prova fisica della Pencil o del runner Swift Playground.
+
+## Evidenza storica 0.8.1
+
 # Validazione della consegna 0.8.1
 
 Data: 20 ottobre 2026. Controlli locali su Windows/PowerShell, Python 3.13 e Node 22; build e test Apple su GitHub Actions macOS 15, Xcode 16.4, Swift 6.1.2, SDK/simulatore iPadOS 18.5 (iPad Pro 11 M4). Non è una prova dell’iPad fisico dell’utente né del suo runner Swift Playground.
