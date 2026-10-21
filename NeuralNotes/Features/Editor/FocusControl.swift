@@ -11,7 +11,8 @@ struct FocusControl: View {
     @State private var expanded = false
     var body: some View {
         GeometryReader { geometry in
-            let width: CGFloat = min(max(48, geometry.size.width - 24), !focus ? 48 : expanded ? 336 : 102)
+            let toolsWidth = CGFloat(model.currentWorkspace.effectiveFocusTools.count * 48 + 192)
+            let width: CGFloat = min(max(48, geometry.size.width - 24), !focus ? 48 : expanded ? toolsWidth : 102)
             let right = max(width + 12, min(geometry.size.width - 12, geometry.size.width - 12 + CGFloat(savedX) + translation.width))
             let y = max(36, min(geometry.size.height - 36, 36 + CGFloat(savedY) + translation.height))
             HStack(spacing: 4) {
@@ -56,6 +57,7 @@ struct FocusControl: View {
 @MainActor
 struct FocusToolsMenu: View {
     @Bindable var model: EditorViewModel
+    var showLabel = false
     var body: some View {
         Menu {
             ForEach(WorkspaceTool.allCases, id: \.self) { item in
@@ -64,14 +66,17 @@ struct FocusToolsMenu: View {
                     model.editWorkspace { profile in
                         var tools = profile.effectiveFocusTools
                         if tools.contains(item) { if tools.count > 1 { tools.removeAll { $0 == item } } }
-                        else if tools.count < 3 { tools.append(item) }
+                        else if tools.count < EditorWorkspace.maximumFocusTools { tools.append(item) }
                         profile.focusTools = tools
                     }
                 } label: { Label(item.title, systemImage: selected ? "checkmark.circle.fill" : item.icon) }
-                    .disabled(selected ? model.currentWorkspace.effectiveFocusTools.count <= 1 : model.currentWorkspace.effectiveFocusTools.count >= 3)
+                    .disabled(selected ? model.currentWorkspace.effectiveFocusTools.count <= 1 : model.currentWorkspace.effectiveFocusTools.count >= EditorWorkspace.maximumFocusTools)
             }
             Button("Usa i primi tre preferiti") { model.editWorkspace { $0.focusTools = nil } }
-        } label: { Image(systemName: "gearshape").frame(width: 36, height: 44) }
+        } label: {
+            if showLabel { Label("Strumenti per Solo foglio", systemImage: "arrow.up.left.and.arrow.down.right") }
+            else { Image(systemName: "gearshape").frame(width: 36, height: 44) }
+        }
         .accessibilityLabel("Personalizza mini toolbar").accessibilityIdentifier("focusToolsSettings")
     }
 }

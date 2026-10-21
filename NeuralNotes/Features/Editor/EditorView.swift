@@ -268,7 +268,7 @@ struct EditorView: View {
     }
     private var floatingToolbar: some View {
         EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
-            text: { model.addText(); panel = .elements }, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace })
+            text: { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace })
             .disabled(!model.hasLease || model.loading || model.navigating || working)
             .padding(.horizontal, 12).padding(.vertical, model.currentWorkspace.dock.vertical ? 72 : 12)
             .padding(.trailing, model.currentWorkspace.dock.vertical ? 0 : 60)

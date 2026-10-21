@@ -76,9 +76,16 @@ extension DocumentWorkspace {
     }
 
     public func restoreRemovedPage(_ id: UUID) throws {
+        if try manifest().pageIDs.contains(id) { return }
+        try restoreRemovedPages([id])
+    }
+
+    public func restoreRemovedPages(_ ids: [UUID]) throws {
         let index = try manifest()
-        guard !index.pageIDs.contains(id) else { return }
-        try restorePageOrder(index.pageIDs + [id], expected: index.pageIDs)
+        guard !ids.isEmpty, Set(ids).count == ids.count else { throw LibraryFailure.corruptDocument }
+        let removed = Set(try storageReport().removedPages.map(\.id))
+        guard Set(ids).isSubset(of: removed) else { throw LibraryFailure.missingItem }
+        try restorePageOrder(index.pageIDs + ids, expected: index.pageIDs)
     }
 
     public func permanentlyRemovePages(_ ids: [UUID]) throws {

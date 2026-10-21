@@ -42,7 +42,9 @@ enum RoadmapDiagnostics {
             if let file = try await writer.createAutomaticBackup(metadata: metadata, minimumInterval: 0, maximumBytes: 1) { files.append(file) }
         }
         let copies = try await writer.automaticBackups()
-        try require(copies.count == 2 && Set(copies.map(\.url)) == Set(files.suffix(2)), "Le ultime due copie non sono state protette.")
+        let actual = Set(copies.map { $0.url.standardizedFileURL.resolvingSymlinksInPath().path })
+        let expected = Set(files.suffix(2).map { $0.standardizedFileURL.resolvingSymlinksInPath().path })
+        try require(copies.count == 2 && actual == expected, "Le ultime due copie non sono state protette.")
         try require(AutomaticBackupPolicy.budget(copyBytes: 1) == 64 << 20 && AutomaticBackupPolicy.budget(copyBytes: Int64.max) == 1 << 30, "Limite backup non corretto.")
     }
     static func audioExportAndOrganization(root: URL) async throws {

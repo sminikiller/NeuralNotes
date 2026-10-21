@@ -61,6 +61,7 @@ final class AppController {
             self.repository = repository
             library = model
             startupError = nil
+            Task { await model.recoverLocalIndexIfEmpty() }
         } catch {
             // Never hide a storage failure by silently creating an empty/in-memory library.
             startupError = error.localizedDescription

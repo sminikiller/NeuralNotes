@@ -8,8 +8,8 @@ public struct InspectedPackage: Sendable {
 public enum NativePackageInspector {
     /// Validate before registering an imported package in the library. The source
     /// is read-only; decoding PencilKit/media payloads remains the platform's job.
-    public static func inspect(_ package: URL) throws -> InspectedPackage {
-        if FileManager.default.fileExists(atPath: package.appendingPathComponent(AudioCompressionPlan.path).path) {
+    public static func inspect(_ package: URL, allowInterruptedAudio: Bool = false) throws -> InspectedPackage {
+        if !allowInterruptedAudio && FileManager.default.fileExists(atPath: package.appendingPathComponent(AudioCompressionPlan.path).path) {
             throw LibraryFailure.recoveryRequired("Riprendi la compressione audio nell’app prima di esportare o copiare il quaderno.")
         }
         if FileManager.default.fileExists(atPath: package.appendingPathComponent(PageBatchRecovery.path).path) {

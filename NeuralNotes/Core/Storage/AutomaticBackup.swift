@@ -50,7 +50,10 @@ public extension DocumentWorkspace {
             .map { file in
                 let safe = try NativeArchive.fileURL(file.lastPathComponent, in: directory)
                 let values = try safe.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
-                return AutomaticBackupInfo(url: safe, date: values.contentModificationDate ?? .distantPast, bytes: Int64(values.fileSize ?? 0))
+                let name = safe.deletingPathExtension().lastPathComponent.dropFirst("backup-".count)
+                let stamp = name.prefix(while: { $0.isNumber })
+                let dated = stamp.count == 20 ? UInt64(stamp).map { Date(timeIntervalSince1970: Double($0) / 1_000_000) } : nil
+                return AutomaticBackupInfo(url: safe, date: dated ?? values.contentModificationDate ?? .distantPast, bytes: Int64(values.fileSize ?? 0))
             }.sorted { $0.date == $1.date ? $0.url.lastPathComponent > $1.url.lastPathComponent : $0.date > $1.date }
     }
     func automaticBackupUsage() throws -> AutomaticBackupUsage {
@@ -76,7 +79,13 @@ public extension DocumentWorkspace {
         let temporary = directory.appendingPathComponent("pending-\(UUID()).tmp")
         defer { try? FileManager.default.removeItem(at: temporary) }
         try NativeArchive.write(package: package, metadata: metadata, to: temporary)
-        let destination = directory.appendingPathComponent("backup-\(UUID()).nnbackup")
+        // File providers may round mtimes. Persist a monotonic order in the
+        // filename, rather than ordering new copies by a random UUID on ties.
+        let now = max(0, Date().timeIntervalSince1970 * 1_000_000)
+        let last = max(0, (previous.first?.date.timeIntervalSince1970 ?? 0) * 1_000_000)
+        let stamp = UInt64(min(Double(UInt64.max / 2), max(now, last + 2)))
+        let name = String(format: "backup-%020llu-", stamp) + "\(UUID()).nnbackup"
+        let destination = try NativeArchive.fileURL(name, in: directory)
         try FileManager.default.moveItem(at: temporary, to: destination)
         let size = Int64(try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
         let budget: Int64

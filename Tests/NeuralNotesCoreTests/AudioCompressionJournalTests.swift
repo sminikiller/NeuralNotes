@@ -84,6 +84,8 @@ final class AudioCompressionJournalTests: XCTestCase {
         let before = try await workspace.catalog(); XCTAssertEqual(before.sessions.first?.segments, original.segments)
         let manifest = try await workspace.manifest(), book = Notebook(id: manifest.notebookID, documentID: manifest.documentID, title: "Lezione", createdAt: Date(), updatedAt: Date(), folderID: nil, cover: .lagoon, isFavorite: false)
         let skipped = try await workspace.createAutomaticBackup(metadata: book, minimumInterval: 0); XCTAssertNil(skipped)
+        XCTAssertThrowsError(try NativePackageInspector.inspect(workspace.package))
+        XCTAssertNoThrow(try NativePackageInspector.inspect(workspace.package, allowInterruptedAudio: true))
         do { _ = try await workspace.exportNative(metadata: book); XCTFail("Pending conversion archived") } catch { }
         for source in original.segments { XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.package.appendingPathComponent(source.file).path)) }
     }

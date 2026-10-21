@@ -8,6 +8,43 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testGuidedRulerKeepsAllSamplesOnOneEdgeAndSupportsUndo() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 1000, height: 700); host.layoutIfNeeded()
+            let assistant = CanvasDrawingAssistant(host: host, model: model)
+            host.drawingAssistant = assistant; model.drawingAssistant = assistant
+            model.chooseTool(.pen); model.chooseTool(.ruler)
+            let guide = RulerGuideView(host: host, model: model); host.rulerGuide = guide; guide.update()
+            XCTAssertFalse(guide.isUserInteractionEnabled, "The visual ruler must never intercept Pencil touches")
+            XCTAssertTrue(host.gestureRecognizers?.contains { $0.allowedTouchTypes == [NSNumber(value: UITouch.TouchType.direct.rawValue)] && $0.isEnabled } == true)
+            model.rulerGuide = RulerGuide(x: 384, y: 300, angle: .pi / 6)
+            assistant.begin(at: CGPoint(x: 100, y: 400))
+            assistant.move(samples: [CGPoint(x: 200, y: 900), CGPoint(x: 450, y: 50), CGPoint(x: 700, y: 700)])
+            assistant.end(cancelled: false)
+            XCTAssertFalse(model.hasActiveStroke)
+            let stroke = try XCTUnwrap(model.canvas.drawing.strokes.first)
+            for point in stroke.path {
+                let distance = (point.location.x - 384) * -sin(Double.pi / 6) + (point.location.y - 300) * cos(Double.pi / 6)
+                XCTAssertEqual(distance, RulerGuide.halfWidth, accuracy: 0.01)
+            }
+            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            assistant.begin(at: CGPoint(x: 100, y: 400)); assistant.move(samples: [CGPoint(x: 400, y: 600)])
+            assistant.end(cancelled: true); XCTAssertFalse(model.hasActiveStroke); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+        }
+    }
+    @MainActor func testBulkTrashRestoreAndUndoPreserveTheCurrentPage() async throws {
+        try await fixture { model in
+            let first = try XCTUnwrap(model.page?.id)
+            await model.addPage(); let second = try XCTUnwrap(model.page?.id)
+            await model.addPage(); let third = try XCTUnwrap(model.page?.id)
+            await model.deletePages([first, second]); XCTAssertEqual(model.page?.id, third)
+            await model.restorePages([second, first]); XCTAssertEqual(model.pages.map(\.id), [third, second, first])
+            await model.performUndo(); XCTAssertEqual(model.pages.map(\.id), [third])
+            let trash = try await model.workspace.storageReport().removedPages
+            XCTAssertEqual(Set(trash.map(\.id)), [first, second]); XCTAssertNil(model.error)
+        }
+    }
     @MainActor func testDeleteAnyPageKeepsCurrentPageAndUndoRestoresOrder() async throws {
         try await fixture { model in
             let first = try XCTUnwrap(model.page?.id)
@@ -24,16 +61,16 @@ final class EditorReliabilityTests: XCTestCase {
             XCTAssertNil(model.error)
         }
     }
-    @MainActor func testRulerUsesNativePencilKitForPenAndMarkerWithoutChangingTheTool() async throws {
+    @MainActor func testRulerConstrainsPenAndMarkerWithoutChangingTheTool() async throws {
         try await fixture { model in
             model.chooseTool(.marker); model.chooseTool(.ruler)
-            XCTAssertTrue(model.canvas.isRulerActive); XCTAssertTrue(model.rulerActive)
-            XCTAssertEqual(model.tool, .marker); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
-            model.chooseTool(.pen); XCTAssertTrue(model.canvas.isRulerActive)
+            XCTAssertTrue(model.rulerActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled); XCTAssertTrue(model.rulerActive)
+            XCTAssertEqual(model.tool, .marker); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            model.chooseTool(.pen); XCTAssertTrue(model.rulerActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
             model.chooseTool(.ruler); XCTAssertFalse(model.canvas.isRulerActive)
             model.chooseTool(.lasso); model.chooseTool(.ruler)
-            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.canvas.isRulerActive)
-            // Physical edge snapping belongs to PencilKit and still needs Pencil input.
+            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.rulerActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            // The assistant stores projected native vectors; physical Pencil routing needs device verification.
         }
     }
     @MainActor func testRichTextHeadingColorsHighlightRoundTripIntoPDFAndUndo() async throws {

@@ -226,8 +226,13 @@ public actor DocumentWorkspace {
     }
 
     public func deletePage(_ pageID: UUID) throws {
+        try deletePages([pageID])
+    }
+
+    public func deletePages(_ ids: Set<UUID>) throws {
         var index = try manifest()
-        index.pageIDs.removeAll { $0 == pageID }
+        guard !ids.isEmpty, ids.isSubset(of: Set(index.pageIDs)) else { throw LibraryFailure.missingItem }
+        index.pageIDs.removeAll { ids.contains($0) }
         // Files retained for recovery; removal from the ordered manifest is the commit.
         try write(index, "manifest.json")
     }

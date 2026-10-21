@@ -53,7 +53,17 @@ extension NativeDocumentStore {
             var pageIDs: [UUID] = []
             var linkedPageIDs: [UUID] = []
             var pageMap: [UUID: UUID] = [:]
-            for original in manifest.pageIDs {
+            let activePageIDs = Set(manifest.pageIDs)
+            var sourcePageIDs = manifest.pageIDs
+            let pageDirectory = destination.appendingPathComponent("pages")
+            for file in try FileManager.default.contentsOfDirectory(at: pageDirectory, includingPropertiesForKeys: [.fileSizeKey]) {
+                guard file.pathExtension == "json", let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent),
+                      !activePageIDs.contains(id), (try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 16 * 1024 * 1024,
+                      let removed = try? decoder.decode(PageSnapshot.self, from: Data(contentsOf: file)), removed.id == id,
+                      (try? PageValidation.validate(removed)) != nil else { continue }
+                sourcePageIDs.append(id)
+            }
+            for original in sourcePageIDs {
                 let oldURL = destination.appendingPathComponent("pages/\(original).json")
                 var page = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: oldURL))
                 guard page.id == original else { throw LibraryFailure.corruptDocument }
@@ -66,7 +76,7 @@ extension NativeDocumentStore {
                     if let mapped = sessionMap[page.anchors[index].audioSessionID] { page.anchors[index].audioSessionID = mapped }
                 }
                 try encoder.encode(page).write(to: destination.appendingPathComponent("pages/\(page.id).json"), options: .atomic)
-                pageIDs.append(page.id)
+                if activePageIDs.contains(original) { pageIDs.append(page.id) }
                 try FileManager.default.removeItem(at: oldURL)
             }
             let updated = DocumentManifest(documentID: documentID, notebookID: notebookID, pageIDs: pageIDs)

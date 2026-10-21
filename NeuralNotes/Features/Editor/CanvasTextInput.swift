@@ -4,7 +4,7 @@ import NeuralNotesCore
 @MainActor
 extension EditorViewModel {
     func beginTextEdit(at point: CGPoint) {
-        guard hasLease, !loading, !navigating, let page else { return }
+        guard hasLease, !loading, !navigating, !hasActiveStroke, let page else { return }
         endTextEdit()
         let hit = page.texts.reversed().first { text in
             let box = RichText.bounds(text, pageHeight: page.height).insetBy(dx: 0, dy: -6)
@@ -39,12 +39,13 @@ extension EditorViewModel {
 /// A genuine UITextInput on the page: UIKit supplies Scribble, selection,
 /// insertion and scratch-to-delete for converted text when enabled in iPadOS.
 @MainActor
-final class CanvasTextInput: NSObject, UITextViewDelegate {
+final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteractionDelegate {
     weak var host: CanvasHost?
     weak var model: EditorViewModel?
     let view = UITextView()
     private var shownID: UUID?
     private var formatting: TextFormatting?
+    private let placeholder = UILabel()
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init()
         view.delegate = self; view.textContainerInset = .zero; view.textContainer.lineFragmentPadding = 0
@@ -54,6 +55,10 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         view.layer.borderWidth = 0
         view.accessibilityIdentifier = "pageTextInput"; view.accessibilityLabel = "Testo sul foglio"
         view.allowsEditingTextAttributes = true; view.dataDetectorTypes = [.link, .phoneNumber]
+        view.addInteraction(UIScribbleInteraction(delegate: self))
+        placeholder.text = "Scrivi qui con Apple Pencil o tastiera"
+        placeholder.font = .preferredFont(forTextStyle: .callout); placeholder.textColor = .secondaryLabel
+        placeholder.isUserInteractionEnabled = false; view.addSubview(placeholder)
         formatting = TextFormatting(view: view) { [weak self] in
             guard let self else { return }; self.model?.updateLiveText(self.view.attributedText); self.layout()
         }
@@ -79,6 +84,7 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         view.backgroundColor = .clear
         if text.rtf == nil { view.textColor = text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black }
         host.surface.hiddenTextID = id
+        placeholder.isHidden = !text.text.isEmpty
         layout()
         // Establish a real on-page frame before UIKit starts its text-input and
         // accessibility session (a zero-sized first responder can lose its AX children).
@@ -91,11 +97,17 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         let height = max(40, min(max(100, Double(size.height) + 32), page.height - text.y))
         view.transform = .identity
         view.bounds = CGRect(origin: view.bounds.origin, size: CGSize(width: text.width, height: height))
+        placeholder.frame = CGRect(x: 2, y: 4, width: max(0, text.width - 4), height: 24)
         view.transform = CGAffineTransform(scaleX: host.canvas.zoomScale, y: host.canvas.zoomScale)
         view.center = host.surface.convert(CGPoint(x: text.x + text.width / 2, y: text.y + height / 2), to: host)
         host.bringSubviewToFront(view)
     }
-    func textViewDidChange(_ textView: UITextView) { model?.updateLiveText(textView.attributedText); layout() }
+    func textViewDidChange(_ textView: UITextView) { placeholder.isHidden = !textView.text.isEmpty; model?.updateLiveText(textView.attributedText); layout() }
+    func scribbleInteraction(_ interaction: UIScribbleInteraction, shouldBeginAt location: CGPoint) -> Bool {
+        model?.tool == .text && model?.hasLease == true && model?.loading == false && model?.navigating == false
+    }
+    func scribbleInteractionWillBeginWriting(_ interaction: UIScribbleInteraction) { placeholder.isHidden = true }
+    func scribbleInteractionDidFinishWriting(_ interaction: UIScribbleInteraction) { placeholder.isHidden = !view.text.isEmpty; model?.commitTextEdit(); layout() }
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
         !(formatting?.replaceNewline(in: range, replacement: text) ?? false)
     }

@@ -4,11 +4,7 @@ import NeuralNotesCore
 @MainActor
 enum ElementRendering {
     static func drawImage(_ element: ImageElement, package: URL, context: CGContext) {
-        guard let image = DocumentRenderCache.shared.image(package.appendingPathComponent(element.file)), let cg = image.cgImage else { return }
-        let crop = element.crop ?? .full
-        let source = CGRect(x: crop.x * Double(cg.width), y: crop.y * Double(cg.height),
-            width: crop.width * Double(cg.width), height: crop.height * Double(cg.height)).integral
-        guard let cropped = cg.cropping(to: source) else { return }
+        guard let image = DocumentRenderCache.shared.croppedImage(package.appendingPathComponent(element.file), crop: element.crop ?? .full) else { return }
         let rect = CGRect(x: element.x, y: element.y, width: element.width, height: element.height)
         context.saveGState()
         context.translateBy(x: rect.midX, y: rect.midY)
@@ -16,7 +12,7 @@ enum ElementRendering {
         context.rotate(by: CGFloat(angle) * .pi / 180)
         let sideways = abs(angle.truncatingRemainder(dividingBy: 180)) == 90
         let size = sideways ? CGSize(width: rect.height, height: rect.width) : rect.size
-        UIImage(cgImage: cropped).draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
+        image.draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
         context.restoreGState()
     }
 

@@ -20,6 +20,7 @@ final class CanvasHost: UIView {
     var interaction: CanvasInteraction?
     var textInput: CanvasTextInput?
     var drawingAssistant: CanvasDrawingAssistant?
+    var rulerGuide: RulerGuideView?
     var pencilControls: PencilControls?
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
@@ -156,7 +157,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); laserPointer.update(self); zoomNavigator.update(self) }
+        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
@@ -206,6 +207,7 @@ struct PencilCanvas: UIViewRepresentable {
         host.textInput = CanvasTextInput(host: host, model: model)
         host.drawingAssistant = CanvasDrawingAssistant(host: host, model: model)
         model.drawingAssistant = host.drawingAssistant
+        host.rulerGuide = RulerGuideView(host: host, model: model)
         host.pencilControls = PencilControls(host: host, model: model)
         PaperInk.configureNavigation(model.canvas, fingerDrawing: model.fingerDrawing)
         return host

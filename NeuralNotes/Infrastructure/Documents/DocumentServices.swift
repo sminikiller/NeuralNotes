@@ -29,7 +29,7 @@ enum DocumentServices {
         try Task.checkCancellation()
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        let job = Task.detached(priority: .userInitiated) { try preparePDF(url) }
+        let job = Task.detached(priority: .userInitiated) { try CoordinatedFileAccess.read(url, operation: preparePDF) }
         let prepared = try await withTaskCancellationHandler { try await job.value } onCancel: { job.cancel() }
         try Task.checkCancellation()
         let attachment = try await workspace.addAttachment(prepared.data, name: url.lastPathComponent, type: "pdf", hash: prepared.hash)

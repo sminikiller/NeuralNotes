@@ -4,13 +4,19 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.14.1/build 26**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.15.0/build 27**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
 
 La foto successiva documenta due errori SDK reali nella 0.14.0 (delegato ereditato di PDFView). [Patch 0.14.1](FIXES_0_14_1.md): nessuna conformità o metodo delegato ridichiarati; filtro sul riconoscitore Pencil dedicato. Non ancora compilata con Apple.
 
+## Correzioni e richieste 0.15
+
+Implementati cestino pagine e selezione multipla con undo/ripristino, cestino conservato nel trasferimento nativo, strumenti Solo foglio da uno a cinque con etichetta esplicita, guida del righello che vincola i campioni al bordo scelto, cache dei ritagli e commit del movimento al rilascio, inserimento e modifica del testo direttamente sul foglio con barra compatta e Scribble. La guida sostituisce il solo righello visivo nativo descritto nel lotto precedente.
+
+Corretti ordine dei backup e confronti fra alias dei percorsi; lettura coordinata degli import e recupero dei pacchetti senza indice nel contenitore corrente, più import da cartella come copie. Nessun file fallito dell’utente è disponibile: il suo recupero non è dichiarato riuscito. **182 Core (due skip) + 98 FSRS passati**; quattro nuovi metodi Apple non eseguiti e test UI aggiornato. Restano aperti compilazione SDK, comportamento hardware Pencil/Scribble e misure di fluidità. [Dettagli e comandi](DELIVERY_0_15_0.md).
+
 ## Lotto aggiuntivo 0.14 — editor, PDF e budget
 
-Implementati eliminazione di qualsiasi pagina dalle anteprime con undo, strumenti focus salvati separatamente per attività, popup sul lato interno, H1/H2/Corpo e colori/evidenziazione RTF, linea campionata con aggancio ±6° e rettangoli ruotati, salti audio ±15 s. Il righello continua a usare PencilKit nativo e non il riconoscimento delle forme; aggancio fisico da verificare.
+Implementati eliminazione di qualsiasi pagina dalle anteprime con undo, strumenti focus salvati separatamente per attività, popup sul lato interno, H1/H2/Corpo e colori/evidenziazione RTF, linea campionata con aggancio ±6° e rettangoli ruotati, salti audio ±15 s. In questo lotto il righello usava PencilKit nativo; la 0.15 lo sostituisce con la guida vincolante descritta sopra, con prova fisica ancora aperta.
 
 Compressione AAC mono 64 kbps solo fuori da registrazione/trascrizione/ascolto, buffer limitati, verifica temporale e journal riprendibile; aggiornati catalogo precedente, export, backup/import, lettura ASR e pannello spazio. Il ramo Claude 9a79d58 è stato usato come bozza non compilata, non come codice già verificato. Budget dei backup con due copie protette e indicazione dello spazio. Import PDF/foto preparati fuori dal thread UI; append PDF con un solo manifest. Nuovo PDF esterno affiancato senza import, estratti e ricerca da selezione/cerchio/sottolineatura esplicita; i PDF scansiti esterni richiedono ancora OCR tramite import.
 

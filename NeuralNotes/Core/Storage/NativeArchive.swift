@@ -1,7 +1,7 @@
 import Foundation
 
 public enum NativeArchiveFailure: LocalizedError {
-    case corrupt, limit, invalidEntry(String), checksum(String), truncated, trailingBytes
+    case corrupt, limit, invalidEntry(String), checksum(String), truncated, trailingBytes, unrecognizedFormat(String)
     public var errorDescription: String? {
         switch self {
         case .corrupt: return "Backup incompleto, danneggiato o con percorsi non validi. Il file originale è stato conservato."
@@ -10,6 +10,7 @@ public enum NativeArchiveFailure: LocalizedError {
         case .checksum(let path): return "Il controllo di integrità del backup non corrisponde per \(path). Il file originale è stato conservato."
         case .truncated: return "Il backup termina prima della fine dei dati attesi. Il file originale è stato conservato."
         case .trailingBytes: return "Il backup contiene dati oltre la fine dell’archivio. Il file originale è stato conservato."
+        case .unrecognizedFormat(let kind): return "Il file selezionato è \(kind), non un backup nativo NNBOOK01. Apri il file .nnbackup oppure la cartella .nnbook. L’originale non è stato modificato."
         }
     }
 }
@@ -96,7 +97,15 @@ public enum NativeArchive {
         guard !FileManager.default.fileExists(atPath: destination.path) else { throw CocoaError(.fileWriteFileExists) }
         let input = try FileHandle(forReadingFrom: source)
         defer { try? input.close() }
-        guard try exact(input, count: 8) == magic else { throw NativeArchiveFailure.corrupt }
+        let signature = try exact(input, count: 8)
+        guard signature == magic else {
+            let kind: String
+            if signature.starts(with: [0x50, 0x4b]) { kind = "un archivio ZIP: decomprimilo prima in File" }
+            else if signature.starts(with: Data("%PDF".utf8)) { kind = "un PDF" }
+            else if signature.starts(with: Data("NNBOOK".utf8)) { kind = "un backup con una versione non supportata" }
+            else { kind = "un formato non riconosciuto" }
+            throw NativeArchiveFailure.unrecognizedFormat(kind)
+        }
         let bytes = try exact(input, count: 8)
         let length = bytes.enumerated().reduce(UInt64(0)) { $0 | (UInt64($1.element) << ($1.offset * 8)) }
         guard length > 0, length <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.corrupt }

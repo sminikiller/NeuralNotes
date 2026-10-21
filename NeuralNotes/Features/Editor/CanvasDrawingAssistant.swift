@@ -18,6 +18,8 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private var before = PKDrawing()
     private var held = false
     private var markerSession: MarkerEraseSession?
+    private var guiding = false
+    private var guideEdge = 1.0
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model
@@ -33,7 +35,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
-        let enabled = model.tool == .shape || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && model.currentWorkspace.holdShapes && !model.rulerActive)
+        let enabled = model.tool == .shape || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.currentWorkspace.holdShapes))
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -48,6 +50,11 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         guard host.surface.bounds.contains(at) else { return }
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
+        if model.rulerActive && (model.tool == .pen || model.tool == .marker) {
+            guideEdge = model.rulerGuide.edge(nearest: points[0])
+            guard let projected = model.rulerGuide.project(points[0], edge: guideEdge, width: page.width, height: page.height) else { pageID = nil; return }
+            points = [projected]; model.strokeBegan(); guiding = true; model.drawingShape = true
+        }
         if model.tool == .shape || model.tool == .eraser { model.drawingShape = true }
         if model.tool == .eraser { markerSession = MarkerEraseSession(model: model); markerSession?.append(points) }
     }
@@ -57,6 +64,13 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func move(samples: [CGPoint]) {
         guard let host, let model, model.page?.id == pageID, let page = model.page else { return }
+        if guiding {
+            for point in samples {
+                if let projected = model.rulerGuide.project(StrokeSample(x: point.x, y: point.y), edge: guideEdge, width: page.width, height: page.height) { points.append(projected) }
+            }
+            if points.count > 2000 { points = points.enumerated().filter { $0.offset % 2 == 0 || $0.offset == points.count - 1 }.map(\.element) }
+            drawPreview(.line); return
+        }
         // Recognition is latched until lift. Coalesced final samples and tiny
         // Pencil motion must never cancel an already confirmed preview.
         guard !held else { return }
@@ -81,6 +95,23 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func end(cancelled: Bool) {
         holdTask?.cancel(); holdTask = nil
         guard let model else { cancel(); return }
+        if guiding {
+            if cancelled { model.cancelGuidedInk(before) }
+            else {
+                let width = model.tool == .marker ? max(12, model.thickness * 5) : model.thickness
+                let controls = points.enumerated().map { index, point in
+                    PKStrokePoint(location: CGPoint(x: point.x, y: point.y), timeOffset: Double(index) * 0.01,
+                        size: CGSize(width: width, height: width), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+                }
+                if controls.count > 1 {
+                    let ink = PKInk(model.tool == .marker ? .marker : model.writingOptions.pen.native, color: PaperInk.color(model.ink))
+                    let stroke = PKStroke(ink: ink, path: PKStrokePath(controlPoints: controls, creationDate: Date()))
+                    model.canvas.drawing = PKDrawing(strokes: before.strokes + [stroke])
+                } else { model.cancelGuidedInk(before) }
+                model.drawingShape = false; model.strokeEnded(); model.finishInkGesture()
+            }
+            guiding = false; cancel(); return
+        }
         if model.tool == .eraser {
             model.drawingShape = false
             markerSession?.finish(cancelled: cancelled); markerSession = nil
@@ -119,7 +150,13 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private func drawPreview(_ kind: ShapeKind) {
         guard let host, let model else { return }
         let samples = model.tool == .shape ? [points.first, points.last].compactMap { $0 } : points
-        let path = PreciseStrokeGeometry.path(kind: kind, points: samples)
+        let path: UIBezierPath
+        if guiding {
+            path = UIBezierPath()
+            for (i, p) in points.enumerated() {
+                if i == 0 { path.move(to: CGPoint(x: p.x, y: p.y)) } else { path.addLine(to: CGPoint(x: p.x, y: p.y)) }
+            }
+        } else { path = PreciseStrokeGeometry.path(kind: kind, points: samples) }
         let converted = UIBezierPath(cgPath: path.cgPath)
         var transform = CGAffineTransform(scaleX: host.canvas.zoomScale, y: host.canvas.zoomScale)
         transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
@@ -135,6 +172,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }
     func cancel() {
+        if guiding { model?.cancelGuidedInk(before); guiding = false }
         markerSession?.finish(cancelled: true); markerSession = nil
         holdTask?.cancel(); holdTask = nil; finishPreview()
         model?.pendingHeldShape = nil; model?.drawingShape = false

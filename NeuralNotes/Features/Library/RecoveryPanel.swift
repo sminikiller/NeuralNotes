@@ -1,5 +1,6 @@
 import SwiftUI
 import NeuralNotesCore
+import UniformTypeIdentifiers
 
 @MainActor
 struct RecoveryPanel: View {
@@ -12,11 +13,16 @@ struct RecoveryPanel: View {
     @State private var pending: Notebook?
     @State private var catalogs: [CatalogRecoveryItem] = []
     @State private var pendingCatalog: Notebook?
+    @State private var choosingFolder = false
+    @State private var folderResult: String?
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     Text("Un’interruzione può lasciare un quaderno completo non ancora aggiunto alla libreria. Recuperalo qui: i file originali non vengono spostati o cancellati.").font(.callout)
+                    Text("Copie diverse di Swift Playground possono avere dati separati. Questa app non può accedere automaticamente al contenitore di un’altra copia. Puoi importare backup o scegliere da File una cartella Notebooks conservata.").font(.caption).foregroundStyle(.secondary)
+                    Button("Importa quaderni da una cartella", systemImage: "folder.badge.plus") { choosingFolder = true }
+                    if let folderResult { Text(folderResult).font(.caption) }
                 }
                 ForEach(packages, id: \.path) { url in
                     Button {
@@ -51,6 +57,18 @@ struct RecoveryPanel: View {
             }.disabled(busy)
             .navigationTitle("Recupero quaderni")
             .task { await refresh() }
+            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                Task {
+                    busy = true; defer { busy = false }
+                    do {
+                        let report = try await library.importRecoveryFolder(result.get())
+                        folderResult = "\(report.imported) quaderni importati come copie. Gli originali sono conservati."
+                        error = report.failures.isEmpty ? nil : report.failures.prefix(5).joined(separator: "\n")
+                        if report.imported == 0 && report.failures.isEmpty { folderResult = "Nessuna cartella quaderno con manifest.json trovata nelle prime quattro sottocartelle." }
+                        await refresh()
+                    } catch { self.error = error.localizedDescription }
+                }
+            }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
             .confirmationDialog("Ripristinare l’indice precedente?", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), titleVisibility: .visible) {
                 Button("Ripristina indice") {

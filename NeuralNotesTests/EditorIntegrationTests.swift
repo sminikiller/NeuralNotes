@@ -269,12 +269,12 @@ final class EditorIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testRulerUsesNativeCanvasAndShapeModeNeverEnablesPencilPanning() async throws {
+    func testRulerUsesConstrainedVectorsAndShapeModeNeverEnablesPencilPanning() async throws {
         try await withEditor { model in
             model.chooseTool(.ellipse); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
             model.chooseTool(.ruler)
-            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.canvas.isRulerActive)
-            XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.rulerActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
             XCTAssertFalse(model.canvas.panGestureRecognizer.allowedTouchTypes.contains(NSNumber(value: UITouch.TouchType.pencil.rawValue)))
             model.chooseTool(.ruler); XCTAssertFalse(model.canvas.isRulerActive)
             model.chooseTool(.arrow); XCTAssertEqual(model.canvas.panGestureRecognizer.minimumNumberOfTouches, 2)

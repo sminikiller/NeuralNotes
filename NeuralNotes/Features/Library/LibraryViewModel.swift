@@ -240,6 +240,30 @@ final class LibraryViewModel {
         let book = try await native.installCloudArchive(url, expectedLocal: expectedLocal, expectedRemote: expectedRemote); try reload(); return book
     }
     func recoverablePackages() throws -> [URL] { try repository.recoverablePackages() }
+    func recoverLocalIndexIfEmpty() async {
+        do {
+            guard try repository.notebooks().isEmpty else { return }
+            let urls = try repository.recoverablePackages()
+            for url in urls {
+                do { try await repository.recoverPackage(url) }
+                catch { integrityIssues.append("Recupero \(url.lastPathComponent): \(error.localizedDescription)") }
+            }
+            try reload()
+        } catch { integrityIssues.append(error.localizedDescription) }
+    }
+    func importRecoveryFolder(_ root: URL) async throws -> (imported: Int, failures: [String]) {
+        let scoped = root.startAccessingSecurityScopedResource(); defer { if scoped { root.stopAccessingSecurityScopedResource() } }
+        let urls = try await Task.detached(priority: .utility) {
+            try CoordinatedFileAccess.read(root) { try NativeRecoveryScan.packages(in: $0) }
+        }.value
+        var imported = 0, failures: [String] = []
+        for url in urls {
+            try Task.checkCancellation()
+            do { _ = try await repository.importNotebook(from: url, folderID: nil); imported += 1 }
+            catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
+        }
+        try reload(); return (imported, failures)
+    }
     func recover(_ url: URL) async throws { try await repository.recoverPackage(url); try reload() }
     func damagedNotebooks() -> [Notebook] { notebooks.filter { (try? repository.openNotebook(id: $0.id)) == nil } }
     func repair(_ notebook: Notebook) throws { try repository.repairNotebookIndex(id: notebook.id); try reload() }

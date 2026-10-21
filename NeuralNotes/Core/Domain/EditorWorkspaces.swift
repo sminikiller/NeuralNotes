@@ -58,6 +58,7 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     public var palettes: [String: ToolPalette] = [:]
     public var writing: WritingOptions?
     public var focusTools: [WorkspaceTool]?
+    public static let maximumFocusTools = 5
     public var effectiveFocusTools: [WorkspaceTool] { focusTools ?? Array(favorites.prefix(3)) }
     public init(name: String, favorites: [WorkspaceTool]) { self.name = name; self.favorites = favorites }
     public func palette(for tool: WorkspaceTool) -> ToolPalette { palettes[tool.rawValue] ?? .standard(for: tool) }
@@ -65,7 +66,7 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 40 &&
         (1...8).contains(favorites.count) && Set(favorites).count == favorites.count && palettes.count <= WorkspaceTool.allCases.count &&
         palettes.allSatisfy { WorkspaceTool(rawValue: $0.key) != nil && $0.value.isValid } && (writing?.isValid ?? true) &&
-        (focusTools.map { (1...3).contains($0.count) && Set($0).count == $0.count } ?? true)
+        (focusTools.map { (1...Self.maximumFocusTools).contains($0.count) && Set($0).count == $0.count } ?? true)
     }
 }
 

@@ -169,6 +169,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if gesture.state == .began {
             start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
             selectionTrace = [point]
+            model.movingObjects = true
             originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
             if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
                 if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
@@ -178,6 +179,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                     resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
                 } else { resizing = false }
             }
+        }
+        if gesture.state == .cancelled || gesture.state == .failed {
+            if let before { model.page = before.page; if let data = before.drawing, let restored = try? PKDrawing(data: data) { model.canvas.drawing = restored } }
+            model.movingObjects = false; marquee.path = nil; before = nil; original = [:]; originalDrawing = nil; refresh(); return
         }
         if model.selectRectangle || model.selectFreehand || model.tool == .lens {
             let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
@@ -193,6 +198,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             var transform = host.surface.transform; transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
             display.apply(transform); marquee.path = display.cgPath
             if gesture.state == .ended {
+                model.movingObjects = false
                 if model.tool == .lens {
                     let trace = selectionTrace.map { StrokeSample(x: $0.x, y: $0.y) }
                     if let area = LensGeometry.selection(trace: trace, pageWidth: page.width, pageHeight: page.height) {
@@ -225,29 +231,31 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             let c = -Double(group.minY), d = page.height - Double(group.maxY)
             dx = max(min(a, b), min(max(a, b), dx)); dy = max(min(c, d), min(max(c, d), dy))
         }
+        var changed = page
         for (id, rect) in original {
             let x = Double(rect.minX), y = Double(rect.minY), w = Double(rect.width), h = Double(rect.height)
             if let i = page.images.firstIndex(where: { $0.id == id }) {
                 if resizing {
                     let ratio = h / max(1, w), available = min(max(1, page.width - x), max(1, page.height - y) / max(0.01, ratio))
                     let width = max(min(24, available), min(available, w + dx))
-                    model.page?.images[i].width = width; model.page?.images[i].height = width * ratio
-                } else { model.page?.images[i].x = x + dx; model.page?.images[i].y = y + dy }
+                    changed.images[i].width = width; changed.images[i].height = width * ratio
+                } else { changed.images[i].x = x + dx; changed.images[i].y = y + dy }
             } else if let i = page.texts.firstIndex(where: { $0.id == id }) {
-                if resizing { model.page?.texts[i].width = max(24, min(page.width - x, w + dx)) }
-                else { model.page?.texts[i].x = x + dx; model.page?.texts[i].y = y + dy }
+                if resizing { changed.texts[i].width = max(24, min(page.width - x, w + dx)) }
+                else { changed.texts[i].x = x + dx; changed.texts[i].y = y + dy }
             } else if let i = page.shapes?.firstIndex(where: { $0.id == id }) {
                 if resizing {
-                    model.page?.shapes?[i].width = max(10, min(page.width - x, w + dx))
-                    model.page?.shapes?[i].height = max(10, min(page.height - y, h + dy))
-                } else { model.page?.shapes?[i].x = x + dx; model.page?.shapes?[i].y = y + dy }
+                    changed.shapes?[i].width = max(10, min(page.width - x, w + dx))
+                    changed.shapes?[i].height = max(10, min(page.height - y, h + dy))
+                } else { changed.shapes?[i].x = x + dx; changed.shapes?[i].y = y + dy }
             } else if let i = page.tapes?.firstIndex(where: { $0.id == id }) {
                 if resizing {
-                    model.page?.tapes?[i].width = max(10, min(page.width - x, w + dx))
-                    model.page?.tapes?[i].height = max(10, min(page.height - y, h + dy))
-                } else { model.page?.tapes?[i].x = x + dx; model.page?.tapes?[i].y = y + dy }
+                    changed.tapes?[i].width = max(10, min(page.width - x, w + dx))
+                    changed.tapes?[i].height = max(10, min(page.height - y, h + dy))
+                } else { changed.tapes?[i].x = x + dx; changed.tapes?[i].y = y + dy }
             }
         }
+        model.page = changed
         if model.selectionIncludesInk, let drawing = originalDrawing {
             let transform = CGAffineTransform(translationX: dx, y: dy)
             model.canvas.drawing = PKDrawing(strokes: drawing.strokes.enumerated().map { index, stroke in
@@ -255,8 +263,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
             })
         }
-        model.drawingChanged(); refresh()
-        if gesture.state == .ended || gesture.state == .cancelled {
+        refresh()
+        if gesture.state == .ended {
+            model.movingObjects = false; model.drawingChanged()
             model.recordEdit(before, label: resizing ? "Ridimensiona" : "Sposta selezione"); before = nil; original = [:]; originalDrawing = nil
         }
     }
@@ -304,7 +313,11 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
             guard let model = self?.model else { return nil }
             let copy = UIAction(title: "Copia", image: UIImage(systemName: "doc.on.doc")) { _ in model.copySelection() }
             let duplicate = UIAction(title: "Duplica", image: UIImage(systemName: "plus.square.on.square")) { _ in model.duplicateSelectedObject() }
-            let edit = UIAction(title: "Modifica", image: UIImage(systemName: "slider.horizontal.3")) { _ in model.objectEditorRequest += 1 }
+            let edit = UIAction(title: "Modifica", image: UIImage(systemName: "slider.horizontal.3")) { _ in
+                if let text = model.page?.texts.first(where: { model.selectedIDs.contains($0.id) }) {
+                    model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: text.x + 2, y: text.y + 2))
+                } else { model.objectEditorRequest += 1 }
+            }
             let front = UIAction(title: "Porta davanti", image: UIImage(systemName: "square.3.layers.3d.top.filled")) { _ in model.arrangeSelection(front: true) }
             let back = UIAction(title: "Porta dietro", image: UIImage(systemName: "square.3.layers.3d.bottom.filled")) { _ in model.arrangeSelection(front: false) }
             let lock = UIAction(title: "Blocca", image: UIImage(systemName: "lock")) { _ in model.lockSelection() }

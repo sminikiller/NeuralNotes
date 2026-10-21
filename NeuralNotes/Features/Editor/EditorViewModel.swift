@@ -46,6 +46,7 @@ final class EditorViewModel {
     var workspaces = NotebookWorkspaces.starter()
     var shapeKind = ShapeKind.line
     var rulerActive = false
+    var rulerGuide = RulerGuide()
     @ObservationIgnored var workspaceSettingsDirty = false
     @ObservationIgnored var workspaceSaveTask: Task<Void, Never>?
     @ObservationIgnored weak var drawingAssistant: CanvasDrawingAssistant?
@@ -57,8 +58,9 @@ final class EditorViewModel {
         }
     }
     var drawingShape = false
-    var hasActiveStroke: Bool { usingInkTool || drawingShape }
-    var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape }
+    @ObservationIgnored var movingObjects = false
+    var hasActiveStroke: Bool { usingInkTool || drawingShape || movingObjects }
+    var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape || movingObjects }
     var fitPageRequest = 0
     var canvasZoomed = false
     var showZoomNavigator = false
@@ -185,7 +187,8 @@ final class EditorViewModel {
         if tool == .lens { canvas.drawingGestureRecognizer.isEnabled = false }
         if laserActive { canvas.drawingGestureRecognizer.isEnabled = false }
         if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
-        canvas.isRulerActive = rulerActive && (tool == .pen || tool == .marker)
+        canvas.isRulerActive = false
+        if rulerActive && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
         if tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
@@ -193,6 +196,7 @@ final class EditorViewModel {
 
     func drawingChanged() {
         guard !loading else { return }
+        guard !movingObjects else { return }
         if tool == .eraser && drawingShape { return }
         if editBeforeGesture != nil && !usingInkTool && !finishingInkGesture { scheduleInkCommit() }
         dirty = true; status = "Modifiche da salvare"
@@ -248,7 +252,7 @@ final class EditorViewModel {
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         finishingInkGesture = true; defer { finishingInkGesture = false }
         let shaped = applyHeldShapeIfNeeded()
-        let scratched = shaped ? false : eraseScratchIfNeeded()
+        let scratched = shaped || rulerActive ? false : eraseScratchIfNeeded()
         drawingAssistant?.finishPreview()
         if let (session, time) = strokeTime, var page {
             let existing = Set(page.anchors.map(\.signature))
@@ -421,20 +425,33 @@ final class EditorViewModel {
     }
 
     func deletePage(_ pageID: UUID? = nil) async {
+        guard let target = pageID ?? page?.id else { return }
+        await deletePages([target])
+    }
+    func deletePages(_ ids: Set<UUID>) async {
         guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
         guard let page, await flush(), !hasActiveStroke else { return }
-        let target = pageID ?? page.id
-        guard pages.contains(where: { $0.id == target }) else { return }
-        let removedIndex = pages.firstIndex(where: { $0.id == target }) ?? 0
+        guard !ids.isEmpty, ids.isSubset(of: Set(pages.map(\.id))) else { return }
+        let removedIndex = pages.firstIndex(where: { ids.contains($0.id) }) ?? 0
         let before = pages.map(\.id)
         do {
-            try await workspace.deletePage(target)
+            try await workspace.deletePages(ids)
             pages = try await workspace.pages()
             if pages.isEmpty { pages = [try await workspace.addDefaultPage()] }
-            let selected = target == page.id ? pages[min(removedIndex, pages.count - 1)] : pages.first(where: { $0.id == page.id }) ?? pages[0]
+            let selected = ids.contains(page.id) ? pages[min(removedIndex, pages.count - 1)] : pages.first(where: { $0.id == page.id }) ?? pages[0]
             try await load(selected)
-            recordOrder(before, selectedBefore: page.id, label: "Elimina pagina")
+            recordOrder(before, selectedBefore: page.id, label: ids.count == 1 ? "Elimina pagina" : "Elimina pagine")
+        } catch { self.error = error.localizedDescription }
+    }
+    func restorePages(_ ids: [UUID]) async {
+        guard hasLease, !loading, !navigating, !interactionBusy, await flush() else { return }
+        navigating = true; defer { navigating = false }
+        let before = pages.map(\.id), selected = page?.id
+        do {
+            try await workspace.restoreRemovedPages(ids)
+            pages = try await workspace.pages()
+            recordOrder(before, selectedBefore: selected, label: "Ripristina pagine")
         } catch { self.error = error.localizedDescription }
     }
 
@@ -499,6 +516,11 @@ final class EditorViewModel {
         }
         recordEdit(before, label: "Duplica oggetto")
         drawingChanged()
+    }
+    func cancelGuidedInk(_ drawing: PKDrawing) {
+        usingInkTool = false; editBeforeGesture = nil; strokeTime = nil; drawingShape = false
+        gestureCommitTask?.cancel(); gestureCommitTask = nil
+        canvas.drawing = drawing
     }
 
     func playAudio(at point: CGPoint, tolerance: CGFloat) async {

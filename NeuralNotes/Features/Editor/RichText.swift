@@ -101,21 +101,21 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
         didChange?(); return true
     }
     func toolbar(doneTarget: Any?, doneAction: Selector?) -> UIToolbar {
-        let bar = UIToolbar()
+        let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+        bar.autoresizingMask = [.flexibleWidth]
         let actions: [(String, Selector)] = [("B", #selector(bold)), ("I", #selector(italic)), ("U", #selector(underline))]
         bar.items = actions.map { UIBarButtonItem(title: $0.0, style: .plain, target: self, action: $0.1) }
         let styles = [("Titolo 1", 30.0), ("Titolo 2", 24.0), ("Corpo", 18.0)].map { title, size in
             UIAction(title: title) { [weak self] _ in self?.paragraphStyle(size: size, heading: title != "Corpo") }
         }
-        bar.items?.append(UIBarButtonItem(title: "Stile", image: nil, primaryAction: nil, menu: UIMenu(children: styles)))
         let colors: [(String, UIColor)] = [("Nero", .black), ("Blu", .systemBlue), ("Rosso", .systemRed), ("Verde", .systemGreen), ("Viola", .systemPurple), ("Bianco", .white)]
         let colorActions = colors.map { name, color in UIAction(title: name, image: UIImage(systemName: "circle.fill")?.withTintColor(color, renderingMode: .alwaysOriginal)) { [weak self] _ in self?.foreground(color) } }
-        bar.items?.append(UIBarButtonItem(title: "Colore", image: nil, primaryAction: nil, menu: UIMenu(children: colorActions)))
         let highlights: [(String, UIColor?)] = [("Nessuna", nil), ("Giallo", .systemYellow), ("Verde", .systemGreen), ("Arancione", .systemOrange), ("Rosa", .systemPink)]
         let highlightActions = highlights.map { name, color in UIAction(title: name) { [weak self] _ in self?.highlight(color) } }
-        bar.items?.append(UIBarButtonItem(title: "Evidenzia", image: nil, primaryAction: nil, menu: UIMenu(children: highlightActions)))
         let extra: [UIAction] = [UIAction(title: "Elenco puntato") { [weak self] _ in self?.bullet() }, UIAction(title: "Checklist") { [weak self] _ in self?.checklist() }, UIAction(title: "Apice") { [weak self] _ in self?.superscript() }, UIAction(title: "Pedice") { [weak self] _ in self?.subscriptText() }, UIAction(title: "Testo normale") { [weak self] _ in self?.normalBaseline() }, UIAction(title: "Dizionario") { [weak self] _ in self?.dictionary() }]
-        bar.items?.append(UIBarButtonItem(title: "Altro", image: nil, primaryAction: nil, menu: UIMenu(children: extra)))
+        let menu = UIMenu(children: [UIMenu(title: "Stile", children: styles), UIMenu(title: "Colore", children: colorActions),
+            UIMenu(title: "Evidenzia", children: highlightActions), UIMenu(title: "Elenchi e altro", children: extra)])
+        bar.items?.append(UIBarButtonItem(title: "Aa", image: nil, primaryAction: nil, menu: menu))
         if let doneAction {
             let done = UIBarButtonItem(title: "Fine", style: .done, target: doneTarget, action: doneAction)
             done.accessibilityIdentifier = "pageTextDone"

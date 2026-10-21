@@ -121,7 +121,9 @@ final class SwiftDataLibraryRepository: LibraryRepository {
             }
         }
         let job = Task.detached(priority: .userInitiated) {
-            try NativeImport.copy(from: url, into: store, documentID: documentID, notebookID: notebookID)
+            try CoordinatedFileAccess.read(url) { coordinated in
+                try NativeImport.copy(from: coordinated, into: store, documentID: documentID, notebookID: notebookID)
+            }
         }
         let metadata = try await withTaskCancellationHandler { try await job.value } onCancel: { job.cancel() }
         do {
@@ -241,10 +243,11 @@ final class SwiftDataLibraryRepository: LibraryRepository {
     }
 
     func recoverPackage(_ url: URL) async throws {
-        guard try recoverablePackages().contains(where: { $0.standardizedFileURL == url.standardizedFileURL }) else { throw LibraryFailure.missingItem }
-        let inspected = try await Task.detached(priority: .utility) { try NativePackageInspector.inspect(url) }.value
+        let actual = url.standardizedFileURL.resolvingSymlinksInPath().path
+        guard try recoverablePackages().contains(where: { $0.standardizedFileURL.resolvingSymlinksInPath().path == actual }) else { throw LibraryFailure.missingItem }
+        let inspected = try await Task.detached(priority: .utility) { try NativePackageInspector.inspect(url, allowInterruptedAudio: true) }.value
         let manifest = inspected.manifest
-        guard documents.packageURL(for: manifest.documentID).standardizedFileURL == url.standardizedFileURL,
+        guard documents.packageURL(for: manifest.documentID).standardizedFileURL.resolvingSymlinksInPath().path == actual,
               !(try allRecords()).contains(where: { $0.id == manifest.notebookID || $0.documentID == manifest.documentID }) else {
             throw LibraryFailure.corruptDocument
         }

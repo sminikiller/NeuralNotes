@@ -6,6 +6,49 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class LibraryPersistenceTests: XCTestCase {
+    @MainActor func testEmptyLibraryRecoversAnUnindexedPackageWithoutReplacingItsFiles() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repo = try repository(at: root)
+        let store = try NativeDocumentStore(root: root.appendingPathComponent("Notebooks"))
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = PageSnapshot(); page.texts = [TextElement(text: "Appunti conservati")]
+        _ = try await workspace.addPage(page)
+        let file = workspace.package.appendingPathComponent("manifest.json"), original = try Data(contentsOf: file)
+        let library = LibraryViewModel(repository: repo)
+        await library.recoverLocalIndexIfEmpty()
+        XCTAssertEqual(library.notebooks.map(\.id), [manifest.notebookID])
+        XCTAssertEqual(try Data(contentsOf: file), original)
+        let recovered = try repo.workspace(id: manifest.notebookID)
+        let pages = try await recovered.pages(); XCTAssertEqual(pages.first?.texts.first?.text, "Appunti conservati")
+        await library.recoverLocalIndexIfEmpty(); XCTAssertEqual(try repo.notebooks().count, 1)
+    }
+
+    @MainActor func testRecoveryFolderImportsCopiesAndPreservesExistingNotebookAndOriginal() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repo = try repository(at: root.appendingPathComponent("Current"))
+        let existing = try repo.createNotebook(title: "Attuale", folderID: nil, cover: .lagoon)
+        let oldStore = try NativeDocumentStore(root: root.appendingPathComponent("Old/Notebooks"))
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()); try oldStore.create(manifest)
+        let package = oldStore.packageURL(for: manifest.documentID)
+        let old = DocumentWorkspace(package: package, documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = PageSnapshot(); page.texts = [TextElement(text: "Dalla vecchia cartella")]
+        _ = try await old.addPage(page)
+        let original = try Data(contentsOf: package.appendingPathComponent("manifest.json"))
+        let library = LibraryViewModel(repository: repo)
+        let report = try await library.importRecoveryFolder(root.appendingPathComponent("Old"))
+        XCTAssertEqual(report.imported, 1); XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertEqual(library.notebooks.count, 2); XCTAssertTrue(library.notebooks.contains { $0.id == existing.id })
+        let copy = try XCTUnwrap(library.notebooks.first { $0.id != existing.id })
+        XCTAssertNotEqual(copy.id, manifest.notebookID); XCTAssertNotEqual(copy.documentID, manifest.documentID)
+        let pages = try await repo.workspace(id: copy.id).pages()
+        XCTAssertEqual(pages.first?.texts.first?.text, "Dalla vecchia cartella")
+        XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent("manifest.json")), original)
+    }
+
     @MainActor func testQuickNoteWithInitialTextPersistsInInboxAndInvalidInputCreatesNothing() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

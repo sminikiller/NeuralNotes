@@ -1,13 +1,15 @@
-# NeuralNotes 0.14.1 — anteprima iPad
+# NeuralNotes 0.15.0 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
+
+**0.15.0/build 27:** recupero dei pacchetti locali senza indice e import da cartella; lettura File coordinata, ordine stabile e confronto dei percorsi nei backup. Cestino pagine con selezione multipla e trasferimento nativo, mini toolbar fino a cinque strumenti, righello vincolante, cache dei ritagli e testo direttamente sul foglio. [Comandi, recupero e limiti](docs/DELIVERY_0_15_0.md).
 
 **0.14.1/build 26:** corregge i due errori reali di compilazione del PDF mostrati sull’iPad: conformità del delegato già ereditata da PDFView e metodo ridichiarato senza override. Il filtro Pencil è ora sul solo riconoscitore della Lente, lasciando intatti i delegati nativi. [Correzione e limiti della verifica](docs/FIXES_0_14_1.md). La compilazione Apple della patch resta da confermare.
 
 **0.14.0/build 25:** eliminazione visibile delle pagine, mini toolbar personalizzabile, popup verso l’interno, stili e colori RTF, forme precise, salti audio ±15 s. Import PDF/foto preparati fuori dal thread UI; PDF esterno affiancato con estratti e ricerca del termine senza import. Compressione PCM → AAC mono 64 kbps dopo la registrazione, transazione riprendibile, limiti di spazio per i backup e comando per le vecchie lezioni. [Comandi, test e pacchetti](docs/DELIVERY_0_14_0.md), [piano AI e dipendenze](docs/AI_FUNCTIONAL_PLAN.md).
 
-**Verifica attuale:** 174 XCTest Core (172 passati, due skip Darwin) e 98 FSRS passati su Swift Linux. Nuovi test codec/PDF/Pencil/RTF predisposti ma non eseguiti con Apple; 35 controlli incorporati. Il blocco di fatturazione GitHub impedisce ancora la build Apple. Nessuna conferma di funzionamento sull’iPad o attivazione AI remota è implicita nel pacchetto.
+**Verifica attuale:** 182 XCTest Core (180 passati, due skip Darwin) e 98 FSRS passati su Swift Linux. Nuovi test codec/PDF/Pencil/RTF predisposti ma non eseguiti con Apple; 35 controlli incorporati. Il blocco di fatturazione GitHub impedisce ancora la build Apple. Nessuna conferma di funzionamento sull’iPad o attivazione AI remota è implicita nel pacchetto.
 
 **0.12.2:** correzioni degli errori reali segnalati in `SelectionCommands`, `LibraryView` e `PencilControls`, con riduzione delle espressioni SwiftUI e controllo mirato delle assegnazioni nei `catch`. [Patch e verifica](docs/FIXES_0_12_2.md). Conserva la [correzione CoreGraphics della 0.12.1](docs/FIXES_0_12_1.md). La nuova CI è stata fermata prima dei comandi dal blocco di fatturazione GitHub: la compilazione Apple resta non eseguita, non viene dichiarata una versione finale verificata.
 
@@ -24,12 +26,12 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.14.1.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.15.0.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
-5. I comandi recenti e le verifiche sono nella [consegna 0.12.0](docs/DELIVERY_0_12_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).
+5. I comandi recenti e il recupero sono nella [consegna 0.15.0](docs/DELIVERY_0_15_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).
 
-Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
+Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Per cercare i pacchetti in una cartella usa Recupero quaderni → Importa quaderni da una cartella. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
 
 ## Correzioni 0.8.2
 

@@ -1,6 +1,12 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.14.1
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.15.0
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Lotto 0.15.0 — 22 ottobre 2026
+
+Eseguiti **182 XCTest Core: 180 passati, due skip Darwin preesistenti, zero fallimenti; 98 FSRS passati** (Swift 6.1.2 Linux). Nuove prove su ordine/budget e alias dei backup, cestino multiplo e trasferimento di media/ancore, fixture nativa precedente, ricerca di cartelle, cinque strumenti focus e proiezione sul righello. Non è il test del file d’export fallito dell’utente, non disponibile.
+
+Quattro nuovi metodi Apple predisposti per guida vettoriale/undo/cancel, cestino multiplo, ricostruzione dell’indice e import da cartella come copia; aggiornato il test UI del testo sul foglio. **Non eseguiti**. Grafo: 406 oggetti, 257 Swift e 313 metodi XCTest presenti; grammatica e parsing Swift 5 riusciti, senza SDK Apple. Backend invariato: nessuna nuova esecuzione o chiamata live. CI Apple ancora bloccata dalla fatturazione documentata sotto. [Consegna e limiti del recupero](DELIVERY_0_15_0.md).
 
 ## Patch 0.14.1 — errore reale sul dispositivo
 

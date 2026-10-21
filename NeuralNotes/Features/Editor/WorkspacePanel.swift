@@ -73,7 +73,8 @@ struct WorkspacePanel: View {
                 }
                 Section("Personalizza \(model.currentWorkspace.name)") {
                     NavigationLink { tools } label: { Label("Strumenti preferiti", systemImage: "star") }
-                    FocusToolsMenu(model: model)
+                    FocusToolsMenu(model: model, showLabel: true)
+                    Text("Scegli fino a cinque strumenti nella mini toolbar della modalità Solo foglio.").font(.caption).foregroundStyle(.secondary)
                     NavigationLink { layout } label: { Label("Toolbar e pannelli", systemImage: "rectangle.3.group") }
                     NavigationLink { gestures } label: { Label("Gesti e automatismi", systemImage: "hand.draw") }
                     NavigationLink { ToolPalettePanel(model: model).padding().navigationTitle("Colori per strumento") } label: { Label("Colori e spessori", systemImage: "paintpalette") }

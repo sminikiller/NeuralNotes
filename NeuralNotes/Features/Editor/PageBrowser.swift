@@ -14,7 +14,10 @@ struct PageBrowser: View {
     @State private var sectionFilter = ""
     @State private var managingSections = false
     @State private var showingLinks = false
-    @State private var deleting: PageSnapshot?
+    @State private var deleting: Set<UUID> = []
+    @State private var selected: Set<UUID> = []
+    @State private var selecting = false
+    @State private var showingTrash = false
 
     private var outline: [(section: NotebookSection, depth: Int)] { NotebookSections.outline(model.sections) }
     private var visible: [PageSnapshot] {
@@ -28,74 +31,35 @@ struct PageBrowser: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Toggle("Solo segnalibri", isOn: $onlyBookmarks).padding().disabled(reorder)
-                if !model.sections.isEmpty && !reorder { sectionPicker.padding(.horizontal).padding(.bottom, 8) }
-                if reorder {
-                    List {
-                        ForEach(model.pages) { page in
-                            Label(label(page), systemImage: page.isBookmarked == true ? "bookmark.fill" : "doc")
-                        }
-                        .onMove { indices, destination in
-                            var pages = model.pages
-                            pages.move(fromOffsets: indices, toOffset: destination)
-                            Task {
-                                busy = true; defer { busy = false }
-                                await model.reorder(pages.map(\.id))
-                            }
-                        }
-                    }.environment(\.editMode, .constant(.active))
-                } else if visible.isEmpty {
-                    ContentUnavailableView("Nessuna pagina in questa vista", systemImage: "doc", description: Text("Cambia filtro o assegna una pagina a questa sezione dal menu dell’anteprima."))
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230))], spacing: 20) {
-                            ForEach(visible) { page in
-                                Button {
-                                    Task { await model.select(page); if model.page?.id == page.id { dismiss() } }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        PageThumbnail(page: page, workspace: model.workspace)
-                                            .overlay(alignment: .topTrailing) {
-                                                if page.isBookmarked == true { Image(systemName: "bookmark.fill").padding(6).foregroundStyle(Brand.accent) }
-                                            }
-                                        Text(label(page)).font(.caption).lineLimit(2)
-                                    }.padding(8).background(model.page?.id == page.id ? Brand.accent.opacity(0.16) : Brand.surface,
-                                        in: RoundedRectangle(cornerRadius: 12))
-                                }.buttonStyle(.plain)
-                                .overlay(alignment: .bottomTrailing) {
-                                    Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = page }
-                                        .labelStyle(.iconOnly).buttonStyle(.borderless).padding(10)
-                                        .accessibilityIdentifier("deletePage-\(page.id)")
-                                }
-                                .contextMenu {
-                                    Button(page.isBookmarked == true ? "Rimuovi segnalibro" : "Aggiungi segnalibro", systemImage: "bookmark") {
-                                        Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
-                                    }
-                                    Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
-                                    assignmentMenu(page)
-                                    Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = page }
-                                }
-                            }
-                        }.padding()
-                    }
-                }
-            }.disabled(busy)
+            pageContents
             .navigationTitle("Pagine · \(model.pages.count)")
-            .confirmationDialog("Eliminare la pagina?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
-                Button("Elimina pagina", role: .destructive) {
-                    guard let target = deleting else { return }; deleting = nil
-                    Task { busy = true; defer { busy = false }; await model.deletePage(target.id) }
+            .confirmationDialog("Spostare \(deleting.count) pagine nel cestino?", isPresented: Binding(get: { !deleting.isEmpty }, set: { if !$0 { deleting = [] } }), titleVisibility: .visible) {
+                Button("Sposta nel cestino", role: .destructive) {
+                    let ids = deleting; deleting = []
+                    Task { busy = true; defer { busy = false }; await model.deletePages(ids); selected.subtract(ids) }
                 }
             } message: { Text("Puoi annullare l’eliminazione. I file restano recuperabili.") }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(reorder ? "Fine riordino" : "Riordina") { onlyBookmarks = false; reorder.toggle() } }
+                ToolbarItem(placement: .cancellationAction) { Button(reorder ? "Fine riordino" : "Riordina") { onlyBookmarks = false; selecting = false; selected = []; reorder.toggle() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }
-                ToolbarItem(placement: .bottomBar) { Button("Sezioni", systemImage: "folder") { managingSections = true } }
-                ToolbarItem(placement: .bottomBar) { Button("Collegamenti", systemImage: "link") { showingLinks = true } }
+                ToolbarItem(placement: .primaryAction) { Button(selecting ? "Fine selezione" : "Seleziona") { selecting.toggle(); selected = []; reorder = false } }
+                ToolbarItem(placement: .bottomBar) { Button("Cestino", systemImage: "trash") { showingTrash = true } }
+                ToolbarItem(placement: .bottomBar) {
+                    if selecting { Button("Elimina \(selected.count)", role: .destructive) { deleting = selected }.disabled(selected.isEmpty) }
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    if selecting { Button("Tutte") { selected = Set(visible.map(\.id)) } }
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    Menu("Organizza", systemImage: "folder") {
+                        Button("Sezioni", systemImage: "folder") { managingSections = true }
+                        Button("Collegamenti", systemImage: "link") { showingLinks = true }
+                    }
+                }
             }
             .sheet(isPresented: $managingSections) { SectionsPanel(model: model) }
             .sheet(isPresented: $showingLinks) { PageLinksPanel(model: model) }
+            .sheet(isPresented: $showingTrash) { PageTrashPanel(model: model) }
             .task {
                 do { model.sections = try await model.workspace.catalog().sections ?? [] }
                 catch { model.error = error.localizedDescription }
@@ -114,6 +78,73 @@ struct PageBrowser: View {
                 }
                 Button("Annulla", role: .cancel) { renaming = nil }
             }
+        }
+    }
+
+    private var pageContents: some View {
+        VStack(spacing: 0) {
+            Toggle("Solo segnalibri", isOn: $onlyBookmarks).padding().disabled(reorder)
+            if !model.sections.isEmpty && !reorder { sectionPicker.padding(.horizontal).padding(.bottom, 8) }
+            if reorder {
+                List {
+                    ForEach(model.pages) { page in
+                        Label(label(page), systemImage: page.isBookmarked == true ? "bookmark.fill" : "doc")
+                    }
+                    .onMove { indices, destination in
+                        var pages = model.pages
+                        pages.move(fromOffsets: indices, toOffset: destination)
+                        Task {
+                            busy = true; defer { busy = false }
+                            await model.reorder(pages.map(\.id))
+                        }
+                    }
+                }.environment(\.editMode, .constant(.active))
+            } else if visible.isEmpty {
+                ContentUnavailableView("Nessuna pagina in questa vista", systemImage: "doc", description: Text("Cambia filtro o assegna una pagina a questa sezione dal menu dell’anteprima."))
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230))], spacing: 20) {
+                        ForEach(visible) { page in
+                            pageCard(page)
+                        }
+                    }.padding()
+                }
+            }
+        }.disabled(busy)
+
+    }
+
+    private func pageCard(_ page: PageSnapshot) -> some View {
+        Button {
+            if selecting {
+                if selected.contains(page.id) { selected.remove(page.id) } else { selected.insert(page.id) }
+                return
+            }
+            Task { await model.select(page); if model.page?.id == page.id { dismiss() } }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                PageThumbnail(page: page, workspace: model.workspace)
+                    .overlay(alignment: .topTrailing) {
+                        if selecting { Image(systemName: selected.contains(page.id) ? "checkmark.circle.fill" : "circle").font(.title2).padding(6).foregroundStyle(Brand.accent) }
+                        else if page.isBookmarked == true { Image(systemName: "bookmark.fill").padding(6).foregroundStyle(Brand.accent) }
+                    }
+                Text(label(page)).font(.caption).lineLimit(2)
+            }.padding(8).background(model.page?.id == page.id ? Brand.accent.opacity(0.16) : Brand.surface,
+                in: RoundedRectangle(cornerRadius: 12))
+        }.buttonStyle(.plain)
+        .overlay(alignment: .bottomTrailing) {
+            if !selecting { Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = [page.id] }
+                .labelStyle(.iconOnly).buttonStyle(.borderless).padding(10)
+                .accessibilityIdentifier("deletePage-\(page.id)")
+            }
+        }
+        .contextMenu {
+            Button(page.isBookmarked == true ? "Rimuovi segnalibro" : "Aggiungi segnalibro", systemImage: "bookmark") {
+                Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
+            }
+            Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
+            assignmentMenu(page)
+            Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = [page.id] }
         }
     }
 
