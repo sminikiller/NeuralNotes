@@ -4,7 +4,7 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.12.1/build 23**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_1.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.12.2/build 24**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
 
 ## Difetti segnalati prima dei lotti
 
@@ -110,4 +110,5 @@ L’ordine dei lotti viene mantenuto, ma i numeri di versione originali descrive
 - `39488420878` (acea463): fallimento di una nuova asserzione sulla precisione frazionaria di una data ISO8601; test corretto alla precisione del contratto, senza cambiare il contenuto salvato.
 - Run 39488740893: Core e unit passati, due UI Audio non trovavano comandi fuori dalla porzione visibile; comandi riposizionati. Run 39490272717: nuova aspettativa foto corretta da punti a pixel; il difetto UI testo rimane intermittente. Run 39515889190: job non avviati per blocco fatturazione GitHub. Nessuna modifica a pagamenti/limiti.
 - Riscontro iPad della 0.12.0: compilazione fallita in LensGeometry e messaggio di anteprima AppController; patch 0.12.1 con import CoreGraphics e tipi espliciti predisposta, senza conferma Apple.
+- Riscontro iPad della 0.12.1: errori SelectionCommands e LibraryView, warning PencilControls; patch 0.12.2 e viste SwiftUI suddivise. Nuova run 39589913621 su e5b3d44 ferma prima dei comandi per fatturazione, Apple saltato. Nessuna compilazione Apple dichiarata superata per la patch.
 - Suite locale Swift Linux aggiornata: 164 XCTest (162 passati e due esclusioni previste), zero errori, più 98 Swift Testing FSRS passati. Backend: 23 test passati nella 0.12.0, invariato nella patch. Controlli incorporati: 33 complessivi; non eseguiti sull’iPad in questa sessione. Le ultime schermate richiedono ancora compilazione Apple. [Report completo](ROADMAP_VALIDATION.md). Nessuna prova fisica di fotocamera/Pencil/standby e nessuna chiamata AI a pagamento sono state eseguite da questa sessione.

@@ -1,9 +1,9 @@
-# NeuralNotes 0.12.1 — anteprima iPad
+# NeuralNotes 0.12.2 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
-**0.12.1:** correzione dell’errore di compilazione segnalato in `LensGeometry`: import CoreGraphics esplicito sui sistemi Apple e coordinate `CGFloat`. [Patch e verifica](docs/FIXES_0_12_1.md). La 0.12.0 ha fallito la compilazione sull’iPad dell’utente; la compilazione Apple della patch resta da confermare.
+**0.12.2:** correzioni degli errori reali segnalati in `SelectionCommands`, `LibraryView` e `PencilControls`, con riduzione delle espressioni SwiftUI e controllo mirato delle assegnazioni nei `catch`. [Patch e verifica](docs/FIXES_0_12_2.md). Conserva la [correzione CoreGraphics della 0.12.1](docs/FIXES_0_12_1.md). La nuova CI è stata fermata prima dei comandi dal blocco di fatturazione GitHub: la compilazione Apple resta non eseguita, non viene dichiarata una versione finale verificata.
 
 **Sviluppo successivo alla 0.9.1:** correzioni di testo Pencil, gomma selettiva, foto e import PDF, nuovi strumenti, sezioni/sottosezioni, collegamenti e fonti, statistiche di ripasso, glossario e schede di definizione strutturate. [Avanzamento completo del piano](docs/CLAUDE_PLAN_AUDIT.md), [verifiche e limiti attuali](docs/ROADMAP_VALIDATION.md). La CI Apple più recente non è partita per il blocco di fatturazione GitHub; le ultime schermate non sono ancora compilate con l’SDK Apple. I test locali del Core sono eseguibili anche tramite Docker/Swift ufficiale, senza sostituire le prove UIKit o sull’iPad.
 
@@ -18,7 +18,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.12.1.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.12.2.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e le verifiche sono nella [consegna 0.12.0](docs/DELIVERY_0_12_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).

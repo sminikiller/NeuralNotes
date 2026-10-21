@@ -1,6 +1,12 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.12.1
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.12.2
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Patch 0.12.2 — riscontro iPad e tentativo CI del 21 ottobre 2026
+
+La nuova foto documenta gli errori della 0.12.1 in SelectionCommands (assegnazione al nome `error` del catch), LibraryView (timeout del type checker) e il warning PencilControls (switch). Corretti l’assegnazione a `self.error` e il fallback Pencil; divise le espressioni della libreria e del viewport/popup editor in viste indipendenti. Scansione dell’intero sorgente per assegnazioni allo stesso nome implicito, con controllo AST aggiunto allo script. Parsing Swift e controllo struttura riusciti: **386 oggetti, 243 file Swift, 285 metodi XCTest individuati**. Questi non sono risultati di esecuzione Apple.
+
+Nuova run [39589913621](https://github.com/sminikiller/NeuralNotes/actions/runs/39589913621), commit `e5b3d44`: job portable fallito **prima di eseguire step**, Apple saltato. L’annotazione conferma pagamenti recenti falliti o limite di spesa. Nessun compilatore Apple avviato e nessun cambio a pagamenti/limiti. Le suite Core/backend restano valide per i sorgenti invariati; nessun nuovo test UI è dichiarato passato. [Patch e pacchetto](FIXES_0_12_2.md).
 
 ## Patch 0.12.1 — riscontro iPad e prove del 21 ottobre 2026
 
