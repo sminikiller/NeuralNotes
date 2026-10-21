@@ -1,7 +1,17 @@
 import XCTest
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 @testable import NeuralNotesCore
 
 final class LensGeometryTests: XCTestCase {
+    func testFractionalCoordinatesAreNotRoundedAndAreClippedToThePage() throws {
+        let box = try XCTUnwrap(LensGeometry.selection(from: StrokeSample(x: -2.75, y: 3.25), to: StrokeSample(x: 40.5, y: 60.75), pageWidth: 35.25, pageHeight: 70.5))
+        XCTAssertEqual(box.minX, 0, accuracy: 0.0001)
+        XCTAssertEqual(box.minY, 3.25, accuracy: 0.0001)
+        XCTAssertEqual(box.width, 35.25, accuracy: 0.0001)
+        XCTAssertEqual(box.height, 57.5, accuracy: 0.0001)
+    }
     func testClosedCircleUsesTheEntireTraceAndAReversedUnderlineStillSelectsAbove() throws {
         let circle = [StrokeSample(x: 100, y: 100), StrokeSample(x: 150, y: 50), StrokeSample(x: 200, y: 100), StrokeSample(x: 150, y: 150), StrokeSample(x: 100, y: 100)]
         let area = try XCTUnwrap(LensGeometry.selection(trace: circle, pageWidth: 768, pageHeight: 1024))

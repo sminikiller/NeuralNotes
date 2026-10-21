@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 public enum LensGeometry {
     /// A circle ends near its starting point: use the whole path instead of
@@ -17,12 +20,15 @@ public enum LensGeometry {
     /// above an underline. Ordinary pen/highlighter strokes are unaffected.
     public static func selection(from start: StrokeSample, to end: StrokeSample, pageWidth: Double, pageHeight: Double) -> CGRect? {
         guard [start.x, start.y, end.x, end.y, pageWidth, pageHeight].allSatisfy(\.isFinite), pageWidth > 0, pageHeight > 0 else { return nil }
-        var box = CGRect(x: min(start.x, end.x), y: min(start.y, end.y), width: abs(end.x - start.x), height: abs(end.y - start.y))
+        let x = CGFloat(min(start.x, end.x)), y = CGFloat(min(start.y, end.y))
+        let width = CGFloat(abs(end.x - start.x)), height = CGFloat(abs(end.y - start.y))
+        var box = CGRect(x: x, y: y, width: width, height: height)
         if box.width >= 12, box.height <= 12 {
-            let above = min(80, max(32, box.width * 0.2))
+            let above: CGFloat = min(80, max(32, box.width * 0.2))
             box = CGRect(x: box.minX - 4, y: box.minY - above, width: box.width + 8, height: box.height + above + 8)
         }
-        box = box.intersection(CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight))
+        let page = CGRect(x: CGFloat.zero, y: CGFloat.zero, width: CGFloat(pageWidth), height: CGFloat(pageHeight))
+        box = box.intersection(page)
         return box.isNull || box.width <= 3 || box.height <= 3 ? nil : box
     }
 }

@@ -7,7 +7,7 @@ EXCLUDED = {".git", ".verification", ".build", ".swiftpm", "DerivedData", "__pyc
 
 
 def package():
-    destination = ROOT / ".verification/NeuralNotes-Sorgenti-0.12.0.zip"
+    destination = ROOT / ".verification/NeuralNotes-Sorgenti-0.12.1.zip"
     destination.parent.mkdir(exist_ok=True)
     files = [p for p in ROOT.rglob("*") if p.is_file()
              and not EXCLUDED.intersection(p.relative_to(ROOT).parts)
