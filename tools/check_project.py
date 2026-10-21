@@ -144,12 +144,32 @@ def check_syntax():
     from tree_sitter import Language, Parser
     import tree_sitter_swift
     parser = Parser(Language(tree_sitter_swift.language()))
+    def shadowed_error_assignments(node, source, implicit_error=False):
+        if node.type == "catch_block":
+            implicit_error = re.match(rb"catch\s*\{", source[node.start_byte:node.end_byte]) is not None
+        result = []
+        if implicit_error and node.type == "assignment" and node.named_children:
+            target = node.named_children[0]
+            if source[target.start_byte:target.end_byte].strip() == b"error":
+                result.append(node.start_point.row + 1)
+        for child in node.named_children:
+            result.extend(shadowed_error_assignments(child, source, implicit_error))
+        return result
+    # The old SelectionCommands failure is valid grammar but invalid Swift:
+    # bare catch binds an immutable Error named error, shadowing the UI property.
+    bad = b'func f() { do { try g() } catch { error = "failed" } }'
+    good = b'func f() { do { try g() } catch { self.error = error.localizedDescription } }'
+    assert shadowed_error_assignments(parser.parse(bad).root_node, bad)
+    assert not shadowed_error_assignments(parser.parse(good).root_node, good)
     paths = [ROOT / "Package.swift"]
     paths += [p for base in ["NeuralNotes", "Tests", "NeuralNotesTests", "NeuralNotesUITests"]
               for p in (ROOT / base).rglob("*.swift")]
     failures = []
     for path in paths:
-        tree = parser.parse(path.read_bytes())
+        source = path.read_bytes()
+        tree = parser.parse(source)
+        for line in shadowed_error_assignments(tree.root_node, source):
+            failures.append(f"{path.relative_to(ROOT)}:{line}: assignment to implicit catch error; qualify the UI property")
         if tree.root_node.has_error:
             def walk(node):
                 if node.type == "ERROR" or node.is_missing:
@@ -159,6 +179,7 @@ def check_syntax():
             walk(tree.root_node)
     assert not failures, "\n".join(failures)
     print(f"PASS: syntax grammar parsing of {len(paths)} Swift files (not type checking or an SDK build)")
+    print("PASS: no assignment to the implicit immutable error in bare catch blocks")
 
 
 if __name__ == "__main__":

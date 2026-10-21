@@ -40,7 +40,7 @@ extension EditorViewModel {
         else { drawing = canvas.drawing }
         let bytes = selectionIncludesInk ? drawing.dataRepresentation() : nil
         do { EditorClipboard.current = try SelectionSnapshot(page: copy, drawing: bytes, source: workspace.package, maximumBytes: maximumBytes) }
-        catch { error = "Selezione non copiata: controlla che i media esistano e scegli una parte più piccola (limite \(max(0, maximumBytes) / (1024 * 1024)) MB). Gli originali restano nel foglio."; return false }
+        catch { self.error = "Selezione non copiata: controlla che i media esistano e scegli una parte più piccola (limite \(max(0, maximumBytes) / (1024 * 1024)) MB). Gli originali restano nel foglio."; return false }
         status = "Selezione copiata"
         return true
     }

@@ -42,23 +42,7 @@ struct EditorView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if model.page != nil {
-                    DocumentPageViewport(model: model).allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
-                        .popover(isPresented: $lensPopup, attachmentAnchor: .point(.topTrailing)) {
-                            VStack(spacing: 8) {
-                                HStack {
-                                    Button("Apri pannello", systemImage: "sidebar.right") { lensPopup = false; sidePDF = false; sideOpen = true }
-                                    Spacer(); Button("Chiudi", systemImage: "xmark") { lensPopup = false }
-                                }.font(.caption).padding(.horizontal).padding(.top, 12)
-                                LensPanel(model: model, notebook: notebook)
-                            }.frame(width: 360, height: 520).accessibilityIdentifier("lensQuickPopup")
-                        }
-                        .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
-                            let point = (model.pagePresenter as? CanvasHost)?.surface.convert(location, from: model.pagePresenter as? CanvasHost) ?? location
-                            Task { await PageDrop.insert(providers, at: point, model: model) }; return model.hasLease
-                        }
-                        .overlay(alignment: toolbarAlignment) {
-                            if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
-                        }
+                    writingSurface
                 } else { ProgressView("Apertura pagine…").frame(maxWidth: .infinity, maxHeight: .infinity) }
                 if !focus && model.currentWorkspace.showPages { pageStrip }
                 if !focus && model.currentWorkspace.showStatus { HStack {
@@ -250,6 +234,28 @@ struct EditorView: View {
         }
     }
 
+    private var writingSurface: some View {
+        DocumentPageViewport(model: model)
+            .allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
+            .popover(isPresented: $lensPopup, attachmentAnchor: .point(.topTrailing)) { quickLens }
+            .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
+                let host = model.pagePresenter as? CanvasHost
+                let point = host?.surface.convert(location, from: host) ?? location
+                Task { await PageDrop.insert(providers, at: point, model: model) }; return model.hasLease
+            }
+            .overlay(alignment: toolbarAlignment) {
+                if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
+            }
+    }
+    private var quickLens: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button("Apri pannello", systemImage: "sidebar.right") { lensPopup = false; sidePDF = false; sideOpen = true }
+                Spacer(); Button("Chiudi", systemImage: "xmark") { lensPopup = false }
+            }.font(.caption).padding(.horizontal).padding(.top, 12)
+            LensPanel(model: model, notebook: notebook)
+        }.frame(width: 360, height: 520).accessibilityIdentifier("lensQuickPopup")
+    }
     private var toolbarAlignment: Alignment {
         switch model.currentWorkspace.dock { case .top: return .top; case .bottom: return .bottom; case .leading: return .leading; case .trailing: return .trailing }
     }

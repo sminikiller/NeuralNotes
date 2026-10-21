@@ -45,7 +45,7 @@ struct LibraryView: View {
     @State private var resumeEditor: EditorViewModel?
     @State private var checkedResume = false
 
-    var body: some View {
+    private var navigationShell: some View {
         NavigationSplitView {
             sidebar
         } detail: {
@@ -57,7 +57,15 @@ struct LibraryView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .task(id: model.notebooks.map { "\($0.id)|\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: ",")) {
+    }
+
+    private var organizationRevision: String {
+        model.notebooks.map { "\($0.id)|\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: ",")
+    }
+
+    private var documentPresentation: some View {
+        navigationShell
+        .task(id: organizationRevision) {
             await model.loadOrganization()
             if UserDefaults.standard.bool(forKey: "search.spotlight") { await SpotlightIndexer.shared.update(model) }
         }
@@ -91,6 +99,10 @@ struct LibraryView: View {
                 pendingSpotlight = id; openPendingSpotlight()
             }
         }
+    }
+
+    private var importPresentation: some View {
+        documentPresentation
         .task(id: cloudAutomatic) {
             guard cloudAutomatic else { return }
             while !Task.isCancelled {
@@ -122,6 +134,10 @@ struct LibraryView: View {
                 GlobalSearchPanel(library: model) { book, reference, query in pendingSearch = (book, reference, query) }
             }
         }
+    }
+
+    private var notifiedLibrary: some View {
+        importPresentation
         .alert("Operazione non riuscita", isPresented: Binding(
             get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 Button("OK", role: .cancel) { model.errorMessage = nil }
@@ -144,6 +160,10 @@ struct LibraryView: View {
         .alert("Integrità dei documenti", isPresented: $showIntegrityReport) {
             Button("OK", role: .cancel) { }
         } message: { Text(model.integrityIssues.joined(separator: "\n\n")) }
+    }
+
+    var body: some View {
+        notifiedLibrary
         .onChange(of: model.scope) { _, _ in path = [] }
         .onChange(of: LibraryRevision.shared.value) { _, _ in model.perform { try model.reload() } }
         .onChange(of: scenePhase) { _, phase in
@@ -236,8 +256,7 @@ struct LibraryView: View {
         }
     }
 
-    private var collection: some View {
-        ScrollView {
+    private var collectionContent: some View {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
@@ -256,7 +275,7 @@ struct LibraryView: View {
                 }
                 if model.scope != .trash && model.query.isEmpty {
                     LibraryDashboard(notebooks: model.visibleNotebooks,
-                        recent: model.recentNotebooks.filter { recent in model.visibleNotebooks.contains { $0.id == recent.id } },
+                        recent: visibleRecentNotebooks,
                         library: model, create: { sheet = .createNotebook }, importFile: { importingNotebook = true }, open: { openImmediately($0) })
                 }
                 if model.visibleNotebooks.isEmpty {
@@ -279,7 +298,15 @@ struct LibraryView: View {
             }
             .padding(20)
             .frame(maxWidth: 1400, alignment: .leading).frame(maxWidth: .infinity)
-        }
+    }
+
+    private var visibleRecentNotebooks: [Notebook] {
+        let visibleIDs = Set(model.visibleNotebooks.map(\.id))
+        return model.recentNotebooks.filter { visibleIDs.contains($0.id) }
+    }
+
+    private var collection: some View {
+        ScrollView { collectionContent }
         .background(Brand.background)
         .navigationTitle("Libreria")
         .navigationBarTitleDisplayMode(.inline)

@@ -35,7 +35,7 @@ final class PencilControls: NSObject, UIPencilInteractionDelegate {
         case .switchEraser: model.chooseTool((model.tool == .eraser ? lastInk : .eraser).workspaceTool)
         case .switchPrevious: model.chooseTool(previous.workspaceTool)
         case .showColorPalette: showOptions(at: point)
-        @unknown default: showOptions(at: point)
+        default: showOptions(at: point)
         }
     }
     private func showOptions(at point: CGPoint?) {
