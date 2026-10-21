@@ -10,7 +10,7 @@ struct PDFResearchTerm: Identifiable {
 /// Pencil gestures are opt-in. Finger scrolling and PDFKit's native selection
 /// remain available, and no annotation is written to an external document.
 @MainActor
-final class ConceptPDFView: PDFView, UIGestureRecognizerDelegate {
+final class ConceptPDFView: PDFView {
     var conceptMode = false { didSet { conceptGesture.isEnabled = conceptMode } }
     var onConcept: ((String) -> Void)?
     private var trace: [StrokeSample] = []
@@ -18,9 +18,13 @@ final class ConceptPDFView: PDFView, UIGestureRecognizerDelegate {
     private let traceLayer = CAShapeLayer()
     private lazy var conceptGesture: UIPanGestureRecognizer = {
         let gesture = UIPanGestureRecognizer(target: self, action: #selector(concept(_:)))
+        gesture.name = "NeuralNotes.PDFConcept"
         gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
         gesture.maximumNumberOfTouches = 1; gesture.cancelsTouchesInView = true
-        gesture.delegate = self; gesture.isEnabled = false
+        // PDFView already owns the gesture delegate conformance. Keep its
+        // delegate methods untouched: this recognizer filters Pencil input
+        // through allowedTouchTypes and is enabled only in explicit Lens mode.
+        gesture.isEnabled = false
         return gesture
     }()
     override init(frame: CGRect) {
@@ -30,9 +34,6 @@ final class ConceptPDFView: PDFView, UIGestureRecognizerDelegate {
         traceLayer.lineWidth = 2; traceLayer.lineCap = .round; layer.addSublayer(traceLayer)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        conceptMode && touch.type == .pencil
-    }
     @objc private func concept(_ gesture: UIPanGestureRecognizer) {
         let point = gesture.location(in: self)
         switch gesture.state {

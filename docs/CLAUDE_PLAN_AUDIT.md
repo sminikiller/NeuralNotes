@@ -4,7 +4,9 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.14.0/build 25**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.14.1/build 26**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+
+La foto successiva documenta due errori SDK reali nella 0.14.0 (delegato ereditato di PDFView). [Patch 0.14.1](FIXES_0_14_1.md): nessuna conformità o metodo delegato ridichiarati; filtro sul riconoscitore Pencil dedicato. Non ancora compilata con Apple.
 
 ## Lotto aggiuntivo 0.14 — editor, PDF e budget
 

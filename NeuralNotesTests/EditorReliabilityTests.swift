@@ -65,6 +65,12 @@ final class EditorReliabilityTests: XCTestCase {
             }; try bytes.write(to: url)
             let before = try await model.workspace.manifest()
             let view = ConceptPDFView(frame: CGRect(x: 0, y: 0, width: 600, height: 800)); view.autoScales = true
+            let lensGesture = try XCTUnwrap(view.gestureRecognizers?.first(where: { $0.name == "NeuralNotes.PDFConcept" }))
+            XCTAssertNil(lensGesture.delegate)
+            XCTAssertEqual(lensGesture.allowedTouchTypes, [NSNumber(value: UITouch.TouchType.pencil.rawValue)])
+            XCTAssertFalse(lensGesture.isEnabled)
+            view.conceptMode = true; XCTAssertTrue(lensGesture.isEnabled)
+            view.conceptMode = false; XCTAssertFalse(lensGesture.isEnabled)
             let controller = PDFStudyController(); controller.attach(view)
             controller.load(file: url.absoluteString, package: model.workspace.package, index: 0, external: url)
             view.layoutIfNeeded()

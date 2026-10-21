@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.14.0
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.14.1
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Patch 0.14.1 — errore reale sul dispositivo
+
+La foto documenta un fallimento della compilazione Apple della 0.14.0: `PDFView` possiede già la conformità al delegato e la relativa dichiarazione di metodo. Rimossi dalla sottoclasse entrambi; il filtro Pencil passa per `allowedTouchTypes` del solo gesto aggiunto. Estesa la prova Apple di selezione PDF per verificare riconoscitore e attivazione. Controlli di struttura/parsing rieseguiti; compilazione/esecuzione Apple ancora non disponibili. Core/backend invariati, nessuna loro nuova esecuzione dichiarata. [Patch 0.14.1](FIXES_0_14_1.md).
 
 ## Lotto 0.14.0 — 21 ottobre 2026
 

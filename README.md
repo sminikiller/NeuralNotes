@@ -1,7 +1,9 @@
-# NeuralNotes 0.14.0 — anteprima iPad
+# NeuralNotes 0.14.1 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
+
+**0.14.1/build 26:** corregge i due errori reali di compilazione del PDF mostrati sull’iPad: conformità del delegato già ereditata da PDFView e metodo ridichiarato senza override. Il filtro Pencil è ora sul solo riconoscitore della Lente, lasciando intatti i delegati nativi. [Correzione e limiti della verifica](docs/FIXES_0_14_1.md). La compilazione Apple della patch resta da confermare.
 
 **0.14.0/build 25:** eliminazione visibile delle pagine, mini toolbar personalizzabile, popup verso l’interno, stili e colori RTF, forme precise, salti audio ±15 s. Import PDF/foto preparati fuori dal thread UI; PDF esterno affiancato con estratti e ricerca del termine senza import. Compressione PCM → AAC mono 64 kbps dopo la registrazione, transazione riprendibile, limiti di spazio per i backup e comando per le vecchie lezioni. [Comandi, test e pacchetti](docs/DELIVERY_0_14_0.md), [piano AI e dipendenze](docs/AI_FUNCTIONAL_PLAN.md).
 
@@ -22,7 +24,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.14.0.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.14.1.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e le verifiche sono nella [consegna 0.12.0](docs/DELIVERY_0_12_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).
