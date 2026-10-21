@@ -34,11 +34,12 @@ public enum NotebookSections {
     /// Iterative, bounded traversal; malformed external metadata cannot recurse.
     public static func outline(_ sections: [NotebookSection]) -> [(section: NotebookSection, depth: Int)] {
         guard (try? validate(sections)) != nil else { return [] }
+        let children = Dictionary(grouping: sections, by: \.parentID)
         var result: [(NotebookSection, Int)] = []
-        var stack = sections.filter { $0.parentID == nil }.reversed().map { ($0, 0) }
+        var stack = (children[nil] ?? []).reversed().map { ($0, 0) }
         while let (section, depth) = stack.popLast() {
             result.append((section, depth))
-            stack.append(contentsOf: sections.filter { $0.parentID == section.id }.reversed().map { ($0, depth + 1) })
+            stack.append(contentsOf: (children[section.id] ?? []).reversed().map { ($0, depth + 1) })
         }
         return result
     }

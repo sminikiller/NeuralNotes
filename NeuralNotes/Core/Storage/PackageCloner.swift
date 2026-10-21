@@ -48,6 +48,7 @@ extension NativeDocumentStore {
             for index in catalog.attachments.indices { catalog.attachments[index].id = UUID() }
             try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             var pageIDs: [UUID] = []
+            var linkedPageIDs: [UUID] = []
             var pageMap: [UUID: UUID] = [:]
             for original in manifest.pageIDs {
                 let oldURL = destination.appendingPathComponent("pages/\(original).json")
@@ -55,6 +56,7 @@ extension NativeDocumentStore {
                 guard page.id == original else { throw LibraryFailure.corruptDocument }
                 page.id = UUID()
                 pageMap[original] = page.id
+                if page.texts.contains(where: { $0.pageLink != nil }) { linkedPageIDs.append(page.id) }
                 page.renewObjectIDs()
                 for index in page.anchors.indices {
                     page.anchors[index].id = UUID()
@@ -66,7 +68,7 @@ extension NativeDocumentStore {
             }
             let updated = DocumentManifest(documentID: documentID, notebookID: notebookID, pageIDs: pageIDs)
             // Resolve forward links only after every destination page ID exists.
-            for id in pageIDs {
+            for id in linkedPageIDs {
                 let file = destination.appendingPathComponent("pages/\(id).json")
                 var page = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: file))
                 guard page.texts.contains(where: { $0.pageLink != nil }) else { continue }

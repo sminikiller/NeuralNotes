@@ -53,7 +53,7 @@ Sono state consultate le fonti ufficiali OpenAI [sign-in](https://developers.ope
 
 1. Ricerca globale: presente; aggiunti filtri testo/PDF/grafia/audio/glossario e cartella, con anteprima centrata sulla corrispondenza e testo evidenziato. Posizione grafica sul canvas da completare.
 2. OCR: cache di revisione e indicizzazione nelle pause presenti; aggiunta scansione controllata dei quaderni preesistenti, una pagina per volta, annullabile e riprendibile per revisione; esclusione degli editor aperti.
-3. Libreria: recenti/copertine/cartelle presenti; aggiunti tag portabili nel quaderno, pin e Inbox con nota rapida. Colore delle cartelle ancora da completare.
+3. Libreria: recenti/copertine/cartelle presenti; aggiunti tag portabili nel quaderno, pin e Inbox con nota rapida. Aggiunti colori alle cartelle come preferenza locale della libreria, senza migrare SwiftData. La portabilità/sincronizzazione del colore insieme alle cartelle resta da completare.
 4. Struttura: titoli/segnalibri/ordine presenti; aggiunte sezioni/sottosezioni con filtro e assegnazione dalle anteprime, collegamenti inseribili nel foglio ed elenco dei collegamenti in entrata. Identità rimappate in clone/import e metadati separati dall’inchiostro. I link verso altri quaderni richiedono ancora apertura manuale del quaderno di origine.
 5. Sistema: nota rapida/Inbox, Spotlight, App Intents e widget da sviluppare compatibilmente con i target di firma e il runner.
 6. Export: nativo/PDF/testo trascrizioni presenti; aggiunti PNG/JPG/Markdown, copia area selezionata e stampa.
@@ -64,7 +64,7 @@ Selezione/copia, evidenziazione per riga, sottolineatura, indice, link nativi, v
 
 ## Fase 5 — audio
 
-Trascrizione lunga a finestre con checkpoint e isolamento di blocchi silenziosi/falliti presente nella 0.9.1. SpeechAnalyzer dipende da sistema/SDK più recente. Aggiunti replay visivo non distruttivo dei tratti, segnalibri persistenti, velocità 0,5–2× e import audio a file (senza leggere tutta la registrazione in memoria). Sbobina strutturata ancora da completare; diarizzazione richiede un motore reale, non nomi di parlanti simulati.
+Trascrizione lunga a finestre con checkpoint e isolamento di blocchi silenziosi/falliti presente nella 0.9.1. SpeechAnalyzer dipende da sistema/SDK più recente. Aggiunti replay visivo non distruttivo dei tratti, segnalibri persistenti, velocità 0,5–2× e import audio a file (senza leggere tutta la registrazione in memoria). Aggiunti capitoli temporali ogni cinque minuti o ai segnalibri personali, rinomina dei segnalibri ed export Markdown integrale con timestamp. Le prove hanno rilevato e corretto la precedenza delle correzioni sulla proiezione obsoleta e del flag parziale esplicito su un vecchio catalogo. La sbobina semantica generativa resta da completare; diarizzazione richiede un motore reale, non nomi di parlanti simulati.
 
 ## Fase 6 — studio
 
@@ -93,4 +93,4 @@ L’ordine dei lotti viene mantenuto, ma i numeri di versione originali descrive
 - `39484841548` (2eb71af): core e unit passati, un test UI del testo non trova la casella; evidenza esportata e correzioni di sequenza del focus/accessibilità/riconoscitori in acea463, da verificare nella run seguente.
 - `39488420878` (acea463): fallimento di una nuova asserzione sulla precisione frazionaria di una data ISO8601; test corretto alla precisione del contratto, senza cambiare il contenuto salvato.
 - Run 39488740893: Core e unit passati, due UI Audio non trovavano comandi fuori dalla porzione visibile; comandi riposizionati. Run 39490272717: nuova aspettativa foto corretta da punti a pixel; il difetto UI testo rimane intermittente. Run 39515889190: job non avviati per blocco fatturazione GitHub. Nessuna modifica a pagamenti/limiti.
-- Suite locale Swift Linux: 120 XCTest (due esclusioni previste), zero errori, più 98 Swift Testing FSRS passati. Backend: 16 test passati. Le ultime schermate richiedono ancora compilazione Apple. [Report completo](ROADMAP_VALIDATION.md). Nessuna prova fisica di fotocamera/Pencil/standby e nessuna chiamata AI a pagamento sono state eseguite da questa sessione.
+- Suite locale Swift Linux: 125 XCTest (due esclusioni previste), zero errori, più 98 Swift Testing FSRS passati. Backend: 16 test passati. Le ultime schermate richiedono ancora compilazione Apple. [Report completo](ROADMAP_VALIDATION.md). Nessuna prova fisica di fotocamera/Pencil/standby e nessuna chiamata AI a pagamento sono state eseguite da questa sessione.

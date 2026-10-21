@@ -158,13 +158,19 @@ struct LibraryView: View {
             }
             Section {
                 ForEach(model.folderRows, id: \.folder.id) { row in
-                    Label(row.folder.title, systemImage: "folder")
+                    Label { Text(row.folder.title) } icon: { Image(systemName: "folder.fill").foregroundStyle(model.folderColor(row.folder.id)?.color ?? Brand.accent) }
                         .padding(.leading, CGFloat(min(row.depth, 6)) * 12)
                         .tag(LibraryScope.folder(row.folder.id))
                         .accessibilityLabel("Cartella \(row.folder.title), livello \(row.depth + 1)")
                         .contextMenu {
                             Button("Nuova sottocartella", systemImage: "folder.badge.plus") { sheet = .createFolder(row.folder.id) }
                             Button("Rinomina", systemImage: "pencil") { sheet = .renameFolder(row.folder) }
+                            Menu("Colore cartella", systemImage: "paintpalette") {
+                                Button("Predefinito") { model.setFolderColor(nil, id: row.folder.id) }
+                                ForEach(NotebookCover.allCases, id: \.self) { color in
+                                    Button { model.setFolderColor(color, id: row.folder.id) } label: { Label(color.title, systemImage: model.folderColor(row.folder.id) == color ? "checkmark.circle.fill" : "circle.fill").foregroundStyle(color.color) }
+                                }
+                            }
                             Button("Elimina", systemImage: "trash", role: .destructive) { pendingFolderDeletion = row.folder }
                         }
                 }

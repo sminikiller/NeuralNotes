@@ -10,6 +10,7 @@ struct SectionsPanel: View {
     @State private var parent = ""
     @State private var formVisible = false
     @State private var busy = false
+    @State private var error: String?
     private var outline: [(section: NotebookSection, depth: Int)] { NotebookSections.outline(model.sections) }
     private var parents: [(section: NotebookSection, depth: Int)] {
         outline.filter { row in
@@ -26,6 +27,7 @@ struct SectionsPanel: View {
     var body: some View {
         NavigationStack {
             List {
+                if let error { Text(error).foregroundStyle(.red) }
                 if formVisible { sectionForm }
                 if outline.isEmpty && !formVisible {
                     ContentUnavailableView("Organizza il quaderno", systemImage: "folder", description: Text("Crea sezioni e sottosezioni, poi assegna le pagine dalla loro anteprima."))
@@ -55,7 +57,8 @@ struct SectionsPanel: View {
                     let section = NotebookSection(id: editing?.id ?? UUID(), title: title, parentID: UUID(uuidString: parent))
                     Task {
                         busy = true; defer { busy = false }
-                        if await model.changeSections({ try await $0.saveSection(section) }) { formVisible = false }
+                        if await model.changeSections({ try await $0.saveSection(section) }) { formVisible = false; error = nil }
+                        else { error = model.error }
                     }
                 }.disabled((try? LibraryName.validated(title)) == nil)
             }
@@ -71,7 +74,7 @@ struct SectionsPanel: View {
                 Button("Modifica", systemImage: "pencil") { edit(section) }
                 Button("Nuova sottosezione", systemImage: "folder.badge.plus") { edit(nil); parent = section.id.uuidString }
                 Button("Elimina sezione vuota", systemImage: "trash", role: .destructive) {
-                    Task { busy = true; defer { busy = false }; _ = await model.changeSections { try await $0.removeSection(section.id) } }
+                    Task { busy = true; defer { busy = false }; if !(await model.changeSections { try await $0.removeSection(section.id) }) { error = model.error } }
                 }.disabled(count != 0 || model.sections.contains { $0.parentID == section.id })
             } label: { Image(systemName: "ellipsis.circle").frame(minWidth: 44, minHeight: 44) }
             .accessibilityLabel("Azioni sezione \(section.title)")

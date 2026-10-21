@@ -244,6 +244,15 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
         _ = await persist(value)
     }
 
+    func renameBookmark(_ bookmarkID: UUID, sessionID: UUID, title: String) async {
+        guard transcribingSessionID == nil, var value = active?.id == sessionID ? active : sessions.first(where: { $0.id == sessionID }),
+              let i = value.bookmarks?.firstIndex(where: { $0.id == bookmarkID }) else { return }
+        do {
+            value.bookmarks?[i].title = try LibraryName.validated(title); value.revision = (value.revision ?? 0) + 1
+            if active?.id == sessionID { active = value }; _ = await persist(value)
+        } catch { self.error = error.localizedDescription }
+    }
+
     func importAudio(_ source: URL) async {
         guard !recording, !transitioning, transcribingSessionID == nil, !closed else { return }
         transitioning = true; defer { transitioning = false }

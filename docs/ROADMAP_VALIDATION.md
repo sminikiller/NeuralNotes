@@ -4,9 +4,9 @@ Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di comp
 
 ## Prove locali del 21 ottobre 2026
 
-- Swift 6.1.2 Linux, immagine ufficiale `swift:6.1.2`: **120 XCTest, due esclusioni già previste dall’ambiente, zero errori; 98 Swift Testing FSRS passati**. Include recupero snapshot interrotti, identità e media dei quaderni, sezioni cicliche/profonde, assegnazione pagine, collegamenti diretti/inversi, clone/unione, statistiche e ora legale.
+- Swift 6.1.2 Linux, immagine ufficiale `swift:6.1.2`: **125 XCTest, due esclusioni già previste dall’ambiente, zero errori; 98 Swift Testing FSRS passati**. Include recupero snapshot interrotti, identità e media dei quaderni, sezioni cicliche/profonde, assegnazione pagine, collegamenti diretti/inversi, clone/unione, statistiche e ora legale, trascrizione sintetica di tre ore, correzioni autorevoli e stato parziale esplicito.
 - Backend Node: **16 test passati**, comprese schede `/v1/lookup`, citazioni, autenticazione, quote, streaming interrotto e risposta incompleta. Nessuna chiamata a pagamento.
-- Controllo progetto: **340 oggetti, 206 file Swift analizzati, 228 metodi XCTest individuati**. La grammatica non equivale a type checking, compilazione o esecuzione dei test Apple.
+- Controllo progetto: **344 oggetti, 209 file Swift analizzati, 235 metodi XCTest individuati**. La grammatica non equivale a type checking, compilazione o esecuzione dei test Apple.
 
 Esecuzione Core su Windows con Docker Desktop attivo:
 

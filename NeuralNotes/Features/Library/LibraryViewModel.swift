@@ -32,6 +32,14 @@ final class LibraryViewModel {
     var importing = false
     var coverRevision = 0
     var organization: [UUID: NotebookOrganization] = [:]
+    // Appearance belongs to this library installation, not the SwiftData schema.
+    var folderColors: [String: String] = UserDefaults.standard.dictionary(forKey: "library.folderColors") as? [String: String] ?? [:]
+    func folderColor(_ id: UUID) -> NotebookCover? { folderColors[id.uuidString].flatMap(NotebookCover.init(rawValue:)) }
+    func setFolderColor(_ color: NotebookCover?, id: UUID) {
+        guard folders.contains(where: { $0.id == id }) else { return }
+        folderColors[id.uuidString] = color?.rawValue
+        UserDefaults.standard.set(folderColors, forKey: "library.folderColors")
+    }
     var allTags: [String] { Array(Set(organization.values.flatMap(\.tags))).sorted() }
     var recentIDs: [UUID] = UserDefaults.standard.stringArray(forKey: "library.recentNotebookIDs")?.compactMap(UUID.init(uuidString:)) ?? []
     var recentNotebooks: [Notebook] {
@@ -108,6 +116,7 @@ final class LibraryViewModel {
         let deleted = try repository.trashedNotebooks()
         notebooks = newNotebooks
         folders = newFolders
+        folderColors = UserDefaults.standard.dictionary(forKey: "library.folderColors") as? [String: String] ?? [:]
         trash = deleted
     }
 

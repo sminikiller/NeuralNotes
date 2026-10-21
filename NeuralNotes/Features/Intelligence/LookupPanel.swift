@@ -17,7 +17,7 @@ struct LookupPanel: View {
         NavigationStack {
             Form {
                 Section("Termine selezionato") {
-                    TextField("Termine da definire", text: $term)
+                    TextField("Termine da definire", text: $term).disabled(busy)
                     Text("\(sources.count) fonti · \(configuration.destination)").font(.caption).foregroundStyle(.secondary)
                     Button("Dizionario di sistema", systemImage: "character.book.closed") { SystemDictionary.open(term: term, from: model.pagePresenter as? UIView) }.disabled(term.isEmpty)
                     if configuration.lookupURL != nil {
@@ -54,6 +54,7 @@ struct LookupPanel: View {
                 .task { term = String(sources.first?.text.prefix(120) ?? "") }
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
                 .onDisappear { job?.cancel() }
+                .onChange(of: term) { _, _ in card = nil; error = nil }
         }
     }
     private func generate() {

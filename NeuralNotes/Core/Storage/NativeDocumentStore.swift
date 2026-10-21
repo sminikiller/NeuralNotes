@@ -14,7 +14,7 @@ public struct NativeDocumentStore: Sendable {
             let destination = root.appendingPathComponent("\(id).nnbook", isDirectory: true)
             guard let inspected = try? NativePackageInspector.inspect(previous), inspected.manifest.documentID == id else { continue }
             if FileManager.default.fileExists(atPath: destination.path) {
-                if (try? NativePackageInspector.inspect(destination)) != nil { continue }
+                if let current = try? NativePackageInspector.inspect(destination), current.manifest.documentID == id { continue }
                 // Retain a partially installed destination instead of allowing
                 // it to hide the last complete snapshot after a crash.
                 let retained = root.appendingPathComponent("\(id)-\(UUID()).cloudInterrupted", isDirectory: true)

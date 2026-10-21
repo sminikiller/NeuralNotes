@@ -97,4 +97,16 @@ final class CloudAndIndexTests: XCTestCase {
         XCTAssertEqual(merged.conversation?.last?.answer.references.first?.pageID, appended.first?.id)
         XCTAssertEqual(merged.glossary?.last?.references.first?.pageID, appended.first?.id)
     }
+    func testInterruptedCloudRecoveryDoesNotAcceptAnUnrelatedDestinationIdentity() async throws {
+        let (root, store, workspace, book) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let page = try await workspace.addPage()
+        let previous = root.appendingPathComponent("\(book.documentID).cloudPrevious", isDirectory: true)
+        try FileManager.default.moveItem(at: workspace.package, to: previous)
+        let foreignID = UUID(); try store.create(DocumentManifest(documentID: foreignID, notebookID: UUID()))
+        try FileManager.default.moveItem(at: store.packageURL(for: foreignID), to: workspace.package)
+        _ = try NativeDocumentStore(root: root)
+        XCTAssertEqual(try store.read(documentID: book.documentID, notebookID: book.id).pageIDs, [page.id])
+        let retained = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).filter { $0.pathExtension == "cloudInterrupted" }
+        XCTAssertEqual(try NativePackageInspector.inspect(XCTUnwrap(retained.first)).manifest.documentID, foreignID)
+    }
 }

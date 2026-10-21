@@ -2,6 +2,18 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class PageAndTranscriptTests: XCTestCase {
+    func testExplicitPartialStateAndCorrectionsOverrideAStaleNonemptyProjection() {
+        var session = AudioSession(title: "Importata")
+        session.transcript = [TranscriptSegment(start: 10, duration: 1, text: "Proiezione precedente"), TranscriptSegment(start: 70, duration: 1, text: "Secondo minuto")]
+        XCTAssertTrue(session.hasCompletedTranscript) // Legacy catalogs had no flag.
+        session.transcriptionComplete = false
+        XCTAssertFalse(session.hasCompletedTranscript)
+        session.transcriptCorrections = [TranscriptCorrection(start: 0, text: "Correzione autorevole")]
+        XCTAssertEqual(session.readableTranscript.map(\.text), ["Correzione autorevole", "Secondo minuto"])
+        session.transcriptionComplete = true; XCTAssertTrue(session.hasCompletedTranscript)
+        session.transcriptCorrections = [TranscriptCorrection(start: 0, text: ""), TranscriptCorrection(start: 60, text: "")]
+        XCTAssertFalse(session.hasTranscriptText); XCTAssertFalse(session.hasCompletedTranscript)
+    }
     func testNormalWritingProgressingRightWithRepeatedAscendersIsNotAScratch() {
         let points = (0...400).map { i -> StrokeSample in
             StrokeSample(x: Double(i) / 4.0, y: sin(Double(i) * 16.0 * Double.pi / 400.0) * 10.0)

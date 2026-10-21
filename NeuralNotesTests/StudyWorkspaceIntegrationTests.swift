@@ -6,6 +6,42 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class StudyWorkspaceIntegrationTests: XCTestCase {
+    @MainActor func testFollowingPageSourceFlushesPendingInkAndSupportsUndoOfLinkInsertion() async throws {
+        try await fixture { model in
+            let origin = try XCTUnwrap(model.page)
+            await model.addPage(); let target = try XCTUnwrap(model.page)
+            await model.select(origin)
+            var text = TextElement(text: "↗ Fonte PDF")
+            text.pageLink = PageLinkTarget(documentID: model.workspace.documentID, pageID: target.id)
+            model.mutatePage("Collegamento") { $0.texts.append(text) }
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke()]); model.strokeEnded(); model.finishInkGesture()
+            await model.openPageLink(try XCTUnwrap(text.pageLink))
+            XCTAssertEqual(model.page?.id, target.id); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            let stored = try await model.workspace.pageSnapshot(origin.id)
+            XCTAssertEqual(stored.texts.first?.pageLink, text.pageLink)
+            let bytes = try await model.workspace.drawing(stored)
+            XCTAssertEqual(try PKDrawing(data: XCTUnwrap(bytes)).strokes.count, 1)
+            await model.openPageLink(PageLinkTarget(documentID: model.workspace.documentID, pageID: origin.id))
+            await model.performUndo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 0)
+            await model.performUndo(); XCTAssertTrue(model.page?.texts.isEmpty == true)
+        }
+    }
+    @MainActor func testSectionMetadataKeepsUncommittedNotesOnTheirOriginalPage() async throws {
+        try await fixture { model in
+            let originalID = try XCTUnwrap(model.page?.id)
+            model.editText([TextElement(text: "Da conservare")])
+            let section = NotebookSection(title: "Esercizi")
+            let created = await model.changeSections { try await $0.saveSection(section) }; XCTAssertTrue(created)
+            let assigned = await model.changeSections { try await $0.assignPages([originalID], toSection: section.id) }; XCTAssertTrue(assigned)
+            await model.addPage()
+            XCTAssertTrue(model.page?.texts.isEmpty == true)
+            let saved = try await model.workspace.pageSnapshot(originalID)
+            XCTAssertEqual(saved.texts.first?.text, "Da conservare"); XCTAssertEqual(model.sections.first?.pageIDs, [originalID])
+            let current = model.page?.id
+            await model.openPageLink(PageLinkTarget(documentID: UUID(), pageID: originalID))
+            XCTAssertEqual(model.page?.id, current); XCTAssertNotNil(model.error)
+        }
+    }
     @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

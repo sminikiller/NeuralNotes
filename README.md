@@ -1,9 +1,11 @@
-# NeuralNotes 0.9.1 — app nativa iPad
+# NeuralNotes 0.10.0 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
 **Sviluppo successivo alla 0.9.1:** correzioni di testo Pencil, gomma selettiva, foto e import PDF, nuovi strumenti, sezioni/sottosezioni, collegamenti e fonti, statistiche di ripasso, glossario e schede di definizione strutturate. [Avanzamento completo del piano](docs/CLAUDE_PLAN_AUDIT.md), [verifiche e limiti attuali](docs/ROADMAP_VALIDATION.md). La CI Apple più recente non è partita per il blocco di fatturazione GitHub; le ultime schermate non sono ancora compilate con l’SDK Apple. I test locali del Core sono eseguibili anche tramite Docker/Swift ufficiale, senza sostituire le prove UIKit o sull’iPad.
+
+[Anteprima 0.10.0: comandi, pacchetto e conservazione dei quaderni](docs/DELIVERY_0_10_0.md).
 
 **Nuove funzioni:** PDF e testo più nitidi allo zoom, backup automatici con versioni, penne/preset e gomma selettiva, selezione trasformabile, testo formattato, scanner, PDF affiancato, ricerca globale e Lente AI. [Funzioni, accesso ai comandi e limiti della 0.9](docs/STUDY_WORKSPACE_0_9.md). iCloud è predisposto con il Team ID fornito; firma e attivazione del contenitore restano da completare. Il backend AI richiede hosting HTTPS e configurazione.
 
@@ -69,7 +71,7 @@ Registrazione senza pausa automatica passando in background, modalità audio dic
 - **Trascrizioni:** continua a usare Apple Speech on-device, ora con blocchi di 45 s, checkpoint persistenti, avanzamento, pausa/ripresa e un retry del blocco fallito. Chiudere il pannello per scrivere non cancella il lavoro; uscita dal quaderno/background lo sospendono. L’utente ha riferito che il riconoscimento precedente ora sembra funzionare: la qualità della nuova versione richiede comunque prova.
 - **Nomi e correzioni:** Audio → Rinomina / correggi cambia titolo e testo per minuto senza toccare il CAF. Le correzioni sono conservate separatamente e protette durante una successiva ripresa. Esporta testo produce un .txt con riferimenti [hh:mm:ss] circa ogni minuto, marcato parziale quando necessario.
 
-La suite corrente contiene **151 metodi XCTest** e **26 controlli incorporati**. Gli esiti della CI Apple sono in [VALIDATION.md](docs/VALIDATION.md). [Prove e limiti 0.5](docs/TESTING_0_5.md).
+La suite storica della 0.5 conteneva **151 metodi XCTest** e **26 controlli incorporati**. Gli esiti della CI Apple sono in [VALIDATION.md](docs/VALIDATION.md). [Prove e limiti 0.5](docs/TESTING_0_5.md).
 
 ## Novità 0.4
 

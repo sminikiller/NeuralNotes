@@ -82,12 +82,15 @@ public extension AudioSession {
     /// Recover the readable projection from durable chunks if a legacy catalog
     /// contains the checkpoint data but an empty transcript array.
     var readableTranscript: [TranscriptSegment] {
-        if TranscriptText.hasText(transcript) { return transcript }
+        if TranscriptText.hasText(transcript) {
+            guard let corrections = transcriptCorrections, !corrections.isEmpty else { return transcript }
+            return TranscriptText.corrected(transcript, corrections: corrections)
+        }
         let raw = transcriptionChunks?.flatMap(\.segments) ?? []
         return TranscriptText.corrected(raw, corrections: transcriptCorrections ?? [])
     }
     var hasTranscriptText: Bool { TranscriptText.hasText(readableTranscript) }
     var hasCompletedTranscript: Bool {
-        hasTranscriptText && (transcriptionComplete == true || (transcriptionChunks == nil && !transcript.isEmpty))
+        hasTranscriptText && (transcriptionComplete ?? (transcriptionChunks == nil && !transcript.isEmpty))
     }
 }

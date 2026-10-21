@@ -28,7 +28,7 @@ struct PageLinksPanel: View {
                         Text("Scegli una pagina").tag("")
                         ForEach(model.pages.filter { $0.id != model.page?.id }) { page in Text(title(page.id)).tag(page.id.uuidString) }
                     }
-                    Button("Inserisci collegamento", systemImage: "link.badge.plus") { add() }.disabled(UUID(uuidString: destination) == nil)
+                    Button("Inserisci collegamento", systemImage: "link") { add() }.disabled(UUID(uuidString: destination) == nil)
                     Text("Con lo strumento Oggetti seleziona il testo collegato e toccalo di nuovo per aprire la fonte. I collegamenti sono inclusi nei backup.").font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Da questa pagina · \(outgoing.count)") {

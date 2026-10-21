@@ -341,6 +341,7 @@ public actor DocumentWorkspace {
     }
 
     public func reviewCard(_ id: UUID, rating: ReviewRating, now: Date = Date()) throws {
+        guard now.timeIntervalSince1970.isFinite, now.timeIntervalSince1970 >= 0 else { throw LibraryFailure.corruptDocument }
         var index = try catalog()
         guard var cards = index.studyCards, let position = cards.firstIndex(where: { $0.id == id }) else { throw LibraryFailure.missingItem }
         if index.adaptiveReview == true { try cards[position].reviewAdaptive(rating, now: now) }

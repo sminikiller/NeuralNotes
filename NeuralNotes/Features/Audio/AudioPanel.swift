@@ -32,6 +32,9 @@ struct AudioPanel: View {
     @State private var presentation: AudioPresentation?
     @State private var seekSeconds: Double = 0
     @State private var seeking = false
+    @State private var renamingBookmark: AudioBookmark?
+    @State private var bookmarkSessionID: UUID?
+    @State private var bookmarkName = ""
     @State private var importingAudio = false
 
     var body: some View {
@@ -89,6 +92,10 @@ struct AudioPanel: View {
                                 Button("\(clock(bookmark.seconds)) · \(bookmark.title)", systemImage: "bookmark.fill") { Task { await audio.play(session, at: bookmark.seconds) } }.buttonStyle(.borderless)
                                 Spacer()
                                 Button("Elimina segnalibro", systemImage: "xmark", role: .destructive) { Task { await audio.removeBookmark(bookmark, sessionID: session.id) } }.labelStyle(.iconOnly).buttonStyle(.borderless).disabled(audio.transcribingSessionID != nil)
+                            }
+                            .contextMenu {
+                                Button("Rinomina segnalibro", systemImage: "pencil") { bookmarkName = bookmark.title; bookmarkSessionID = session.id; renamingBookmark = bookmark }
+                                    .disabled(audio.transcribingSessionID != nil)
                             }
                         }
                         Button("Riproduci", systemImage: "play.circle") { Task { await audio.play(session) } }
@@ -160,6 +167,11 @@ struct AudioPanel: View {
                 }
             }
             .onChange(of: audio.playback) { _, value in if !seeking { seekSeconds = value } }
+            .alert("Nome del segnalibro", isPresented: Binding(get: { renamingBookmark != nil }, set: { if !$0 { renamingBookmark = nil } })) {
+                TextField("Nome", text: $bookmarkName)
+                Button("Salva") { if let bookmark = renamingBookmark, let id = bookmarkSessionID { let name = bookmarkName; Task { await audio.renameBookmark(bookmark.id, sessionID: id, title: name) } }; renamingBookmark = nil }
+                Button("Annulla", role: .cancel) { renamingBookmark = nil }
+            }
         }
     }
 
