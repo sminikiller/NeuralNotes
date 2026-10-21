@@ -1,13 +1,14 @@
 import Foundation
 
 public enum WorkspaceFailure: LocalizedError {
-    case invalidPath, staleRevision, emptyDocument, oversizedImport
+    case invalidPath, staleRevision, emptyDocument, oversizedImport, oversizedMetadata
     public var errorDescription: String? {
         switch self {
         case .invalidPath: return "Percorso del documento non valido."
         case .staleRevision: return "Il contenuto è stato modificato da un’altra sessione. Riapri il quaderno."
         case .emptyDocument: return "Aggiungi almeno una pagina."
         case .oversizedImport: return "File troppo grande per questa importazione (limite 100 MB)."
+        case .oversizedMetadata: return "L’indice del quaderno supera 16 MB. L’ultima copia leggibile è stata conservata. Esporta un backup e continua in un nuovo quaderno."
         }
     }
 }
@@ -29,6 +30,12 @@ public actor DocumentWorkspace {
     }
     public func invalidateDerivedSearch() { searchDirty = true; searchChunks = []; ocrCache = nil; cachedCloudDigest = nil }
     private var ocrCache: [String: AutomaticOCRPage]?
+    private var pageBatchSettled = false
+    func markPendingPageBatch() { pageBatchSettled = false }
+    func settlePageBatch() throws {
+        guard !pageBatchSettled else { return }
+        try PageBatchRecovery.recover(in: package); pageBatchSettled = true
+    }
     private var ocrCacheURL: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("NeuralNotesSearch").appendingPathComponent("\(documentID)-ocr.json")
@@ -101,6 +108,7 @@ public actor DocumentWorkspace {
     }
 
     public func manifest() throws -> DocumentManifest {
+        try settlePageBatch()
         let value: DocumentManifest = try read("manifest.json")
         guard value.schemaVersion == 1, value.documentID == documentID,
               value.notebookID == notebookID, Set(value.pageIDs).count == value.pageIDs.count else {
@@ -129,6 +137,7 @@ public actor DocumentWorkspace {
     }
 
     public func addPage(_ input: PageSnapshot = PageSnapshot()) throws -> PageSnapshot {
+        try PageValidation.validate(input)
         guard input.appearance?.isValid != false else { throw LibraryFailure.corruptDocument }
         var index = try manifest()
         guard !index.pageIDs.contains(input.id), input.width.isFinite, input.height.isFinite,
@@ -144,7 +153,7 @@ public actor DocumentWorkspace {
     public func setDefaultPageTemplate(_ template: PageTemplate) throws {
         guard template.appearance.isValid else { throw LibraryFailure.corruptDocument }
         if let file = template.pdfFile {
-            guard let index = template.pdfIndex, index >= 0, let width = template.sourceWidth, let height = template.sourceHeight,
+            guard let index = template.pdfIndex, index >= 0, index < Int.max, let width = template.sourceWidth, let height = template.sourceHeight,
                   width.isFinite, height.isFinite, (1...20000).contains(width), (1...20000).contains(height),
                   FileManager.default.fileExists(atPath: try url(file).path) else { throw LibraryFailure.corruptDocument }
         }
@@ -158,6 +167,10 @@ public actor DocumentWorkspace {
     }
 
     public func save(_ input: PageSnapshot, drawing: Data, recoveredFromPrevious: Bool = false) throws -> PageSnapshot {
+        // Keep newly written files within the same limits as backup/import.
+        // Otherwise a successful save could create an unexportable notebook.
+        guard drawing.count <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+        try PageValidation.validate(input)
         guard input.appearance?.isValid != false else { throw LibraryFailure.corruptDocument }
         let current = try readPage(input.id)
         guard input.revision > current.revision else { throw WorkspaceFailure.staleRevision }
@@ -256,6 +269,7 @@ public actor DocumentWorkspace {
     }
 
     public func saveSession(_ session: AudioSession) throws {
+        guard (0...1_000_000_000).contains(session.revision ?? 0) else { throw LibraryFailure.corruptDocument }
         var index = try catalog()
         if let current = index.sessions.first(where: { $0.id == session.id }) {
             if (current.revision ?? 0) > (session.revision ?? 0) { return }
@@ -279,6 +293,7 @@ public actor DocumentWorkspace {
     }
 
     public func storeImage(_ data: Data) throws -> String {
+        guard data.count <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
         let file = "images/\(UUID()).png"
         try data.write(to: url(file), options: .atomic)
         return file
@@ -307,6 +322,7 @@ public actor DocumentWorkspace {
     }
 
     public func clone(to store: NativeDocumentStore, documentID: UUID, notebookID: UUID) throws {
+        try settlePageBatch()
         guard try catalog().sessions.allSatisfy({ $0.state != "recording" }) else {
             throw LibraryFailure.recoveryRequired("Metti in pausa o termina la registrazione prima di duplicare il quaderno.")
         }
@@ -314,6 +330,7 @@ public actor DocumentWorkspace {
     }
 
     public func exportNative(metadata: Notebook) throws -> URL {
+        try settlePageBatch()
         guard try catalog().sessions.allSatisfy({ $0.state != "recording" }) else {
             throw LibraryFailure.recoveryRequired("Metti in pausa la registrazione prima di esportare il backup.")
         }
@@ -370,7 +387,9 @@ public actor DocumentWorkspace {
     }
 
     private func readPage(_ id: UUID) throws -> PageSnapshot {
+        try settlePageBatch()
         let page: PageSnapshot = try read("pages/\(id).json")
+        try PageValidation.validate(page)
         guard page.id == id, page.width.isFinite, page.height.isFinite,
               page.width > 0, page.height > 0, page.width <= 20000, page.height <= 20000 else {
             throw LibraryFailure.corruptDocument
@@ -384,14 +403,18 @@ public actor DocumentWorkspace {
     }
 
     private func read<T: Decodable>(_ path: String) throws -> T {
+        let file = try url(path)
+        guard (try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(T.self, from: Data(contentsOf: url(path)))
+        return try decoder.decode(T.self, from: Data(contentsOf: file))
     }
 
     func write<T: Encodable>(_ value: T, _ path: String) throws {
+        if let page = value as? PageSnapshot { try PageValidation.validate(page) }
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(value)
+        if path.hasSuffix(".json"), data.count > 16 * 1024 * 1024 { throw WorkspaceFailure.oversizedMetadata }
         searchDirty = true
         cachedCloudDigest = nil
         if path == "catalog.json" { try CatalogRecovery.preserveCurrent(in: package) }

@@ -24,11 +24,7 @@ final class InkReplayOverlay: UIImageView {
         let generation = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)|\(sessionID)"
         if key != generation {
             key = generation; drawing = host.canvas.drawing
-            var occurrences: [String: Int] = [:]
-            signatures = drawing.strokes.map { stroke in
-                let base = String(stroke.path.creationDate.timeIntervalSince1970)
-                let count = occurrences[base, default: 0]; occurrences[base] = count + 1; return "\(base):\(count)"
-            }
+            signatures = EditorInkSignatures.make(drawing)
             previousVisible = [-1]
         }
         let visible = AudioReplay.visible(signatures: signatures, anchors: page.anchors, sessionID: sessionID, seconds: audio.playback)

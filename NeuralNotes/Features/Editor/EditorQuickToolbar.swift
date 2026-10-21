@@ -118,6 +118,7 @@ struct EditorQuickToolbar: View {
                 Button(action: crop) { Image(systemName: "crop") }.accessibilityLabel("Ritaglia immagine").disabled(!selectedImage)
                 Button { model.rotateSelectedImage() } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota immagine").disabled(!selectedImage)
                 Button { model.copySelection() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copia selezione").keyboardShortcut("c", modifiers: .command).disabled(!hasSelection)
+                MoveSelectionMenu(model: model).labelStyle(.iconOnly)
                 Button { Task { await model.pasteSelection() } } label: { Image(systemName: "doc.on.clipboard") }.accessibilityLabel("Incolla").keyboardShortcut("v", modifiers: .command)
                 Button { model.duplicateSelectedObject() } label: { Image(systemName: "plus.square.on.square") }.accessibilityLabel("Duplica selezione").disabled(!hasSelection)
                 Button(role: .destructive) { model.deleteSelectedObject() } label: { Image(systemName: "trash") }.accessibilityLabel("Elimina selezione").disabled(!hasSelection)

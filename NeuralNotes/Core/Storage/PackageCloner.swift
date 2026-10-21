@@ -4,6 +4,9 @@ extension NativeDocumentStore {
     /// A document copy gets fresh entity identities. Media names are package scoped
     /// and may be reused verbatim; no source file is ever changed.
     public func clone(from source: URL, documentID: UUID, notebookID: UUID) throws {
+        guard !FileManager.default.fileExists(atPath: source.appendingPathComponent(PageBatchRecovery.path).path) else {
+            throw LibraryFailure.recoveryRequired("Apri il quaderno per completare lo spostamento prima di duplicarlo.")
+        }
         let destination = packageURL(for: documentID)
         guard !FileManager.default.fileExists(atPath: destination.path) else { throw CocoaError(.fileWriteFileExists) }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
@@ -101,6 +104,12 @@ extension NativeDocumentStore {
                 }
             }
             catalog.lensCache = nil
+            func quizReference(_ ref: SourceReference) -> SourceReference {
+                guard ref.documentID == manifest.documentID else { return ref }
+                return SourceReference(documentID: documentID, pageID: ref.pageID.flatMap { pageMap[$0] }, audioSessionID: ref.audioSessionID.flatMap { sessionMap[$0] }, seconds: ref.seconds, pageRevision: ref.pageRevision)
+            }
+            catalog.activeQuiz = catalog.activeQuiz?.copied(remapping: quizReference)
+            catalog.quizHistory = catalog.quizHistory?.map { $0.copied(remapping: quizReference) }
             if let sections = catalog.sections {
                 let sectionMap = Dictionary(uniqueKeysWithValues: sections.map { ($0.id, UUID()) })
                 catalog.sections = sections.map { section in

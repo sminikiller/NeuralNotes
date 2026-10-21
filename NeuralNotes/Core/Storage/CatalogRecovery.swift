@@ -28,8 +28,11 @@ enum CatalogRecovery {
         return value
     }
     static func validateStudy(_ value: DocumentCatalog) throws {
+        guard value.sessions.allSatisfy({ (0...1_000_000_000).contains($0.revision ?? 0) }) else { throw LibraryFailure.corruptDocument }
         try NotebookSections.validate(value.sections ?? [])
         let reviews = value.reviewLog ?? []
+        let quizzes = (value.quizHistory ?? []) + [value.activeQuiz].compactMap { $0 }
+        guard (value.quizHistory?.count ?? 0) <= 10, quizzes.allSatisfy(\.isValid), Set(quizzes.map(\.id)).count == quizzes.count else { throw LibraryFailure.corruptDocument }
         guard reviews.count <= 10_000, reviews.allSatisfy(\.isValid), Set(reviews.map(\.id)).count == reviews.count else { throw LibraryFailure.corruptDocument }
         let glossary = value.glossary ?? [], cache = value.lensCache ?? []
         guard glossary.count <= 1000, Set(glossary.map(\.id)).count == glossary.count, glossary.allSatisfy(\.isValid), cache.count <= 32,

@@ -3,7 +3,7 @@ import SwiftUI
 @main
 @MainActor
 struct NeuralNotesApp: App {
-    @State private var controller = AppController()
+    @State private var controller = AppController.shared
 
     var body: some Scene {
         WindowGroup(id: "library") {

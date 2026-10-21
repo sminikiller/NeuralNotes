@@ -60,6 +60,8 @@ final class EditorViewModel {
     var fitPageRequest = 0
     var canvasZoomed = false
     var showZoomNavigator = false
+    var laserActive = false
+    var searchFocus: SearchFocusRequest?
     var editingTextID: UUID?
     @ObservationIgnored var textEditBefore: EditorContentState?
     var selectedIDs: Set<UUID> = []
@@ -179,6 +181,7 @@ final class EditorViewModel {
         }
         canvas.drawingGestureRecognizer.isEnabled = tool != .objects && tool != .audioLink && tool != .text && tool != .shape
         if tool == .lens { canvas.drawingGestureRecognizer.isEnabled = false }
+        if laserActive { canvas.drawingGestureRecognizer.isEnabled = false }
         if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = rulerActive && (tool == .pen || tool == .marker)
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
@@ -209,15 +212,11 @@ final class EditorViewModel {
     }
 
     private func signatures() -> [String] {
-        var occurrences: [String: Int] = [:]
-        return canvas.drawing.strokes.map { stroke in
-            let base = String(stroke.path.creationDate.timeIntervalSince1970)
-            let count = occurrences[base, default: 0]; occurrences[base] = count + 1
-            return "\(base):\(count)"
-        }
+        EditorInkSignatures.make(canvas.drawing)
     }
 
     func strokeBegan() {
+        searchFocus = nil
         finishInkGesture()
         rememberPalette()
         usingInkTool = true
@@ -472,7 +471,7 @@ final class EditorViewModel {
     func duplicateSelectedObject() {
         guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         finishInkGesture(); endTextEdit()
-        if selectedIDs.count > 1 || selectionIncludesInk { copySelection(); Task { await pasteSelection() }; return }
+        if selectedIDs.count > 1 || selectionIncludesInk { if copySelection() { Task { await pasteSelection() } }; return }
         let before = captureEdit()
         guard let id = selectedObjectID else { return }
         if var text = page?.texts.first(where: { $0.id == id }) {

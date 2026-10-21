@@ -70,6 +70,37 @@ function lookupSchema(count) {
   }, required: ['term', 'definition', 'explanation', 'examples', 'relatedTerms', 'citations'], additionalProperties: false };
 }
 
+export function validateQuizRequest(value) {
+  if (!value || !Number.isInteger(value.count) || value.count < 1 || value.count > 12) throw new RequestFailure(400, 'invalid_quiz');
+  validateRequest({ task: 'quiz', question: '', sources: value.sources });
+  return { sources: value.sources, count: value.count };
+}
+
+function quizSchema(count) {
+  const question = { type: 'object', properties: {
+    prompt: { type: 'string' }, options: { type: 'array', items: { type: 'string' } }, correctIndex: { type: 'integer', enum: [0, 1, 2, 3] },
+    explanation: { type: 'string' }, citations: { type: 'array', items: { type: 'integer', enum: Array.from({ length: count }, (_, i) => i + 1) } }
+  }, required: ['prompt', 'options', 'correctIndex', 'explanation', 'citations'], additionalProperties: false };
+  return { type: 'object', properties: { title: { type: 'string' }, questions: { type: 'array', items: question } }, required: ['title', 'questions'], additionalProperties: false };
+}
+
+export function quizFromResult(value, request, provider, now = new Date()) {
+  const validString = (value, max) => typeof value === 'string' && value.trim() && value.length <= max;
+  if (!value || !validString(value.title, 120) || /[\r\n]/u.test(value.title) || !Array.isArray(value.questions)
+      || value.questions.length < 1 || value.questions.length > request.count) throw new RequestFailure(502, 'invalid_quiz');
+  const questions = value.questions.map(q => {
+    if (!q || !validString(q.prompt, 1000) || !validString(q.explanation, 2000) || !Array.isArray(q.options) || q.options.length !== 4
+        || !q.options.every(s => validString(s, 500)) || new Set(q.options.map(s => s.trim().normalize('NFKC').toLowerCase())).size !== 4
+        || !Number.isInteger(q.correctIndex) || q.correctIndex < 0 || q.correctIndex > 3) throw new RequestFailure(502, 'invalid_quiz_question');
+    const sourceRequest = { ...request, task: 'quiz' };
+    const prompt = artifactFromResult({ text: q.prompt, citations: q.citations }, sourceRequest, provider, now);
+    const remap = text => artifactFromResult({ text, citations: q.citations }, sourceRequest, provider, now).text;
+    return { id: randomUUID(), prompt: prompt.text, options: q.options.map(remap), correctIndex: q.correctIndex,
+      explanation: remap(q.explanation), references: prompt.references };
+  });
+  return { id: randomUUID(), title: value.title.trim(), questions, provider, createdAt: now.toISOString().replace(/\.\d{3}Z$/, 'Z') };
+}
+
 export function lookupFromResult(result, request, provider, now = new Date()) {
   const shortList = value => Array.isArray(value) && value.length <= 5 && value.every(s => typeof s === 'string' && s.trim() && s.length <= 1000);
   if (!result || typeof result.term !== 'string' || result.term.trim().normalize('NFKC').toLowerCase() !== request.term.normalize('NFKC').toLowerCase()
@@ -144,6 +175,23 @@ export class ResponsesAdapter {
     try { result = JSON.parse(content.filter(item => item.type === 'output_text').map(item => item.text).join('')); }
     catch { throw new RequestFailure(502, 'invalid_provider_response'); }
     return lookupFromResult(result, request, `${this.name} / ${this.model}`);
+  }
+  async quiz(request, signal) {
+    const body = { model: this.model, store: false, max_output_tokens: this.maxOutputTokens,
+      instructions: instructions + '\nCrea un quiz con al massimo count domande sulle fonti. Ogni domanda ha esattamente quattro opzioni diverse, una sola corretta (correctIndex da 0 a 3), spiegazione e citations. Evita risposte ambigue, indizi sulla risposta e fatti non supportati. Se le fonti non bastano crea meno domande; non inventare.',
+      input: [{ role: 'user', content: JSON.stringify({ count: request.count, sources: request.sources.map((s, i) => ({ id: i + 1, text: s.text })) }) }],
+      text: { format: { type: 'json_schema', name: 'neuralnotes_quiz', strict: true, schema: quizSchema(request.sources.length) } } };
+    const response = await this.transport(this.url, { method: 'POST', redirect: 'error', signal,
+      headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!response.ok) { await response.body?.cancel(); throw new RequestFailure(response.status === 429 ? 429 : 502, 'provider_unavailable'); }
+    const data = await boundedJSON(response);
+    if (data.status !== 'completed' || !Array.isArray(data.output)) throw new RequestFailure(502, 'provider_incomplete');
+    const content = data.output.flatMap(item => item?.type === 'message' && Array.isArray(item.content) ? item.content : []);
+    if (content.some(item => item.type === 'refusal')) throw new RequestFailure(422, 'provider_refusal');
+    let result;
+    try { result = JSON.parse(content.filter(item => item.type === 'output_text').map(item => item.text).join('')); }
+    catch { throw new RequestFailure(502, 'invalid_provider_response'); }
+    return quizFromResult(result, request, `${this.name} / ${this.model}`);
   }
   async generate(request, signal) {
     const body = {
@@ -227,8 +275,8 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
     let counted = false;
     try {
       if (req.method === 'GET' && req.url === '/health') { reply(200, { status: 'ok' }); return; }
-      const lookup = req.url === '/v1/lookup';
-      if (req.method !== 'POST' || (!lookup && req.url !== '/v1/study')) throw new RequestFailure(404, 'not_found');
+      const lookup = req.url === '/v1/lookup', quiz = req.url === '/v1/quiz';
+      if (req.method !== 'POST' || (!lookup && !quiz && req.url !== '/v1/study')) throw new RequestFailure(404, 'not_found');
       const subject = verifyToken(secret, String(req.headers.authorization ?? '').replace(/^Bearer /, ''));
       if (!subject) throw new RequestFailure(401, 'unauthorized');
       if (!limiter.take(subject)) throw new RequestFailure(429, 'request_limit');
@@ -248,13 +296,14 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
       let data;
       try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { throw new RequestFailure(400, 'invalid_json'); }
-      const request = lookup ? validateLookupRequest(data) : validateRequest(data);
+      const request = lookup ? validateLookupRequest(data) : quiz ? validateQuizRequest(data) : validateRequest(data);
       const cancelled = new AbortController();
       res.on('close', () => { if (!res.writableEnded) cancelled.abort(); });
       const signal = AbortSignal.any([cancelled.signal, AbortSignal.timeout(timeoutMs)]);
-      if (lookup) {
-        if (typeof adapter.lookup !== 'function') throw new RequestFailure(503, 'lookup_unavailable');
-        reply(200, await adapter.lookup(request, signal)); return;
+      if (lookup || quiz) {
+        const method = lookup ? 'lookup' : 'quiz';
+        if (typeof adapter[method] !== 'function') throw new RequestFailure(503, `${method}_unavailable`);
+        reply(200, await adapter[method](request, signal)); return;
       }
       if (req.headers.accept === 'application/x-ndjson' && typeof adapter.generateStream === 'function') {
         res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff' });

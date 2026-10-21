@@ -1,6 +1,6 @@
 # Contratto del backend AI — non ancora distribuito
 
-La 0.3 contiene il client e un [server Node con adapter Responses](../backend/README.md). Il server ha sette test locali superati; nessuna chiave, account, modello o endpoint di produzione è stato configurato. Nessuna chiamata provider è stata eseguita per la consegna. La sintesi estrattiva locale funziona senza questo servizio.
+Il progetto contiene il client e un [server Node con adapter Responses](../backend/README.md). Il server ha 19 test locali superati; nessuna chiave, account, modello o endpoint di produzione è stato configurato. Nessuna chiamata provider è stata eseguita per la consegna. La sintesi estrattiva locale funziona senza questo servizio.
 
 ## Endpoint e autenticazione
 
@@ -23,7 +23,9 @@ Esempio di richiesta strutturale, non una chiamata eseguita:
 }
 ```
 
-Task supportati dal contratto: `summarize`, `outline`, `flashcards`, `quiz`, `chat`, `compare`. Gli attuali chunk possono riferirsi a pagina/revisione oppure a `audioSessionID`/`seconds`. Il client seleziona fino a 40 chunk tramite retrieval lessicale o, se abilitato e disponibile, embedding locale. Non invia PDF, immagini o audio binari a questo endpoint: OCR/trascrizione devono essere eseguiti prima.
+Task supportati dal contratto: `summarize`, `outline`, `flashcards`, `quiz`, `chat`, `compare`. Gli attuali chunk possono riferirsi a pagina/revisione oppure a `audioSessionID`/`seconds`. Il pannello Studio seleziona fino a 40 estratti tramite retrieval lessicale o, se abilitato e disponibile, embedding locale; senza domanda li distribuisce lungo l’intero indice. Il budget è di 80.000 unità UTF-16, fino a 8.000 per estratto, senza spezzare i caratteri Unicode. Non equivale a leggere integralmente un documento grande. Non invia PDF, immagini o audio binari a questo endpoint: OCR/trascrizione devono essere eseguiti prima.
+
+Le risposte strutturate per definizioni e quiz hanno endpoint separati `/v1/lookup` e `/v1/quiz`, descritti nel README del backend. Il quiz interattivo usa `QuizBank`; il vecchio task `quiz` di study produce invece un’elaborazione testuale.
 
 Risposta HTTP 200 conforme a `AIArtifact`:
 

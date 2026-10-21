@@ -60,6 +60,7 @@ extension EditorViewModel {
         workspaces.profiles.removeAll { $0.id == id }; selectWorkspace(workspaces.profiles[0].id)
     }
     func chooseTool(_ item: WorkspaceTool) {
+        laserActive = false
         guard !hasActiveStroke else { return }
         if item == .ruler {
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }

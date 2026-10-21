@@ -4,7 +4,7 @@ import NeuralNotesCore
 @MainActor
 struct GlobalSearchPanel: View {
     let library: LibraryViewModel
-    let open: (Notebook, SourceReference) -> Void
+    let open: (Notebook, SourceReference, String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var hits: [Hit] = []
@@ -14,6 +14,7 @@ struct GlobalSearchPanel: View {
     @State private var onlyFolder = false
     @State private var indexer = LibraryOCRIndexer()
     @AppStorage("search.automaticOCR") private var automaticOCR = true
+    @AppStorage("search.spotlight") private var spotlight = false
     private struct Hit: Identifiable {
         let id: Int
         let notebook: Notebook
@@ -23,6 +24,9 @@ struct GlobalSearchPanel: View {
         NavigationStack {
             List {
                 Toggle("Indicizza la grafia nelle pause di scrittura", isOn: $automaticOCR)
+                Toggle("Quaderni in Spotlight", isOn: $spotlight)
+                Text("Spotlight usa soltanto titoli e tag dei quaderni. Il testo degli appunti resta nella ricerca interna.").font(.caption).foregroundStyle(.secondary)
+                if !SpotlightIndexer.shared.message.isEmpty { Text(SpotlightIndexer.shared.message).font(.caption).foregroundStyle(.secondary) }
                 DisclosureGroup("Grafia dei quaderni precedenti") {
                     Button(indexer.running ? "Sospendi indicizzazione" : "Indicizza i quaderni esistenti", systemImage: indexer.running ? "pause.circle" : "text.viewfinder") { if indexer.running { indexer.stop() } else { indexer.start(library) } }
                     if !indexer.status.isEmpty { Text(indexer.status).font(.caption).foregroundStyle(.secondary) }
@@ -37,7 +41,7 @@ struct GlobalSearchPanel: View {
                 if let error { Text(error).foregroundStyle(.orange) }
                 ForEach(hits) { hit in
                     Button {
-                        dismiss(); open(hit.notebook, hit.chunk.reference)
+                        dismiss(); open(hit.notebook, hit.chunk.reference, query)
                     } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(hit.notebook.title).font(.headline)
@@ -50,6 +54,7 @@ struct GlobalSearchPanel: View {
                 if !busy && hits.isEmpty { Text(query.count < 2 ? "Cerca almeno due caratteri in testi, PDF, OCR e trascrizioni di tutti i quaderni." : "Nessun risultato.").foregroundStyle(.secondary) }
             }.navigationTitle("Cerca negli appunti")
                 .searchable(text: $query, prompt: "Tutti i quaderni")
+                .task(id: spotlight) { await SpotlightIndexer.shared.update(library) }
                 .task(id: query + "|" + (kind?.rawValue ?? "all") + "|\(onlyFolder)") { await search() }
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
                 .onDisappear { indexer.stop() }

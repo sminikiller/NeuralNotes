@@ -6,6 +6,87 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class StudyWorkspaceIntegrationTests: XCTestCase {
+    @MainActor func testCutImageClipboardSurvivesRemovalOfTheSourceMedia() async throws {
+        try await fixture { model in
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8), format: format).image { context in UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 8, height: 8)) }
+            let bytes = try XCTUnwrap(image.pngData()), file = try await model.workspace.storeImage(bytes)
+            let element = ImageElement(file: file, width: 80, height: 80)
+            model.addImage(element); model.cutSelection()
+            XCTAssertTrue(model.page?.images.isEmpty == true)
+            try FileManager.default.removeItem(at: model.workspace.package.appendingPathComponent(file))
+            await model.pasteSelection()
+            let pasted = try XCTUnwrap(model.page?.images.first)
+            XCTAssertNotEqual(pasted.file, file)
+            XCTAssertEqual(try Data(contentsOf: model.workspace.package.appendingPathComponent(pasted.file)), bytes)
+        }
+    }
+    @MainActor func testEmbeddedRoadmapChecksUseIsolatedDocuments() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try await RoadmapDiagnostics.pageBatch(root: root.appendingPathComponent("batch"))
+        try await RoadmapDiagnostics.quiz(root: root.appendingPathComponent("quiz"))
+        try RoadmapDiagnostics.sourcesAndMaps()
+        try await RoadmapDiagnostics.editor(root: root.appendingPathComponent("editor"))
+    }
+    @MainActor func testSearchLocatesFormattedRotatedTextAndLaserNeverChangesDrawing() async throws {
+        let value = NSMutableAttributedString(string: "Energia e quantità", attributes: [.font: UIFont.boldSystemFont(ofSize: 24)])
+        var text = TextElement(text: value.string); text.rtf = RichText.data(value); text.rotation = 20
+        let boxes = RichText.matchingRects("QUANTITA", in: text, pageHeight: 1024)
+        XCTAssertFalse(boxes.isEmpty); XCTAssertTrue(boxes.allSatisfy { !$0.isEmpty && !$0.isNull })
+        XCTAssertTrue(RichText.matchingRects("inesistente", in: text, pageHeight: 1024).isEmpty)
+        try await fixture { model in
+            let bytes = model.canvas.drawing.dataRepresentation()
+            model.setLaserActive(true); XCTAssertTrue(model.laserActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), bytes)
+            model.chooseTool(.pen); XCTAssertFalse(model.laserActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+        }
+    }
+    @MainActor func testFailedCutRetainsAllOriginalInkAndObjects() async throws {
+        try await fixture { model in
+            model.editText([TextElement(text: "Non perdere")]); model.strokeBegan()
+            model.canvas.drawing = PKDrawing(strokes: [stroke()]); model.strokeEnded(); model.finishInkGesture(); model.selectAll()
+            let before = model.canvas.drawing.dataRepresentation(), texts = model.page?.texts
+            model.cutSelection(maximumBytes: 1)
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), before); XCTAssertEqual(model.page?.texts, texts); XCTAssertNotNil(model.error)
+        }
+    }
+    @MainActor func testSelectionMoveHasOneUndoAndKeepsAudioAnchorsWithRepeatedCreationDates() async throws {
+        try await fixture { model in
+            let sourceID = try XCTUnwrap(model.page?.id), ink = stroke()
+            let second = PKStroke(ink: ink.ink, path: ink.path, transform: CGAffineTransform(translationX: 0, y: 30))
+            let note = TextElement(text: "Trasferisci")
+            model.editText([note]); model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [ink, second]); model.strokeEnded(); model.finishInkGesture()
+            var session = AudioSession(title: "Fonte")
+            var segment = AudioTimelineSegment(file: "audio/move.caf", start: 0, hostStart: 0); segment.duration = 10; session.segments = [segment]
+            let file = try await model.workspace.url(segment.file); try Data([1]).write(to: file); try await model.workspace.saveSession(session)
+            let signatures = EditorInkSignatures.make(model.canvas.drawing)
+            model.page?.anchors = [StrokeAnchor(signature: signatures[0], audioSessionID: session.id, seconds: 1), StrokeAnchor(signature: signatures[1], audioSessionID: session.id, seconds: 2)]
+            model.drawingChanged(); await model.addPage(); let destinationID = try XCTUnwrap(model.page?.id)
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [ink]); model.strokeEnded(); model.finishInkGesture()
+            let source = try await model.workspace.pageSnapshot(sourceID); await model.select(source)
+            model.selectedIDs = [note.id]; model.selectionIncludesInk = true; model.selectedStrokeIndices = [0]
+            await model.moveSelection(to: destinationID)
+            XCTAssertEqual(model.page?.id, destinationID); XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+            XCTAssertEqual(model.page?.texts.first?.text, note.text); XCTAssertEqual(model.page?.anchors.first?.seconds, 1)
+            XCTAssertEqual(model.page?.anchors.first?.signature, EditorInkSignatures.make(model.canvas.drawing)[1])
+            let remaining = try await model.workspace.pageSnapshot(sourceID)
+            XCTAssertTrue(remaining.texts.isEmpty); XCTAssertEqual(remaining.anchors.first?.seconds, 2)
+            await model.performUndo(); XCTAssertEqual(model.page?.id, sourceID); XCTAssertEqual(model.canvas.drawing.strokes.count, 2); XCTAssertEqual(model.page?.texts, [note])
+            await model.performRedo(); XCTAssertEqual(model.page?.id, destinationID); XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+        }
+    }
+    @MainActor func testPDFDropImportsFreshPagesAndPreservesOriginalNotes() async throws {
+        try await fixture { model in
+            model.editText([TextElement(text: "Originale da conservare")]); let original = try XCTUnwrap(model.page?.id)
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).pdf"); defer { try? FileManager.default.removeItem(at: file) }
+            try pdf().write(to: file)
+            let provider = try XCTUnwrap(NSItemProvider(contentsOf: file))
+            await PageDrop.insert([provider], at: CGPoint(x: 50, y: 50), model: model)
+            XCTAssertEqual(model.pages.count, 2); XCTAssertNotNil(model.page?.pdfFile); XCTAssertTrue(model.page?.texts.isEmpty == true)
+            let retained = try await model.workspace.pageSnapshot(original); XCTAssertEqual(retained.texts.first?.text, "Originale da conservare")
+        }
+    }
     @MainActor func testFollowingPageSourceFlushesPendingInkAndSupportsUndoOfLinkInsertion() async throws {
         try await fixture { model in
             let origin = try XCTUnwrap(model.page)

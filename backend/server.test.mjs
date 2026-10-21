@@ -1,8 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
+import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
 import { partialText } from './streaming.mjs';
+
+function quizRequest() { return { count: 4, sources: request().sources }; }
+function quizResult() { return { title: 'Ripasso', questions: [{ prompt: 'Domanda [1]', options: ['Uno', 'Due', 'Tre', 'Quattro'], correctIndex: 1, explanation: 'Spiegazione [1]', citations: [1] }] }; }
+
+test('quiz validates source bounds and never accepts invented references or ambiguous answer indexes', () => {
+  assert.equal(validateQuizRequest(quizRequest()).count, 4);
+  for (const count of [0, 13, 1.5, '4']) assert.throws(() => validateQuizRequest({ ...quizRequest(), count }));
+  const value = quizFromResult(quizResult(), quizRequest(), 'fixture');
+  assert.deepEqual(value.questions[0].references, request().sources.map(s => s.reference));
+  for (const mutation of [{ correctIndex: 4 }, { correctIndex: -1 }, { options: ['A', ' a ', 'C', 'D'] }, { options: ['A', 'B', 'C'] }, { explanation: 'Inventato [2]' }, { citations: [99] }]) {
+    assert.throws(() => quizFromResult({ ...quizResult(), questions: [{ ...quizResult().questions[0], ...mutation }] }, quizRequest(), 'fixture'));
+  }
+  assert.throws(() => quizFromResult({ title: 'Vuoto', questions: [] }, quizRequest(), 'fixture'));
+});
+
+test('quiz adapter requires a completed strict structured response without provider identity fields', async () => {
+  const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async (_url, options) => {
+    const body = JSON.parse(options.body); assert.equal(body.store, false); assert.equal(options.redirect, 'error');
+    assert.equal(body.text.format.name, 'neuralnotes_quiz'); assert.equal(body.text.format.strict, true);
+    assert.equal(JSON.parse(body.input[0].content).count, 4);
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(quizResult()) }] }] });
+  });
+  const value = await adapter.quiz(quizRequest(), new AbortController().signal);
+  assert.equal(value.questions[0].correctIndex, 1); assert.match(value.id, /^[0-9a-f-]{36}$/);
+  for (const data of [{ status: 'incomplete', output: [] }, { status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal' }] }] }]) {
+    const refused = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async () => Response.json(data));
+    await assert.rejects(refused.quiz(quizRequest(), new AbortController().signal));
+  }
+});
+
+test('quiz HTTP shares authorization and quotas and does not invoke the provider for invalid input', async () => {
+  let calls = 0;
+  const server = createApp({ secret, adapter: { async quiz(input) { calls++; return quizFromResult(quizResult(), input, 'fixture'); } }, limiter: new UsageLimiter({ perMinute: 3 }) });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}/v1/quiz`;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    let response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(quizRequest()) }); assert.equal(response.status, 401); await response.body.cancel();
+    headers.Authorization = `Bearer ${issueToken(secret, 'quiz-tester', Math.floor(Date.now() / 1000) + 60)}`;
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...quizRequest(), count: 99 }) }); assert.equal(response.status, 400); await response.body.cancel(); assert.equal(calls, 0);
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(quizRequest()) }); assert.equal(response.status, 200); assert.equal((await response.json()).questions.length, 1); assert.equal(calls, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
 
 function lookupRequest() { return { term: 'Entropia', sources: request().sources }; }
 function lookupResult() { return { term: 'Entropia', definition: 'Definizione dalle fonti [1]', explanation: 'Spiegazione [1]', examples: ['Esempio [1]'], relatedTerms: ['Calore'], citations: [1] }; }

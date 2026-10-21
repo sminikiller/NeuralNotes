@@ -4,9 +4,7 @@ import NeuralNotesCore
 
 @MainActor
 private enum EditorClipboard {
-    static var page: PageSnapshot?
-    static var drawing: Data?
-    static var package: URL?
+    static var current: SelectionSnapshot?
 }
 
 @MainActor
@@ -31,8 +29,9 @@ extension EditorViewModel {
             }
         }
     }
-    func copySelection() {
-        guard var copy = page else { return }
+    @discardableResult
+    func copySelection(maximumBytes: Int = 32 * 1024 * 1024) -> Bool {
+        guard var copy = page, !selectedIDs.isEmpty || selectionIncludesInk else { return false }
         copy.texts.removeAll { !selectedIDs.contains($0.id) }; copy.images.removeAll { !selectedIDs.contains($0.id) }
         copy.shapes = copy.shapes?.filter { selectedIDs.contains($0.id) }
         copy.tapes = copy.tapes?.filter { selectedIDs.contains($0.id) }; copy.pruneObjectReferences()
@@ -40,20 +39,29 @@ extension EditorViewModel {
         if let selectedStrokeIndices { drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
         else { drawing = canvas.drawing }
         let bytes = selectionIncludesInk ? drawing.dataRepresentation() : nil
-        guard (bytes?.count ?? 0) <= 32 * 1024 * 1024 else { error = "Selezione troppo grande per gli appunti interni. Copia una parte più piccola."; return }
-        EditorClipboard.page = copy; EditorClipboard.drawing = bytes; EditorClipboard.package = workspace.package
+        do { EditorClipboard.current = try SelectionSnapshot(page: copy, drawing: bytes, source: workspace.package, maximumBytes: maximumBytes) }
+        catch { error = "Selezione non copiata: controlla che i media esistano e scegli una parte più piccola (limite \(max(0, maximumBytes) / (1024 * 1024)) MB). Gli originali restano nel foglio."; return false }
         status = "Selezione copiata"
+        return true
+    }
+    func cutSelection(maximumBytes: Int = 32 * 1024 * 1024) {
+        if copySelection(maximumBytes: maximumBytes) { deleteSelectedObject() }
     }
     func pasteSelection() async {
-        guard hasLease, !navigating, !hasActiveStroke else { return }
-        guard var copy = EditorClipboard.page, let source = EditorClipboard.package else { return }
+        finishInkGesture(); endTextEdit()
+        guard hasLease, !loading, !navigating, !hasActiveStroke, page != nil else { return }
+        // Keep this snapshot alive across awaits even if another window copies
+        // a different selection while the media are being pasted.
+        guard let clipboard = EditorClipboard.current else { return }
+        defer { withExtendedLifetime(clipboard) { } }
+        var copy = clipboard.page; let source = clipboard.package
         copy.renewObjectIDs()
         navigating = true; defer { navigating = false }
-        let before = captureEdit(ink: EditorClipboard.drawing != nil)
+        let before = captureEdit(ink: clipboard.drawing != nil)
         do {
             // Decode before mutating page objects: a corrupt clipboard must not
             // leave a partially pasted page that was never marked dirty.
-            let copiedDrawing = try EditorClipboard.drawing.map { try PKDrawing(data: $0) }
+            let copiedDrawing = try clipboard.drawing.map { try PKDrawing(data: $0) }
             var images = copy.images
             if source != workspace.package {
                 for i in images.indices {

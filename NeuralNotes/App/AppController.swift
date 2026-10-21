@@ -5,6 +5,7 @@ import NeuralNotesCore
 
 @MainActor @Observable
 final class AppController {
+    static let shared = AppController()
     var library: LibraryViewModel?
     var startupError: String?
     private var repository: SwiftDataLibraryRepository?

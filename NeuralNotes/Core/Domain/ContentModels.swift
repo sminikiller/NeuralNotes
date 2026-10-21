@@ -147,5 +147,7 @@ public struct DocumentCatalog: Codable, Sendable {
     public var lensCache: [CachedLensAnswer]?
     public var sections: [NotebookSection]?
     public var reviewLog: [StudyReviewEvent]?
+    public var activeQuiz: QuizRun?
+    public var quizHistory: [QuizRun]?
     public init() { }
 }

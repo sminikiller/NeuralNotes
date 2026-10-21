@@ -12,6 +12,8 @@ final class CanvasHost: UIView {
     let foregroundObjects = ForegroundObjectsView()
     let inkReplay = InkReplayOverlay()
     let zoomNavigator = ZoomNavigator()
+    let laserPointer = LaserPointerOverlay()
+    let searchHighlight = SearchHighlightOverlay()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -46,6 +48,8 @@ final class CanvasHost: UIView {
         pullHint.isUserInteractionEnabled = false; addSubview(pullHint)
         inputShield.isUserInteractionEnabled = true; inputShield.isOpaque = false; addSubview(inputShield)
         addSubview(zoomNavigator)
+        insertSubview(searchHighlight, belowSubview: zoomNavigator)
+        addSubview(laserPointer)
     }
     required init?(coder: NSCoder) { return nil }
 
@@ -76,7 +80,7 @@ final class CanvasHost: UIView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        if let model, let flow, flow.enabled, let touch = event?.allTouches?.first(where: { touch in
+        if let model, !model.laserActive, let flow, flow.enabled, let touch = event?.allTouches?.first(where: { touch in
             let at = touch.location(in: self)
             return touch.phase == .began && hypot(at.x - point.x, at.y - point.y) < 2
         }), touch.type == .pencil || (model.fingerDrawing && touch.type == .direct) {
@@ -152,7 +156,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); zoomNavigator.update(self) }
+        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); laserPointer.update(self); zoomNavigator.update(self) }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)

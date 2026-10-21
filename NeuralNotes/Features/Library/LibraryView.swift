@@ -2,9 +2,10 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import NeuralNotesCore
+import CoreSpotlight
 
 private enum LibrarySheet: Identifiable {
-    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook)
+    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook), help
     var id: String {
         switch self {
         case .createNotebook: return "new-notebook"
@@ -18,6 +19,7 @@ private enum LibrarySheet: Identifiable {
         case .search: return "search"
         case .cloud: return "cloud"
         case .organization(let book): return "organization-\(book.id)"
+        case .help: return "help"
         }
     }
 }
@@ -29,7 +31,8 @@ struct LibraryView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("library.usesGrid") private var usesGrid = true
     @AppStorage("library.sort") private var persistedSort = LibrarySort.modified.rawValue
-    @State private var pendingSearch: (Notebook, SourceReference)?
+    @State private var pendingSearch: (Notebook, SourceReference, String)?
+    @State private var pendingSpotlight: UUID?
     @State private var sheet: LibrarySheet?
     @State private var pendingDeletion: Notebook?
     @State private var pendingFolderDeletion: LibraryFolder?
@@ -54,7 +57,10 @@ struct LibraryView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .task(id: model.notebooks.map { "\($0.id)|\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: ",")) { await model.loadOrganization() }
+        .task(id: model.notebooks.map { "\($0.id)|\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: ",")) {
+            await model.loadOrganization()
+            if UserDefaults.standard.bool(forKey: "search.spotlight") { await SpotlightIndexer.shared.update(model) }
+        }
         .task {
             guard !checkedResume else { return }; checkedResume = true
             await Task.yield()
@@ -75,9 +81,14 @@ struct LibraryView: View {
                 }
             }
         }
-        .fullScreenCover(item: $resumeNotebook, onDismiss: { resumeEditor = nil }) { notebook in
+        .fullScreenCover(item: $resumeNotebook, onDismiss: { resumeEditor = nil; openPendingSpotlight() }) { notebook in
             if let resumeEditor {
                 NotebookDesk(notebook: notebook, model: resumeEditor, library: model)
+            }
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            if let value = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String, let id = SystemSearchIdentity.documentID(from: value) {
+                pendingSpotlight = id; openPendingSpotlight()
             }
         }
         .task(id: cloudAutomatic) {
@@ -106,8 +117,9 @@ struct LibraryView: View {
             case .recovery: RecoveryPanel(library: model)
             case .cloud: CloudSyncPanel(library: model)
             case .organization(let book): NotebookOrganizationPanel(library: model, notebook: book)
+            case .help: QuickGuidePanel()
             case .search:
-                GlobalSearchPanel(library: model) { book, reference in pendingSearch = (book, reference) }
+                GlobalSearchPanel(library: model) { book, reference, query in pendingSearch = (book, reference, query) }
             }
         }
         .alert("Operazione non riuscita", isPresented: Binding(
@@ -139,11 +151,21 @@ struct LibraryView: View {
         }
         .onChange(of: model.sort) { _, value in persistedSort = value.rawValue }
         .onAppear { model.sort = LibrarySort(rawValue: persistedSort) ?? .modified }
+        .task {
+            if !UserDefaults.standard.bool(forKey: "onboarding.completed"), model.notebooks.isEmpty,
+               !ProcessInfo.processInfo.arguments.contains("--ui-testing"), sheet == nil { sheet = .help }
+        }
     }
 
     private func openImmediately(_ book: Notebook) {
         do { resumeEditor = EditorViewModel(workspace: try model.workspace(book)); resumeNotebook = book }
         catch { model.errorMessage = error.localizedDescription }
+    }
+    private func openPendingSpotlight() {
+        guard resumeNotebook == nil, let id = pendingSpotlight else { return }
+        pendingSpotlight = nil
+        if let book = model.notebooks.first(where: { $0.documentID == id }) { openImmediately(book) }
+        else { model.errorMessage = "Il quaderno trovato da Spotlight non è più in questa libreria." }
     }
 
     private var sidebar: some View {
@@ -187,6 +209,7 @@ struct LibraryView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
                 Button { sheet = .cloud } label: { Label("Sincronizzazione iCloud", systemImage: "icloud") }
+                Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }
@@ -201,12 +224,12 @@ struct LibraryView: View {
     }
 
     private func finishSearch() {
-        guard let (book, reference) = pendingSearch else { return }; pendingSearch = nil
+        guard let (book, reference, query) = pendingSearch else { return }; pendingSearch = nil
         Task {
             do {
                 let editor = EditorViewModel(workspace: try model.workspace(book)); await editor.open()
                 guard editor.hasLease, editor.page != nil else { model.errorMessage = editor.error; _ = await editor.close(); return }
-                if let id = reference.pageID, let page = editor.pages.first(where: { $0.id == id }) { await editor.select(page) }
+                if let id = reference.pageID, let page = editor.pages.first(where: { $0.id == id }) { await editor.select(page); if editor.page?.id == id { editor.searchFocus = SearchFocusRequest(pageID: id, query: String(query.prefix(200))) } }
                 if let id = reference.audioSessionID, let session = editor.audio?.sessions.first(where: { $0.id == id }) { await editor.audio?.play(session, at: reference.seconds ?? 0) }
                 resumeEditor = editor; resumeNotebook = book
             } catch { model.errorMessage = error.localizedDescription }

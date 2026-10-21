@@ -12,6 +12,7 @@ enum PageRenderer {
         context.setFillColor(paperColor.cgColor); context.fill(rect)
         if let file = page.pdfFile, let index = page.pdfIndex,
            let document = DocumentRenderCache.shared.pdf(package.appendingPathComponent(file)),
+           index >= 0, index < document.numberOfPages,
            let pdf = document.page(at: index + 1) {
             context.saveGState()
             context.translateBy(x: 0, y: rect.height); context.scaleBy(x: 1, y: -1)

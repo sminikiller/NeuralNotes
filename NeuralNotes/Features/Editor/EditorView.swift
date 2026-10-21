@@ -42,7 +42,7 @@ struct EditorView: View {
             VStack(spacing: 0) {
                 if model.page != nil {
                     DocumentPageViewport(model: model).allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
-                        .onDrop(of: [.image, .text, .url], isTargeted: nil) { providers, location in
+                        .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
                             let point = (model.pagePresenter as? CanvasHost)?.surface.convert(location, from: model.pagePresenter as? CanvasHost) ?? location
                             Task { await PageDrop.insert(providers, at: point, model: model) }; return model.hasLease
                         }
@@ -109,6 +109,7 @@ struct EditorView: View {
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
                         Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
+                        Toggle("Puntatore laser", systemImage: "scope", isOn: Binding(get: { model.laserActive }, set: { model.setLaserActive($0) })).disabled(model.interactionBusy)
                         Menu("Inserisci", systemImage: "plus.circle") {
                             Button("Testi e immagini", systemImage: "textformat") { panel = .elements }
                             Button("Scatta foto", systemImage: "camera") { Task { await openCamera() } }

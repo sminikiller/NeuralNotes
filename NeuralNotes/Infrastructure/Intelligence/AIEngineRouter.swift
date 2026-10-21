@@ -71,6 +71,24 @@ struct DirectAIProvider: AIProvider {
 
 @MainActor
 enum AIEngineRouter {
+    static func quiz(_ input: QuizRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> QuizBank {
+        guard input.isValid, let url = configuration.quizURL else { throw AIWireFailure.configuration }
+        let value: QuizBank = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
+        return try value.validated(for: input)
+    }
+    private static func backendStructured<T: Decodable>(body: Data, url: URL, configuration: AIEngineConfiguration, consentKey: String?) async throws -> T {
+        guard configuration.engine == .backend, consentKey == configuration.consentKey else { throw AIWireFailure.configuration }
+        let credential = EngineCredentials.load(.backend); guard !credential.isEmpty else { throw AIWireFailure.configuration }
+        var call = URLRequest(url: url); call.httpMethod = "POST"; call.timeoutInterval = 90
+        call.setValue("application/json", forHTTPHeaderField: "Content-Type"); call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization"); call.httpBody = body
+        let config = URLSessionConfiguration.ephemeral; config.urlCache = nil; config.httpShouldSetCookies = false
+        let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil); defer { session.invalidateAndCancel() }
+        let (bytes, response) = try await session.bytes(for: call)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw AIConnectionFailure.backend("Quiz non disponibile: controlla connessione, token e aggiornamento del backend /v1/quiz.") }
+        var data = Data()
+        for try await byte in bytes { try Task.checkCancellation(); guard data.count < DirectAIWire.maximumResponseBytes else { throw AIWireFailure.response }; data.append(byte) }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601; return try decoder.decode(T.self, from: data)
+    }
     static func lookup(_ input: LookupRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> LookupCard {
         guard input.isValid, consentKey == configuration.consentKey, let url = configuration.lookupURL else { throw AIWireFailure.configuration }
         let credential = EngineCredentials.load(.backend)

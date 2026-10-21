@@ -20,6 +20,7 @@ struct StudyPanel: View {
     @State private var job: Task<Void, Never>?
     @State private var semantic = false
     @State private var history: [AIArtifact] = []
+    @State private var contextNotice: String?
 
     var body: some View {
         NavigationStack {
@@ -27,6 +28,7 @@ struct StudyPanel: View {
                 Section("Fonti") {
                     Text("L’AI usa il testo digitato, il testo dei PDF, l’OCR e le trascrizioni già salvate. Esegui prima OCR sulle pagine scritte a mano.")
                         .font(.callout)
+                    Text("Invia al massimo 40 estratti entro 80.000 caratteri. Senza una domanda, li distribuisce dall’inizio alla fine; un documento grande viene campionato, non letto integralmente.").font(.caption).foregroundStyle(.secondary)
                     if notebook.folderID != nil { Toggle("Includi quaderni della stessa cartella", isOn: $includeFolder) }
                     Picker("Attività", selection: $task) {
                         ForEach(AITask.allCases, id: \.self) { value in Text(value.title).tag(value) }
@@ -43,7 +45,7 @@ struct StudyPanel: View {
                     if !history.isEmpty {
                         Menu("Elaborazioni salvate · \(history.count)") {
                             ForEach(history.reversed()) { artifact in
-                                Button("\(artifact.task?.title ?? "Elaborazione") · \(artifact.createdAt.formatted(date: .abbreviated, time: .shortened))") { result = artifact }
+                                Button("\(artifact.task?.title ?? "Elaborazione") · \(artifact.createdAt.formatted(date: .abbreviated, time: .shortened))") { result = artifact; contextNotice = nil }
                             }
                         }
                     }
@@ -52,6 +54,7 @@ struct StudyPanel: View {
                     }.disabled(busy || (configuration.engine != .offline && consentKey != configuration.consentKey))
                     if busy { Button("Annulla richiesta") { job?.cancel() } }
                 }
+                if let contextNotice { Section { Text(contextNotice).font(.caption).foregroundStyle(.secondary) } }
                 if let error { Section { Text(error).foregroundStyle(.red) } }
                 if let result {
                     if result.references.contains(where: { reference in
@@ -61,6 +64,12 @@ struct StudyPanel: View {
                     }) { Section { Text("Alcune pagine sono cambiate dopo questa elaborazione. Eseguila di nuovo per aggiornarla.").foregroundStyle(.secondary) } }
                     Section("Risposta · \(result.provider)") { Text(result.text).textSelection(.enabled) }
                     Section { ShareLink("Condividi elaborazione", item: result.text) }
+                    if result.task == .outline {
+                        Section {
+                            Button("Crea pagina mappa modificabile", systemImage: "point.3.connected.trianglepath.dotted") { Task { if await model.createMindMap(from: result) { dismiss() } } }
+                            Text("Disponi fino a otto punti dello schema come caselle e collegamenti modificabili, in una nuova pagina. Il testo originale resta nelle elaborazioni salvate.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     Section("Riferimenti restituiti") {
                         ForEach(Array(result.references.enumerated()), id: \.offset) { row in
                             Button(referenceTitle(row.element)) { Task { await openSource(row.element) } }.font(.caption)
@@ -82,7 +91,7 @@ struct StudyPanel: View {
     }
 
     private func generate() async {
-        busy = true; error = nil
+        busy = true; error = nil; contextNotice = nil
         defer { busy = false }
         do {
             guard await model.flush() else { return }
@@ -95,11 +104,17 @@ struct StudyPanel: View {
                 chunks += try await FileDocumentIndexingService(workspace: workspace, id: book.documentID).index(documentID: book.documentID)
             }
             guard !chunks.isEmpty else { error = "Non c’è testo da analizzare. Aggiungi testo, importa un PDF o esegui OCR/trascrizione."; return }
-            let selected: [IndexedChunk]
-            if semantic, !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                selected = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: question, from: chunks, limit: 40)
-            } else { selected = try await LexicalRetrievalService().retrieve(question: question, from: chunks, limit: 40) }
-            let request = AIRequest(task: task, question: question, sources: selected)
+            let selection: SourceContext
+            if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                selection = SourceContext.select(chunks, spread: true)
+            } else {
+                let ranked: [IndexedChunk]
+                if semantic { ranked = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: question, from: chunks, limit: 40) }
+                else { ranked = try await LexicalRetrievalService().retrieve(question: question, from: chunks, limit: 40) }
+                selection = SourceContext.select(ranked)
+            }
+            contextNotice = "\(selection.sources.count) estratti utilizzati su \(chunks.count) disponibili. Le fonti restano consultabili; \(selection.wasTruncated || chunks.count > selection.sources.count ? "il contesto è parziale" : "gli estratti rientrano interamente nel contesto")."
+            let request = AIRequest(task: task, question: question, sources: selection.sources)
             let artifact = try await AIEngineRouter.generate(request, configuration: configuration, consentKey: consentKey)
             try Task.checkCancellation()
             result = artifact

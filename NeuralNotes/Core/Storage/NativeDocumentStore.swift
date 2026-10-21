@@ -22,6 +22,11 @@ public struct NativeDocumentStore: Sendable {
             }
             try FileManager.default.moveItem(at: previous, to: destination)
         }
+        for package in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) where package.pathExtension == "nnbook" {
+            // A damaged journal belongs to one notebook. Keep it for diagnosis;
+            // opening that notebook reports the error without hiding the library.
+            try? PageBatchRecovery.recover(in: package)
+        }
     }
 
     public func packageURL(for documentID: UUID) -> URL {
@@ -60,7 +65,10 @@ public struct NativeDocumentStore: Sendable {
     }
 
     public func read(documentID: UUID, notebookID: UUID) throws -> DocumentManifest {
-        let data = try Data(contentsOf: packageURL(for: documentID).appendingPathComponent("manifest.json"))
+        try PageBatchRecovery.recover(in: packageURL(for: documentID))
+        let file = packageURL(for: documentID).appendingPathComponent("manifest.json")
+        guard (try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
+        let data = try Data(contentsOf: file)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         // Inspect the version before decoding the rest: a newer schema may change fields.

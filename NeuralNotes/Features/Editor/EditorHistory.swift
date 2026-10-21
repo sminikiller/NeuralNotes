@@ -14,6 +14,7 @@ struct EditorContentState: Equatable {
 enum EditorEdit {
     case content(EditorContentState, EditorContentState)
     case order([UUID], [UUID], UUID?, UUID?)
+    case pages([EditorContentState], [EditorContentState], UUID, UUID)
 }
 
 @MainActor
@@ -74,6 +75,19 @@ extension EditorViewModel {
                 pages = try await workspace.pages()
                 let selected = undo ? beforePage : afterPage
                 if let target = pages.first(where: { $0.id == selected }) ?? pages.first { try await load(target) }
+            case .pages(let before, let after, let beforeID, let afterID):
+                let targets = undo ? before : after
+                var changes: [PageMutation] = []
+                for target in targets {
+                    let latest = try await workspace.pageSnapshot(target.page.id)
+                    let bytes: Data
+                    if let stored = target.drawing { bytes = stored }
+                    else { bytes = try await workspace.drawing(latest) ?? PKDrawing().dataRepresentation() }
+                    changes.append(PageMutation(page: target.page, expectedRevision: latest.revision, drawing: bytes))
+                }
+                try await workspace.applyPageBatch(changes)
+                pages = try await workspace.pages()
+                if let target = pages.first(where: { $0.id == (undo ? beforeID : afterID) }) { try await load(target) }
             }
             if undo { history.didUndo() } else { history.didRedo() }
             status = "\(undo ? "Annullato" : "Ripristinato"): \(entry.label)"

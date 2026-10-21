@@ -4,6 +4,8 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
+Aggiornato alla **0.11.0/build 21**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_11_0.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+
 ## Difetti segnalati prima dei lotti
 
 | Voce | Intervento | Verifica |
@@ -33,15 +35,15 @@ Prima esecuzione Apple `39476567717`: tutti i 168 metodi unit/integrazione (due 
 4. Forme tenute: linea/ellisse/rettangolo presenti; aggiunti triangolo orientato e freccia con testa, con campioni nativi PencilKit.
 5. Gesti dita: aggiunti due dita per undo e tre per redo; menu contestuale oggetto con copia/duplica/livelli/blocco/Lente/elimina aggiunto.
 6. Pencil: aggiunti doppio tocco/squeeze/hover con verifica di disponibilità iOS 17.5 per l’hardware che li supporta; non sono disponibili sulla Pencil dell’iPad 10.
-7. Selezione: trasformazioni presenti; aggiunti lazo libero, copia area immagine, conversione OCR, spessore e azione AI diretta. Spostamento dedicato tra pagine ancora da completare; copia/incolla tra pagine/quaderni già presente.
+7. Selezione: trasformazioni presenti; aggiunti lazo libero, copia area immagine, conversione OCR, spessore e azione AI diretta. Aggiunto spostamento dedicato tra pagine con adattamento al foglio, anchor audio rimappati, transazione con journal e undo unico; copia/incolla tra pagine/quaderni già presente. Taglia ora elimina solo se la copia riesce, e duplica non riutilizza più gli appunti precedenti dopo una copia rifiutata.
 8. Testo: RTF presente; aggiunti continuazione degli elenchi e checklist azionabili senza entrare in modifica.
 9. Finestra zoom: aggiunto navigatore visivo separato, senza un secondo canvas scrivibile; finestra di scrittura ingrandita dedicata ancora da completare.
 10. Continuità: viewport unico presente; input freddo grande durante IO ancora protetto con attivazione differita.
-11. Presentazione: righello presente; laser/schermo esterno da aggiungere.
+11. Presentazione: righello presente; aggiunto laser temporaneo sullo schermo corrente, senza modificare l’inchiostro. Uscita dedicata su schermo esterno ancora da sviluppare.
 12. Nastro per ripasso: aggiunto, con svelamento sul foglio, undo, backup ed export.
 13. Post-it/timbri/livelli/blocco: aggiunti; oggetti sopra o sotto l’inchiostro, blocco della selezione e duplicazione con identità indipendenti.
 14. Carta: aggiunti Cornell, agenda settimanale, pentagramma, isometrico, millimetrato e mappa; aggiunto modello PDF personale per le pagine successive, senza riprendere gli appunti del modello.
-15. Scanner/drop/link: presenti; correzione media nel lotto iniziale e drop PDF da completare.
+15. Scanner/drop/link: presenti; correzione media nel lotto iniziale. Aggiunto drop PDF tramite copia del file mentre il provider lo rende disponibile, separato dall’import dei backup; drop immagini/testo/link verificano ancora la pagina e lo stato dell’input dopo le attese. Se la pagina è occupata, l’errore è esplicito. Prove con app sorgenti reali ancora aperte.
 
 ## Fase 2 — Lente e account AI
 
@@ -51,11 +53,11 @@ Sono state consultate le fonti ufficiali OpenAI [sign-in](https://developers.ope
 
 ## Fase 3 — ricerca e organizzazione
 
-1. Ricerca globale: presente; aggiunti filtri testo/PDF/grafia/audio/glossario e cartella, con anteprima centrata sulla corrispondenza e testo evidenziato. Posizione grafica sul canvas da completare.
+1. Ricerca globale: presente; aggiunti filtri testo/PDF/grafia/audio/glossario e cartella, con anteprima centrata sulla corrispondenza e testo evidenziato. Aggiunte posizioni sul canvas tramite impaginazione del testo formattato e fallback Vision sulle regioni del foglio; l’evidenziazione derivata non modifica gli appunti. Ricerca interna ritardata di 200 ms e risultati obsoleti scartati. Il fallback OCR può evidenziare l’intera riga, non la singola parola.
 2. OCR: cache di revisione e indicizzazione nelle pause presenti; aggiunta scansione controllata dei quaderni preesistenti, una pagina per volta, annullabile e riprendibile per revisione; esclusione degli editor aperti.
 3. Libreria: recenti/copertine/cartelle presenti; aggiunti tag portabili nel quaderno, pin e Inbox con nota rapida. Aggiunti colori alle cartelle come preferenza locale della libreria, senza migrare SwiftData. La portabilità/sincronizzazione del colore insieme alle cartelle resta da completare.
 4. Struttura: titoli/segnalibri/ordine presenti; aggiunte sezioni/sottosezioni con filtro e assegnazione dalle anteprime, collegamenti inseribili nel foglio ed elenco dei collegamenti in entrata. Identità rimappate in clone/import e metadati separati dall’inchiostro. I link verso altri quaderni richiedono ancora apertura manuale del quaderno di origine.
-5. Sistema: nota rapida/Inbox, Spotlight, App Intents e widget da sviluppare compatibilmente con i target di firma e il runner.
+5. Sistema: nota rapida/Inbox presente; aggiunti App Intent con titolo/testo facoltativo e App Shortcut, Spotlight opt-in limitato a titoli/tag, riapertura per identificativo del documento e cancellazione dell’indice quando disabilitato. Integrazioni non ancora compilate/provate con Apple. Widget ancora da sviluppare come target separato.
 6. Export: nativo/PDF/testo trascrizioni presenti; aggiunti PNG/JPG/Markdown, copia area selezionata e stampa.
 
 ## Fase 4 — PDF
@@ -69,9 +71,9 @@ Trascrizione lunga a finestre con checkpoint e isolamento di blocchi silenziosi/
 ## Fase 6 — studio
 
 1. Conversione grafia: OCR presente, aggiunta sostituzione della selezione, con undo; allineamento avanzato ancora da completare.
-2. Tutor: chat con fonti presente; ambiti cartella/materia e modalità interrogazione da completare.
-3. Ripasso: aggiunto FSRS-6 originale, sorgenti con commit fissato e test upstream, migrazione dei vecchi stati al primo ripasso. Aggiunti registro atomico dei ripassi, statistiche reali, serie giornaliera e previsione delle scadenze su calendario; i ripassi anteriori a questa versione non vengono inventati. Quiz generativi e simulazione d’esame da completare.
-4. Guide/mappe: sintesi estrattiva presente; guide generative e diagrammi modificabili da completare.
+2. Tutor: chat con fonti presente; il pannello Studio comprende già l’ambito della cartella e sottocartelle. Aggiunti quiz interattivi con spiegazioni nello studio e simulazione a tempo, risposte nascoste fino alla consegna e ripresa persistente. L’interrogazione conversazionale adattiva resta distinta e da completare.
+3. Ripasso: aggiunto FSRS-6 originale, sorgenti con commit fissato e test upstream, migrazione dei vecchi stati al primo ripasso. Aggiunti registro atomico dei ripassi, statistiche reali, serie giornaliera e previsione delle scadenze su calendario; i ripassi anteriori a questa versione non vengono inventati. Quiz locale con alternative ricavate dalle flashcard, più backend strutturato `/v1/quiz`, con quattro opzioni, citazioni verificate e massimo 12 domande. Risultati/progressi restano locali, storico limitato a dieci; generazione live e qualità didattica non provate.
+4. Guide/mappe: sintesi estrattiva presente; generazione remota di riassunti/schemi già disponibile nel pannello Studio quando il motore è configurato. Aggiunta conversione di uno schema in una nuova pagina con caselle e linee modificabili, fino a otto punti e riferimenti alle fonti; il testo completo resta nell’elaborazione. Senza domanda, il contesto viene campionato lungo tutto l’indice entro 40 estratti/80.000 unità UTF-16, con avviso di parzialità; non è una lettura integrale o una sbobina semantica completa.
 5. Matematica/immagini: OCR presente; LaTeX e verifica dei passaggi richiedono un motore configurato e valutazione sulle fonti.
 6. Ordine automatico: titoli/tag/Inbox da completare.
 7. Writing Tools: dipendono da hardware Apple Intelligence; il normale UITextView resta il fallback utilizzabile sull’iPad 10.
@@ -80,7 +82,21 @@ FSRS: [sorgente ufficiale](https://github.com/open-spaced-repetition/swift-fsrs)
 
 ## Fase 7 e aspetti trasversali
 
-CloudKit/conflitti predisposti nella 0.9; firma, contenitore e prova a due dispositivi ancora esterni. Cartelle/tombstone/outbox, condivisione di sola lettura, adattamento iPhone/Mac, primo avvio guidato, accessibilità e privacy di pubblicazione richiedono i rispettivi completamenti. Toolbar flottante, dock, focus, profili materia, icone/copertine e recenti sono già presenti. EventKit/orario lezioni e collegamenti automatici devono avere azioni esplicite e non creare eventi senza un comando dell’utente.
+CloudKit/conflitti predisposti nella 0.9; firma, contenitore e prova a due dispositivi ancora esterni. Cartelle/tombstone/outbox, condivisione di sola lettura, adattamento iPhone/Mac, audit completo di accessibilità e privacy di pubblicazione richiedono i rispettivi completamenti. Aggiunta guida iniziale adattiva, riapribile dalla sidebar; testi Dynamic Type ed elementi VoiceOver nelle nuove schede non equivalgono a un audit completo. Toolbar flottante, dock, focus, profili materia, icone/copertine e recenti sono già presenti. EventKit/orario lezioni e collegamenti automatici devono avere azioni esplicite e non creare eventi senza un comando dell’utente.
+
+## Parti ancora parziali o non implementate
+
+| Area | Lavoro residuo e motivo |
+| --- | --- |
+| Fluidità | Prefetch serializzato e budget stimato di 48 MB aggiunti; rendering delle anteprime ancora sul MainActor. Pipeline completa fuori dal thread principale e scrittura immediata universale su pagine grandi fredde ancora aperte. Non si introduce un secondo scroll view/canvas scrivibile. |
+| Editor/PDF | Finestra zoom per scrittura, crop/margini PDF non distruttivi e presentatore per display esterno ancora mancanti; richiedono prove coordinate/zoom/export/input sull’SDK Apple. |
+| Account/Lente | Login OAuth senza client registrato, attivazione/hosting live, scheda lookup in streaming, ricerca web con URL, riconoscimento automatico delle entità e consenso separato per quaderno ancora da completare. Il consenso attuale è per motore/destinazione/modello. |
+| Audio/AI | Sbobina generativa dell’intera lezione, diarizzazione reale, allineamento avanzato della grafia, LaTeX e verifica matematica, titoli/tag suggeriti e calendario/orario lezioni non implementati. Campionare fonti non completa questi punti. |
+| Sistema/cloud | Widget, navigazione diretta tra quaderni, cartelle portabili nel cloud, tombstone/outbox, condivisione di sola lettura e adattamento iPhone/Mac ancora aperti. |
+| Gesti/scorciatoie | Comandi dell’editor e gesti dita presenti; completare scorciatoie schede/ricerca globale/audio, menu AI sul testo selezionato e palette squeeze sotto la punta. Il contagocce non è un comando dedicato verificato. |
+| Pubblicazione/qualità | Test UI testo intermittente, misure reali su PDF 300 pagine/50 quaderni/sei schede, 30 casi italiani di qualità AI, accessibilità completa, privacy di pubblicazione e distribuzione firmata ancora da verificare. |
+
+Nessuna di queste voci viene considerata completata perché l’SDK non è disponibile o perché esiste un protocollo. Le funzionalità locali non dipendono dall’attivazione dell’AI remota.
 
 L’ordine dei lotti viene mantenuto, ma i numeri di versione originali descrivevano una roadmap dalla 0.7.1: non sono prove di completamento o pubblicazione. La consegna finale deve indicare ciò che è eseguito, ciò che è solo predisposto e le dipendenze effettivamente non attivabili in questa sessione.
 
@@ -93,4 +109,4 @@ L’ordine dei lotti viene mantenuto, ma i numeri di versione originali descrive
 - `39484841548` (2eb71af): core e unit passati, un test UI del testo non trova la casella; evidenza esportata e correzioni di sequenza del focus/accessibilità/riconoscitori in acea463, da verificare nella run seguente.
 - `39488420878` (acea463): fallimento di una nuova asserzione sulla precisione frazionaria di una data ISO8601; test corretto alla precisione del contratto, senza cambiare il contenuto salvato.
 - Run 39488740893: Core e unit passati, due UI Audio non trovavano comandi fuori dalla porzione visibile; comandi riposizionati. Run 39490272717: nuova aspettativa foto corretta da punti a pixel; il difetto UI testo rimane intermittente. Run 39515889190: job non avviati per blocco fatturazione GitHub. Nessuna modifica a pagamenti/limiti.
-- Suite locale Swift Linux: 125 XCTest (due esclusioni previste), zero errori, più 98 Swift Testing FSRS passati. Backend: 16 test passati. Le ultime schermate richiedono ancora compilazione Apple. [Report completo](ROADMAP_VALIDATION.md). Nessuna prova fisica di fotocamera/Pencil/standby e nessuna chiamata AI a pagamento sono state eseguite da questa sessione.
+- Suite locale Swift Linux aggiornata: 151 XCTest (149 passati e due esclusioni previste), zero errori, più 98 Swift Testing FSRS passati. Backend: 19 test passati. Aggiunti quattro controlli incorporati, per 31 complessivi; non eseguiti sull’iPad in questa sessione. Le ultime schermate richiedono ancora compilazione Apple. [Report completo](ROADMAP_VALIDATION.md). Nessuna prova fisica di fotocamera/Pencil/standby e nessuna chiamata AI a pagamento sono state eseguite da questa sessione.

@@ -1,6 +1,6 @@
-# NeuralNotes backend personale — 0.3
+# NeuralNotes backend personale
 
-Server Node 22+ senza dipendenze npm. Implementa `POST /v1/study` e `POST /v1/lookup` secondo il contratto dell’app e un adapter reale per la Responses REST API con output JSON strutturato. Il modello è una configurazione obbligatoria: non viene scelto un modello a pagamento automaticamente. Non vengono eseguite chiamate provider durante i test.
+Server Node 22+ senza dipendenze npm. Implementa `POST /v1/study`, `POST /v1/lookup` e `POST /v1/quiz` secondo il contratto dell’app e un adapter reale per la Responses REST API con output JSON strutturato. Il modello è una configurazione obbligatoria: non viene scelto un modello a pagamento automaticamente. Non vengono eseguite chiamate provider durante i test.
 
 ## Esecuzione su un server proprio
 
@@ -23,6 +23,8 @@ Opzionali: `PORT`, `NN_MAX_OUTPUT_TOKENS` (256–8192, default 4096), `NN_UPSTRE
 
 ## Streaming della Lente AI
 
+`POST /v1/quiz` riceve `{sources, count}` con 1–12 domande e le stesse fonti ammesse da study. Restituisce un `QuizBank` con titolo, identificativi, provider/data e domande: prompt, quattro opzioni distinte, indice corretto 0–3, spiegazione e riferimenti ricostruiti dalle fonti. Citazioni, struttura e limiti sono verificati; questo non dimostra l’esattezza didattica delle risposte. Usa autenticazione, quote, cancellazione e timeout comuni, senza streaming. L’app conserva separatamente il progresso locale e la scadenza dell’esame; nessun progresso viene inviato al server.
+
 La scheda `POST /v1/lookup` riceve `{term, sources}`: termine su una sola riga di massimo 120 caratteri e le stesse fonti ammesse da study. Restituisce `LookupCard` con definizione, spiegazione, fino a cinque esempi e cinque termini correlati, riferimenti, provider e data. Il server verifica che il termine corrisponda, ricostruisce i riferimenti esclusivamente dalla richiesta e controlla le citazioni in tutti i campi. L’endpoint condivide autenticazione, quote, timeout e limite di concorrenza di study; non usa streaming. L’app deriva il percorso `/v1/lookup` dall’URL `/v1/study` configurato e richiede lo stesso consenso. Il dizionario di sistema non richiede il backend.
 
 Con `Accept: application/x-ndjson`, `POST /v1/study` invia un oggetto JSON per riga: `{"type":"delta","text":"…"}`, poi `{"type":"result","artifact":{…}}` soltanto dopo la validazione finale. Un errore dopo l’inizio della risposta è un evento `{"type":"error","code":"…"}` e non un artifact. Il client considera i frammenti provvisori e non li salva se manca il risultato finale. Senza questo header resta disponibile la risposta JSON completa precedente.
@@ -35,6 +37,6 @@ Contratto verificato sulla [documentazione ufficiale dello streaming Responses](
 
 `node --test backend/server.test.mjs`
 
-I dodici test usano un transport stub dichiarato e richieste HTTP su loopback: verificano autenticazione/scadenza, limiti, validazione fonti, citazioni, rifiuti, risposte incomplete, frammenti Unicode, contratto HTTP con streaming e cancellazione alla disconnessione. L’adapter live, l’hosting HTTPS e il collegamento dall’iPad richiedono credenziali e una prova separata. Il backend non viene avviato in background o distribuito automaticamente.
+I diciannove test usano un transport stub dichiarato e richieste HTTP su loopback: verificano autenticazione/scadenza, limiti, validazione fonti, citazioni, definizioni strutturate, quiz e opzioni distinte, rifiuti, risposte incomplete, frammenti Unicode, contratto HTTP con streaming e cancellazione alla disconnessione. L’adapter live, l’hosting HTTPS e il collegamento dall’iPad richiedono credenziali e una prova separata. Il backend non viene avviato in background o distribuito automaticamente.
 
 Contratto REST verificato nella [documentazione ufficiale OpenAI sugli output strutturati](https://developers.openai.com/api/docs/guides/structured-outputs). Il campo `text.format` usa JSON Schema strict e la richiesta usa la Responses API.

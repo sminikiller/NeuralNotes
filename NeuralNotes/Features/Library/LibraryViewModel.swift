@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PencilKit
 import NeuralNotesCore
 
 enum LibraryScope: Hashable {
@@ -158,11 +159,19 @@ final class LibraryViewModel {
         var value = organization[book.id] ?? NotebookOrganization(); value.pinned.toggle()
         _ = await setOrganization(value, for: book)
     }
-    func createQuickNote() async -> Notebook? {
+    func createQuickNote(title: String? = nil, initialText: String? = nil) async -> Notebook? {
         do {
-            let book = try repository.createNotebook(title: "Nota \(Date().formatted(date: .abbreviated, time: .shortened))", folderID: nil, cover: .sand, template: PageTemplate())
+            guard (initialText?.count ?? 0) <= 100_000 else { throw WorkspaceFailure.oversizedImport }
+            let book = try repository.createNotebook(title: title ?? "Nota \(Date().formatted(date: .abbreviated, time: .shortened))", folderID: nil, cover: .sand, template: PageTemplate())
             var value = NotebookOrganization(); value.inbox = true
-            try await workspace(book).setOrganization(value); organization[book.id] = value
+            let document = try workspace(book)
+            try await document.setOrganization(value); organization[book.id] = value
+            if let initialText, !initialText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard initialText.count <= 100_000 else { throw WorkspaceFailure.oversizedImport }
+                var page = try await document.addDefaultPage(); page.texts = [TextElement(text: initialText)]; page.revision += 1
+                _ = try await document.save(page, drawing: PKDrawing().dataRepresentation())
+                try repository.touchNotebook(id: book.id)
+            }
             try reload(); scope = .inbox; query = ""; return book
         } catch { errorMessage = error.localizedDescription; return nil }
     }

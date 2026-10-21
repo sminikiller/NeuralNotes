@@ -32,7 +32,7 @@ extension CanvasHost {
             case "+", "-": canvas.setZoomScale(min(canvas.maximumZoomScale, max(canvas.minimumZoomScale, canvas.zoomScale * (input == "+" ? 1.25 : 0.8))), animated: true)
             case ".": model.focusRequest += 1
             case "a": model.chooseTool(.objects); model.selectAll()
-            case "x": model.copySelection(); model.deleteSelectedObject()
+            case "x": model.cutSelection()
             case "d": model.duplicateSelectedObject()
             default: break
             }

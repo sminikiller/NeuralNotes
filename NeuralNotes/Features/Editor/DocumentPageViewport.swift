@@ -10,6 +10,9 @@ struct DocumentPageViewport: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("pencilCanvas")
             .accessibilityValue(model.canvasZoomed ? "Ingrandita" : "Pagina intera")
+            .overlay(alignment: .bottomTrailing) {
+                if model.searchFocus != nil { Button("Chiudi evidenziazione", systemImage: "xmark") { model.searchFocus = nil }.font(.caption).buttonStyle(.bordered).padding(8) }
+            }
             .overlay(alignment: .bottomLeading) {
                 if model.tool == .text {
                     HStack {

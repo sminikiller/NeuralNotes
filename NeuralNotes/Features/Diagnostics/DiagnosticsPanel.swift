@@ -431,6 +431,10 @@ struct DiagnosticsPanel: View {
                 try require(second.y - first.maxY == 12 && layout.mostVisible(top: second.y + 50, height: 500) == second.id,
                     "Distacco o ordine del flusso verticale errati.")
             }
+            await check("Spostamento: due pagine e rifiuto delle revisioni obsolete") { try await RoadmapDiagnostics.pageBatch(root: root.appendingPathComponent("PageBatch")) }
+            await check("Quiz: risposta, scadenza e risultato persistenti") { try await RoadmapDiagnostics.quiz(root: root.appendingPathComponent("Quiz")) }
+            await check("Studio: fine della lezione, mappe modificabili e fonti") { try RoadmapDiagnostics.sourcesAndMaps() }
+            await check("Editor: taglia protetto, spostamento e undo, laser e ricerca") { try await RoadmapDiagnostics.editor(root: root.appendingPathComponent("EditorRoadmap")) }
         } catch { results.append(DiagnosticResult(title: "Preparazione test", passed: false, detail: error.localizedDescription)) }
     }
 

@@ -8,8 +8,10 @@ import NeuralNotesCore
 final class ContinuousCanvasFlow {
     private struct Cached {
         let page: PageSnapshot
-        let drawing: PKDrawing
+        var drawing: PKDrawing?
         let image: UIImage
+        let imageCost: Int
+        var drawingCost: Int
     }
     private struct Viewport {
         let documentPoint: CGPoint, zoom: CGFloat, bounds: CGSize, target: UUID
@@ -20,6 +22,7 @@ final class ContinuousCanvasFlow {
     private var cache: [UUID: Cached] = [:]
     private var previews: [UUID: UIImageView] = [:]
     private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var previewTail: Task<Void, Never>?
     private var tokens: [UUID: UUID] = [:]
     private var failures: [UUID: PageSnapshot] = [:]
     private var pending: Viewport?
@@ -124,13 +127,13 @@ final class ContinuousCanvasFlow {
         if id == model.page?.id { return true }
         guard !model.interactionBusy else { return false }
         captureViewport(target: id)
-        if let ready = cache[id], model.activatePreparedPage(ready.page, drawing: ready.drawing) {
+        if let ready = cache[id], let drawing = ready.drawing, model.activatePreparedPage(ready.page, drawing: drawing) {
             host.synchronizePage(); return true
         }
         // A cold, small native drawing can be installed synchronously before
         // UIKit dispatches the very first Pencil touch. No preview rasterization
         // belongs on this input path; larger files keep the safe async route.
-        if !model.dirty, !model.saving, let target = model.pages.first(where: { $0.id == id }) {
+        if cache[id] == nil, !model.dirty, !model.saving, let target = model.pages.first(where: { $0.id == id }) {
             do {
                 let drawing: PKDrawing
                 if let file = target.drawingFile {
@@ -159,8 +162,16 @@ final class ContinuousCanvasFlow {
               let target = model.pages.first(where: { $0.id == id }) else { return }
         captureViewport(target: id)
         if let current = model.page {
-            cache[current.id] = Cached(page: current, drawing: host.canvas.drawing,
-                image: DocumentServices.image(page: current, drawing: host.canvas.drawing, workspace: model.workspace, maxDimension: 1200))
+            let drawing = host.canvas.drawing
+            let image = DocumentServices.image(page: current, drawing: drawing, workspace: model.workspace, maxDimension: 1200)
+            let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)
+            let points = drawing.strokes.reduce(0) { $0 + $1.path.count }
+            let file = current.drawingFile.flatMap { try? NativeArchive.fileURL($0, in: model.workspace.package) }
+            let encodedBytes = (try? file?.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            let keep = PreviewBudget.canRetainDrawing(encodedBytes: encodedBytes, controlPoints: points, imageBytes: imageCost)
+            cache[current.id] = Cached(page: current, drawing: keep ? drawing : nil, image: image,
+                imageCost: imageCost, drawingCost: keep ? PreviewBudget.drawingCost(encodedBytes: encodedBytes, controlPoints: points) : 0)
+            enforceBudget()
         }
         Task { [weak self, weak model] in
             guard let self, let model else { return }
@@ -221,17 +232,27 @@ final class ContinuousCanvasFlow {
     private func loadPreview(_ page: PageSnapshot) {
         guard tokens[page.id] == nil, let model else { return }
         let token = UUID(); tokens[page.id] = token
+        let previous = previewTail
         tasks[page.id] = Task { [weak self, workspace = model.workspace] in
+            // Decode/rasterize only one neighbour at a time. Six queued reads
+            // must not retain six large PKDrawing payloads during Pencil input.
+            await previous?.value
             guard let self else { return }
             defer { if self.tokens[page.id] == token { self.tokens.removeValue(forKey: page.id); self.tasks.removeValue(forKey: page.id) } }
             do {
+                try Task.checkCancellation()
                 let bytes = try await workspace.drawing(page)
                 try Task.checkCancellation()
                 let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
                 let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: 1200)
                 try Task.checkCancellation()
                 guard self.tokens[page.id] == token else { return }
-                self.cache[page.id] = Cached(page: page, drawing: drawing, image: image)
+                let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)
+                let points = drawing.strokes.reduce(0) { $0 + $1.path.count }
+                let keep = PreviewBudget.canRetainDrawing(encodedBytes: bytes?.count ?? 0, controlPoints: points, imageBytes: imageCost)
+                self.cache[page.id] = Cached(page: page, drawing: keep ? drawing : nil, image: image,
+                    imageCost: imageCost, drawingCost: keep ? PreviewBudget.drawingCost(encodedBytes: bytes?.count ?? 0, controlPoints: points) : 0)
+                self.enforceBudget()
                 self.previews[page.id]?.image = image
                 self.previews[page.id]?.viewWithTag(81)?.isHidden = true
                 self.failures.removeValue(forKey: page.id)
@@ -241,6 +262,16 @@ final class ContinuousCanvasFlow {
                 self.previews[page.id]?.accessibilityLabel = "Anteprima non disponibile: tocca per aprire la pagina"
                 (self.previews[page.id]?.viewWithTag(81) as? UILabel)?.text = "Anteprima non disponibile\nTocca per aprire"
             }
+        }
+        previewTail = tasks[page.id]
+    }
+    private func enforceBudget() {
+        var cost = cache.values.reduce(0) { $0 + $1.imageCost + $1.drawingCost }
+        // Keep all visible thumbnails. Releasing the heaviest prefetched vector
+        // snapshots avoids a reload loop and lets the active canvas own the ink.
+        for id in cache.keys.sorted(by: { (cache[$0]?.drawingCost ?? 0) > (cache[$1]?.drawingCost ?? 0) }) {
+            guard cost > PreviewBudget.maximumBytes else { break }
+            cost -= cache[id]?.drawingCost ?? 0; cache[id]?.drawing = nil; cache[id]?.drawingCost = 0
         }
     }
 }

@@ -14,6 +14,7 @@ struct PracticePanel: View {
     @State private var manualQuestion = ""
     @State private var manualAnswer = ""
     @State private var statistics = false
+    @State private var quiz = false
 
     private var due: [StudyCard] { cards.filter { $0.dueAt <= Date() }.sorted { $0.dueAt < $1.dueAt } }
 
@@ -23,6 +24,7 @@ struct PracticePanel: View {
                 Section {
                     Text("\(due.count) da ripassare · \(cards.count) totali · \(reviewed) ripassate ora")
                     Button("Crea esercizi dalle fonti", systemImage: "rectangle.stack.badge.plus") { Task { await generate() } }
+                    Button("Quiz e simulazione d’esame", systemImage: "checkmark.seal") { quiz = true }
                     Text("Esercizi di completamento estratti dal testo salvato, dai PDF, dall’OCR e dalle trascrizioni. Nessun modello generativo.").font(.caption).foregroundStyle(.secondary)
                 }
                 if let card = due.first {
@@ -84,6 +86,7 @@ struct PracticePanel: View {
             .navigationTitle("Flashcard e ripasso")
             .task { await reload() }
             .sheet(isPresented: $statistics) { StudyStatisticsPanel(model: model) }
+            .sheet(isPresented: $quiz) { QuizPanel(model: model) }
             .toolbar { ToolbarItem(placement: .primaryAction) { Button("Statistiche", systemImage: "chart.bar") { statistics = true } } }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
         }

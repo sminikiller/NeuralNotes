@@ -56,7 +56,7 @@ extension DocumentWorkspace {
                     link.documentID = index.documentID; page.texts[position].pageLink = link
                 }
             }
-            try encoder.encode(page).write(to: url("pages/\(page.id).json"), options: .atomic)
+            try write(page, "pages/\(page.id).json")
             pages.append(page)
         }
         let catalogFile = incoming.appendingPathComponent("catalog.json")
@@ -78,6 +78,11 @@ extension DocumentWorkspace {
             if let reviews = catalog.reviewLog {
                 combined.reviewLog = Array(((combined.reviewLog ?? []) + reviews).sorted { $0.date < $1.date }.suffix(10_000))
             }
+            var quizzes = (catalog.quizHistory ?? []).map { $0.copied(remapping: reference) }
+            if let active = catalog.activeQuiz?.copied(remapping: reference) {
+                if combined.activeQuiz == nil { combined.activeQuiz = active } else { quizzes.append(active) }
+            }
+            combined.quizHistory = Array(((combined.quizHistory ?? []) + quizzes).suffix(10))
             if let conversation = catalog.conversation {
                 let importedTurns = conversation.map { turn in
                     AIConversationTurn(question: turn.question, answer: AIArtifact(text: turn.answer.text,

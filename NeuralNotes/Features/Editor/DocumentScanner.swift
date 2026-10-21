@@ -51,18 +51,33 @@ extension EditorViewModel {
 
 @MainActor
 enum PageDrop {
+    private enum DropFailure: LocalizedError {
+        case busy
+        var errorDescription: String? { "La pagina è occupata: rilascia la Pencil o termina la modifica del testo, poi trascina di nuovo." }
+    }
+    private static func requireTarget(_ id: UUID, model: EditorViewModel) throws {
+        guard model.page?.id == id, model.hasLease, !model.navigating, !model.loading else { throw WorkspaceFailure.staleRevision }
+        guard !model.interactionBusy else { throw DropFailure.busy }
+    }
     static func insert(_ providers: [NSItemProvider], at point: CGPoint, model: EditorViewModel) async {
-        guard model.hasLease, !model.interactionBusy else { return }
+        guard model.hasLease, !model.loading, !model.navigating, !model.interactionBusy, let originID = model.page?.id else { return }
         for provider in providers.prefix(10) {
             do {
-                if provider.hasItemConformingToTypeIdentifier("public.image") {
-                    let data: Data = try await withCheckedThrowingContinuation { continuation in
-                        provider.loadDataRepresentation(forTypeIdentifier: "public.image") { data, error in
-                            if let data { continuation.resume(returning: data) } else { continuation.resume(throwing: error ?? CocoaError(.fileReadCorruptFile)) }
-                        }
-                    }
-                    var image = try await DocumentServices.importImage(data: data, into: model.workspace)
-                    image.x = max(0, min(Double(point.x), (model.page?.width ?? 768) - image.width)); image.y = max(0, min(Double(point.y), (model.page?.height ?? 1024) - image.height)); model.addImage(image)
+                try Task.checkCancellation()
+                try requireTarget(originID, model: model)
+                if let type = provider.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .pdf) == true }) {
+                    let file = try await temporaryFile(provider, type: type)
+                    defer { try? FileManager.default.removeItem(at: file) }
+                    try requireTarget(originID, model: model)
+                    await model.importPages(from: file); return
+                } else if let type = provider.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .image) == true }) {
+                    let file = try await temporaryFile(provider, type: type)
+                    defer { try? FileManager.default.removeItem(at: file) }
+                    try requireTarget(originID, model: model)
+                    var image = try await DocumentServices.importImage(from: file, into: model.workspace)
+                    try requireTarget(originID, model: model)
+                    image.x = max(0, min(Double(point.x), (model.page?.width ?? 768) - image.width))
+                    image.y = max(0, min(Double(point.y), (model.page?.height ?? 1024) - image.height)); model.addImage(image)
                 } else if provider.canLoadObject(ofClass: NSURL.self) {
                     let url: URL = try await withCheckedThrowingContinuation { continuation in
                         _ = provider.loadObject(ofClass: NSURL.self) { value, error in
@@ -70,8 +85,12 @@ enum PageDrop {
                             else { continuation.resume(throwing: error ?? CocoaError(.fileReadCorruptFile)) }
                         }
                     }
+                    try requireTarget(originID, model: model)
+                    if url.isFileURL, UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
+                        await model.importPages(from: url); return
+                    }
                     guard ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") else { continue }
-                    var element = TextElement(text: url.absoluteString); element.x = max(0, Double(point.x)); element.y = max(0, Double(point.y))
+                    var element = positionedText(String(url.absoluteString.prefix(100_000)), at: point, model: model)
                     element.rtf = RichText.data(NSAttributedString(string: element.text, attributes: [.link: url, .font: UIFont.systemFont(ofSize: 24)]))
                     model.mutatePage("Trascina collegamento") { $0.texts.append(element) }
                 } else if provider.canLoadObject(ofClass: NSString.self) {
@@ -82,10 +101,33 @@ enum PageDrop {
                         }
                     }
                     guard text.count <= 100_000 else { throw WorkspaceFailure.oversizedImport }
-                    var element = TextElement(text: text); element.x = max(0, Double(point.x)); element.y = max(0, Double(point.y))
+                    try requireTarget(originID, model: model)
+                    let element = positionedText(text, at: point, model: model)
                     model.mutatePage("Trascina testo") { $0.texts.append(element) }
                 }
-            } catch { model.error = error.localizedDescription }
+            } catch is CancellationError { return }
+            catch { model.error = error.localizedDescription; return }
+        }
+    }
+    private static func positionedText(_ value: String, at point: CGPoint, model: EditorViewModel) -> TextElement {
+        var text = TextElement(text: value)
+        text.x = max(0, min(Double(point.x), (model.page?.width ?? 768) - 20))
+        text.y = max(0, min(Double(point.y), (model.page?.height ?? 1024) - 20)); return text
+    }
+    private static func temporaryFile(_ provider: NSItemProvider, type: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadFileRepresentation(forTypeIdentifier: type) { source, error in
+                do {
+                    guard let source else { throw error ?? CocoaError(.fileReadCorruptFile) }
+                    let size = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                    guard size > 0, size <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+                    let suffix = UTType(type)?.preferredFilenameExtension ?? "bin"
+                    let file = FileManager.default.temporaryDirectory.appendingPathComponent("NN-drop-\(UUID()).\(suffix)")
+                    // The provider URL expires when its callback returns.
+                    try FileManager.default.copyItem(at: source, to: file)
+                    continuation.resume(returning: file)
+                } catch { continuation.resume(throwing: error) }
+            }
         }
     }
 }

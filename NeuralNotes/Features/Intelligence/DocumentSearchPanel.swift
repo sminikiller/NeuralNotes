@@ -54,17 +54,22 @@ struct DocumentSearchPanel: View {
     }
 
     private func search() async {
+        let input = query, useSemantic = semantic
         error = nil
         do {
+            if !input.isEmpty { try await Task.sleep(for: .milliseconds(200)) }
             guard await model.flush() else { return }
             attachments = try await model.workspace.catalog().attachments
             let id = try await model.workspace.manifest().documentID
             let chunks = try await FileDocumentIndexingService(workspace: model.workspace, id: id).index(documentID: id)
             try Task.checkCancellation()
-            if query.isEmpty { results = [] }
-            else if semantic {
-                results = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: query, from: chunks, limit: 12)
-            } else { results = chunks.filter { $0.text.localizedStandardContains(query) } }
+            let selected: [IndexedChunk]
+            if input.isEmpty { selected = [] }
+            else if useSemantic {
+                selected = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: input, from: chunks, limit: 12)
+            } else { selected = Array(chunks.lazy.filter { $0.text.localizedStandardContains(input) }.prefix(200)) }
+            try Task.checkCancellation()
+            guard input == query, useSemantic == semantic else { return }; results = selected
         } catch is CancellationError { }
         catch { self.error = error.localizedDescription }
     }
@@ -76,7 +81,10 @@ struct DocumentSearchPanel: View {
     }
 
     private func navigate(_ source: SourceReference) async {
-        if let id = source.pageID, let page = model.pages.first(where: { $0.id == id }) { await model.select(page); dismiss() }
+        if let id = source.pageID, let page = model.pages.first(where: { $0.id == id }) {
+            await model.select(page)
+            if model.page?.id == id { model.searchFocus = SearchFocusRequest(pageID: id, query: String(query.prefix(200))); dismiss() }
+        }
         else if let id = source.audioSessionID, let session = model.audio?.sessions.first(where: { $0.id == id }) {
             await model.audio?.play(session, at: source.seconds ?? 0)
         }

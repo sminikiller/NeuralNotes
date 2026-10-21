@@ -9,6 +9,9 @@ public enum NativePackageInspector {
     /// Validate before registering an imported package in the library. The source
     /// is read-only; decoding PencilKit/media payloads remains the platform's job.
     public static func inspect(_ package: URL) throws -> InspectedPackage {
+        if FileManager.default.fileExists(atPath: package.appendingPathComponent(PageBatchRecovery.path).path) {
+            throw LibraryFailure.recoveryRequired("Completa il recupero del quaderno nell’app prima di esportarlo o copiarlo.")
+        }
         guard let iterator = FileManager.default.enumerator(at: package,
             includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey]) else {
             throw LibraryFailure.corruptDocument
@@ -41,40 +44,9 @@ public enum NativePackageInspector {
         guard Set(manifest.pageIDs).count == manifest.pageIDs.count else { throw LibraryFailure.corruptDocument }
         for id in manifest.pageIDs {
             let page: PageSnapshot = try read("pages/\(id).json")
-            guard page.id == id, page.width.isFinite, page.height.isFinite,
-                  page.width > 0, page.height > 0, page.width <= 20000, page.height <= 20000 else { throw LibraryFailure.corruptDocument }
-            if let time = page.lastEditedAt, !time.isFinite || time < 0 { throw LibraryFailure.corruptDocument }
+            guard page.id == id else { throw LibraryFailure.corruptDocument }
+            try PageValidation.validate(page)
             for path in [page.drawingFile, page.previousDrawingFile, page.pdfFile].compactMap({ $0 }) + page.images.map(\.file) { try media(path) }
-            guard (page.pdfMarkups ?? []).allSatisfy(\.isValid) else { throw LibraryFailure.corruptDocument }
-            for text in page.texts {
-                guard [text.x, text.y, text.width, text.fontSize].allSatisfy(\.isFinite),
-                      text.width > 0, (1...1000).contains(text.fontSize) else { throw LibraryFailure.corruptDocument }
-                if let rotation = text.rotation, !rotation.isFinite { throw LibraryFailure.corruptDocument }
-                if let rtf = text.rtf, rtf.count > 2 * 1024 * 1024 { throw LibraryFailure.corruptDocument }
-            }
-            for image in page.images {
-                guard [image.x, image.y, image.width, image.height].allSatisfy(\.isFinite),
-                      image.width > 0, image.height > 0 else { throw LibraryFailure.corruptDocument }
-                if let crop = image.crop {
-                    guard [crop.x, crop.y, crop.width, crop.height].allSatisfy(\.isFinite), crop.x >= 0, crop.y >= 0,
-                          crop.width > 0, crop.height > 0, crop.x + crop.width <= 1.000001, crop.y + crop.height <= 1.000001 else { throw LibraryFailure.corruptDocument }
-                }
-                if let rotation = image.rotation, !rotation.isFinite { throw LibraryFailure.corruptDocument }
-            }
-            if let appearance = page.appearance, !appearance.isValid { throw LibraryFailure.corruptDocument }
-            guard page.tapes?.allSatisfy(\.isValid) != false, page.texts.allSatisfy({ $0.background?.isValid != false }) else { throw LibraryFailure.corruptDocument }
-            let objectIDs = Set(page.objectIDs)
-            guard objectIDs.count == page.objectIDs.count else { throw LibraryFailure.corruptDocument }
-            for references in [page.objectOrder, page.lockedObjects, page.aboveInkObjects].compactMap({ $0 }) {
-                guard Set(references).count == references.count, Set(references).isSubset(of: objectIDs) else { throw LibraryFailure.corruptDocument }
-            }
-            for shape in page.shapes ?? [] {
-                guard [shape.x, shape.y, shape.width, shape.height, shape.red, shape.green, shape.blue, shape.lineWidth].allSatisfy(\.isFinite),
-                      shape.width > 0, shape.height > 0, (0...1).contains(shape.red), (0...1).contains(shape.green), (0...1).contains(shape.blue),
-                      shape.lineWidth > 0, shape.lineWidth <= 200 else { throw LibraryFailure.corruptDocument }
-                guard shape.start?.isValid ?? true, shape.end?.isValid ?? true else { throw LibraryFailure.corruptDocument }
-                if let rotation = shape.rotation, !rotation.isFinite { throw LibraryFailure.corruptDocument }
-            }
         }
         if FileManager.default.fileExists(atPath: package.appendingPathComponent("catalog.json").path) {
             let catalog: DocumentCatalog = try read("catalog.json")
@@ -83,7 +55,7 @@ public enum NativePackageInspector {
             if let template = catalog.defaultPageTemplate, !template.appearance.isValid { throw LibraryFailure.corruptDocument }
             if let template = catalog.defaultPageTemplate, let file = template.pdfFile {
                 try media(file)
-                guard let index = template.pdfIndex, index >= 0, let width = template.sourceWidth, let height = template.sourceHeight,
+                guard let index = template.pdfIndex, index >= 0, index < Int.max, let width = template.sourceWidth, let height = template.sourceHeight,
                       width.isFinite, height.isFinite, (1...20000).contains(width), (1...20000).contains(height) else { throw LibraryFailure.corruptDocument }
             }
             if let settings = catalog.editorWorkspaces, !settings.isValid { throw LibraryFailure.corruptDocument }

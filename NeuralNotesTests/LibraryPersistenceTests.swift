@@ -6,6 +6,17 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class LibraryPersistenceTests: XCTestCase {
+    @MainActor func testQuickNoteWithInitialTextPersistsInInboxAndInvalidInputCreatesNothing() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repo = try repository(at: root), library = LibraryViewModel(repository: repo)
+        let result = await library.createQuickNote(title: "Da Comandi", initialText: "Testo della nota")
+        let book = try XCTUnwrap(result), workspace = try library.workspace(book)
+        let pages = try await workspace.pages(); XCTAssertEqual(pages.count, 1); XCTAssertEqual(pages[0].texts.first?.text, "Testo della nota")
+        let catalog = try await workspace.catalog(); XCTAssertEqual(catalog.organization?.inbox, true)
+        let invalid = await library.createQuickNote(title: "Non creare", initialText: String(repeating: "x", count: 100_001))
+        XCTAssertNil(invalid); XCTAssertEqual(try repo.notebooks().count, 1)
+    }
     @MainActor func testQuickNoteInboxTagsAndPinnedOrderingSurviveLibraryRecreation() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

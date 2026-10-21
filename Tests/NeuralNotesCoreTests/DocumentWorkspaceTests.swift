@@ -3,6 +3,31 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class DocumentWorkspaceTests: XCTestCase {
+    func testOversizedButOtherwiseValidPageIsRejectedWithoutRewritingIt() async throws {
+        let (root, _, _, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let page = try await workspace.addPage(), file = workspace.package.appendingPathComponent("pages/\(page.id).json")
+        let original = try Data(contentsOf: file), padding = Data(repeating: 32, count: 16 * 1024 * 1024)
+        try (original + padding).write(to: file)
+        do { _ = try await workspace.pageSnapshot(page.id); XCTFail("Oversized page read") } catch NativeArchiveFailure.limit { }
+        XCTAssertEqual(try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, original.count + padding.count)
+    }
+    func testOversizedDrawingAndImageLeaveTheLastReadableNotebookUntouched() async throws {
+        let (root, _, _, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        var page = try await workspace.addPage(); page.revision = 1
+        page = try await workspace.save(page, drawing: Data([42]))
+        let before = try Data(contentsOf: workspace.package.appendingPathComponent("pages/\(page.id).json"))
+        let images = try FileManager.default.contentsOfDirectory(atPath: workspace.package.appendingPathComponent("images").path)
+        let tooLarge = Data(count: 100 * 1024 * 1024 + 1)
+        var changed = page; changed.revision += 1
+        do { _ = try await workspace.save(changed, drawing: tooLarge); XCTFail("Unexportable drawing accepted") }
+        catch WorkspaceFailure.oversizedImport { }
+        do { _ = try await workspace.storeImage(tooLarge); XCTFail("Unexportable image accepted") }
+        catch WorkspaceFailure.oversizedImport { }
+        XCTAssertEqual(try Data(contentsOf: workspace.package.appendingPathComponent("pages/\(page.id).json")), before)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: workspace.package.appendingPathComponent("images").path), images)
+        let bytes = try await workspace.drawing(page); XCTAssertEqual(bytes, Data([42]))
+        XCTAssertNoThrow(try NativePackageInspector.inspect(workspace.package))
+    }
     func testGlossaryAndBoundedSelectionCacheSurviveReopenAndEnterSearch() async throws {
         let (root, _, manifest, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
         let page = try await workspace.addPage(), reference = SourceReference(documentID: manifest.documentID)
