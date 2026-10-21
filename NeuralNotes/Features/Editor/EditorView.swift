@@ -31,6 +31,7 @@ struct EditorView: View {
     @State private var pendingScan: VNDocumentCameraScan?
     @State private var mediaError: String?
     @State private var sideOpen = false
+    @State private var lensPopup = false
     @State private var sidePDF = false
     @State private var cropImage: UIImage?
     @State private var insertingImage = false
@@ -42,6 +43,15 @@ struct EditorView: View {
             VStack(spacing: 0) {
                 if model.page != nil {
                     DocumentPageViewport(model: model).allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
+                        .popover(isPresented: $lensPopup, attachmentAnchor: .point(.topTrailing)) {
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Button("Apri pannello", systemImage: "sidebar.right") { lensPopup = false; sidePDF = false; sideOpen = true }
+                                    Spacer(); Button("Chiudi", systemImage: "xmark") { lensPopup = false }
+                                }.font(.caption).padding(.horizontal).padding(.top, 12)
+                                LensPanel(model: model, notebook: notebook)
+                            }.frame(width: 360, height: 520).accessibilityIdentifier("lensQuickPopup")
+                        }
                         .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
                             let point = (model.pagePresenter as? CanvasHost)?.surface.convert(location, from: model.pagePresenter as? CanvasHost) ?? location
                             Task { await PageDrop.insert(providers, at: point, model: model) }; return model.hasLease
@@ -104,7 +114,7 @@ struct EditorView: View {
                     }.disabled(!model.hasLease).accessibilityIdentifier("editorAudio")
                     Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
                     Button { if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true } } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
-                    Button { sidePDF = false; sideOpen = true; model.lensArea = nil; model.lensRequest += 1 } label: { Label("Lente AI", systemImage: "sparkle.magnifyingglass") }.keyboardShortcut("k", modifiers: .command)
+                    Button { sidePDF = false; sideOpen = true; model.requestLens() } label: { Label("Lente AI", systemImage: "sparkle.magnifyingglass") }.keyboardShortcut("k", modifiers: .command)
                         .accessibilityIdentifier("editorLens")
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
@@ -229,7 +239,11 @@ struct EditorView: View {
             .inspector(isPresented: $sideOpen) {
                 studyInspector
             }
-            .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
+            .onChange(of: model.lensRequest) { _, _ in
+                sidePDF = false
+                if model.lensPrefersPopup { sideOpen = false; lensPopup = true }
+                else { lensPopup = false; sideOpen = true }
+            }
             .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
             .onChange(of: model.searchRequest) { _, _ in panel = .search }
             .onChange(of: model.focusRequest) { _, _ in focus.toggle() }

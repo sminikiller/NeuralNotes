@@ -1,11 +1,11 @@
-# NeuralNotes 0.11.0 — anteprima iPad
+# NeuralNotes 0.12.0 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
 
 **Sviluppo successivo alla 0.9.1:** correzioni di testo Pencil, gomma selettiva, foto e import PDF, nuovi strumenti, sezioni/sottosezioni, collegamenti e fonti, statistiche di ripasso, glossario e schede di definizione strutturate. [Avanzamento completo del piano](docs/CLAUDE_PLAN_AUDIT.md), [verifiche e limiti attuali](docs/ROADMAP_VALIDATION.md). La CI Apple più recente non è partita per il blocco di fatturazione GitHub; le ultime schermate non sono ancora compilate con l’SDK Apple. I test locali del Core sono eseguibili anche tramite Docker/Swift ufficiale, senza sostituire le prove UIKit o sull’iPad.
 
-[Anteprima 0.11.0: comandi, pacchetto e conservazione dei quaderni](docs/DELIVERY_0_11_0.md). Aggiunge spostamento della selezione tra pagine con recupero e undo unico, protezione del taglia, ricerca evidenziata sul foglio, quiz riprendibili e simulazione d’esame, mappe con oggetti modificabili, laser temporaneo, nota rapida da Comandi e Spotlight facoltativo. La scelta delle fonti distribuisce gli estratti lungo le lezioni grandi e dichiara i limiti del contesto. Le nuove integrazioni Apple richiedono ancora compilazione e prova sul dispositivo.
+[Anteprima 0.12.0: comandi, pacchetto e conservazione dei quaderni](docs/DELIVERY_0_12_0.md). Aggiunge archivio/cestino delle lezioni, ricerca per nome ed export degli audio originali con trascrizione corretta e timestamp. La Lente si apre anche dal testo selezionato o dalla sottolineatura esplicita, in un popup espandibile. Ricerca web separata, facoltativa, con citazioni cliccabili e inserimento annullabile. [API, login ChatGPT e modello economico](docs/AI_API_AND_LOGIN.md). Restano disponibili le [funzioni della 0.11.0](docs/DELIVERY_0_11_0.md). Le nuove integrazioni Apple richiedono ancora compilazione e prova sul dispositivo.
 
 **Nuove funzioni:** PDF e testo più nitidi allo zoom, backup automatici con versioni, penne/preset e gomma selettiva, selezione trasformabile, testo formattato, scanner, PDF affiancato, ricerca globale e Lente AI. [Funzioni, accesso ai comandi e limiti della 0.9](docs/STUDY_WORKSPACE_0_9.md). iCloud è predisposto con il Team ID fornito; firma e attivazione del contenitore restano da completare. Il backend AI richiede hosting HTTPS e configurazione.
 
@@ -16,10 +16,10 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.11.0.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.12.0.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
-5. Prova [la trascrizione lunga della 0.9.1](docs/TESTING_0_9_1.md), poi [le prove della 0.9](docs/STUDY_WORKSPACE_0_9.md), poi [workspace, toolbar, forme e copertine](docs/TESTING_0_8.md) e [scorrimento e voltata](docs/TESTING_0_7.md).
+5. I comandi recenti e le verifiche sono nella [consegna 0.12.0](docs/DELIVERY_0_12_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).
 
 Il nuovo Playground può avere un container diverso: non elimina né aggiorna automaticamente i quaderni del precedente. Esporta dalla vecchia versione e importa dalla sidebar un `.nnbackup` o una cartella `.nnbook`. Non selezionare il progetto `.swiftpm` nell’importatore di quaderni. Conserva l’originale finché la copia non è riaperta e controllata. Questo pacchetto non è un IPA firmato.
 
@@ -91,7 +91,7 @@ Libreria con cartelle/sottocartelle, copertine colore/fotografiche, preferiti, r
 
 Audio CAF segmentato, pausa/ripresa, timeline/seek, gestione interruzioni e collegamento dai tratti ai momenti registrati. Vision OCR su pagina/area; Apple Speech richiesto esclusivamente on-device, a finestre per file lunghi. Ricerca nel testo, PDF, OCR e trascrizioni con pagina/minuto. Ricerca semantica opzionale con embedding italiani del sistema se disponibili.
 
-Studio offline estrattivo, schemi, flashcard/quiz e ripasso persistente. L’estrazione locale seleziona frasi delle fonti: non è un LLM. AI remota opzionale con client HTTPS, consenso, token backend in Keychain e citazioni validate. Il [backend Node](backend/README.md) è implementato e ha sette test locali già superati; hosting, modello, segreti e prova live non sono configurati.
+Studio offline estrattivo, schemi, flashcard/quiz e ripasso persistente. L’estrazione locale seleziona frasi delle fonti: non è un LLM. AI remota opzionale con client HTTPS, consenso, token backend in Keychain e citazioni validate. Il [backend Node](backend/README.md) ha 23 test locali superati; hosting, modello, segreti e prova live non sono configurati.
 
 ## Permessi e finestre
 

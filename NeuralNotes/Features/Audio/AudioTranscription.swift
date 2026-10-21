@@ -5,7 +5,7 @@ import NeuralNotesCore
 @MainActor
 extension AudioController {
     func startTranscription(_ original: AudioSession) {
-        guard canTranscribe, transcribingSessionID == nil, original.state == "finished" else { return }
+        guard canTranscribe, transcribingSessionID == nil, original.state == "finished", original.trashedAt == nil else { return }
         transcribingSessionID = original.id; transcriptionStatusSessionID = original.id; error = nil
         transcriptionTask = Task { await runTranscription(original.id) }
     }
@@ -20,6 +20,7 @@ extension AudioController {
         let log = TranscriptionLog.shared
         do {
             guard var session = try await workspace.catalog().sessions.first(where: { $0.id == id }) else { throw LibraryFailure.missingItem }
+            guard session.trashedAt == nil, session.state == "finished" else { throw WorkspaceFailure.staleRevision }
             if session.transcriptionComplete == true && !session.hasTranscriptText {
                 // An empty successful recognition is retryable, never a saved text.
                 session.transcriptionChunks = session.transcriptionChunks?.filter { TranscriptText.hasText($0.segments) }
@@ -167,6 +168,7 @@ extension AudioController {
     func saveTranscript(_ id: UUID, title: String, blocks: [TranscriptMinute]) async throws {
         guard transcribingSessionID == nil else { throw WorkspaceFailure.staleRevision }
         guard var session = try await workspace.catalog().sessions.first(where: { $0.id == id }) else { throw LibraryFailure.missingItem }
+        guard session.state == "finished", session.trashedAt == nil, active?.id != id else { throw WorkspaceFailure.staleRevision }
         session.title = try LibraryName.validated(title)
         let current = TranscriptText.minutes(session.readableTranscript)
         var corrections = session.transcriptCorrections ?? []

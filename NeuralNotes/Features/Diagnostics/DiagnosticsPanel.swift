@@ -435,6 +435,8 @@ struct DiagnosticsPanel: View {
             await check("Quiz: risposta, scadenza e risultato persistenti") { try await RoadmapDiagnostics.quiz(root: root.appendingPathComponent("Quiz")) }
             await check("Studio: fine della lezione, mappe modificabili e fonti") { try RoadmapDiagnostics.sourcesAndMaps() }
             await check("Editor: taglia protetto, spostamento e undo, laser e ricerca") { try await RoadmapDiagnostics.editor(root: root.appendingPathComponent("EditorRoadmap")) }
+            await check("Audio: file originali esportati e cestino ripristinabile") { try await RoadmapDiagnostics.audioExportAndOrganization(root: root.appendingPathComponent("AudioExport")) }
+            await check("Lente: sottolineatura e collegamenti sicuri, senza rete") { try RoadmapDiagnostics.lensAndWebLinks() }
         } catch { results.append(DiagnosticResult(title: "Preparazione test", passed: false, detail: error.localizedDescription)) }
     }
 

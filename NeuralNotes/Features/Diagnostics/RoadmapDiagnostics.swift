@@ -1,9 +1,40 @@
 import UIKit
 import PencilKit
+import AVFoundation
 import NeuralNotesCore
 
 @MainActor
 enum RoadmapDiagnostics {
+    static func audioExportAndOrganization(root: URL) async throws {
+        let writer = try workspace(root: root), file = "audio/check.caf", destination = try await writer.url(file)
+        let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16000.0, AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false]
+        do {
+            let audio = try AVAudioFile(forWriting: destination, settings: settings)
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: audio.processingFormat, frameCapacity: 16000), let channels = buffer.floatChannelData else { throw Failure.assertion("Buffer audio non disponibile.") }
+            buffer.frameLength = 16000; channels[0].initialize(repeating: 0, count: 16000); try audio.write(from: buffer)
+        }
+        try require(abs(try AudioWindowReader.duration(of: destination) - 1) < 0.001, "Il file audio di controllo non è leggibile.")
+        var session = AudioSession(title: "Controllo export"); session.state = "finished"; session.revision = 1
+        var segment = AudioTimelineSegment(file: file, start: 0, hostStart: 0); segment.duration = 1; session.segments = [segment]
+        session.transcript = [TranscriptSegment(start: 0, duration: 1, text: "Testo di controllo")]; session.transcriptionComplete = true
+        try await writer.saveSession(session)
+        let bundle = try await writer.exportAudioSession(session.id); defer { try? bundle.removeTemporaryFiles() }
+        guard let copied = bundle.files.first(where: { $0.pathExtension == "caf" }) else { throw Failure.assertion("File audio non esportato.") }
+        try require(Data(contentsOf: copied) == Data(contentsOf: destination), "I byte dell’audio esportato sono diversi.")
+        var changed = try await writer.changeAudioSession(session.id, expectedRevision: 1, action: .trash)
+        changed = try await writer.changeAudioSession(changed.id, expectedRevision: changed.revision!, action: .restore)
+        try require(changed.trashedAt == nil && changed.hasTranscriptText && FileManager.default.fileExists(atPath: destination.path), "Ripristino audio non completo.")
+    }
+    static func lensAndWebLinks() throws {
+        let area = LensGeometry.selection(from: StrokeSample(x: 20, y: 100), to: StrokeSample(x: 120, y: 100), pageWidth: 768, pageHeight: 1024)
+        try require(area != nil && area!.minY < 100, "La sottolineatura non comprende il testo superiore.")
+        let circle = [StrokeSample(x: 10, y: 50), StrokeSample(x: 50, y: 10), StrokeSample(x: 90, y: 50), StrokeSample(x: 50, y: 90), StrokeSample(x: 10, y: 50)]
+        try require(LensGeometry.selection(trace: circle, pageWidth: 768, pageHeight: 1024)?.width == 80, "La selezione cerchiata si è ridotta ai soli estremi.")
+        let source = WebSource(title: "Fonte di controllo", url: "https://example.com", endIndex: 4)
+        let artifact = AIArtifact(text: "Dato", references: [], provider: "Controllo locale, senza rete", webSources: [source])
+        _ = try artifact.validatedWebResearch()
+        try require(artifact.citedRuns.contains(where: { $0.link == source.link }) && !WebSource(title: "No", url: "javascript:x").isValid, "Collegamenti non validati.")
+    }
     private enum Failure: LocalizedError {
         case assertion(String)
         var errorDescription: String? { switch self { case .assertion(let message): return message } }

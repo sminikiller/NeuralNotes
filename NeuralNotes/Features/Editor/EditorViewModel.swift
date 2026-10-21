@@ -33,6 +33,8 @@ final class EditorViewModel {
     var page: PageSnapshot?
     var tool = InkTool.pen
     var lensArea: CGRect?
+    var lensTextSelection: String?
+    var lensPrefersPopup = false
     var lensRequest = 0
     var searchRequest = 0
     var focusRequest = 0
@@ -364,7 +366,7 @@ final class EditorViewModel {
     }
 
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
-        lensArea = nil
+        lensArea = nil; lensTextSelection = nil
         pendingHeldShape = nil; drawingAssistant?.cancel()
         gestureCommitTask?.cancel(); gestureCommitTask = nil; editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         endTextEdit()

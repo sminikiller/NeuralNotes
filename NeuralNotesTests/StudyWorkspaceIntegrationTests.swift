@@ -6,6 +6,23 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class StudyWorkspaceIntegrationTests: XCTestCase {
+    @MainActor func testExactTextLensRequestPreservesNotesAndCustomEditMenuHandlesRanges() async throws {
+        try await fixture { model in
+            model.editText([TextElement(text: "Energia e quantità")]); model.chooseTool(.text)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            let input = CanvasTextInput(host: host, model: model); host.textInput = input
+            input.view.text = "Energia e quantità"
+            let menu = input.textView(input.view, editMenuForTextIn: NSRange(location: 0, length: 7), suggestedActions: [])
+            XCTAssertEqual((menu?.children.first as? UIAction)?.title, "Apri nella Lente AI")
+            XCTAssertNil(input.textView(input.view, editMenuForTextIn: NSRange(location: Int.max, length: 7), suggestedActions: []))
+            let texts = model.page?.texts, bytes = model.canvas.drawing.dataRepresentation()
+            model.requestLens(text: "Energia", compact: true)
+            XCTAssertEqual(model.lensTextSelection, "Energia"); XCTAssertTrue(model.lensPrefersPopup)
+            XCTAssertEqual(model.page?.texts, texts); XCTAssertEqual(model.canvas.drawing.dataRepresentation(), bytes)
+            model.requestLens(area: CGRect(x: 1, y: 1, width: 20, height: 30))
+            XCTAssertNil(model.lensTextSelection); XCTAssertFalse(model.lensPrefersPopup)
+        }
+    }
     @MainActor func testCutImageClipboardSurvivesRemovalOfTheSourceMedia() async throws {
         try await fixture { model in
             let format = UIGraphicsImageRendererFormat(); format.scale = 1
@@ -28,6 +45,22 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
         try await RoadmapDiagnostics.quiz(root: root.appendingPathComponent("quiz"))
         try RoadmapDiagnostics.sourcesAndMaps()
         try await RoadmapDiagnostics.editor(root: root.appendingPathComponent("editor"))
+        try await RoadmapDiagnostics.audioExportAndOrganization(root: root.appendingPathComponent("audio"))
+        try RoadmapDiagnostics.lensAndWebLinks()
+    }
+    @MainActor func testWebAnswerInsertionPersistsClickableSourcesAndCanBeUndone() async throws {
+        try await fixture { model in
+            let source = WebSource(title: "Fonte", url: "https://example.com/fonte", endIndex: 4)
+            let artifact = AIArtifact(text: "Dato", references: [], provider: "fixture · web", webSources: [source])
+            XCTAssertTrue(model.insertAIAnswer(artifact))
+            let flushed = await model.flush(); XCTAssertTrue(flushed)
+            let pages = try await model.workspace.pages(), text = try XCTUnwrap(pages.first?.texts.first)
+            XCTAssertTrue(text.text.contains(source.url))
+            let value = RichText.attributed(text); var found = false
+            value.enumerateAttribute(.link, in: NSRange(location: 0, length: value.length)) { link, _, _ in if (link as? URL)?.absoluteString == source.url { found = true } }
+            XCTAssertTrue(found)
+            await model.performUndo(); XCTAssertTrue(model.page?.texts.isEmpty == true)
+        }
     }
     @MainActor func testSearchLocatesFormattedRotatedTextAndLaserNeverChangesDrawing() async throws {
         let value = NSMutableAttributedString(string: "Energia e quantità", attributes: [.font: UIFont.boldSystemFont(ofSize: 24)])

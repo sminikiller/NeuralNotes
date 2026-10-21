@@ -75,9 +75,11 @@ public struct AIArtifact: Codable, Identifiable, Sendable {
     public let provider: String
     public let createdAt: Date
     public let task: AITask?
-    public init(id: UUID = UUID(), text: String, references: [SourceReference], provider: String, createdAt: Date = Date(), task: AITask? = nil) {
+    public let webSources: [WebSource]?
+    public init(id: UUID = UUID(), text: String, references: [SourceReference], provider: String, createdAt: Date = Date(), task: AITask? = nil, webSources: [WebSource]? = nil) {
         self.id = id; self.text = text; self.references = references; self.provider = provider; self.createdAt = createdAt
         self.task = task
+        self.webSources = webSources
     }
 }
 

@@ -4,10 +4,11 @@ import UniformTypeIdentifiers
 import NeuralNotesCore
 
 private enum AudioPresentation: Identifiable {
-    case read(UUID), edit(AudioSession)
+    case read(UUID), edit(AudioSession), export(AudioExportBundle)
     var id: String {
         switch self { case .read(let id): return "read-\(id)"
-        case .edit(let session): return "edit-\(session.id)" }
+        case .edit(let session): return "edit-\(session.id)"
+        case .export(let bundle): return bundle.directory.lastPathComponent }
     }
 }
 
@@ -36,6 +37,12 @@ struct AudioPanel: View {
     @State private var bookmarkSessionID: UUID?
     @State private var bookmarkName = ""
     @State private var importingAudio = false
+    @State private var scope = AudioLibraryScope.recent
+    @State private var query = ""
+    @State private var exporting = false
+    @State private var exportJob: Task<Void, Never>?
+    @State private var exported: AudioExportBundle?
+    @State private var pendingMutation: PendingAudioMutation?
 
     var body: some View {
         NavigationStack {
@@ -57,79 +64,17 @@ struct AudioPanel: View {
                     Text(audio.backgroundAudioConfigured ? "La registrazione può continuare anche in standby e passando a un’altra app. Pausa e Termina restano manuali." : "Questa esecuzione non espone l’audio in background: verifica il supporto del progetto o del runner Swift Playground.")
                         .font(.caption).foregroundStyle(audio.backgroundAudioConfigured ? Color.secondary : Color.orange)
                 }
-                .disabled(audio.transitioning || audio.transcribingSessionID != nil)
-                ForEach(audio.sessions) { session in
-                    Section(session.title) {
-                        Text("\(clock(session.duration)) · \(session.state == "finished" ? "Conclusa" : "In corso / recuperata")")
-                            .font(.caption).foregroundStyle(.secondary)
-                        if session.hasTranscriptText {
-                            Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
-                                guard presentation == nil else { return }; presentation = .read(session.id)
-                            }.buttonStyle(.borderless).accessibilityIdentifier("transcriptRead-\(session.id)")
-                            Text(TranscriptText.firstMinuteText(session.readableTranscript))
-                                .lineLimit(3).foregroundStyle(.secondary)
-                        } else if session.transcriptionComplete == true {
-                            Text("Analisi completata senza testo riconosciuto. Ascolta l’audio e premi Riprova trascrizione.")
-                                .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier("transcriptEmpty")
-                        }
-                        Button("Rinomina / correggi", systemImage: "pencil") {
-                            guard presentation == nil else { return }; presentation = .edit(session)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("transcriptEdit-\(session.id)")
-                        .disabled(audio.transcribingSessionID != nil)
-                        ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
-                            Label("Esporta testo", systemImage: "square.and.arrow.up")
-                        }
-                            .buttonStyle(.borderless)
-                            .accessibilityIdentifier("transcriptExport-\(session.id)")
-                            .disabled(!session.hasTranscriptText)
-                        Button("Segnalibro qui", systemImage: "bookmark.badge.plus") { Task { await audio.addBookmark(sessionID: session.id) } }.buttonStyle(.borderless)
-                            .disabled(audio.transcribingSessionID != nil)
-                        ForEach(session.bookmarks ?? []) { bookmark in
-                            HStack {
-                                Button("\(clock(bookmark.seconds)) · \(bookmark.title)", systemImage: "bookmark.fill") { Task { await audio.play(session, at: bookmark.seconds) } }.buttonStyle(.borderless)
-                                Spacer()
-                                Button("Elimina segnalibro", systemImage: "xmark", role: .destructive) { Task { await audio.removeBookmark(bookmark, sessionID: session.id) } }.labelStyle(.iconOnly).buttonStyle(.borderless).disabled(audio.transcribingSessionID != nil)
-                            }
-                            .contextMenu {
-                                Button("Rinomina segnalibro", systemImage: "pencil") { bookmarkName = bookmark.title; bookmarkSessionID = session.id; renamingBookmark = bookmark }
-                                    .disabled(audio.transcribingSessionID != nil)
-                            }
-                        }
-                        Button("Riproduci", systemImage: "play.circle") { Task { await audio.play(session) } }
-                        if audio.playingSessionID == session.id {
-                            Slider(value: $seekSeconds, in: 0...max(session.duration, 0.1), onEditingChanged: { editing in
-                                seeking = editing
-                                if !editing { Task { await audio.play(session, at: seekSeconds) } }
-                            })
-                            Text(clock(audio.playback)).monospacedDigit()
-                            Button("Ferma riproduzione") { audio.stopPlayback() }
-                        }
-                        Button(transcriptionLabel(session), systemImage: "text.bubble") { audio.startTranscription(session) }
-                            .disabled(audio.transcribingSessionID != nil || audio.recording || session.state != "finished" || isComplete(session))
-                        if audio.transcribingSessionID == session.id {
-                            ProgressView(value: audio.transcriptionProgress)
-                            Text(audio.transcriptionStatus).font(.caption)
-                            if audio.transcriptionTask != nil {
-                                Button("Pausa trascrizione", systemImage: "pause.circle") { audio.transcriptionTask?.cancel() }
-                            }
-                        } else if audio.transcriptionStatusSessionID == session.id, !audio.transcriptionStatus.isEmpty {
-                            Text(audio.transcriptionStatus).font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("transcriptionStatus")
-                        }
-                        DisclosureGroup("Diagnosi trascrizione") {
-                            Button("Prova il primo blocco", systemImage: "stethoscope") { Task { await audio.probeFirstWindow(session) } }
-                                .buttonStyle(.borderless)
-                                .disabled(audio.transcribingSessionID != nil || audio.recording || session.segments.isEmpty)
-                                .accessibilityIdentifier("transcriptProbe-\(session.id)")
-                            Text("Riconosce solo i primi secondi e mostra metodo, tempo e testo. Utile se la trascrizione si ferma.")
-                                .font(.caption).foregroundStyle(.secondary)
-                            TranscriptionLogView()
-                        }
-                    }
+                .disabled(audio.transitioning || audio.transcribingSessionID != nil || exporting)
+                Section("Lezioni salvate") {
+                    Picker("Raccolta", selection: $scope) {
+                        Text("Recenti").tag(AudioLibraryScope.recent)
+                        Text("Archivio").tag(AudioLibraryScope.archived)
+                        Text("Cestino").tag(AudioLibraryScope.trash)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("audioLibraryScope")
+                    if exporting { ProgressView("Preparazione dei file originali…"); Button("Annulla esportazione") { exportJob?.cancel() } }
+                    if scope == .trash { Text("Il cestino conserva audio, testo e collegamenti e occupa ancora spazio. Puoi ripristinare le lezioni.").font(.caption).foregroundStyle(.secondary) }
                 }
+                ForEach(AudioLibraryQuery.sessions(audio.sessions, scope: scope, query: query)) { session in sessionSection(session) }
                 Section("Ascolto") {
                     Picker("Velocità", selection: Binding(get: { audio.playbackRate }, set: { audio.setPlaybackRate($0) })) {
                         ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], id: \.self) { rate in Text("\(rate, specifier: "%.2g")×").tag(rate) }
@@ -153,11 +98,15 @@ struct AudioPanel: View {
                 if let error = audio.error { Section { Text(error).foregroundStyle(.red) } }
             }
             .navigationTitle("Audio e trascrizioni")
+            .searchable(text: $query, prompt: "Nome della registrazione")
+            .interactiveDismissDisabled(exporting)
+            .onDisappear { exportJob?.cancel() }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
-            .sheet(item: $presentation) { item in
+            .sheet(item: $presentation, onDismiss: finishPresentation) { item in
                 switch item {
                 case .read(let id): TranscriptReader(audio: audio, sessionID: id)
                 case .edit(let session): TranscriptEditor(audio: audio, session: session)
+                case .export(let bundle): AudioFileShare(files: bundle.files)
                 }
             }
             .fileImporter(isPresented: $importingAudio, allowedContentTypes: [.audio]) { result in
@@ -175,6 +124,131 @@ struct AudioPanel: View {
         }
     }
 
+    @ViewBuilder
+    private func sessionSection(_ session: AudioSession) -> some View {
+        if session.trashedAt != nil {
+            Section(session.title) {
+                Text(session.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption)
+                Button("Ripristina registrazione", systemImage: "arrow.uturn.backward") { Task { await audio.organize(session.id, action: .restore) } }
+                    .disabled(!canOrganize(session)).accessibilityIdentifier("audioRestore-\(session.id)")
+            }
+        } else {
+            Section(session.title) {
+                Text("\(clock(session.duration)) · \(session.state == "finished" ? "Conclusa" : "In corso / recuperata")")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(session.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                if session.hasTranscriptText {
+                    Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
+                        guard presentation == nil else { return }; presentation = .read(session.id)
+                    }.buttonStyle(.borderless).accessibilityIdentifier("transcriptRead-\(session.id)")
+                    Text(TranscriptText.firstMinuteText(session.readableTranscript))
+                        .lineLimit(3).foregroundStyle(.secondary)
+                } else if session.transcriptionComplete == true {
+                    Text("Analisi completata senza testo riconosciuto. Ascolta l’audio e premi Riprova trascrizione.")
+                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("transcriptEmpty")
+                }
+                Button("Rinomina / correggi", systemImage: "pencil") {
+                    guard presentation == nil else { return }; presentation = .edit(session)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("transcriptEdit-\(session.id)")
+                .disabled(audio.transcribingSessionID != nil || session.state != "finished")
+                ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
+                    Label("Esporta testo", systemImage: "square.and.arrow.up")
+                }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("transcriptExport-\(session.id)")
+                    .disabled(!session.hasTranscriptText)
+                organizationControls(session)
+                Button("Segnalibro qui", systemImage: "bookmark.badge.plus") { Task { await audio.addBookmark(sessionID: session.id) } }.buttonStyle(.borderless)
+                    .disabled(audio.transcribingSessionID != nil)
+                ForEach(session.bookmarks ?? []) { bookmark in
+                    HStack {
+                        Button("\(clock(bookmark.seconds)) · \(bookmark.title)", systemImage: "bookmark.fill") { Task { await audio.play(session, at: bookmark.seconds) } }.buttonStyle(.borderless)
+                        Spacer()
+                        Button("Elimina segnalibro", systemImage: "xmark", role: .destructive) { Task { await audio.removeBookmark(bookmark, sessionID: session.id) } }.labelStyle(.iconOnly).buttonStyle(.borderless).disabled(audio.transcribingSessionID != nil)
+                    }
+                    .contextMenu {
+                        Button("Rinomina segnalibro", systemImage: "pencil") { bookmarkName = bookmark.title; bookmarkSessionID = session.id; renamingBookmark = bookmark }
+                            .disabled(audio.transcribingSessionID != nil)
+                    }
+                }
+                Button("Riproduci", systemImage: "play.circle") { Task { await audio.play(session) } }
+                if audio.playingSessionID == session.id {
+                    Slider(value: $seekSeconds, in: 0...max(session.duration, 0.1), onEditingChanged: { editing in
+                        seeking = editing
+                        if !editing { Task { await audio.play(session, at: seekSeconds) } }
+                    })
+                    Text(clock(audio.playback)).monospacedDigit()
+                    Button("Ferma riproduzione") { audio.stopPlayback() }
+                }
+                Button(transcriptionLabel(session), systemImage: "text.bubble") { audio.startTranscription(session) }
+                    .disabled(audio.transcribingSessionID != nil || audio.recording || session.state != "finished" || isComplete(session))
+                if audio.transcribingSessionID == session.id {
+                    ProgressView(value: audio.transcriptionProgress)
+                    Text(audio.transcriptionStatus).font(.caption)
+                    if audio.transcriptionTask != nil {
+                        Button("Pausa trascrizione", systemImage: "pause.circle") { audio.transcriptionTask?.cancel() }
+                    }
+                } else if audio.transcriptionStatusSessionID == session.id, !audio.transcriptionStatus.isEmpty {
+                    Text(audio.transcriptionStatus).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("transcriptionStatus")
+                }
+                DisclosureGroup("Diagnosi trascrizione") {
+                    Button("Prova il primo blocco", systemImage: "stethoscope") { Task { await audio.probeFirstWindow(session) } }
+                        .buttonStyle(.borderless)
+                        .disabled(audio.transcribingSessionID != nil || audio.recording || session.segments.isEmpty)
+                        .accessibilityIdentifier("transcriptProbe-\(session.id)")
+                    Text("Riconosce solo i primi secondi e mostra metodo, tempo e testo. Utile se la trascrizione si ferma.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    TranscriptionLogView()
+                }
+            }
+        }
+    }
+    private func canOrganize(_ session: AudioSession) -> Bool {
+        audio.canTranscribe && !exporting && audio.transcribingSessionID == nil && audio.active?.id != session.id && session.state == "finished"
+    }
+    private func organizationControls(_ session: AudioSession) -> some View {
+        HStack {
+            Button("Esporta audio e trascrizione", systemImage: "square.and.arrow.up") { prepareExport(session) }
+                .disabled(!canOrganize(session)).accessibilityIdentifier("audioFilesExport-\(session.id)")
+            Spacer()
+            Menu {
+                Button(session.isArchived == true ? "Sposta nei recenti" : "Archivia", systemImage: "archivebox") {
+                    Task { await audio.organize(session.id, action: .archive(session.isArchived != true)) }
+                }
+                Button("Cancella solo la trascrizione", systemImage: "text.badge.minus", role: .destructive) {
+                    pendingMutation = PendingAudioMutation(sessionID: session.id, action: .clearTranscript, title: "Cancella trascrizione", detail: "Il testo e le correzioni saranno rimossi. L’audio originale resta salvato e potrà essere trascritto di nuovo.")
+                }.disabled(!session.hasTranscriptText)
+                Button("Sposta nel cestino", systemImage: "trash", role: .destructive) {
+                    pendingMutation = PendingAudioMutation(sessionID: session.id, action: .trash, title: "Sposta nel cestino", detail: "La lezione verrà nascosta dai recenti e dalla ricerca. I file e i collegamenti restano conservati e ripristinabili.")
+                }
+            } label: { Label("Organizza registrazione", systemImage: "ellipsis.circle").labelStyle(.iconOnly) }
+            .disabled(!canOrganize(session)).accessibilityIdentifier("audioOrganize-\(session.id)")
+        }.buttonStyle(.borderless)
+        .confirmationDialog(pendingMutation?.title ?? "Organizza registrazione", isPresented: Binding(get: { pendingMutation?.sessionID == session.id }, set: { if !$0 { pendingMutation = nil } }), titleVisibility: .visible) {
+            if let pendingMutation {
+                Button(pendingMutation.title, role: .destructive) { let action = pendingMutation; self.pendingMutation = nil; Task { await audio.organize(action.sessionID, action: action.action) } }
+            }
+            Button("Annulla", role: .cancel) { pendingMutation = nil }
+        } message: { Text(pendingMutation?.detail ?? "") }
+    }
+    private func prepareExport(_ session: AudioSession) {
+        guard canOrganize(session), presentation == nil else { return }; exporting = true
+        exportJob = Task {
+            defer { exporting = false }
+            do {
+                let bundle = try await audio.workspace.exportAudioSession(session.id)
+                if Task.isCancelled { try? bundle.removeTemporaryFiles(); return }
+                exported = bundle; presentation = .export(bundle)
+            } catch is CancellationError { }
+            catch { audio.error = "Esportazione interrotta: \(error.localizedDescription). Gli originali sono conservati." }
+        }
+    }
+    private func finishPresentation() { if let exported { try? exported.removeTemporaryFiles() }; exported = nil }
+
     private func isComplete(_ session: AudioSession) -> Bool {
         session.hasCompletedTranscript
     }
@@ -185,6 +259,20 @@ struct AudioPanel: View {
         return session.transcriptionChunks?.isEmpty == false ? "Riprendi trascrizione" : "Trascrivi in italiano sul dispositivo"
     }
     private func clock(_ seconds: Double) -> String {
-        let value = max(0, Int(seconds)); return String(format: "%02d:%02d", value / 60, value % 60)
+        TranscriptText.clock(seconds)
     }
+}
+
+private struct PendingAudioMutation {
+    let sessionID: UUID
+    let action: AudioLibraryAction
+    let title: String
+    let detail: String
+}
+
+@MainActor
+private struct AudioFileShare: UIViewControllerRepresentable {
+    let files: [URL]
+    func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: files, applicationActivities: nil) }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) { }
 }

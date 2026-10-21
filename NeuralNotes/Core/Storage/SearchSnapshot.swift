@@ -22,7 +22,7 @@ struct SearchSnapshot: Codable {
         for entry in catalog.glossary ?? [] {
             chunks.append(IndexedChunk(text: entry.term + "\n" + entry.definition, reference: entry.references.first ?? SourceReference(documentID: documentID), kind: .glossary))
         }
-        for session in catalog.sessions {
+        for session in catalog.sessions where session.trashedAt == nil {
             for block in TranscriptText.minutes(session.readableTranscript) {
                 chunks.append(IndexedChunk(text: block.text, reference: SourceReference(documentID: documentID, audioSessionID: session.id, seconds: block.start), kind: .audio))
             }

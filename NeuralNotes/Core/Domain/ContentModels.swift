@@ -126,6 +126,8 @@ public struct AudioSession: Codable, Identifiable, Equatable, Sendable {
     public var transcriptCorrections: [TranscriptCorrection]?
     public var transcriptionComplete: Bool?
     public var bookmarks: [AudioBookmark]?
+    public var isArchived: Bool?
+    public var trashedAt: Date?
     public var duration: Double { segments.map { $0.start + $0.duration }.max() ?? 0 }
     public init(title: String) { self.title = title }
 }

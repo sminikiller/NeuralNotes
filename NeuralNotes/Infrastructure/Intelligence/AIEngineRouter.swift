@@ -71,6 +71,11 @@ struct DirectAIProvider: AIProvider {
 
 @MainActor
 enum AIEngineRouter {
+    static func research(_ input: WebResearchRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> AIArtifact {
+        guard input.isValid, let url = configuration.researchURL else { throw AIWireFailure.configuration }
+        let value: AIArtifact = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
+        return try value.validatedWebResearch()
+    }
     static func quiz(_ input: QuizRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> QuizBank {
         guard input.isValid, let url = configuration.quizURL else { throw AIWireFailure.configuration }
         let value: QuizBank = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
@@ -84,7 +89,7 @@ enum AIEngineRouter {
         let config = URLSessionConfiguration.ephemeral; config.urlCache = nil; config.httpShouldSetCookies = false
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil); defer { session.invalidateAndCancel() }
         let (bytes, response) = try await session.bytes(for: call)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw AIConnectionFailure.backend("Quiz non disponibile: controlla connessione, token e aggiornamento del backend /v1/quiz.") }
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw AIConnectionFailure.backend("Richiesta non disponibile: controlla connessione, token e funzioni abilitate sul backend.") }
         var data = Data()
         for try await byte in bytes { try Task.checkCancellation(); guard data.count < DirectAIWire.maximumResponseBytes else { throw AIWireFailure.response }; data.append(byte) }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601; return try decoder.decode(T.self, from: data)

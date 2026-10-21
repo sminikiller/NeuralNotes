@@ -135,7 +135,7 @@ extension NativeDocumentStore {
                         return SourceReference(documentID: documentID, pageID: reference.pageID.flatMap { pageMap[$0] },
                             audioSessionID: reference.audioSessionID.flatMap { sessionMap[$0] }, seconds: reference.seconds, pageRevision: reference.pageRevision)
                     }
-                    return AIConversationTurn(question: turn.question, answer: AIArtifact(text: original.text, references: references, provider: original.provider, createdAt: original.createdAt, task: original.task))
+                    return AIConversationTurn(question: turn.question, answer: AIArtifact(text: original.text, references: references, provider: original.provider, createdAt: original.createdAt, task: original.task, webSources: original.webSources))
                 }
                 try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             }
@@ -152,7 +152,7 @@ extension NativeDocumentStore {
                             pageRevision: reference.pageRevision)
                     }
                     let copy = AIArtifact(text: original.text, references: references, provider: original.provider,
-                        createdAt: original.createdAt, task: original.task)
+                        createdAt: original.createdAt, task: original.task, webSources: original.webSources)
                     try encoder.encode(copy).write(to: artifacts.appendingPathComponent("\(copy.id).json"), options: .atomic)
                     try FileManager.default.removeItem(at: file)
                 }

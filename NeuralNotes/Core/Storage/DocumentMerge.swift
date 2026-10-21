@@ -87,7 +87,7 @@ extension DocumentWorkspace {
                 let importedTurns = conversation.map { turn in
                     AIConversationTurn(question: turn.question, answer: AIArtifact(text: turn.answer.text,
                         references: turn.answer.references.map(reference), provider: turn.answer.provider,
-                        createdAt: turn.answer.createdAt, task: turn.answer.task))
+                        createdAt: turn.answer.createdAt, task: turn.answer.task, webSources: turn.answer.webSources))
                 }
                 combined.conversation = Array(((combined.conversation ?? []) + importedTurns).suffix(20))
             }
@@ -107,7 +107,7 @@ extension DocumentWorkspace {
             for file in try FileManager.default.contentsOfDirectory(at: artifacts, includingPropertiesForKeys: nil) where file.pathExtension == "json" {
                 let artifact = try decoder.decode(AIArtifact.self, from: Data(contentsOf: file))
                 try saveArtifact(AIArtifact(text: artifact.text, references: artifact.references.map(reference),
-                    provider: artifact.provider, createdAt: artifact.createdAt, task: artifact.task))
+                    provider: artifact.provider, createdAt: artifact.createdAt, task: artifact.task, webSources: artifact.webSources))
             }
         }
         try write(combined, "catalog.json")

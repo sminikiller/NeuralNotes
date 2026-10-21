@@ -100,4 +100,15 @@ final class CanvasTextInput: NSObject, UITextViewDelegate {
         !(formatting?.replaceNewline(in: range, replacement: text) ?? false)
     }
     func textViewDidEndEditing(_ textView: UITextView) { model?.endTextEdit() }
+    func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        let value = (textView.text ?? "") as NSString
+        guard range.location != NSNotFound, range.location >= 0, range.length > 0,
+              range.location <= value.length, range.length <= value.length - range.location else { return nil }
+        let selected = value.substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selected.isEmpty else { return nil }
+        let lens = UIAction(title: "Apri nella Lente AI", image: UIImage(systemName: "sparkle.magnifyingglass")) { [weak self] _ in
+            self?.model?.requestLens(text: selected, compact: true)
+        }
+        return UIMenu(children: suggestedActions + [lens])
+    }
 }

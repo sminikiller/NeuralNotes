@@ -194,6 +194,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     }
 
     func play(_ session: AudioSession, at seconds: Double = 0) async {
+        guard session.trashedAt == nil else { error = "Ripristina la registrazione dal cestino prima di ascoltarla."; return }
         guard !recording else { error = "Metti in pausa la registrazione prima di riprodurre."; return }
         do {
             stopPlayback()
@@ -221,6 +222,18 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     func setPlaybackRate(_ rate: Double) {
         guard rate.isFinite, (0.5...2).contains(rate) else { return }
         playbackRate = rate; player?.enableRate = true; player?.rate = Float(rate)
+    }
+
+    func organize(_ id: UUID, action: AudioLibraryAction) async {
+        guard canTranscribe, transcribingSessionID == nil, active?.id != id, let value = sessions.first(where: { $0.id == id }) else {
+            error = "Termina la registrazione o attendi la trascrizione prima di modificare l’archivio."; return
+        }
+        transitioning = true; defer { transitioning = false }
+        do {
+            _ = try await workspace.changeAudioSession(id, expectedRevision: value.revision ?? 0, action: action)
+            if case .trash = action, playingSessionID == id { stopPlayback() }
+            sessions = try await workspace.catalog().sessions
+        } catch { self.error = error.localizedDescription }
     }
 
     func addBookmark(sessionID: UUID? = nil, title: String = "Momento importante") async {

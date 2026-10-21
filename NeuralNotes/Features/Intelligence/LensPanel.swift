@@ -17,6 +17,7 @@ struct LensPanel: View {
     @State private var sources: [IndexedChunk] = []
     @State private var partial = ""
     @State private var busy = false
+    @State private var sourcesLoading = false
     @State private var error: String?
     @State private var job: Task<Void, Never>?
     var body: some View {
@@ -26,11 +27,14 @@ struct LensPanel: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     Text(configuration.engine != .offline ? "Risposte sulle fonti selezionate, con riferimenti." : "Modalità offline: estratti delle fonti, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
                     Text("\(sources.count) fonti · area cerchiata o selezione; altrimenti la pagina corrente").font(.caption)
+                    if sourcesLoading { ProgressView("Lettura della selezione…") }
+                    if sourcesChanged { Button("Pagina modificata: aggiorna le fonti", systemImage: "arrow.clockwise") { Task { await load() } }.font(.caption) }
+                    if configuration.engine != .offline && consentKey != configuration.consentKey { Text("Attiva questa connessione AI dal pulsante delle impostazioni prima di inviare le fonti.").font(.caption).foregroundStyle(.secondary) }
                     ForEach(turns) { turn in
                         Text(turn.question).font(.headline)
-                        Text(turn.answer.text).textSelection(.enabled)
+                        CitedAnswer(artifact: turn.answer)
                         HStack {
-                            Button("Inserisci", systemImage: "text.badge.plus") { insert(turn.answer) }
+                            Button("Inserisci", systemImage: "text.badge.plus") { insert(turn.answer) }.disabled(model.hasActiveStroke || model.navigating || model.loading)
                             Button("Glossario", systemImage: "character.book.closed") {
                                 Task {
                                     do { try await model.workspace.saveGlossaryEntry(GlossaryEntry(term: String(turn.question.prefix(120)), definition: String(turn.answer.text.prefix(16000)), references: turn.answer.references)); glossary = true }
@@ -58,13 +62,13 @@ struct LensPanel: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
-                    Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }.buttonStyle(.bordered).disabled(busy || sources.isEmpty)
-                    ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(busy || sources.isEmpty) }
+                    Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }.buttonStyle(.bordered).disabled(busy || sourcesLoading || sourcesChanged || sources.isEmpty)
+                    ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(!canSend) }
                 }.padding(.horizontal)
             }
             HStack {
                 TextField("Chiedi sulle fonti…", text: $question, axis: .vertical).lineLimit(1...4)
-                Button { send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }.disabled(busy || question.isEmpty || sources.isEmpty).accessibilityLabel("Invia alla Lente AI")
+                Button { send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }.disabled(!canSend || question.isEmpty).accessibilityLabel("Invia alla Lente AI")
                 if busy { Button("Stop") { job?.cancel() } }
             }.padding()
         }.sheet(isPresented: $glossary) { GlossaryPanel(model: model) }
@@ -76,32 +80,41 @@ struct LensPanel: View {
     private var selectionKey: String {
         let objects = model.selectedIDs.map(\.uuidString).sorted().joined(separator: ",")
         let strokes = (model.selectedStrokeIndices ?? []).sorted().map(String.init).joined(separator: ",")
-        return "\(model.page?.id.uuidString ?? "")|\(objects)|\(strokes)|\(model.selectionIncludesInk)|\(String(describing: model.lensArea))|\(model.lensRequest)"
+        return "\(model.page?.id.uuidString ?? "")|\(objects)|\(strokes)|\(model.selectionIncludesInk)|\(String(describing: model.lensArea))|\(model.lensTextSelection ?? "")|\(model.lensRequest)"
     }
+    private var sourcesChanged: Bool {
+        !sources.isEmpty && (model.dirty || sources.contains { $0.reference.pageID != model.page?.id || $0.reference.pageRevision != model.page?.revision })
+    }
+    private var canSend: Bool { !busy && !sourcesLoading && !sourcesChanged && !sources.isEmpty && (configuration.engine == .offline || consentKey == configuration.consentKey) }
     private var settings: some View {
         Button { configuring = true } label: { Image(systemName: "slider.horizontal.3") }
             .sheet(isPresented: $configuring) { AIConnectionPanel(configuration: $configuration, consentKey: $consentKey) }
     }
     private func load() async {
-        job?.cancel()
+        job?.cancel(); sources = []; error = nil; sourcesLoading = true
+        let key = selectionKey
+        defer { if key == selectionKey { sourcesLoading = false } }
         turns = (try? await model.workspace.catalog().conversation) ?? []
-        await loadSources()
+        guard !Task.isCancelled, key == selectionKey else { return }
+        await loadSources(key: key)
     }
-    private func loadSources() async {
+    private func loadSources(key: String) async {
         guard await model.flush(), let page = model.page else { return }
         do {
-            var text = page.texts.filter { model.selectedIDs.isEmpty || model.selectedIDs.contains($0.id) }.map(\.text).joined(separator: "\n")
+            try Task.checkCancellation(); guard key == selectionKey else { return }
+            let exact = model.lensTextSelection
+            var text = exact ?? page.texts.filter { model.selectedIDs.isEmpty || model.selectedIDs.contains($0.id) }.map(\.text).joined(separator: "\n")
             let visual = model.selectionIncludesInk || page.images.contains(where: { model.selectedIDs.contains($0.id) })
                 || (page.shapes ?? []).contains(where: { model.selectedIDs.contains($0.id) })
             let area = model.lensArea ?? (visual ? model.selectionBounds : nil)
-            if let area, !area.isNull, area.width > 3, area.height > 3 {
+            if exact == nil, let area, !area.isNull, area.width > 3, area.height > 3 {
                 let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 1600)
                 let box = area.intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
                 let pixel = CGRect(x: box.minX * image.scale, y: box.minY * image.scale, width: box.width * image.scale, height: box.height * image.scale)
                 if let cropped = image.cgImage?.cropping(to: pixel), let data = UIImage(cgImage: cropped).pngData() {
                     text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
                 }
-            } else if model.selectedIDs.isEmpty {
+            } else if exact == nil && model.selectedIDs.isEmpty {
                 text += "\n" + page.recognizedText
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 1600)
@@ -109,38 +122,42 @@ struct LensPanel: View {
                 }
             }
             try Task.checkCancellation()
-            sources = text.split(separator: "\n").prefix(20).map { IndexedChunk(text: String($0.prefix(4000)), reference: SourceReference(documentID: notebook.documentID, pageID: page.id, pageRevision: page.revision)) }
+            guard key == selectionKey, model.page?.id == page.id else { return }
+            let chunks = text.split(separator: "\n").prefix(20).map { IndexedChunk(text: String($0.prefix(4000)), reference: SourceReference(documentID: notebook.documentID, pageID: page.id, pageRevision: page.revision)) }
+            sources = SourceContext.select(chunks, maximumSources: 20, maximumPerSource: 4000).sources
             if sources.isEmpty { error = "Nessun testo riconoscibile nella selezione. Seleziona testo o un’area più leggibile." } else { error = nil }
         } catch is CancellationError { }
         catch { self.error = error.localizedDescription }
     }
     private func send(continuation: Bool = true) {
-        guard !busy, !sources.isEmpty else { return }
+        guard canSend else { return }
         let prompt = String(question.prefix(1000)); question = ""; error = nil; partial = ""; busy = true
+        let selectedSources = sources, selectedConfiguration = configuration, selectedConsent = consentKey, previousTurns = turns
         job = Task {
             defer { busy = false; partial = "" }
             do {
-                let context = (continuation ? Array(turns.suffix(2)) : []).map { "Domanda: \($0.question.prefix(300))\nRisposta precedente: \($0.answer.text.prefix(500))" }.joined(separator: "\n")
-                let request = AIRequest(task: .chat, question: "\(context)\nDomanda attuale: \(prompt)", sources: sources)
+                let context = (continuation ? Array(previousTurns.suffix(2)) : []).map { "Domanda: \($0.question.prefix(300))\nRisposta precedente: \($0.answer.text.prefix(500))" }.joined(separator: "\n")
+                let request = AIRequest(task: .chat, question: "\(context)\nDomanda attuale: \(prompt)", sources: selectedSources)
                 let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]; encoder.dateEncodingStrategy = .iso8601
-                var identity = try encoder.encode(request); identity.append(Data(configuration.consentKey.utf8))
+                var identity = try encoder.encode(request); identity.append(Data(selectedConfiguration.consentKey.utf8))
                 let cacheKey = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
                 let answer: AIArtifact
-                if let cached = try await model.workspace.cachedLensAnswer(key: cacheKey) { answer = cached }
+                if let cached = try? await model.workspace.cachedLensAnswer(key: cacheKey) { answer = cached }
                 else {
-                    answer = try await AIEngineRouter.generate(request, configuration: configuration, consentKey: consentKey) { partial += $0 }
-                    try Task.checkCancellation(); try await model.workspace.cacheLensAnswer(key: cacheKey, artifact: answer)
+                    answer = try await AIEngineRouter.generate(request, configuration: selectedConfiguration, consentKey: selectedConsent) { partial += $0 }
+                    try Task.checkCancellation(); try? await model.workspace.cacheLensAnswer(key: cacheKey, artifact: answer)
                 }
                 try Task.checkCancellation()
                 let turn = AIConversationTurn(question: prompt, answer: answer)
-                try await model.workspace.saveConversationTurn(turn); turns = Array((turns + [turn]).suffix(20))
+                turns = Array((turns + [turn]).suffix(20))
+                do { try await model.workspace.saveConversationTurn(turn) }
+                catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
             } catch is CancellationError { }
             catch { self.error = error.localizedDescription; question = prompt }
         }
     }
     private func insert(_ artifact: AIArtifact) {
-        var text = TextElement(text: artifact.text); text.fontSize = 18
-        model.mutatePage("Inserisci risposta AI") { $0.texts.append(text) }
+        _ = model.insertAIAnswer(artifact)
     }
     private func sourceTitle(_ source: SourceReference) -> String {
         if let id = source.pageID, let index = model.pages.firstIndex(where: { $0.id == id }) { return "Fonte · pagina \(index + 1)" }

@@ -173,6 +173,53 @@ final class AudioTranscriptionTests: XCTestCase {
         XCTAssertTrue(audio.error?.contains("tre blocchi consecutivi") == true)
         await audio.close()
     }
+    @MainActor
+    func testSixHourFilePipelineResumesAfterCancellationAndKeepsCorrections() async throws {
+        let (workspace, root) = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let path = "audio/six-hours.wav", url = try await workspace.url(path)
+        // A sparse PCM file has a real six-hour header and readable frames,
+        // without writing hundreds of MB of zeroes into the test fixture.
+        try writeSparseWave(url, seconds: 21600)
+        XCTAssertEqual(try AudioWindowReader.duration(of: url), 21600, accuracy: 0.001)
+        let lastWindow = try XCTUnwrap(SpeechWindow.plan(duration: 21600, maximum: 45).last)
+        XCTAssertEqual(try AudioWindowReader.read(url: url, window: lastWindow) { _ in }, 360_000)
+        var part = AudioTimelineSegment(file: path, start: 0, hostStart: 0); part.duration = 21600
+        var session = AudioSession(title: "Sei ore"); session.state = "finished"; session.segments = [part]
+        try await workspace.saveSession(session)
+        let first = AudioController(workspace: workspace); await first.load()
+        first.windowRecognition = { _, window, _ in
+            if window.start >= 5400 { throw CancellationError() }
+            return [TranscriptSegment(start: 1, duration: 1, text: "Blocco \(Int(window.start))")]
+        }
+        first.startTranscription(session); await first.transcriptionTask?.value
+        let checkpoint = try await workspace.catalog()
+        let saved = try XCTUnwrap(checkpoint.sessions.first)
+        XCTAssertEqual(saved.transcriptionChunks?.count, 120)
+        XCTAssertNotEqual(saved.transcriptionComplete, true)
+        var blocks = TranscriptText.minutes(saved.readableTranscript); blocks[0].text = "Correzione conservata"
+        try await first.saveTranscript(session.id, title: "Lezione completa", blocks: blocks)
+        await first.close()
+        let second = AudioController(workspace: workspace); await second.load()
+        var requested: [Double] = []
+        second.windowRecognition = { _, window, language in
+            XCTAssertEqual(language, "it-IT"); requested.append(window.start)
+            return [TranscriptSegment(start: 1, duration: 1, text: "Blocco \(Int(window.start))")]
+        }
+        let reopened = try XCTUnwrap(second.sessions.first)
+        second.startTranscription(reopened); await second.transcriptionTask?.value
+        let finalCatalog = try await workspace.catalog(), final = try XCTUnwrap(finalCatalog.sessions.first)
+        XCTAssertNil(second.error); XCTAssertEqual(requested.count, 360); XCTAssertEqual(requested.first, 5400)
+        XCTAssertEqual(requested.last, 21555); XCTAssertEqual(final.transcriptionChunks?.count, 480)
+        XCTAssertTrue(final.hasCompletedTranscript); XCTAssertEqual(final.title, "Lezione completa")
+        XCTAssertEqual(final.readableTranscript.last?.start, 21556)
+        XCTAssertTrue(final.readableTranscript.contains { $0.text.contains("Correzione conservata") })
+        let exported = TranscriptText.export(title: final.title, segments: final.readableTranscript, complete: final.hasCompletedTranscript)
+        XCTAssertTrue(exported.contains("05:59:00")); XCTAssertTrue(exported.contains("Blocco 21555"))
+        await second.close()
+        // Recognition is injected: this exercises the Apple controller and IO,
+        // not Speech accuracy, recording hardware, or six hours in standby.
+    }
     func testSilenceErrorIsAnEmptyBlockNotAFailure() {
         let silence = NSError(domain: "kAFAssistantErrorDomain", code: 1110, userInfo: [NSLocalizedDescriptionKey: "No speech detected"])
         XCTAssertTrue(AppleTranscriptionService.isNoSpeech(silence))
@@ -197,5 +244,17 @@ final class AudioTranscriptionTests: XCTestCase {
         buffer.frameLength = frames
         let samples = try XCTUnwrap(buffer.floatChannelData); samples[0].initialize(repeating: 0, count: Int(frames))
         for _ in 0..<seconds { try file.write(from: buffer) }
+    }
+    private func writeSparseWave(_ url: URL, seconds: UInt32) throws {
+        let rate: UInt32 = 8000, bytes: UInt32 = seconds * rate * 2
+        var header = Data("RIFF".utf8)
+        func append16(_ value: UInt16) { var little = value.littleEndian; withUnsafeBytes(of: &little) { header.append(contentsOf: $0) } }
+        func append32(_ value: UInt32) { var little = value.littleEndian; withUnsafeBytes(of: &little) { header.append(contentsOf: $0) } }
+        append32(bytes + 36); header.append(Data("WAVEfmt ".utf8)); append32(16)
+        append16(1); append16(1); append32(rate); append32(rate * 2); append16(2); append16(16)
+        header.append(Data("data".utf8)); append32(bytes)
+        try header.write(to: url)
+        let output = try FileHandle(forWritingTo: url); defer { try? output.close() }
+        try output.seek(toOffset: UInt64(44) + UInt64(bytes) - 1); try output.write(contentsOf: Data([0])); try output.synchronize()
     }
 }

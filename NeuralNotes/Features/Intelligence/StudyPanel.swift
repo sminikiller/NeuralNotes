@@ -62,8 +62,8 @@ struct StudyPanel: View {
                               let revision = reference.pageRevision else { return false }
                         return model.pages.first(where: { $0.id == id })?.revision != revision
                     }) { Section { Text("Alcune pagine sono cambiate dopo questa elaborazione. Eseguila di nuovo per aggiornarla.").foregroundStyle(.secondary) } }
-                    Section("Risposta · \(result.provider)") { Text(result.text).textSelection(.enabled) }
-                    Section { ShareLink("Condividi elaborazione", item: result.text) }
+                    Section("Risposta · \(result.provider)") { CitedAnswer(artifact: result) }
+                    Section { ShareLink("Condividi elaborazione", item: result.citedRuns.map(\.text).joined()) }
                     if result.task == .outline {
                         Section {
                             Button("Crea pagina mappa modificabile", systemImage: "point.3.connected.trianglepath.dotted") { Task { if await model.createMindMap(from: result) { dismiss() } } }

@@ -143,9 +143,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             host.flow?.activateAtPoint(gesture.location(in: host)); return
         }
         let point = gesture.location(in: host.surface)
+        if model.tool == .lens { model.requestLens(area: CGRect(x: point.x - 60, y: point.y - 30, width: 120, height: 60), compact: true); return }
         if model.toggleChecklist(at: point) { return }
         if let tape = model.tapeHit(at: point), model.tool != .objects { model.toggleTape(tape); return }
-        if model.tool == .lens { model.lensArea = CGRect(x: point.x - 60, y: point.y - 30, width: 120, height: 60); model.lensRequest += 1; return }
         if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }
         else if model.tool == .audioLink { Task { await model.playAudio(at: point, tolerance: 18 / max(host.canvas.zoomScale, 0.1)) } }
         else if let id = hit(point) {
@@ -182,7 +182,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if model.selectRectangle || model.selectFreehand || model.tool == .lens {
             let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
             let selection: UIBezierPath
-            if model.selectFreehand {
+            if model.tool == .lens {
+                selectionTrace.append(point); selection = UIBezierPath(); selection.move(to: start)
+                for point in selectionTrace.dropFirst() { selection.addLine(to: point) }
+            } else if model.selectFreehand {
                 selectionTrace.append(point); selection = UIBezierPath(); selection.move(to: start)
                 for point in selectionTrace.dropFirst() { selection.addLine(to: point) }; selection.close()
             } else { selection = UIBezierPath(rect: rect) }
@@ -191,7 +194,11 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             display.apply(transform); marquee.path = display.cgPath
             if gesture.state == .ended {
                 if model.tool == .lens {
-                    model.lensArea = rect; model.lensRequest += 1; marquee.path = nil; before = nil; originalDrawing = nil; return
+                    let trace = selectionTrace.map { StrokeSample(x: $0.x, y: $0.y) }
+                    if let area = LensGeometry.selection(trace: trace, pageWidth: page.width, pageHeight: page.height) {
+                        model.requestLens(area: area, compact: true)
+                    }
+                    marquee.path = nil; before = nil; originalDrawing = nil; return
                 }
                 let box = selection.bounds
                 let ids = allIDs.filter { id in
@@ -301,7 +308,7 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
             let front = UIAction(title: "Porta davanti", image: UIImage(systemName: "square.3.layers.3d.top.filled")) { _ in model.arrangeSelection(front: true) }
             let back = UIAction(title: "Porta dietro", image: UIImage(systemName: "square.3.layers.3d.bottom.filled")) { _ in model.arrangeSelection(front: false) }
             let lock = UIAction(title: "Blocca", image: UIImage(systemName: "lock")) { _ in model.lockSelection() }
-            let ai = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkles")) { _ in model.lensRequest += 1 }
+            let ai = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkles")) { _ in model.requestLens() }
             let remove = UIAction(title: "Elimina", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in model.deleteSelectedObject() }
             return UIMenu(children: [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove])
         }

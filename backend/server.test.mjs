@@ -1,11 +1,66 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
+import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, validateResearchRequest, researchFromResponse, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
 import { partialText } from './streaming.mjs';
 
 function quizRequest() { return { count: 4, sources: request().sources }; }
 function quizResult() { return { title: 'Ripasso', questions: [{ prompt: 'Domanda [1]', options: ['Uno', 'Due', 'Tre', 'Quattro'], correctIndex: 1, explanation: 'Spiegazione [1]', citations: [1] }] }; }
+function webResponse() { return { status: 'completed', output: [{ type: 'web_search_call', status: 'completed' }, { type: 'message', content: [{ type: 'output_text', text: 'Definizione ricercata.', annotations: [{ type: 'url_citation', title: 'Fonte', url: 'https://example.com/source', start_index: 0, end_index: 21 }] }] }] }; }
+
+test('web research is opt-in and sends only a term with one required search call', async () => {
+  let calls = 0;
+  const transport = async (_url, options) => {
+    calls++; const body = JSON.parse(options.body);
+    assert.deepEqual(body.tools, [{ type: 'web_search' }]); assert.equal(body.tool_choice, 'required'); assert.equal(body.max_tool_calls, 1);
+    assert.deepEqual(JSON.parse(body.input), { term: 'Entropia' }); assert.equal(body.store, false);
+    return Response.json(webResponse());
+  };
+  const disabled = new ResponsesAdapter({ key: 'test-only', model: 'fixture' }, transport);
+  await assert.rejects(disabled.research({ term: 'Entropia' }, new AbortController().signal), { code: 'web_search_disabled' }); assert.equal(calls, 0);
+  const enabled = new ResponsesAdapter({ key: 'test-only', model: 'fixture', enableWebSearch: true }, transport);
+  const result = await enabled.research(validateResearchRequest({ term: 'Entropia', sources: 'must not be forwarded' }), new AbortController().signal);
+  assert.equal(calls, 1); assert.equal(result.webSources[0].url, 'https://example.com/source'); assert.deepEqual(result.references, []);
+});
+test('web research rejects unsearched, incomplete, uncited and unsafe results', () => {
+  for (const term of ['', 'a\nb', 'a\tb', 'x'.repeat(121)]) assert.throws(() => validateResearchRequest({ term }));
+  const missing = webResponse(); missing.output.shift(); assert.throws(() => researchFromResponse(missing, 'fixture'));
+  const incomplete = webResponse(); incomplete.status = 'incomplete'; assert.throws(() => researchFromResponse(incomplete, 'fixture'));
+  for (const url of ['javascript:alert(1)', 'file:///private/data', 'https://user:pass@example.com']) {
+    const bad = webResponse(); bad.output[1].content[0].annotations[0].url = url; assert.throws(() => researchFromResponse(bad, 'fixture'));
+  }
+  const uncited = webResponse(); uncited.output[1].content[0].annotations = []; assert.throws(() => researchFromResponse(uncited, 'fixture'));
+});
+test('web research endpoint authenticates and validates before calling the adapter', async () => {
+  let calls = 0;
+  const server = createApp({ secret, adapter: { async research() { calls++; return researchFromResponse(webResponse(), 'fixture'); } } });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/v1/research`, headers = { 'Content-Type': 'application/json' };
+    let response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ term: 'Entropia' }) }); assert.equal(response.status, 401); await response.body.cancel(); assert.equal(calls, 0);
+    headers.Authorization = `Bearer ${issueToken(secret, 'research-tester', Math.floor(Date.now() / 1000) + 60)}`;
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ term: '' }) }); assert.equal(response.status, 400); await response.body.cancel(); assert.equal(calls, 0);
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ term: 'Entropia' }) }); assert.equal(response.status, 200); assert.equal((await response.json()).webSources.length, 1); assert.equal(calls, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('explicit reasoning and output budgets apply to study, stream, lookup and quiz without selecting a model', async () => {
+  const calls = [];
+  const adapter = new ResponsesAdapter({ key: 'test-only', model: 'operator-selected-model', maxOutputTokens: 512, reasoningEffort: 'low' }, async (_url, options) => {
+    const body = JSON.parse(options.body); calls.push(body);
+    assert.equal(body.model, 'operator-selected-model'); assert.equal(body.max_output_tokens, 512); assert.deepEqual(body.reasoning, { effort: 'low' });
+    if (body.stream) return streamFixture([1], true);
+    const name = body.text.format.name;
+    const value = name === 'neuralnotes_lookup' ? lookupResult() : name === 'neuralnotes_quiz' ? quizResult() : { text: 'Risposta [1]', citations: [1] };
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] }] });
+  });
+  await adapter.generate(request(), new AbortController().signal);
+  await adapter.lookup(lookupRequest(), new AbortController().signal);
+  await adapter.quiz(quizRequest(), new AbortController().signal);
+  for await (const _event of adapter.generateStream(request(), new AbortController().signal)) { }
+  assert.equal(calls.length, 4);
+  assert.throws(() => new ResponsesAdapter({ key: 'test-only', model: 'fixture', reasoningEffort: 'invented' }));
+});
 
 test('quiz validates source bounds and never accepts invented references or ambiguous answer indexes', () => {
   assert.equal(validateQuizRequest(quizRequest()).count, 4);

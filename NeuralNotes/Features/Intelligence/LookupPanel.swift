@@ -10,6 +10,7 @@ struct LookupPanel: View {
     @Environment(\.dismiss) private var dismiss
     @State private var term = ""
     @State private var card: LookupCard?
+    @State private var research: AIArtifact?
     @State private var error: String?
     @State private var busy = false
     @State private var job: Task<Void, Never>?
@@ -23,11 +24,23 @@ struct LookupPanel: View {
                     if configuration.lookupURL != nil {
                         Button("Crea scheda dalle fonti", systemImage: "sparkles") { generate() }
                             .disabled(busy || !LookupRequest(term: term, sources: sources).isValid || consentKey != configuration.consentKey)
+                        Button("Cerca sul web con fonti", systemImage: "globe") { generateResearch() }
+                            .disabled(busy || !WebResearchRequest(term: term).isValid || consentKey != configuration.consentKey)
+                        Text("La ricerca web invia solo il termine, non la pagina o la registrazione. Richiede l’abilitazione sul backend e può avere costi aggiuntivi. Le risposte dalle fonti del quaderno restano separate.").font(.caption).foregroundStyle(.secondary)
                         if consentKey != configuration.consentKey { Text("Abilita l’invio delle fonti nella Connessione AI della Lente per questo pannello di studio.").font(.caption) }
                     } else { Text("Le schede strutturate usano il backend personale aggiornato. Il dizionario di sistema resta disponibile; gli altri motori possono definire il termine nella chat della Lente.").font(.caption) }
                 }
                 if busy { ProgressView("Preparazione della scheda…"); Button("Annulla") { job?.cancel() } }
                 if let error { Text(error).foregroundStyle(.red) }
+                if let research {
+                    Section("Ricerca web · \(research.provider)") {
+                        Text("Fonti raccolte: \(research.createdAt.formatted(date: .abbreviated, time: .shortened)) · riutilizzabili per un’ora").font(.caption).foregroundStyle(.secondary)
+                        CitedAnswer(artifact: research)
+                        Button("Inserisci risposta e collegamenti", systemImage: "text.badge.plus") { if model.insertAIAnswer(research) { dismiss() } }
+                            .disabled(model.hasActiveStroke || model.navigating || model.loading)
+                        ShareLink("Condividi ricerca", item: research.citedRuns.map(\.text).joined())
+                    }
+                }
                 if let card {
                     Section("Definizione") { Text(card.definition).textSelection(.enabled) }
                     if !card.explanation.isEmpty { Section("Spiegazione") { Text(card.explanation).textSelection(.enabled) } }
@@ -40,7 +53,7 @@ struct LookupPanel: View {
                                 catch { self.error = error.localizedDescription }
                             }
                         }
-                        Button("Inserisci nel foglio", systemImage: "text.badge.plus") { model.mutatePage("Inserisci definizione") { $0.texts.append(TextElement(text: card.text)) }; dismiss() }
+                        Button("Inserisci nel foglio", systemImage: "text.badge.plus") { if model.insertAIAnswer(card.artifact) { dismiss() } }.disabled(model.hasActiveStroke || model.navigating || model.loading)
                     }
                     Section("Fonti") {
                         ForEach(Array(card.references.enumerated()), id: \.offset) { row in
@@ -54,7 +67,7 @@ struct LookupPanel: View {
                 .task { term = String(sources.first?.text.prefix(120) ?? "") }
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
                 .onDisappear { job?.cancel() }
-                .onChange(of: term) { _, _ in card = nil; error = nil }
+                .onChange(of: term) { _, _ in card = nil; research = nil; error = nil }
         }
     }
     private func generate() {
@@ -64,7 +77,31 @@ struct LookupPanel: View {
             defer { busy = false }
             do {
                 let result = try await AIEngineRouter.lookup(input, configuration: configuration, consentKey: consentKey)
-                try Task.checkCancellation(); try await model.workspace.saveArtifact(result.artifact); card = result
+                try Task.checkCancellation(); card = result
+                do { try await model.workspace.saveArtifact(result.artifact) }
+                catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
+            } catch is CancellationError { }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+    private func generateResearch() {
+        guard !busy else { return }; busy = true; error = nil
+        let input = WebResearchRequest(term: term)
+        job = Task {
+            defer { busy = false }
+            do {
+                let key = input.cacheKey(configuration: configuration)
+                let value: AIArtifact
+                if let cached = try? await model.workspace.cachedLensAnswer(key: key),
+                   let valid = try? cached.validatedWebResearch(), (0..<3600).contains(Date().timeIntervalSince(valid.createdAt)) { value = valid }
+                else {
+                    value = try await AIEngineRouter.research(input, configuration: configuration, consentKey: consentKey)
+                    try Task.checkCancellation()
+                    if value.text.count <= 16_000 { try? await model.workspace.cacheLensAnswer(key: key, artifact: value) }
+                }
+                try Task.checkCancellation(); research = value
+                do { try await model.workspace.saveArtifact(value) }
+                catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
             } catch is CancellationError { }
             catch { self.error = error.localizedDescription }
         }
