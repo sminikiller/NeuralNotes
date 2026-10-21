@@ -420,16 +420,20 @@ final class EditorViewModel {
         } catch { self.error = error.localizedDescription }
     }
 
-    func deletePage() async {
-        guard hasLease, !navigating, !hasActiveStroke else { return }
+    func deletePage(_ pageID: UUID? = nil) async {
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
         guard let page, await flush(), !hasActiveStroke else { return }
+        let target = pageID ?? page.id
+        guard pages.contains(where: { $0.id == target }) else { return }
+        let removedIndex = pages.firstIndex(where: { $0.id == target }) ?? 0
         let before = pages.map(\.id)
         do {
-            try await workspace.deletePage(page.id)
+            try await workspace.deletePage(target)
             pages = try await workspace.pages()
             if pages.isEmpty { pages = [try await workspace.addDefaultPage()] }
-            if let first = pages.first { try await load(first) }
+            let selected = target == page.id ? pages[min(removedIndex, pages.count - 1)] : pages.first(where: { $0.id == page.id }) ?? pages[0]
+            try await load(selected)
             recordOrder(before, selectedBefore: page.id, label: "Elimina pagina")
         } catch { self.error = error.localizedDescription }
     }

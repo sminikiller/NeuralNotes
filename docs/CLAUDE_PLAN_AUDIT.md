@@ -4,7 +4,15 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.12.2/build 24**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.14.0/build 25**, 21 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+
+## Lotto aggiuntivo 0.14 — editor, PDF e budget
+
+Implementati eliminazione di qualsiasi pagina dalle anteprime con undo, strumenti focus salvati separatamente per attività, popup sul lato interno, H1/H2/Corpo e colori/evidenziazione RTF, linea campionata con aggancio ±6° e rettangoli ruotati, salti audio ±15 s. Il righello continua a usare PencilKit nativo e non il riconoscimento delle forme; aggancio fisico da verificare.
+
+Compressione AAC mono 64 kbps solo fuori da registrazione/trascrizione/ascolto, buffer limitati, verifica temporale e journal riprendibile; aggiornati catalogo precedente, export, backup/import, lettura ASR e pannello spazio. Il ramo Claude 9a79d58 è stato usato come bozza non compilata, non come codice già verificato. Budget dei backup con due copie protette e indicazione dello spazio. Import PDF/foto preparati fuori dal thread UI; append PDF con un solo manifest. Nuovo PDF esterno affiancato senza import, estratti e ricerca da selezione/cerchio/sottolineatura esplicita; i PDF scansiti esterni richiedono ancora OCR tramite import.
+
+**174 XCTest Core (due skip) e 98 FSRS passati**; sei nuovi metodi Apple e due controlli diagnostici predisposti, non eseguiti. CI Apple ancora bloccata dalla fatturazione. [Dettagli e comandi](DELIVERY_0_14_0.md), [piano AI e ciò che resta aperto](AI_FUNCTIONAL_PLAN.md). Questo lotto non completa le funzioni AI avanzate o tutta la roadmap.
 
 ## Difetti segnalati prima dei lotti
 
@@ -66,7 +74,7 @@ Selezione/copia, evidenziazione per riga, sottolineatura, indice, link nativi, v
 
 ## Fase 5 — audio
 
-Trascrizione lunga a finestre con checkpoint e isolamento di blocchi silenziosi/falliti presente nella 0.9.1. SpeechAnalyzer dipende da sistema/SDK più recente. Aggiunti replay visivo non distruttivo dei tratti, segnalibri persistenti, velocità 0,5–2× e import audio a file (senza leggere tutta la registrazione in memoria). Capitoli ogni cinque minuti o ai segnalibri personali, rinomina e Markdown integrale con timestamp. La 0.12 aggiunge ricerca per nome, ordine cronologico stabile, archivio/cestino/ripristino e cancellazione della sola trascrizione; il cestino conserva file/anchor e occupa ancora spazio. Export separato delle parti audio originali con TXT/MD corretti, playlist e manifest, copia a blocchi e controllo spazio; niente ricodifica o fusione M4A implicita. Passata la prova Core sintetica di otto ore/640 checkpoint con riapertura e correzioni; predisposto il test Apple di un WAV di sei ore con controller e riconoscimento iniettato, non ancora eseguito. Nessuna misura di ASR reale/standby. La sbobina semantica generativa resta da completare; diarizzazione richiede un motore reale, non nomi di parlanti simulati.
+Trascrizione lunga a finestre con checkpoint e isolamento di blocchi silenziosi/falliti presente nella 0.9.1. SpeechAnalyzer dipende da sistema/SDK più recente. Aggiunti replay visivo non distruttivo dei tratti, segnalibri persistenti, velocità 0,5–2× e import audio a file (senza leggere tutta la registrazione in memoria). Capitoli ogni cinque minuti o ai segnalibri personali, rinomina e Markdown integrale con timestamp. La 0.12 aggiunge ricerca per nome, ordine cronologico stabile, archivio/cestino/ripristino e cancellazione della sola trascrizione; il cestino conserva file/anchor e occupa ancora spazio. Export separato delle parti audio originali con TXT/MD corretti, playlist e manifest, copia a blocchi e controllo spazio; L’export non ricodifica ulteriormente; nella 0.14 le parti PCM vengono convertite separatamente solo dopo la registrazione con verifica e journal. La fusione M4A resta assente. Passata la prova Core sintetica di otto ore/640 checkpoint con riapertura e correzioni; predisposto il test Apple di un WAV di sei ore con controller e riconoscimento iniettato, non ancora eseguito. Nessuna misura di ASR reale/standby. La sbobina semantica generativa resta da completare; diarizzazione richiede un motore reale, non nomi di parlanti simulati.
 
 ## Fase 6 — studio
 
@@ -88,7 +96,7 @@ CloudKit/conflitti predisposti nella 0.9; firma, contenitore e prova a due dispo
 
 | Area | Lavoro residuo e motivo |
 | --- | --- |
-| Fluidità | Prefetch serializzato e budget stimato di 48 MB aggiunti; rendering delle anteprime ancora sul MainActor. Pipeline completa fuori dal thread principale e scrittura immediata universale su pagine grandi fredde ancora aperte. Non si introduce un secondo scroll view/canvas scrivibile. |
+| Fluidità | Prefetch serializzato e budget stimato di 48 MB aggiunti; preparazione degli import PDF/foto ora fuori dal MainActor, ma rendering delle anteprime ancora sul MainActor. Pipeline completa fuori dal thread principale e scrittura immediata universale su pagine grandi fredde ancora aperte. Non si introduce un secondo scroll view/canvas scrivibile. |
 | Editor/PDF | Finestra zoom per scrittura, crop/margini PDF non distruttivi e presentatore per display esterno ancora mancanti; richiedono prove coordinate/zoom/export/input sull’SDK Apple. |
 | Account/Lente | Ricerca web con URL e menu AI sul testo ora implementati, ma non provati con provider/iPad reali. Restano login OAuth senza client registrato, attivazione/hosting live, lookup strutturato in streaming, entità automatiche e consenso persistente separato per quaderno. Il consenso attuale è per pannello/motore/destinazione/modello. |
 | Audio/AI | Sbobina generativa dell’intera lezione, diarizzazione reale, allineamento avanzato della grafia, LaTeX e verifica matematica, titoli/tag suggeriti e calendario/orario lezioni non implementati. Campionare fonti non completa questi punti. Cestino audio ripristinabile presente; eliminazione fisica definitiva e fusione delle parti audio non implementate. |

@@ -39,6 +39,16 @@ struct TranscriptReader: View {
                     }
                 }.padding()
             }.accessibilityIdentifier("transcriptReader")
+                .safeAreaInset(edge: .bottom) {
+                    if audio.playingSessionID == sessionID {
+                        HStack {
+                            Button("−15 s", systemImage: "gobackward.15") { Task { await audio.skipPlayback(by: -15) } }
+                            Spacer(); Text(TranscriptText.clock(audio.playback)).monospacedDigit(); Spacer()
+                            Button("+15 s", systemImage: "goforward.15") { Task { await audio.skipPlayback(by: 15) } }
+                            Button("Ferma", systemImage: "stop.circle") { audio.stopPlayback() }.labelStyle(.iconOnly)
+                        }.padding().background(.regularMaterial)
+                    }
+                }
                 .navigationTitle(session?.title ?? "Trascrizione")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
                 .toolbar { ToolbarItem(placement: .primaryAction) {

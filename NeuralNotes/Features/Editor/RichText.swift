@@ -102,8 +102,20 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
     }
     func toolbar(doneTarget: Any?, doneAction: Selector?) -> UIToolbar {
         let bar = UIToolbar()
-        let actions: [(String, Selector)] = [("B", #selector(bold)), ("I", #selector(italic)), ("U", #selector(underline)), ("•", #selector(bullet)), ("☐", #selector(checklist)), ("x²", #selector(superscript)), ("x₂", #selector(subscriptText)), ("A", #selector(normalBaseline)), ("Definisci", #selector(dictionary))]
+        let actions: [(String, Selector)] = [("B", #selector(bold)), ("I", #selector(italic)), ("U", #selector(underline))]
         bar.items = actions.map { UIBarButtonItem(title: $0.0, style: .plain, target: self, action: $0.1) }
+        let styles = [("Titolo 1", 30.0), ("Titolo 2", 24.0), ("Corpo", 18.0)].map { title, size in
+            UIAction(title: title) { [weak self] _ in self?.paragraphStyle(size: size, heading: title != "Corpo") }
+        }
+        bar.items?.append(UIBarButtonItem(title: "Stile", image: nil, primaryAction: nil, menu: UIMenu(children: styles)))
+        let colors: [(String, UIColor)] = [("Nero", .black), ("Blu", .systemBlue), ("Rosso", .systemRed), ("Verde", .systemGreen), ("Viola", .systemPurple), ("Bianco", .white)]
+        let colorActions = colors.map { name, color in UIAction(title: name, image: UIImage(systemName: "circle.fill")?.withTintColor(color, renderingMode: .alwaysOriginal)) { [weak self] _ in self?.foreground(color) } }
+        bar.items?.append(UIBarButtonItem(title: "Colore", image: nil, primaryAction: nil, menu: UIMenu(children: colorActions)))
+        let highlights: [(String, UIColor?)] = [("Nessuna", nil), ("Giallo", .systemYellow), ("Verde", .systemGreen), ("Arancione", .systemOrange), ("Rosa", .systemPink)]
+        let highlightActions = highlights.map { name, color in UIAction(title: name) { [weak self] _ in self?.highlight(color) } }
+        bar.items?.append(UIBarButtonItem(title: "Evidenzia", image: nil, primaryAction: nil, menu: UIMenu(children: highlightActions)))
+        let extra: [UIAction] = [UIAction(title: "Elenco puntato") { [weak self] _ in self?.bullet() }, UIAction(title: "Checklist") { [weak self] _ in self?.checklist() }, UIAction(title: "Apice") { [weak self] _ in self?.superscript() }, UIAction(title: "Pedice") { [weak self] _ in self?.subscriptText() }, UIAction(title: "Testo normale") { [weak self] _ in self?.normalBaseline() }, UIAction(title: "Dizionario") { [weak self] _ in self?.dictionary() }]
+        bar.items?.append(UIBarButtonItem(title: "Altro", image: nil, primaryAction: nil, menu: UIMenu(children: extra)))
         if let doneAction {
             let done = UIBarButtonItem(title: "Fine", style: .done, target: doneTarget, action: doneAction)
             done.accessibilityIdentifier = "pageTextDone"
@@ -120,6 +132,28 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
             var attrs = attrs; edit(&attrs); value.setAttributes(attrs, range: subrange)
         }
         view.attributedText = value; view.selectedRange = range; didChange?()
+    }
+    func paragraphStyle(size: Double, heading: Bool) {
+        guard let view else { return }
+        let font = heading ? UIFont.boldSystemFont(ofSize: size) : UIFont.systemFont(ofSize: size)
+        let paragraph = NSMutableParagraphStyle(); paragraph.paragraphSpacing = heading ? 12 : 6
+        let selected = view.selectedRange, string = view.text as NSString
+        guard selected.location <= string.length, selected.length <= string.length - selected.location else { return }
+        let range = string.paragraphRange(for: selected)
+        var typing = view.typingAttributes; typing[.font] = font; typing[.paragraphStyle] = paragraph; typing[.baselineOffset] = 0
+        if range.length > 0 {
+            let value = NSMutableAttributedString(attributedString: view.attributedText)
+            value.addAttributes([.font: font, .paragraphStyle: paragraph, .baselineOffset: 0], range: range)
+            view.attributedText = value; view.selectedRange = selected
+        }
+        view.typingAttributes = typing; didChange?()
+    }
+    func foreground(_ color: UIColor) { apply { $0[.foregroundColor] = color } }
+    func highlight(_ color: UIColor?) {
+        apply { attrs in
+            if let color { attrs[.backgroundColor] = color.withAlphaComponent(0.35) }
+            else { attrs.removeValue(forKey: .backgroundColor) }
+        }
     }
     private func trait(_ trait: UIFontDescriptor.SymbolicTraits) {
         apply { attrs in

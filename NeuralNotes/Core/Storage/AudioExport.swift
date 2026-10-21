@@ -10,10 +10,12 @@ public final class AudioExportBundle: Sendable {
     deinit { try? removeTemporaryFiles() }
 }
 
-private struct AudioExportManifest: Codable { var format = 1; let session: AudioSession }
+private struct AudioExportManifest: Codable { var format = 2; let session: AudioSession }
 
 public extension DocumentWorkspace {
-    /// Exact source parts, not a re-encoding. Pause/resume boundaries remain
+    /// Exact active parts (CAF or verified AAC), without further re-encoding.
+    /// Codec/bitrate/original size travel in the JSON alongside the timeline.
+    /// Pause/resume boundaries remain
     /// explicit in the playlist and JSON; no multi-hour file becomes one Data.
     func exportAudioSession(_ id: UUID) throws -> AudioExportBundle {
         guard let original = try catalog().sessions.first(where: { $0.id == id }) else { throw LibraryFailure.missingItem }

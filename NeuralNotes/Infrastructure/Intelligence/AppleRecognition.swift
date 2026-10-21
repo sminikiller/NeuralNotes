@@ -58,6 +58,7 @@ enum AudioWindowReader {
     /// Delivers the window in bounded buffers and returns the frames delivered.
     @discardableResult
     static func read(url: URL, window: SpeechWindow, chunk: AVAudioFrameCount = 16_384, deliver: (AVAudioPCMBuffer) -> Void) throws -> Int64 {
+        guard chunk > 0, chunk <= 65_536 else { throw RecognitionFailure.unreadable("dimensione del buffer non valida") }
         let file = try AVAudioFile(forReading: url)
         let format = file.processingFormat
         guard let range = window.frames(sampleRate: format.sampleRate, length: file.length) else { return 0 }
@@ -65,12 +66,13 @@ enum AudioWindowReader {
         let total = range.upperBound - range.lowerBound
         var delivered: Int64 = 0
         while delivered < total {
+            try Task.checkCancellation()
             let count = AVAudioFrameCount(min(Int64(chunk), total - delivered))
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count) else {
                 throw RecognitionFailure.unreadable("memoria insufficiente per il blocco")
             }
             try file.read(into: buffer, frameCount: count)
-            guard buffer.frameLength > 0 else { break }
+            guard buffer.frameLength > 0 else { throw RecognitionFailure.unreadable("il blocco termina prima dei frame attesi") }
             deliver(buffer); delivered += Int64(buffer.frameLength)
         }
         return delivered

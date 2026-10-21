@@ -150,6 +150,27 @@ public actor DocumentWorkspace {
         return input
     }
 
+    /// Publish a PDF's pages with one manifest commit. Validation happens before
+    /// any write; interrupted preparation cannot expose a partially imported PDF.
+    public func appendPages(_ inputs: [PageSnapshot]) throws -> [PageSnapshot] {
+        guard !inputs.isEmpty, inputs.count <= 1000 else { throw LibraryFailure.corruptDocument }
+        var index = try manifest()
+        var ids = Set(index.pageIDs)
+        for page in inputs {
+            try PageValidation.validate(page)
+            guard page.appearance?.isValid != false, ids.insert(page.id).inserted,
+                  !FileManager.default.fileExists(atPath: try url("pages/\(page.id).json").path) else { throw LibraryFailure.corruptDocument }
+        }
+        for page in inputs {
+            try Task.checkCancellation()
+            try write(page, "pages/\(page.id).json")
+        }
+        try Task.checkCancellation()
+        index.pageIDs.append(contentsOf: inputs.map(\.id))
+        try write(index, "manifest.json")
+        return inputs
+    }
+
     public func setDefaultPageTemplate(_ template: PageTemplate) throws {
         guard template.appearance.isValid else { throw LibraryFailure.corruptDocument }
         if let file = template.pdfFile {

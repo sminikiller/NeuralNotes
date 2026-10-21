@@ -9,6 +9,9 @@ public enum NativePackageInspector {
     /// Validate before registering an imported package in the library. The source
     /// is read-only; decoding PencilKit/media payloads remains the platform's job.
     public static func inspect(_ package: URL) throws -> InspectedPackage {
+        if FileManager.default.fileExists(atPath: package.appendingPathComponent(AudioCompressionPlan.path).path) {
+            throw LibraryFailure.recoveryRequired("Riprendi la compressione audio nell’app prima di esportare o copiare il quaderno.")
+        }
         if FileManager.default.fileExists(atPath: package.appendingPathComponent(PageBatchRecovery.path).path) {
             throw LibraryFailure.recoveryRequired("Completa il recupero del quaderno nell’app prima di esportarlo o copiarlo.")
         }
@@ -78,6 +81,7 @@ public enum NativePackageInspector {
                     guard correction.start.isFinite, correction.start >= 0 else { throw LibraryFailure.corruptDocument }
                 }
                 for segment in session.segments {
+                    guard segment.codec == nil || (segment.codec == "aac" && segment.bitRate == 64_000 && segment.file.hasSuffix(".m4a") && (segment.originalBytes ?? 0) > 0) else { throw LibraryFailure.corruptDocument }
                     guard segment.start.isFinite, segment.duration.isFinite, segment.start >= 0, segment.duration >= 0 else {
                         throw LibraryFailure.corruptDocument
                     }

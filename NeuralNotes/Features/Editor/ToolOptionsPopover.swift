@@ -75,6 +75,7 @@ struct ToolOptionsPopover: View {
     private var otherOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
             if tool == .ruler {
+                Text("Avvicina la punta al bordo del righello e scorri lungo il bordo: PencilKit aggancia il tratto. Sposta e ruota il righello con due dita.").font(.caption).foregroundStyle(.secondary)
                 Toggle("Righello visibile", isOn: Binding(get: { model.rulerActive }, set: { value in if value != model.rulerActive { model.chooseTool(.ruler) } }))
                 Button("Penna", systemImage: "pencil.tip") { model.chooseTool(.pen) }
                 Button("Evidenziatore", systemImage: "highlighter") { model.chooseTool(.marker) }

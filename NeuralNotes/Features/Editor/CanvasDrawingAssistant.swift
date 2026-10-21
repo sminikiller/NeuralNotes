@@ -174,7 +174,9 @@ enum PreciseStrokeGeometry {
         switch kind {
         case .line, .arrow:
             let endpoints = kind == .arrow ? HeldShapeRecognition.arrowEndpoints(points) : nil
-            let a = endpoints?.0 ?? a, b = endpoints?.1 ?? b
+            let a = endpoints?.0 ?? a
+            let rawEnd = endpoints?.1 ?? b
+            let b = PreciseLine.snappedEnd(from: a, to: rawEnd)
             path.move(to: CGPoint(x: a.x, y: a.y)); path.addLine(to: CGPoint(x: b.x, y: b.y))
             if kind == .arrow {
                 let angle = atan2(b.y - a.y, b.x - a.x)
@@ -183,7 +185,13 @@ enum PreciseStrokeGeometry {
                 }
             }
         case .ellipse: return UIBezierPath(ovalIn: rect)
-        case .rectangle: return UIBezierPath(rect: rect)
+        case .rectangle:
+            if let corners = HeldShapeRecognition.rectangleVertices(points), let first = corners.first {
+                path.move(to: CGPoint(x: first.x, y: first.y))
+                for corner in corners.dropFirst() { path.addLine(to: CGPoint(x: corner.x, y: corner.y)) }; path.close()
+                return path
+            }
+            return UIBezierPath(rect: rect)
         case .triangle:
             let vertices = HeldShapeRecognition.triangleVertices(points) ?? [StrokeSample(x: rect.midX, y: rect.minY), StrokeSample(x: rect.maxX, y: rect.maxY), StrokeSample(x: rect.minX, y: rect.maxY)]
             path.move(to: CGPoint(x: vertices[0].x, y: vertices[0].y))
@@ -198,7 +206,7 @@ enum PreciseStrokeGeometry {
         // replacement is stored in the notebook or its vector PDF export.
         let bounds = path.bounds
         if kind == .line, let a = points.first, let b = points.last {
-            locations = [CGPoint(x: a.x, y: a.y), CGPoint(x: b.x, y: b.y)]
+            locations = PreciseLine.samples(from: a, to: PreciseLine.snappedEnd(from: a, to: b)).map { CGPoint(x: $0.x, y: $0.y) }
         } else if kind == .arrow || kind == .rectangle || kind == .triangle {
             // Respect move commands (arrow wings): return to the tip rather than
             // connecting the two wings across their opening.
@@ -240,7 +248,8 @@ enum PreciseStrokeGeometry {
 @MainActor
 extension EditorViewModel {
     func addDraggedShape(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample) {
-        guard let shape = ShapeElement.dragged(kind: kind, from: a, to: b, color: InkColor(ink), lineWidth: thickness) else { return }
+        let end = kind == .line || kind == .arrow ? PreciseLine.snappedEnd(from: a, to: b) : b
+        guard let shape = ShapeElement.dragged(kind: kind, from: a, to: end, color: InkColor(ink), lineWidth: thickness) else { return }
         mutatePage("Traccia \(kind.title)") { $0.shapes = ($0.shapes ?? []) + [shape] }
         selectedObjectID = shape.id; rememberPalette()
     }

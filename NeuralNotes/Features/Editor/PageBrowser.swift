@@ -14,6 +14,7 @@ struct PageBrowser: View {
     @State private var sectionFilter = ""
     @State private var managingSections = false
     @State private var showingLinks = false
+    @State private var deleting: PageSnapshot?
 
     private var outline: [(section: NotebookSection, depth: Int)] { NotebookSections.outline(model.sections) }
     private var visible: [PageSnapshot] {
@@ -62,12 +63,18 @@ struct PageBrowser: View {
                                     }.padding(8).background(model.page?.id == page.id ? Brand.accent.opacity(0.16) : Brand.surface,
                                         in: RoundedRectangle(cornerRadius: 12))
                                 }.buttonStyle(.plain)
+                                .overlay(alignment: .bottomTrailing) {
+                                    Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = page }
+                                        .labelStyle(.iconOnly).buttonStyle(.borderless).padding(10)
+                                        .accessibilityIdentifier("deletePage-\(page.id)")
+                                }
                                 .contextMenu {
                                     Button(page.isBookmarked == true ? "Rimuovi segnalibro" : "Aggiungi segnalibro", systemImage: "bookmark") {
                                         Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
                                     }
                                     Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
                                     assignmentMenu(page)
+                                    Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = page }
                                 }
                             }
                         }.padding()
@@ -75,6 +82,12 @@ struct PageBrowser: View {
                 }
             }.disabled(busy)
             .navigationTitle("Pagine · \(model.pages.count)")
+            .confirmationDialog("Eliminare la pagina?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+                Button("Elimina pagina", role: .destructive) {
+                    guard let target = deleting else { return }; deleting = nil
+                    Task { busy = true; defer { busy = false }; await model.deletePage(target.id) }
+                }
+            } message: { Text("Puoi annullare l’eliminazione. I file restano recuperabili.") }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(reorder ? "Fine riordino" : "Riordina") { onlyBookmarks = false; reorder.toggle() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }

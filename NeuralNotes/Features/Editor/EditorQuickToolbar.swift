@@ -10,6 +10,9 @@ struct EditorQuickToolbar: View {
     @State private var selectionOpen = false
     @State private var optionsTool: WorkspaceTool?
     private var vertical: Bool { model.currentWorkspace.dock.vertical }
+    private var popoverEdge: Edge {
+        switch model.currentWorkspace.dock { case .trailing: return .trailing; case .leading: return .leading; case .bottom: return .bottom; case .top: return .top }
+    }
     private var hasSelection: Bool { !model.selectedIDs.isEmpty || model.selectionIncludesInk }
     private var selectedImage: Bool {
         model.selectedIDs.count == 1 && !model.selectionIncludesInk && model.page?.images.contains(where: { $0.id == model.selectedObjectID }) == true
@@ -51,11 +54,11 @@ struct EditorQuickToolbar: View {
                         Image(systemName: "paintpalette").frame(width: 44, height: 44)
                             .overlay(alignment: .bottomTrailing) { Circle().fill(model.ink).frame(width: 10, height: 10).padding(5) }
                     }.accessibilityLabel("Colori e spessori di \(model.tool.rawValue)")
-                        .popover(isPresented: $paletteOpen) { ToolPalettePanel(model: model).padding().frame(width: 330) } }
+                        .popover(isPresented: $paletteOpen, arrowEdge: popoverEdge) { ToolPalettePanel(model: model).padding().frame(width: 310).presentationCompactAdaptation(.popover) } }
                     if vertical && model.tool == .objects {
                         Button { selectionOpen = true } label: { Image(systemName: "selection.pin.in.out").frame(width: 44, height: 44) }
                             .accessibilityLabel("Azioni sulla selezione")
-                            .popover(isPresented: $selectionOpen) { selectionBar.frame(width: 500, height: 64) }
+                            .popover(isPresented: $selectionOpen, arrowEdge: popoverEdge) { selectionBar.frame(width: 310, height: 64).presentationCompactAdaptation(.popover) }
                     }
                     Button(action: workspace) { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44) }
                         .accessibilityLabel("Workspace \(model.currentWorkspace.name)").accessibilityIdentifier("editorWorkspace")
@@ -83,7 +86,7 @@ struct EditorQuickToolbar: View {
             .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
                 model.chooseTool(item); optionsTool = item
             })
-            .popover(isPresented: Binding(get: { optionsTool == item }, set: { if !$0 { optionsTool = nil } }), arrowEdge: vertical ? .leading : .top) {
+            .popover(isPresented: Binding(get: { optionsTool == item }, set: { if !$0 { optionsTool = nil } }), arrowEdge: popoverEdge) {
                 ToolOptionsPopover(model: model, tool: item)
             }
     }

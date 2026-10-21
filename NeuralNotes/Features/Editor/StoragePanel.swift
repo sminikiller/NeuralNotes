@@ -11,6 +11,8 @@ struct StoragePanel: View {
     @State private var choosingBackupFolder = false
     @State private var externalFolderName = ExternalBackupDestination.name
     @State private var backups: [AutomaticBackupInfo] = []
+    @State private var backupUsage: AutomaticBackupUsage?
+    @State private var compressionEstimate: AudioCompressionEstimate?
     @Environment(\.dismiss) private var dismiss
     @State private var report: WorkspaceStorageReport?
     @State private var error: String?
@@ -25,9 +27,22 @@ struct StoragePanel: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Audio") {
+                    NavigationLink { AudioCompressionPanel(workspace: workspace, editor: editor) } label: {
+                        Label("Comprimi registrazioni", systemImage: "waveform")
+                    }
+                    if let compressionEstimate {
+                        LabeledContent("Recuperabili, stima", value: bytes(compressionEstimate.recoverableBytes))
+                    }
+                }
                 Section("Backup automatici") {
                     Toggle("Copie automatiche ogni 10 minuti di modifiche", isOn: $automaticBackup)
-                    Text("Conserva le ultime 5 copie su questo iPad, separate dal quaderno. Durante una registrazione il backup attende la pausa. Per proteggerti dalla perdita dell’iPad, condividi una copia in File o iCloud Drive.").font(.caption)
+                    Text("Fino a cinque versioni entro il minore tra 1 GB e tre volte il quaderno, con un minimo di 64 MB. Le due copie più recenti sono sempre conservate, anche oltre limite. Durante una registrazione il backup attende la pausa.").font(.caption)
+                    if let backupUsage {
+                        LabeledContent("Spazio backup", value: bytes(backupUsage.usedBytes))
+                        LabeledContent("Limite", value: bytes(backupUsage.budgetBytes))
+                        if backupUsage.exceedsBudget { Text("Le due copie protette superano il limite: vengono mantenute per il recupero.").font(.caption).foregroundStyle(.orange) }
+                    }
                     if let warning = editor?.backupWarning { Text(warning).foregroundStyle(.orange) }
                     if let metadata {
                         Button("Crea copia adesso", systemImage: "externaldrive.badge.plus") {
@@ -56,7 +71,7 @@ struct StoragePanel: View {
                         Button("Copia ultimo backup adesso", systemImage: "externaldrive") { Task { await copyExternalBackup() } }.disabled(backups.isEmpty)
                         Button("Scollega cartella", role: .destructive) { ExternalBackupDestination.remove(); externalFolderName = nil }
                     }
-                    Text("Le copie locali restano sull’iPad. Nella cartella scelta vengono conservate cinque versioni per quaderno; un errore del provider File non elimina quelle locali.").font(.caption)
+                    Text("La cartella scelta segue il limite di spazio dei backup e conserva sempre le due copie più recenti. Un errore del provider File non elimina le copie locali.").font(.caption)
                 }
                 if catalogRecovery?.needsRecovery == true, let editor {
                     Section("Catalogo da recuperare") {
@@ -136,7 +151,9 @@ struct StoragePanel: View {
     }
     private func refresh() async {
         backups = (try? await workspace.automaticBackups()) ?? []
+        backupUsage = try? await workspace.automaticBackupUsage()
         catalogRecovery = try? await workspace.catalogRecoveryStatus()
+        compressionEstimate = try? await AudioCompressionEstimate.measure(workspace)
         do { report = try await workspace.storageReport() } catch { self.error = error.localizedDescription }
     }
     private func clean() async {

@@ -73,6 +73,7 @@ struct WorkspacePanel: View {
                 }
                 Section("Personalizza \(model.currentWorkspace.name)") {
                     NavigationLink { tools } label: { Label("Strumenti preferiti", systemImage: "star") }
+                    FocusToolsMenu(model: model)
                     NavigationLink { layout } label: { Label("Toolbar e pannelli", systemImage: "rectangle.3.group") }
                     NavigationLink { gestures } label: { Label("Gesti e automatismi", systemImage: "hand.draw") }
                     NavigationLink { ToolPalettePanel(model: model).padding().navigationTitle("Colori per strumento") } label: { Label("Colori e spessori", systemImage: "paintpalette") }
@@ -94,7 +95,7 @@ struct WorkspacePanel: View {
     }
     private var tools: some View {
         List {
-            Section("Preferiti · i primi tre compaiono in focus") {
+            Section("Preferiti e strumenti in focus") {
                 ForEach(model.currentWorkspace.favorites, id: \.self) { item in Label(item.title, systemImage: item.icon) }
                     .onMove { source, destination in model.editWorkspace { $0.favorites.move(fromOffsets: source, toOffset: destination) } }
                     .onDelete { source in model.editWorkspace { $0.favorites.remove(atOffsets: source) } }

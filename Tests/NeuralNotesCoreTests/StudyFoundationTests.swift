@@ -2,6 +2,42 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class StudyFoundationTests: XCTestCase {
+    func testBackupBudgetRotationRemovesOldestButRetainsTwoRestorableCopies() async throws {
+        let (root, workspace, book) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        var page = try await workspace.addPage()
+        var saved: [URL] = []
+        for i in 0..<4 {
+            page.revision += 1; page.title = "Versione \(i)"
+            page = try await workspace.save(page, drawing: Data([1]))
+            let file = try await workspace.createAutomaticBackup(metadata: book, minimumInterval: 0, maximumBytes: 1)
+            saved.append(try XCTUnwrap(file))
+        }
+        let copies = try await workspace.automaticBackups()
+        XCTAssertEqual(Set(copies.map(\.url)), Set(saved.suffix(2)))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: saved[0].path))
+        for (i, file) in saved.suffix(2).enumerated() {
+            let output = root.appendingPathComponent("restored-\(i)")
+            try NativeArchive.extract(from: file, to: output)
+            let inspected = try NativePackageInspector.inspect(output)
+            let restored = DocumentWorkspace(package: output, documentID: inspected.manifest.documentID, notebookID: inspected.manifest.notebookID)
+            let pages = try await restored.pages(); XCTAssertEqual(pages.first?.title, "Versione \(i + 2)")
+        }
+    }
+    func testBatchPageAppendValidatesBeforePublishingAndPreservesExistingInk() async throws {
+        let (root, workspace, _) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        var original = try await workspace.addPage(); original.revision = 1
+        original = try await workspace.save(original, drawing: Data([9, 4]))
+        let inputs = (0..<100).map { _ in PageSnapshot() }
+        _ = try await workspace.appendPages(inputs)
+        let pages = try await workspace.pages(); XCTAssertEqual(pages.count, 101); XCTAssertEqual(pages.first, original)
+        let bytes = try await workspace.drawing(original); XCTAssertEqual(bytes, Data([9, 4]))
+        let candidate = PageSnapshot()
+        var invalid = PageSnapshot(); invalid.width = -1
+        do { _ = try await workspace.appendPages([candidate, invalid]); XCTFail("Invalid batch accepted") } catch { }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.package.appendingPathComponent("pages/\(candidate.id).json").path))
+        let after = try await workspace.pages(); XCTAssertEqual(after, pages)
+        do { _ = try await workspace.appendPages([inputs[0]]); XCTFail("Existing page overwritten") } catch { }
+    }
     private func fixture() throws -> (URL, DocumentWorkspace, Notebook) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = try NativeDocumentStore(root: root), id = UUID(), book = UUID()

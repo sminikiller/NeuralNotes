@@ -64,7 +64,16 @@ struct AudioPanel: View {
                     Text(audio.backgroundAudioConfigured ? "La registrazione può continuare anche in standby e passando a un’altra app. Pausa e Termina restano manuali." : "Questa esecuzione non espone l’audio in background: verifica il supporto del progetto o del runner Swift Playground.")
                         .font(.caption).foregroundStyle(audio.backgroundAudioConfigured ? Color.secondary : Color.orange)
                 }
-                .disabled(audio.transitioning || audio.transcribingSessionID != nil || exporting)
+                .disabled(audio.transitioning || audio.transcribingSessionID != nil || audio.compressionTask != nil || exporting)
+                if !audio.compressionStatus.isEmpty {
+                    Section("Compressione audio") {
+                        Text(audio.compressionStatus).font(.caption)
+                        if audio.compressionTask != nil {
+                            ProgressView()
+                            Button("Metti in pausa la compressione") { audio.compressionTask?.cancel() }
+                        }
+                    }
+                }
                 Section("Lezioni salvate") {
                     Picker("Raccolta", selection: $scope) {
                         Text("Recenti").tag(AudioLibraryScope.recent)
@@ -82,7 +91,7 @@ struct AudioPanel: View {
                     Toggle("Rivela gli appunti al momento dell’audio", isOn: $audio.replayInk)
                     Text("Il replay mostra i tratti collegati fino al momento ascoltato. Il disegno originale è conservato.").font(.caption)
                     Button("Importa audio da File", systemImage: "waveform.badge.plus") { importingAudio = true }
-                        .disabled(audio.recording || audio.transitioning || audio.transcribingSessionID != nil)
+                        .disabled(!audio.canTranscribe || audio.transcribingSessionID != nil)
                 }
                 if let page = model.page, !page.anchors.isEmpty {
                     Section("Momenti collegati a questa pagina") {
@@ -137,6 +146,15 @@ struct AudioPanel: View {
                 Text("\(clock(session.duration)) · \(session.state == "finished" ? "Conclusa" : "In corso / recuperata")")
                     .font(.caption).foregroundStyle(.secondary)
                 Text(session.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                transcriptControls(session)
+                organizationControls(session)
+                bookmarkControls(session)
+                playbackControls(session)
+                recognitionControls(session)
+            }
+        }
+    }
+    @ViewBuilder private func transcriptControls(_ session: AudioSession) -> some View {
                 if session.hasTranscriptText {
                     Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
                         guard presentation == nil else { return }; presentation = .read(session.id)
@@ -153,14 +171,15 @@ struct AudioPanel: View {
                 }
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("transcriptEdit-\(session.id)")
-                .disabled(audio.transcribingSessionID != nil || session.state != "finished")
+                .disabled(!audio.canTranscribe || audio.transcribingSessionID != nil || session.state != "finished")
                 ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
                     Label("Esporta testo", systemImage: "square.and.arrow.up")
                 }
                     .buttonStyle(.borderless)
                     .accessibilityIdentifier("transcriptExport-\(session.id)")
                     .disabled(!session.hasTranscriptText)
-                organizationControls(session)
+    }
+    @ViewBuilder private func bookmarkControls(_ session: AudioSession) -> some View {
                 Button("Segnalibro qui", systemImage: "bookmark.badge.plus") { Task { await audio.addBookmark(sessionID: session.id) } }.buttonStyle(.borderless)
                     .disabled(audio.transcribingSessionID != nil)
                 ForEach(session.bookmarks ?? []) { bookmark in
@@ -174,17 +193,27 @@ struct AudioPanel: View {
                             .disabled(audio.transcribingSessionID != nil)
                     }
                 }
+    }
+    @ViewBuilder private func playbackControls(_ session: AudioSession) -> some View {
                 Button("Riproduci", systemImage: "play.circle") { Task { await audio.play(session) } }
+                    .disabled(audio.recording || audio.compressionTask != nil)
                 if audio.playingSessionID == session.id {
                     Slider(value: $seekSeconds, in: 0...max(session.duration, 0.1), onEditingChanged: { editing in
                         seeking = editing
                         if !editing { Task { await audio.play(session, at: seekSeconds) } }
                     })
                     Text(clock(audio.playback)).monospacedDigit()
+                    HStack {
+                        Button("−15 s", systemImage: "gobackward.15") { Task { await audio.skipPlayback(by: -15) } }
+                        Spacer()
+                        Button("+15 s", systemImage: "goforward.15") { Task { await audio.skipPlayback(by: 15) } }
+                    }.buttonStyle(.borderless)
                     Button("Ferma riproduzione") { audio.stopPlayback() }
                 }
+    }
+    @ViewBuilder private func recognitionControls(_ session: AudioSession) -> some View {
                 Button(transcriptionLabel(session), systemImage: "text.bubble") { audio.startTranscription(session) }
-                    .disabled(audio.transcribingSessionID != nil || audio.recording || session.state != "finished" || isComplete(session))
+                    .disabled(!audio.canTranscribe || audio.transcribingSessionID != nil || session.state != "finished" || isComplete(session))
                 if audio.transcribingSessionID == session.id {
                     ProgressView(value: audio.transcriptionProgress)
                     Text(audio.transcriptionStatus).font(.caption)
@@ -204,8 +233,6 @@ struct AudioPanel: View {
                         .font(.caption).foregroundStyle(.secondary)
                     TranscriptionLogView()
                 }
-            }
-        }
     }
     private func canOrganize(_ session: AudioSession) -> Bool {
         audio.canTranscribe && !exporting && audio.transcribingSessionID == nil && audio.active?.id != session.id && session.state == "finished"

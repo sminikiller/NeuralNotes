@@ -7,6 +7,35 @@ public struct AutomaticBackupInfo: Identifiable, Sendable {
     public var id: URL { url }
 }
 
+public enum AutomaticBackupPolicy {
+    public static func budget(copyBytes: Int64) -> Int64 {
+        let size = max(0, copyBytes)
+        return min(1 << 30, max(64 << 20, size >= (1 << 30) / 3 ? 1 << 30 : size * 3))
+    }
+    /// Input sizes are newest first. The two newest versions are protected even
+    /// when they exceed the budget; remove only the oldest unprotected versions.
+    public static func retainedCount(sizes: [Int64], maximumBytes: Int64, keep: Int = 5) -> Int {
+        var count = min(sizes.count, max(2, min(20, keep)))
+        while count > 2 {
+            var total: Int64 = 0
+            for size in sizes.prefix(count) {
+                let value = max(0, size)
+                total = value > Int64.max - total ? Int64.max : total + value
+            }
+            if total <= max(0, maximumBytes) { break }
+            count -= 1
+        }
+        return count
+    }
+}
+
+public struct AutomaticBackupUsage: Sendable {
+    public let usedBytes: Int64
+    public let budgetBytes: Int64
+    public let copies: Int
+    public var exceedsBudget: Bool { usedBytes > budgetBytes }
+}
+
 public extension DocumentWorkspace {
     nonisolated var automaticBackupDirectory: URL {
         package.deletingLastPathComponent().appendingPathComponent("AutomaticBackups", isDirectory: true)
@@ -22,13 +51,22 @@ public extension DocumentWorkspace {
                 let safe = try NativeArchive.fileURL(file.lastPathComponent, in: directory)
                 let values = try safe.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
                 return AutomaticBackupInfo(url: safe, date: values.contentModificationDate ?? .distantPast, bytes: Int64(values.fileSize ?? 0))
-            }.sorted { $0.date > $1.date }
+            }.sorted { $0.date == $1.date ? $0.url.lastPathComponent > $1.url.lastPathComponent : $0.date > $1.date }
+    }
+    func automaticBackupUsage() throws -> AutomaticBackupUsage {
+        let used = try automaticBackups().reduce(Int64(0)) { sum, value in value.bytes > Int64.max - sum ? Int64.max : sum + value.bytes }
+        let notebook = try PackageFiles.list(in: package).reduce(Int64(0)) { sum, file in
+            let size = Int64(try file.url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+            return size > Int64.max - sum ? Int64.max : sum + size
+        }
+        return AutomaticBackupUsage(usedBytes: used, budgetBytes: AutomaticBackupPolicy.budget(copyBytes: notebook), copies: try automaticBackups().count)
     }
     /// Serialized with all document writes. Rotate only after the new archive commits.
     @discardableResult
-    func createAutomaticBackup(metadata: Notebook, minimumInterval: TimeInterval = 600, keep: Int = 5) throws -> URL? {
+    func createAutomaticBackup(metadata: Notebook, minimumInterval: TimeInterval = 600, keep: Int = 5, maximumBytes: Int64? = nil) throws -> URL? {
         guard metadata.documentID == documentID, minimumInterval.isFinite, minimumInterval >= 0, (1...20).contains(keep) else { throw WorkspaceFailure.invalidPath }
         guard try catalog().sessions.allSatisfy({ $0.state != "recording" }) else { return nil }
+        guard try pendingAudioCompression() == nil else { return nil }
         let previous = try automaticBackups()
         if let last = previous.first, Date().timeIntervalSince(last.date) < minimumInterval { return nil }
         let directory = automaticBackupDirectory
@@ -40,7 +78,11 @@ public extension DocumentWorkspace {
         try NativeArchive.write(package: package, metadata: metadata, to: temporary)
         let destination = directory.appendingPathComponent("backup-\(UUID()).nnbackup")
         try FileManager.default.moveItem(at: temporary, to: destination)
-        for old in previous.dropFirst(keep - 1) { try? FileManager.default.removeItem(at: old.url) }
+        let size = Int64(try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+        let budget: Int64
+        if let maximumBytes { budget = max(0, maximumBytes) } else { budget = try automaticBackupUsage().budgetBytes }
+        let count = AutomaticBackupPolicy.retainedCount(sizes: [size] + previous.map(\.bytes), maximumBytes: budget, keep: keep)
+        for old in previous.dropFirst(max(0, count - 1)) { try FileManager.default.removeItem(at: old.url) }
         return destination
     }
 }

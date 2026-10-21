@@ -47,6 +47,8 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
         try await RoadmapDiagnostics.editor(root: root.appendingPathComponent("editor"))
         try await RoadmapDiagnostics.audioExportAndOrganization(root: root.appendingPathComponent("audio"))
         try RoadmapDiagnostics.lensAndWebLinks()
+        try await RoadmapDiagnostics.audioCompression(root: root.appendingPathComponent("compression"))
+        try await RoadmapDiagnostics.backupBudget(root: root.appendingPathComponent("budget"))
     }
     @MainActor func testWebAnswerInsertionPersistsClickableSourcesAndCanBeUndone() async throws {
         try await fixture { model in

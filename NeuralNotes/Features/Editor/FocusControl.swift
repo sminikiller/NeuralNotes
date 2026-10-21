@@ -11,18 +11,23 @@ struct FocusControl: View {
     @State private var expanded = false
     var body: some View {
         GeometryReader { geometry in
-            let width: CGFloat = !focus ? 48 : expanded ? 292 : 102
+            let width: CGFloat = min(max(48, geometry.size.width - 24), !focus ? 48 : expanded ? 336 : 102)
             let right = max(width + 12, min(geometry.size.width - 12, geometry.size.width - 12 + CGFloat(savedX) + translation.width))
             let y = max(36, min(geometry.size.height - 36, 36 + CGFloat(savedY) + translation.height))
             HStack(spacing: 4) {
                 if focus {
                     if expanded {
-                        ForEach(Array(model.currentWorkspace.favorites.prefix(3)), id: \.self) { item in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
+                        ForEach(model.currentWorkspace.effectiveFocusTools, id: \.self) { item in
                             Button { model.chooseTool(item) } label: { Image(systemName: item.icon).frame(width: 44, height: 44) }
                                 .accessibilityLabel(item.title).accessibilityIdentifier("focusTool-\(item.rawValue)")
                         }
                         Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 44) }
                             .disabled(!model.canUndo).accessibilityLabel("Annulla")
+                        FocusToolsMenu(model: model)
+                            }
+                        }.frame(maxWidth: .infinity)
                     }
                     Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
                         Image(systemName: expanded ? "chevron.compact.right" : "pencil.tip.crop.circle").frame(width: 44, height: 44)
@@ -45,6 +50,29 @@ struct FocusControl: View {
                     savedY = max(0, min(max(0, Double(geometry.size.height - 72)), savedY + Double(value.translation.height)))
                 })
         }.coordinateSpace(name: "focus-area")
+    }
+}
+
+@MainActor
+struct FocusToolsMenu: View {
+    @Bindable var model: EditorViewModel
+    var body: some View {
+        Menu {
+            ForEach(WorkspaceTool.allCases, id: \.self) { item in
+                let selected = model.currentWorkspace.effectiveFocusTools.contains(item)
+                Button {
+                    model.editWorkspace { profile in
+                        var tools = profile.effectiveFocusTools
+                        if tools.contains(item) { if tools.count > 1 { tools.removeAll { $0 == item } } }
+                        else if tools.count < 3 { tools.append(item) }
+                        profile.focusTools = tools
+                    }
+                } label: { Label(item.title, systemImage: selected ? "checkmark.circle.fill" : item.icon) }
+                    .disabled(selected ? model.currentWorkspace.effectiveFocusTools.count <= 1 : model.currentWorkspace.effectiveFocusTools.count >= 3)
+            }
+            Button("Usa i primi tre preferiti") { model.editWorkspace { $0.focusTools = nil } }
+        } label: { Image(systemName: "gearshape").frame(width: 36, height: 44) }
+        .accessibilityLabel("Personalizza mini toolbar").accessibilityIdentifier("focusToolsSettings")
     }
 }
 

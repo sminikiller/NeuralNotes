@@ -2,6 +2,7 @@ import SwiftUI
 import PDFKit
 import Observation
 import PencilKit
+import UniformTypeIdentifiers
 import NeuralNotesCore
 
 @MainActor @Observable
@@ -74,10 +75,11 @@ final class PDFStudyController: NSObject {
         view?.highlightedSelections = matches
     }
     @objc private func ended(_ notification: Notification) { if (notification.object as? PDFDocument) === searchedDocument { finding = false } }
-    func load(file: String, package: URL, index: Int) {
+    func load(file: String, package: URL, index: Int, external: URL? = nil) {
         guard let view, self.file != file || view.document == nil else { return }
         stopSearch()
-        self.file = file; markupStamp = ""; view.document = PDFDocument(url: package.appendingPathComponent(file)); outline = []
+        self.file = file; markupStamp = ""; view.document = PDFDocument(url: external ?? package.appendingPathComponent(file)); outline = []
+        hasSelection = false
         var visitedNodes = 0
         func visit(_ node: PDFOutline, level: Int) {
             guard level <= 12, visitedNodes < 5000 else { return }; visitedNodes += 1
@@ -114,12 +116,19 @@ private struct StudyPDFView: UIViewRepresentable {
     let package: URL
     let index: Int
     let pages: [PageSnapshot]
-    func makeUIView(context: Context) -> PDFView {
-        let view = PDFView(); view.autoScales = true; view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
-        view.accessibilityIdentifier = "studyPDFView"; controller.attach(view); controller.load(file: file, package: package, index: index); controller.syncMarkups(pages)
+    var external: URL?
+    var conceptMode: Bool
+    var onConcept: (String) -> Void
+    func makeUIView(context: Context) -> ConceptPDFView {
+        let view = ConceptPDFView(); view.autoScales = true; view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
+        view.conceptMode = conceptMode; view.onConcept = onConcept
+        view.accessibilityIdentifier = "studyPDFView"; controller.attach(view); controller.load(file: file, package: package, index: index, external: external); controller.syncMarkups(pages)
         return view
     }
-    func updateUIView(_ view: PDFView, context: Context) { controller.attach(view); controller.load(file: file, package: package, index: index); controller.syncMarkups(pages) }
+    func updateUIView(_ view: ConceptPDFView, context: Context) {
+        view.conceptMode = conceptMode; view.onConcept = onConcept
+        controller.attach(view); controller.load(file: file, package: package, index: index, external: external); controller.syncMarkups(pages)
+    }
 }
 
 @MainActor
@@ -129,24 +138,67 @@ struct PDFStudyPanel: View {
     @State private var selectedFile = ""
     @State private var query = ""
     @State private var matchIndex = 0
+    @State private var importing = false
+    @State private var externalURL: URL?
+    @State private var scoped = false
+    @State private var conceptMode = false
+    @State private var research: PDFResearchTerm?
+    @State private var error: String?
+    private var isExternal: Bool { externalURL?.absoluteString == selectedFile }
     private var files: [String] { Array(Set(model.pages.compactMap(\.pdfFile))).sorted() }
     var body: some View {
         VStack(spacing: 8) {
+            header
+            sourcePicker
+            selectionCommands
+            conceptCommands
+            searchControls
+            documentView
+            documentActions
+        }.padding(.vertical)
+            .onAppear { selectedFile = model.page?.pdfFile ?? files.first ?? "" }
+            .task(id: selectedFile + "|" + query) {
+                do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                matchIndex = 0; controller.search(query)
+            }
+            .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
+                do { try openReference(result.get()) } catch { self.error = error.localizedDescription }
+            }
+            .sheet(item: $research) { item in PDFResearchSheet(model: model, term: item.text) }
+            .onDisappear { controller.detach(); releaseReference() }
+    }
+    @ViewBuilder private var header: some View {
             HStack {
                 Text("PDF e appunti").font(.headline)
                 Spacer()
+                Button("Apri PDF da File", systemImage: "folder") { importing = true }.labelStyle(.iconOnly).accessibilityIdentifier("openReferencePDF")
                 Menu("Indice", systemImage: "list.bullet.indent") {
                     ForEach(controller.outline) { item in Button(item.label) { controller.view?.go(to: item.destination) } }
                 }.disabled(controller.outline.isEmpty)
             }.padding(.horizontal)
-            if files.count > 1 {
-                Picker("PDF", selection: $selectedFile) { ForEach(files, id: \.self) { Text(URL(fileURLWithPath: $0).lastPathComponent).tag($0) } }.padding(.horizontal)
+    }
+    @ViewBuilder private var sourcePicker: some View {
+            if !files.isEmpty || externalURL != nil {
+                Picker("PDF", selection: $selectedFile) {
+                    ForEach(files, id: \.self) { Text(URL(fileURLWithPath: $0).lastPathComponent).tag($0) }
+                    if let externalURL { Text(externalURL.lastPathComponent + " · riferimento").tag(externalURL.absoluteString) }
+                }.padding(.horizontal)
             }
+    }
+    @ViewBuilder private var selectionCommands: some View {
             HStack {
                 Button("Copia", systemImage: "doc.on.doc") { UIPasteboard.general.string = controller.view?.currentSelection?.string }.disabled(!controller.hasSelection)
-                Button("Evidenzia", systemImage: "highlighter") { mark(.highlight) }.disabled(!controller.hasSelection)
-                Button("Sottolinea", systemImage: "underline") { mark(.underline) }.disabled(!controller.hasSelection)
+                Button("Evidenzia", systemImage: "highlighter") { mark(.highlight) }.disabled(!controller.hasSelection || isExternal)
+                Button("Sottolinea", systemImage: "underline") { mark(.underline) }.disabled(!controller.hasSelection || isExternal)
             }.font(.caption).buttonStyle(.bordered)
+    }
+    @ViewBuilder private var conceptCommands: some View {
+            HStack {
+                Toggle("Cerchia / sottolinea per cercare", isOn: $conceptMode).toggleStyle(.button)
+                Button("Cerca selezione", systemImage: "globe") { lookup(controller.view?.currentSelection?.string ?? "") }.disabled(!controller.hasSelection)
+            }.font(.caption).buttonStyle(.bordered).padding(.horizontal)
+    }
+    @ViewBuilder private var searchControls: some View {
             HStack {
                 TextField("Cerca nel PDF", text: $query).textFieldStyle(.roundedBorder)
                 if controller.finding { ProgressView().controlSize(.small) }
@@ -154,23 +206,23 @@ struct PDFStudyPanel: View {
                 Button("Risultato precedente", systemImage: "chevron.up") { showMatch(-1) }.labelStyle(.iconOnly).disabled(controller.matches.isEmpty)
                 Button("Risultato successivo", systemImage: "chevron.down") { showMatch(1) }.labelStyle(.iconOnly).disabled(controller.matches.isEmpty)
             }.padding(.horizontal)
+    }
+    @ViewBuilder private var documentView: some View {
             if !selectedFile.isEmpty {
-                StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package, index: model.page?.pdfIndex ?? 0, pages: model.pages)
-            } else { ContentUnavailableView("Nessun PDF", systemImage: "doc", description: Text("Importa un PDF nel quaderno per leggerlo accanto agli appunti.")) }
+                StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package, index: isExternal ? 0 : model.page?.pdfIndex ?? 0, pages: model.pages, external: isExternal ? externalURL : nil, conceptMode: conceptMode, onConcept: lookup)
+            } else { ContentUnavailableView("PDF di riferimento", systemImage: "doc", description: Text("Apri un PDF da File per leggerlo accanto agli appunti, senza importarlo nel quaderno.")) }
+    }
+    @ViewBuilder private var documentActions: some View {
+        VStack(spacing: 8) {
             Button("Apri questa pagina nell’editor", systemImage: "arrow.left.to.line") {
                 guard let view = controller.view, let source = view.currentPage, let document = view.document,
                       let page = model.pages.first(where: { $0.pdfFile == selectedFile && $0.pdfIndex == document.index(for: source) }) else { return }
                 Task { await model.select(page) }
-            }
+            }.disabled(isExternal || selectedFile.isEmpty)
             Button("Inserisci estratto con fonte negli appunti", systemImage: "text.badge.plus") { insertExcerpt() }.disabled(!controller.hasSelection)
-            Text("Seleziona il testo nel PDF per copiarlo o evidenziarlo. Gli appunti a sinistra restano scrivibili.").font(.caption).foregroundStyle(.secondary).padding(.horizontal)
-        }.padding(.vertical)
-            .onAppear { selectedFile = model.page?.pdfFile ?? files.first ?? "" }
-            .task(id: selectedFile + "|" + query) {
-                do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
-                matchIndex = 0; controller.search(query)
-            }
-            .onDisappear { controller.detach() }
+            Text(isExternal ? "PDF aperto come riferimento: il file originale non viene modificato. Seleziona testo per inserirlo negli appunti. Con la Lente attiva, cerchia o sottolinea con Apple Pencil per cercare un termine." : "Seleziona testo per copiarlo o evidenziarlo. Attiva la Lente per cercare cerchiando o sottolineando con Apple Pencil.").font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+            if let error { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
+        }
     }
     private func showMatch(_ delta: Int) {
         guard !controller.matches.isEmpty else { return }
@@ -179,11 +231,31 @@ struct PDFStudyPanel: View {
     }
     private func insertExcerpt() {
         guard let view = controller.view, let selection = view.currentSelection, let text = selection.string,
-              let source = selection.pages.first, let document = view.document,
-              let pageIndex = model.pages.firstIndex(where: { $0.pdfFile == selectedFile && $0.pdfIndex == document.index(for: source) }) else { return }
-        var element = TextElement(text: "«\(text.prefix(12000))»\n↗ Fonte: PDF · pagina \(pageIndex + 1)")
-        element.pageLink = PageLinkTarget(documentID: model.workspace.documentID, pageID: model.pages[pageIndex].id)
+              let source = selection.pages.first, let document = view.document else { return }
+        let pdfIndex = document.index(for: source)
+        guard pdfIndex != NSNotFound else { return }
+        let name = isExternal ? externalURL?.lastPathComponent ?? "PDF" : "PDF"
+        var element = TextElement(text: "«\(text.prefix(12000))»\n↗ Fonte: \(name) · pagina \(pdfIndex + 1)")
+        if !isExternal, let page = model.pages.first(where: { $0.pdfFile == selectedFile && $0.pdfIndex == pdfIndex }) {
+            element.pageLink = PageLinkTarget(documentID: model.workspace.documentID, pageID: page.id)
+        }
         model.mutatePage("Inserisci estratto PDF") { $0.texts.append(element) }
+    }
+    private func lookup(_ text: String) {
+        let term = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { error = "Nessun testo selezionabile in questa zona: prova la selezione del PDF o importa il documento per usare l’OCR."; return }
+        research = PDFResearchTerm(text: String(term.prefix(120))); error = nil
+    }
+    private func openReference(_ url: URL) throws {
+        let access = url.startAccessingSecurityScopedResource()
+        guard let document = PDFDocument(url: url), !document.isLocked, document.pageCount > 0 else {
+            if access { url.stopAccessingSecurityScopedResource() }; throw PDFImportFailure.unreadable
+        }
+        releaseReference(); externalURL = url; scoped = access; selectedFile = url.absoluteString; error = nil
+    }
+    private func releaseReference() {
+        if scoped { externalURL?.stopAccessingSecurityScopedResource() }
+        scoped = false; externalURL = nil
     }
     private func mark(_ kind: PDFMarkupKind) {
         let marks = controller.markups(kind: kind, pages: model.pages)

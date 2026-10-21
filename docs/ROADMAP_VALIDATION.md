@@ -1,6 +1,14 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.12.2
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.14.0
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Lotto 0.14.0 — 21 ottobre 2026
+
+Esecuzione locale Swift 6.1.2 Linux: **174 XCTest, 172 passati e due skip Darwin preesistenti; 98 FSRS passati**, zero fallimenti. Nuovi test per journal di compressione e recupero prima/dopo il cambio catalogo/con PCM parzialmente rimossi, annullamento conservativo, deriva temporale rifiutata, protezione dei media in preparazione, backup/import/export AAC con fixture, rotazione/restauro sotto budget e append di 100 pagine; geometria di linee/rettangoli e preferenze della mini toolbar. Questi test non decodificano AAC reale.
+
+**Sei nuovi metodi Apple predisposti, non eseguiti:** codec CAF→AAC, allineamento degli attacchi e lettura a blocchi/ultimo parziale; controller con riconoscimento iniettato su AAC; elimina pagina/undo; stili/colori RTF/PDF/undo; righello nativo e selezione di un PDF esterno senza import. Diagnostica ampliata a **35 controlli**, non eseguiti sul dispositivo dalla sessione. I 23 test backend a fixture della 0.12 riguardano codice server invariato, non un’API live.
+
+Grafo progetto **398 oggetti**, membership di **251 file Swift**, **301 metodi XCTest** individuati; parsing grammaticale e del compilatore Swift in modalità 5 riusciti. Non equivalgono a type checking/compilazione UIKit o esecuzione dei 301 metodi. Il blocco CI documentato sotto è invariato; nessun nuovo tentativo Apple o modifica alla fatturazione. [Report della consegna](DELIVERY_0_14_0.md).
 
 ## Patch 0.12.2 — riscontro iPad e tentativo CI del 21 ottobre 2026
 

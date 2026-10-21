@@ -58,6 +58,7 @@ public enum HeldShapeRecognition {
             }
         }
         if edgeRatio > 0.88 && cornersFound == 4 { return .rectangle }
+        if rectangleVertices(sampled) != nil { return .rectangle }
         if triangleVertices(sampled) != nil { return .triangle }
         let centerX: Double = (x0 + x1) / 2, centerY: Double = (y0 + y1) / 2
         let radiusX: Double = width / 2, radiusY: Double = height / 2
@@ -135,6 +136,57 @@ public enum HeldShapeRecognition {
             if error > max(3, span * 0.035) { return nil }
         }
         return hull
+    }
+    public static func rectangleVertices(_ input: [StrokeSample]) -> [StrokeSample]? {
+        guard input.count >= 8, input.count <= 10_000, input.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              let first = input.first, let last = input.last else { return nil }
+        let sorted = input.sorted { $0.x == $1.x ? $0.y < $1.y : $0.x < $1.x }
+        var lowY: Double = first.y, highY: Double = first.y
+        for point in input { lowY = min(lowY, point.y); highY = max(highY, point.y) }
+        let width: Double = sorted[sorted.count - 1].x - sorted[0].x
+        let height: Double = highY - lowY
+        let span: Double = hypot(width, height)
+        guard span.isFinite, span >= 28, distance(first, last) < span * 0.22 else { return nil }
+        func cross(_ a: StrokeSample, _ b: StrokeSample, _ c: StrokeSample) -> Double { (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) }
+        func half(_ points: [StrokeSample]) -> [StrokeSample] {
+            var hull: [StrokeSample] = []
+            for point in points {
+                while hull.count >= 2 && cross(hull[hull.count - 2], hull[hull.count - 1], point) <= 0 { hull.removeLast() }
+                hull.append(point)
+            }; return hull
+        }
+        var hull = Array(half(sorted).dropLast()) + Array(half(Array(sorted.reversed())).dropLast())
+        guard hull.count >= 4 else { return nil }
+        while hull.count > 4 {
+            var best = 0, height = Double.infinity
+            for i in hull.indices {
+                let a = hull[(i + hull.count - 1) % hull.count], b = hull[i], c = hull[(i + 1) % hull.count]
+                let value = abs(cross(a, c, b)) / max(1, distance(a, c))
+                if value < height { height = value; best = i }
+            }; hull.remove(at: best)
+        }
+        for i in 0..<4 {
+            let a = hull[i], b = hull[(i + 1) % 4], c = hull[(i + 2) % 4]
+            let ab = distance(a, b), bc = distance(b, c)
+            guard ab >= 20, bc >= 20 else { return nil }
+            let cosine = abs(((b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y)) / (ab * bc))
+            guard cosine <= sin(8 * .pi / 180) else { return nil }
+        }
+        let a = hull[0], b = hull[1], d = hull[3]
+        let edgeWidth = distance(a, b), edgeHeight = distance(a, d)
+        let ux = (b.x - a.x) / edgeWidth, uy = (b.y - a.y) / edgeWidth
+        let vx = -uy, vy = ux, side = (d.x - a.x) * vx + (d.y - a.y) * vy >= 0 ? 1.0 : -1.0
+        let exact = [a, b, StrokeSample(x: b.x + vx * edgeHeight * side, y: b.y + vy * edgeHeight * side), StrokeSample(x: a.x + vx * edgeHeight * side, y: a.y + vy * edgeHeight * side)]
+        for p in input {
+            var deviation = Double.infinity
+            for i in 0..<4 {
+                let a = exact[i], b = exact[(i + 1) % 4], dx = b.x - a.x, dy = b.y - a.y
+                let t = min(1, max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / max(1, dx * dx + dy * dy)))
+                deviation = min(deviation, distance(p, StrokeSample(x: a.x + dx * t, y: a.y + dy * t)))
+            }
+            if deviation > max(3, span * 0.035) { return nil }
+        }
+        return exact
     }
     private static func distance(_ a: StrokeSample, _ b: StrokeSample) -> Double {
         let dx: Double = b.x - a.x, dy: Double = b.y - a.y

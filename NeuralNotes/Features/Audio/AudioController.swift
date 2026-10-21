@@ -21,10 +21,13 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     /// Session whose last transcription message stays visible after the job ends.
     var transcriptionStatusSessionID: UUID?
     @ObservationIgnored var transcriptionTask: Task<Void, Never>?
+    var compressingSessionID: UUID?
+    var compressionStatus = ""
+    @ObservationIgnored var compressionTask: Task<Void, Never>?
     @ObservationIgnored var windowRecognition: (@MainActor (URL, SpeechWindow, String) async throws -> [TranscriptSegment])?
     /// Seconds per recognition block; tests use short blocks to simulate long recordings.
     @ObservationIgnored var transcriptionWindowLength: Double = 45
-    var canTranscribe: Bool { !closed && !recording && !transitioning }
+    var canTranscribe: Bool { !closed && !recording && !transitioning && compressionTask == nil && compressingSessionID == nil }
     var backgroundAudioConfigured: Bool {
         (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("audio") == true
     }
@@ -35,6 +38,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     @ObservationIgnored private var interruption: NSObjectProtocol?
     @ObservationIgnored private var routeChange: NSObjectProtocol?
     @ObservationIgnored private var playingIndex = 0
+    @ObservationIgnored private var playbackGeneration = UUID()
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var suspended = false
 
@@ -91,11 +95,12 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
             if let pending = sessions.last(where: { $0.state != "finished" }) {
                 active = pending; paused = true; elapsed = pending.duration
             }
+            if let pending = try await workspace.pendingAudioCompression() { startCompression(pending.sessionID) }
         } catch { self.error = error.localizedDescription }
     }
 
     func start() async {
-        guard !recording, !transitioning, !closed, !suspended, transcribingSessionID == nil else { return }
+        guard !recording, !transitioning, !closed, !suspended, transcribingSessionID == nil, compressionTask == nil, compressingSessionID == nil else { return }
         transitioning = true
         defer { transitioning = false }
         let allowed = await AVAudioApplication.requestRecordPermission()
@@ -174,13 +179,16 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
 
     func finish() async {
         guard !transitioning else { return }
-        transitioning = true; defer { transitioning = false }
+        transitioning = true
+        var compressedID: UUID?
+        defer { transitioning = false; if let compressedID { startCompression(compressedID) } }
         if recording { await pause(reason: "Fine registrazione") }
         guard var entry = active else { return }
         entry.state = "finished"
         entry.revision = (entry.revision ?? 0) + 1
         guard await persist(entry) else { return }
         active = nil; paused = false
+        compressedID = entry.id
         do { try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
         catch { self.error = error.localizedDescription }
     }
@@ -194,6 +202,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     }
 
     func play(_ session: AudioSession, at seconds: Double = 0) async {
+        guard compressionTask == nil, compressingSessionID == nil else { error = "Attendi o metti in pausa la compressione prima dell’ascolto."; return }
         guard session.trashedAt == nil else { error = "Ripristina la registrazione dal cestino prima di ascoltarla."; return }
         guard !recording else { error = "Metti in pausa la registrazione prima di riprodurre."; return }
         do {
@@ -205,12 +214,14 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
             playingSessionID = session.id; playingIndex = index
             try await playSegment(session, index: index, offset: max(0, seconds - session.segments[index].start))
             beginTicker()
-        } catch { self.error = error.localizedDescription; stopPlayback() }
+        } catch is CancellationError { }
+        catch { self.error = error.localizedDescription; stopPlayback() }
     }
 
     private func playSegment(_ session: AudioSession, index: Int, offset: Double) async throws {
+        let generation = playbackGeneration
         let url = try await workspace.url(session.segments[index].file)
-        guard playingSessionID == session.id, !recording, !closed else { throw CancellationError() }
+        guard generation == playbackGeneration, playingSessionID == session.id, !recording, !closed else { throw CancellationError() }
         let audio = try AVAudioPlayer(contentsOf: url)
         audio.delegate = self; audio.currentTime = offset
         audio.enableRate = true; audio.rate = Float(playbackRate)
@@ -267,7 +278,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     }
 
     func importAudio(_ source: URL) async {
-        guard !recording, !transitioning, transcribingSessionID == nil, !closed else { return }
+        guard canTranscribe, transcribingSessionID == nil else { return }
         transitioning = true; defer { transitioning = false }
         let scoped = source.startAccessingSecurityScopedResource(); defer { if scoped { source.stopAccessingSecurityScopedResource() } }
         do {
@@ -279,7 +290,14 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
         } catch { self.error = error.localizedDescription }
     }
 
-    func stopPlayback() { player?.stop(); player = nil; playingSessionID = nil }
+    func stopPlayback() { playbackGeneration = UUID(); player?.stop(); player = nil; playingSessionID = nil }
+
+    func skipPlayback(by seconds: Double) async {
+        guard seconds.isFinite, let id = playingSessionID, let session = sessions.first(where: { $0.id == id }) else { return }
+        let target = min(session.duration, max(0, playback + seconds))
+        if target >= session.duration { stopPlayback(); playback = session.duration }
+        else { await play(session, at: target) }
+    }
 
     func suspendForTabChange() async {
         suspended = true
@@ -313,12 +331,14 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        let finishedPlayer = ObjectIdentifier(player)
         Task { @MainActor [weak self] in
-            guard let self, let id = self.playingSessionID,
+            guard let self, let currentPlayer = self.player, ObjectIdentifier(currentPlayer) == finishedPlayer, let id = self.playingSessionID,
                   let entry = self.sessions.first(where: { $0.id == id }) else { return }
             let next = self.playingIndex + 1
             guard flag, entry.segments.indices.contains(next) else { self.stopPlayback(); return }
             do { try await self.playSegment(entry, index: next, offset: 0) }
+            catch is CancellationError { }
             catch { self.error = error.localizedDescription; self.stopPlayback() }
         }
     }
@@ -340,6 +360,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
 
     func close() async {
         closed = true
+        compressionTask?.cancel(); await compressionTask?.value; compressionTask = nil
         transcriptionTask?.cancel(); await transcriptionTask?.value; transcriptionTask = nil
         if recording { await pause(reason: "Chiusura quaderno") }
         stopPlayback(); ticker?.cancel(); ticker = nil

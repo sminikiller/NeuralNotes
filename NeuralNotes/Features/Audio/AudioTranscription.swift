@@ -43,7 +43,10 @@ extension AudioController {
             for segment in session.segments {
                 let url = try await workspace.url(segment.file)
                 do {
-                    let duration = try await Self.recordedDuration(url)
+                    let measured = try await Self.recordedDuration(url)
+                    // Verified AAC may expose a few padding frames. Preserve
+                    // the PCM window boundaries so a resumed job reuses chunks.
+                    let duration = segment.codec == "aac" && segment.duration > 0 && abs(measured - segment.duration) < 0.05 ? segment.duration : measured
                     plans.append((segment, url, SpeechWindow.plan(duration: duration, maximum: transcriptionWindowLength)))
                 } catch {
                     let at = TranscriptText.clock(segment.start)
@@ -166,7 +169,7 @@ extension AudioController {
     }
 
     func saveTranscript(_ id: UUID, title: String, blocks: [TranscriptMinute]) async throws {
-        guard transcribingSessionID == nil else { throw WorkspaceFailure.staleRevision }
+        guard transcribingSessionID == nil, compressionTask == nil, compressingSessionID == nil else { throw WorkspaceFailure.staleRevision }
         guard var session = try await workspace.catalog().sessions.first(where: { $0.id == id }) else { throw LibraryFailure.missingItem }
         guard session.state == "finished", session.trashedAt == nil, active?.id != id else { throw WorkspaceFailure.staleRevision }
         session.title = try LibraryName.validated(title)

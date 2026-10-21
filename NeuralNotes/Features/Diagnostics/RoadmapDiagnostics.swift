@@ -5,6 +5,46 @@ import NeuralNotesCore
 
 @MainActor
 enum RoadmapDiagnostics {
+    static func audioCompression(root: URL) async throws {
+        let writer = try workspace(root: root), path = "audio/compression-check.caf", source = try await writer.url(path)
+        do {
+            let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 44100.0, AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false]
+            let file = try AVAudioFile(forWriting: source, settings: settings)
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 8192), let samples = buffer.floatChannelData?[0] else { throw Failure.assertion("Buffer di controllo non disponibile.") }
+            samples.initialize(repeating: 0, count: 8192)
+            var remaining = 143325
+            while remaining > 0 {
+                buffer.frameLength = AVAudioFrameCount(min(8192, remaining)); try file.write(from: buffer); remaining -= Int(buffer.frameLength)
+            }
+        }
+        var entry = AudioSession(title: "Verifica AAC"); entry.state = "finished"
+        var part = AudioTimelineSegment(file: path, start: 0, hostStart: 0); part.duration = 3.25; entry.segments = [part]
+        try await writer.saveSession(entry)
+        let controller = AudioController(workspace: writer); await controller.load()
+        controller.startCompression(entry.id); await controller.compressionTask?.value
+        let failure = controller.error; await controller.close()
+        if let failure { throw Failure.assertion(failure) }
+        guard let saved = try await writer.catalog().sessions.first?.segments.first else { throw Failure.assertion("Parte audio non indicizzata.") }
+        try require(saved.codec == "aac" && saved.bitRate == 64000 && saved.start == 0 && saved.duration == 3.25, "Tempi o metadati AAC diversi dall’originale.")
+        let file = try await writer.url(saved.file)
+        var sizes: [UInt32] = []
+        let frames = try AudioWindowReader.read(url: file, window: SpeechWindow(start: 3, duration: 0.25), chunk: 1024) { sizes.append($0.frameLength) }
+        try require(frames > 0 && !sizes.isEmpty && sizes.allSatisfy { $0 <= 1024 }, "Ultimo blocco AAC non leggibile.")
+        try require(!FileManager.default.fileExists(atPath: source.path), "Pulizia PCM non completata.")
+        _ = try NativePackageInspector.inspect(writer.package)
+    }
+    static func backupBudget(root: URL) async throws {
+        let writer = try workspace(root: root), manifest = try await writer.manifest()
+        let metadata = Notebook(id: manifest.notebookID, documentID: manifest.documentID, title: "Budget di controllo", createdAt: Date(), updatedAt: Date(), folderID: nil, cover: .lagoon, isFavorite: false)
+        _ = try await writer.addPage()
+        var files: [URL] = []
+        for _ in 0..<4 {
+            if let file = try await writer.createAutomaticBackup(metadata: metadata, minimumInterval: 0, maximumBytes: 1) { files.append(file) }
+        }
+        let copies = try await writer.automaticBackups()
+        try require(copies.count == 2 && Set(copies.map(\.url)) == Set(files.suffix(2)), "Le ultime due copie non sono state protette.")
+        try require(AutomaticBackupPolicy.budget(copyBytes: 1) == 64 << 20 && AutomaticBackupPolicy.budget(copyBytes: Int64.max) == 1 << 30, "Limite backup non corretto.")
+    }
     static func audioExportAndOrganization(root: URL) async throws {
         let writer = try workspace(root: root), file = "audio/check.caf", destination = try await writer.url(file)
         let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16000.0, AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false]

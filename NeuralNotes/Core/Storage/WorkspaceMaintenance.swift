@@ -42,6 +42,11 @@ extension DocumentWorkspace {
         }
         do { referenced.formUnion(try CatalogRecovery.retainedMedia(in: package)) }
         catch { unreadable.append(CatalogRecovery.retainedPath) }
+        do {
+            if let pending = try pendingAudioCompression() {
+                referenced.formUnion(pending.parts.flatMap { [$0.source, $0.destination] })
+            }
+        } catch { unreadable.append(AudioCompressionPlan.path) }
         var total: Int64 = 0, unused: Int64 = 0, unusedFiles: [String] = [], categories: [String: Int64] = [:]
         for file in files {
             let size = Int64(try file.url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
@@ -58,6 +63,7 @@ extension DocumentWorkspace {
     /// Recompute reachability inside the actor immediately before deletion. Both
     /// active and removed page headers protect their current and previous media.
     public func cleanUnusedFiles() throws -> Int64 {
+        guard try pendingAudioCompression() == nil else { throw LibraryFailure.recoveryRequired("Riprendi prima la compressione audio.") }
         let report = try storageReport()
         guard report.unreadableHeaders.isEmpty else {
             throw LibraryFailure.recoveryRequired("Un indice non è leggibile. Pulizia annullata per conservare i contenuti.")

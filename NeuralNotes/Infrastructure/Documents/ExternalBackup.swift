@@ -1,4 +1,5 @@
 import Foundation
+import NeuralNotesCore
 
 enum ExternalBackupDestination {
     static var name: String? { UserDefaults.standard.string(forKey: "backup.external.name") }
@@ -56,10 +57,13 @@ actor ExternalBackupWriter {
         let versions = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])
             .filter { $0.lastPathComponent.hasPrefix("backup-") && $0.pathExtension == "nnbackup" }
             .sorted { ((try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast) > ((try? $1.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast) }
-        // Keep the new version even when a file provider preserves an older mtime.
-        for old in versions.filter({ $0 != destination }).dropFirst(4) {
+        // Keep the new version even when a provider preserves its source mtime.
+        let ordered = [destination] + versions.filter { $0 != destination }
+        let sizes = try ordered.map { Int64(try $0.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) }
+        let count = AutomaticBackupPolicy.retainedCount(sizes: sizes, maximumBytes: AutomaticBackupPolicy.budget(copyBytes: sizes[0]))
+        for old in ordered.dropFirst(count) {
             guard (try? FileManager.default.destinationOfSymbolicLink(atPath: old.path)) == nil else { continue }
-            try? FileManager.default.removeItem(at: old)
+            try FileManager.default.removeItem(at: old)
         }
         return destination
     }

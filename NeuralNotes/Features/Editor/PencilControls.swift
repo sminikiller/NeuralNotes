@@ -48,6 +48,7 @@ final class PencilControls: NSObject, UIPencilInteractionDelegate {
         controller.preferredContentSize = CGSize(width: 330, height: max(180, min(600, host.bounds.height - 40)))
         let at = point ?? CGPoint(x: host.bounds.midX, y: host.bounds.midY)
         controller.popoverPresentationController?.sourceView = host
+        controller.popoverPresentationController?.permittedArrowDirections = at.x > host.bounds.midX ? [.right, .up, .down] : [.left, .up, .down]
         controller.popoverPresentationController?.sourceRect = CGRect(x: max(0, min(host.bounds.maxX - 2, at.x)), y: max(0, min(host.bounds.maxY - 2, at.y)), width: 2, height: 2)
         presenter.present(controller, animated: true)
     }

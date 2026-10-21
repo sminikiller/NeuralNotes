@@ -29,48 +29,68 @@ enum DocumentServices {
         try Task.checkCancellation()
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        let data = try boundedRead(url)
-        guard let pdf = PDFDocument(data: data) else { throw PDFImportFailure.unreadable }
-        guard !pdf.isLocked else { throw PDFImportFailure.locked }
-        guard pdf.pageCount > 0 else { throw PDFImportFailure.unreadable }
-        guard pdf.pageCount <= 1000 else { throw PDFImportFailure.tooManyPages }
-        let attachment = try await workspace.addAttachment(data, name: url.lastPathComponent, type: "pdf",
-            hash: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined())
-        var result: [PageSnapshot] = []
-        for index in 0..<pdf.pageCount {
-            try Task.checkCancellation()
-            guard let source = pdf.page(at: index), let reference = source.pageRef else { throw CocoaError(.fileReadCorruptFile) }
-            let box = reference.getBoxRect(.cropBox)
-            let rotated = abs(reference.rotationAngle) % 180 == 90
-            var page = PageSnapshot()
-            page.width = rotated ? box.height : box.width
-            page.height = rotated ? box.width : box.height
-            guard page.width > 0, page.height > 0 else { throw CocoaError(.fileReadCorruptFile) }
-            page.pdfFile = attachment.file; page.pdfIndex = index
-            page.recognizedText = source.string ?? ""
-            result.append(try await workspace.addPage(page))
-        }
-        return result
+        let job = Task.detached(priority: .userInitiated) { try preparePDF(url) }
+        let prepared = try await withTaskCancellationHandler { try await job.value } onCancel: { job.cancel() }
+        try Task.checkCancellation()
+        let attachment = try await workspace.addAttachment(prepared.data, name: url.lastPathComponent, type: "pdf", hash: prepared.hash)
+        var pages = prepared.pages
+        for index in pages.indices { pages[index].pdfFile = attachment.file }
+        return try await workspace.appendPages(pages)
     }
 
     static func importImage(from url: URL, into workspace: DocumentWorkspace) async throws -> ImageElement {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        let data = try boundedRead(url)
+        let job = Task.detached(priority: .userInitiated) { try boundedRead(url) }
+        let data = try await withTaskCancellationHandler { try await job.value } onCancel: { job.cancel() }
         return try await importImage(data: data, into: workspace)
     }
 
     static func importImage(data: Data, into workspace: DocumentWorkspace) async throws -> ImageElement {
+        let job = Task.detached(priority: .userInitiated) { try prepareImage(data) }
+        let prepared = try await withTaskCancellationHandler { try await job.value } onCancel: { job.cancel() }
+        try Task.checkCancellation()
+        let file = try await workspace.storeImage(prepared.data)
+        let width = min(Double(prepared.width), 520)
+        return ImageElement(file: file, width: width, height: width * Double(prepared.height) / Double(prepared.width))
+    }
+
+    private struct PreparedPDF: Sendable { let data: Data; let hash: String; let pages: [PageSnapshot] }
+    nonisolated private static func preparePDF(_ url: URL) throws -> PreparedPDF {
+        let data = try boundedRead(url)
+        guard let pdf = PDFDocument(data: data) else { throw PDFImportFailure.unreadable }
+        guard !pdf.isLocked else { throw PDFImportFailure.locked }
+        guard pdf.pageCount > 0 else { throw PDFImportFailure.unreadable }
+        guard pdf.pageCount <= 1000 else { throw PDFImportFailure.tooManyPages }
+        var pages: [PageSnapshot] = []
+        for index in 0..<pdf.pageCount {
+            try Task.checkCancellation()
+            let page: PageSnapshot = try autoreleasepool {
+                guard let source = pdf.page(at: index), let reference = source.pageRef else { throw PDFImportFailure.unreadable }
+                let box = reference.getBoxRect(.cropBox), rotated = abs(reference.rotationAngle) % 180 == 90
+                var page = PageSnapshot()
+                page.width = rotated ? box.height : box.width; page.height = rotated ? box.width : box.height
+                guard page.width.isFinite, page.height.isFinite, (1...20000).contains(page.width), (1...20000).contains(page.height) else { throw PDFImportFailure.unreadable }
+                page.pdfIndex = index; page.recognizedText = String((source.string ?? "").prefix(20000))
+                return page
+            }
+            pages.append(page)
+        }
+        return PreparedPDF(data: data, hash: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(), pages: pages)
+    }
+    private struct PreparedImage: Sendable { let data: Data; let width: Int; let height: Int }
+    nonisolated private static func prepareImage(_ data: Data) throws -> PreparedImage {
+        try Task.checkCancellation()
         guard data.count <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 2400] as CFDictionary),
-              let png = UIImage(cgImage: thumbnail).pngData() else { throw CocoaError(.fileReadCorruptFile) }
-        let file = try await workspace.storeImage(png)
-        let width = min(Double(thumbnail.width), 520)
-        return ImageElement(file: file, width: width, height: width * Double(thumbnail.height) / Double(thumbnail.width))
+              let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: 2400] as CFDictionary) else { throw CocoaError(.fileReadCorruptFile) }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output as CFMutableData, "public.png" as CFString, 1, nil) else { throw CocoaError(.fileWriteUnknown) }
+        CGImageDestinationAddImage(destination, thumbnail, nil)
+        guard CGImageDestinationFinalize(destination) else { throw CocoaError(.fileWriteUnknown) }
+        try Task.checkCancellation()
+        return PreparedImage(data: output as Data, width: thumbnail.width, height: thumbnail.height)
     }
 
     static func importAttachment(from url: URL, into workspace: DocumentWorkspace) async throws {
@@ -137,7 +157,7 @@ enum DocumentServices {
         return output
     }
 
-    static func boundedRead(_ url: URL) throws -> Data {
+    nonisolated static func boundedRead(_ url: URL) throws -> Data {
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard size <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
         let data = try Data(contentsOf: url, options: .mappedIfSafe)

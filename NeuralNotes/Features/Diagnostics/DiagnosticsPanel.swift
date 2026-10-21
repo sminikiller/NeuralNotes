@@ -437,6 +437,8 @@ struct DiagnosticsPanel: View {
             await check("Editor: taglia protetto, spostamento e undo, laser e ricerca") { try await RoadmapDiagnostics.editor(root: root.appendingPathComponent("EditorRoadmap")) }
             await check("Audio: file originali esportati e cestino ripristinabile") { try await RoadmapDiagnostics.audioExportAndOrganization(root: root.appendingPathComponent("AudioExport")) }
             await check("Lente: sottolineatura e collegamenti sicuri, senza rete") { try RoadmapDiagnostics.lensAndWebLinks() }
+            await check("Audio: AAC compresso, tempi e ultimo blocco parziale") { try await RoadmapDiagnostics.audioCompression(root: root.appendingPathComponent("AudioCompression")) }
+            await check("Backup: limite di spazio e due copie protette") { try await RoadmapDiagnostics.backupBudget(root: root.appendingPathComponent("BackupBudget")) }
         } catch { results.append(DiagnosticResult(title: "Preparazione test", passed: false, detail: error.localizedDescription)) }
     }
 

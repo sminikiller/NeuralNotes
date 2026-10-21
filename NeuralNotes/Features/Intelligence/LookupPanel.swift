@@ -7,6 +7,8 @@ struct LookupPanel: View {
     let sources: [IndexedChunk]
     let configuration: AIEngineConfiguration
     let consentKey: String?
+    var initialTerm: String? = nil
+    var onConfigure: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var term = ""
     @State private var card: LookupCard?
@@ -21,6 +23,10 @@ struct LookupPanel: View {
                     TextField("Termine da definire", text: $term).disabled(busy)
                     Text("\(sources.count) fonti · \(configuration.destination)").font(.caption).foregroundStyle(.secondary)
                     Button("Dizionario di sistema", systemImage: "character.book.closed") { SystemDictionary.open(term: term, from: model.pagePresenter as? UIView) }.disabled(term.isEmpty)
+                    if let webURL {
+                        Link(destination: webURL) { Label("Apri ricerca nel browser", systemImage: "safari") }
+                        Text("Il browser riceve solo il termine cercato.").font(.caption).foregroundStyle(.secondary)
+                    }
                     if configuration.lookupURL != nil {
                         Button("Crea scheda dalle fonti", systemImage: "sparkles") { generate() }
                             .disabled(busy || !LookupRequest(term: term, sources: sources).isValid || consentKey != configuration.consentKey)
@@ -64,11 +70,21 @@ struct LookupPanel: View {
                     }
                 }
             }.navigationTitle("Definizione con fonti")
-                .task { term = String(sources.first?.text.prefix(120) ?? "") }
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
+                .task { term = initialTerm ?? String(sources.first?.text.prefix(120) ?? "") }
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }
+                    if let onConfigure { ToolbarItem(placement: .primaryAction) { Button("Connessione AI", systemImage: "network", action: onConfigure) } }
+                }
                 .onDisappear { job?.cancel() }
                 .onChange(of: term) { _, _ in card = nil; research = nil; error = nil }
         }
+    }
+    private var webURL: URL? {
+        let query = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty, query.count <= 200 else { return nil }
+        var components = URLComponents(string: "https://www.google.com/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+        return components?.url
     }
     private func generate() {
         guard !busy else { return }; busy = true; error = nil

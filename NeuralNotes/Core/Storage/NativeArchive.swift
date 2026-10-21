@@ -45,6 +45,7 @@ public enum NativeArchive {
     }
 
     public static func write(package: URL, metadata: Notebook, to destination: URL) throws {
+        guard !FileManager.default.fileExists(atPath: package.appendingPathComponent(AudioCompressionPlan.path).path) else { throw LibraryFailure.recoveryRequired("Attendi o riprendi la compressione audio prima di creare un backup.") }
         var sources: [(String, URL)] = []
         for file in try PackageFiles.list(in: package) {
             guard allowed(file.path) else { throw NativeArchiveFailure.invalidEntry(file.path) }

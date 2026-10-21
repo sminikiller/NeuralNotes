@@ -8,6 +8,74 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testDeleteAnyPageKeepsCurrentPageAndUndoRestoresOrder() async throws {
+        try await fixture { model in
+            let first = try XCTUnwrap(model.page?.id)
+            model.editText([TextElement(text: "Da conservare")]); _ = await model.flush()
+            await model.addPage(); let second = try XCTUnwrap(model.page?.id)
+            await model.addPage(); let third = try XCTUnwrap(model.page?.id)
+            await model.deletePage(second)
+            XCTAssertEqual(model.pages.map(\.id), [first, third]); XCTAssertEqual(model.page?.id, third)
+            await model.performUndo()
+            XCTAssertEqual(model.pages.map(\.id), [first, second, third])
+            await model.deletePage(third); XCTAssertNotEqual(model.page?.id, third)
+            await model.performUndo(); XCTAssertEqual(model.page?.id, third)
+            let saved = try await model.workspace.pages(); XCTAssertEqual(saved.first?.texts.first?.text, "Da conservare")
+            XCTAssertNil(model.error)
+        }
+    }
+    @MainActor func testRulerUsesNativePencilKitForPenAndMarkerWithoutChangingTheTool() async throws {
+        try await fixture { model in
+            model.chooseTool(.marker); model.chooseTool(.ruler)
+            XCTAssertTrue(model.canvas.isRulerActive); XCTAssertTrue(model.rulerActive)
+            XCTAssertEqual(model.tool, .marker); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            model.chooseTool(.pen); XCTAssertTrue(model.canvas.isRulerActive)
+            model.chooseTool(.ruler); XCTAssertFalse(model.canvas.isRulerActive)
+            model.chooseTool(.lasso); model.chooseTool(.ruler)
+            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.canvas.isRulerActive)
+            // Physical edge snapping belongs to PencilKit and still needs Pencil input.
+        }
+    }
+    @MainActor func testRichTextHeadingColorsHighlightRoundTripIntoPDFAndUndo() async throws {
+        try await fixture { model in
+            let view = UITextView(); view.attributedText = NSAttributedString(string: "Titolo di prova\nCorpo del testo", attributes: [.font: UIFont.systemFont(ofSize: 18)])
+            let formatting = TextFormatting(view: view) {}
+            view.selectedRange = NSRange(location: 0, length: 6)
+            formatting.paragraphStyle(size: 30, heading: true); formatting.foreground(.systemRed); formatting.highlight(.systemYellow)
+            var element = TextElement(text: view.text); element.rtf = try XCTUnwrap(RichText.data(view.attributedText))
+            let attributed = RichText.attributed(element)
+            XCTAssertEqual((attributed.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)?.pointSize, 30)
+            XCTAssertNotNil(attributed.attribute(.backgroundColor, at: 0, effectiveRange: nil))
+            let color = try XCTUnwrap(attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            XCTAssertTrue(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)); XCTAssertGreaterThan(red, green)
+            model.editText([element]); _ = await model.flush()
+            let pdf = try await DocumentServices.exportPDF(workspace: model.workspace); defer { try? FileManager.default.removeItem(at: pdf) }
+            XCTAssertTrue(PDFDocument(url: pdf)?.page(at: 0)?.string?.contains("Titolo di prova") == true)
+            await model.performUndo(); XCTAssertTrue(model.page?.texts.isEmpty == true)
+            await model.performRedo(); XCTAssertEqual(model.page?.texts.first?.rtf, element.rtf)
+        }
+    }
+    @MainActor func testExternalPDFReferenceCanSelectConceptWithoutImportingOrChangingItsFile() async throws {
+        try await fixture { model in
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("Reference-\(UUID()).pdf")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let bytes = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 400, height: 600)).pdfData { renderer in
+                renderer.beginPage(); ("Entropia" as NSString).draw(at: CGPoint(x: 50, y: 80), withAttributes: [.font: UIFont.systemFont(ofSize: 24)])
+            }; try bytes.write(to: url)
+            let before = try await model.workspace.manifest()
+            let view = ConceptPDFView(frame: CGRect(x: 0, y: 0, width: 600, height: 800)); view.autoScales = true
+            let controller = PDFStudyController(); controller.attach(view)
+            controller.load(file: url.absoluteString, package: model.workspace.package, index: 0, external: url)
+            view.layoutIfNeeded()
+            let page = try XCTUnwrap(view.document?.page(at: 0)), selection = try XCTUnwrap(page.selection(for: NSRange(location: 0, length: 8)))
+            let box = view.convert(selection.bounds(for: page), from: page).insetBy(dx: -2, dy: -2)
+            let points = [StrokeSample(x: box.minX, y: box.minY), StrokeSample(x: box.maxX, y: box.minY), StrokeSample(x: box.maxX, y: box.maxY), StrokeSample(x: box.minX, y: box.maxY), StrokeSample(x: box.minX, y: box.minY)]
+            XCTAssertTrue(view.selectedConcept(trace: points, page: page)?.contains("Entropia") == true)
+            let after = try await model.workspace.manifest(); XCTAssertEqual(after.pageIDs, before.pageIDs)
+            XCTAssertEqual(try Data(contentsOf: url), bytes); controller.detach()
+        }
+    }
     @MainActor func testPDFSearchHighlightsMatchesAndClearsWithoutChangingTheOriginal() async throws {
         try await fixture { model in
             let file = model.workspace.package.appendingPathComponent("attachments/search.pdf")

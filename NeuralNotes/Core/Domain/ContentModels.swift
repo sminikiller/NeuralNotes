@@ -99,6 +99,9 @@ public struct AudioTimelineSegment: Codable, Identifiable, Equatable, Sendable {
     public var duration: Double = 0
     public var hostStart: Double
     public var endReason: String?
+    public var codec: String?
+    public var bitRate: Int?
+    public var originalBytes: Int64?
     public init(file: String, start: Double, hostStart: Double) {
         self.file = file; self.start = start; self.hostStart = hostStart
     }
