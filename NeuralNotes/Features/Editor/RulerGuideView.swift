@@ -14,8 +14,8 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         super.init(frame: .zero)
         isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false
         accessibilityLabel = "Righello: sposta e ruota con due dita"; accessibilityIdentifier = "rulerGuide"
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(move(_:))); pan.minimumNumberOfTouches = 2; pan.maximumNumberOfTouches = 2
-        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(rotate(_:)))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(nnHandleRulerPan(_:))); pan.minimumNumberOfTouches = 2; pan.maximumNumberOfTouches = 2
+        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(nnHandleRulerRotation(_:)))
         moving = pan; turning = rotation
         for gesture in [pan as UIGestureRecognizer, rotation] {
             gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]; gesture.delegate = self
@@ -56,7 +56,9 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         !isHidden && touch.type == .direct && bounds.contains(touch.location(in: self))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { other === moving || other === turning }
-    @objc private func move(_ pan: UIPanGestureRecognizer) {
+    // UIView inherits UIResponder.move(_:). Gesture actions need distinct
+    // Objective-C selectors even when their Swift parameter types differ.
+    @objc private func nnHandleRulerPan(_ pan: UIPanGestureRecognizer) {
         guard let host, let model, let page = model.page, !model.hasActiveStroke else { return }
         if pan.state == .began { original = model.rulerGuide }
         let translation = pan.translation(in: host.surface)
@@ -64,7 +66,7 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         guide.x = min(page.width, max(0, original.x + translation.x)); guide.y = min(page.height, max(0, original.y + translation.y))
         model.rulerGuide = guide; update()
     }
-    @objc private func rotate(_ gesture: UIRotationGestureRecognizer) {
+    @objc private func nnHandleRulerRotation(_ gesture: UIRotationGestureRecognizer) {
         guard let model, !model.hasActiveStroke else { return }
         if gesture.state == .began { original.angle = model.rulerGuide.angle }
         var guide = model.rulerGuide; guide.angle = original.angle + gesture.rotation

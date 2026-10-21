@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.15.0
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.15.1
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Patch 0.15.1 — riscontro iPad del 22 ottobre 2026
+
+La foto documenta il fallimento della build 0.15.0: l’azione Objective-C `move:` in RulerGuideView collide con UIResponder. Rinominati azione di spostamento, rotazione e relativi selector con nomi dedicati. Ricontrollati grafo/membership e parsing Swift: 406 oggetti, 257 Swift, 313 metodi XCTest presenti. Core/backend invariati, non rieseguiti. Nessuna esecuzione Apple o sul dispositivo della patch; i precedenti controlli di sintassi non erano in grado di rilevare questo vincolo SDK. [Dettagli](FIXES_0_15_1.md).
 
 ## Lotto 0.15.0 — 22 ottobre 2026
 

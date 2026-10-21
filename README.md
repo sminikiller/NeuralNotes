@@ -1,7 +1,9 @@
-# NeuralNotes 0.15.0 — anteprima iPad
+# NeuralNotes 0.15.1 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
+
+**0.15.1/build 28:** corregge il conflitto Objective-C `move:` del righello mostrato sull’iPad. Azioni dedicate per spostamento e rotazione, senza override del metodo UIKit. [Patch e limiti della verifica](docs/FIXES_0_15_1.md). Compilazione Apple della patch non ancora eseguita.
 
 **0.15.0/build 27:** recupero dei pacchetti locali senza indice e import da cartella; lettura File coordinata, ordine stabile e confronto dei percorsi nei backup. Cestino pagine con selezione multipla e trasferimento nativo, mini toolbar fino a cinque strumenti, righello vincolante, cache dei ritagli e testo direttamente sul foglio. [Comandi, recupero e limiti](docs/DELIVERY_0_15_0.md).
 
@@ -26,7 +28,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.15.0.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.15.1.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e il recupero sono nella [consegna 0.15.0](docs/DELIVERY_0_15_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).
