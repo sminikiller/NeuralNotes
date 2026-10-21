@@ -51,7 +51,7 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         let title = String(format: "↔  %.0f°  ·  due dita", (model?.rulerGuide.angle ?? 0) * 180 / .pi)
         (title as NSString).draw(at: CGPoint(x: max(12, bounds.midX - 62), y: 14), withAttributes: [.font: UIFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: UIColor.label])
     }
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool { model?.hasActiveStroke == false }
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool { model?.hasActiveStroke == false }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         !isHidden && touch.type == .direct && bounds.contains(touch.location(in: self))
     }

@@ -1,7 +1,7 @@
-# Usare NeuralNotes 0.15.1 con il solo iPad
+# Usare NeuralNotes 0.15.2 con il solo iPad
 
 1. Conserva il vecchio progetto Swift Playground e i suoi dati.
-2. Scarica NeuralNotes-iPad-0.15.1.zip in una cartella nuova di File, decomprimi e apri NeuralNotes.swiftpm con Swift Playground. Corregge il conflitto del selettore del righello ([patch](FIXES_0_15_1.md)). Include recupero da cartella, cestino pagine, cinque strumenti focus, righello vincolante e testo sul foglio. [Comandi e limiti 0.15](DELIVERY_0_15_0.md). La compilazione Apple resta da confermare.
+2. Scarica NeuralNotes-iPad-0.15.2.zip in una cartella nuova di File, decomprimi e apri NeuralNotes.swiftpm con Swift Playground. Completa la correzione del righello con l’override richiesto da UIView ([patch](FIXES_0_15_2.md)). Include recupero da cartella, cestino pagine, cinque strumenti focus, righello vincolante e testo sul foglio. [Comandi e limiti 0.15](DELIVERY_0_15_0.md). La compilazione Apple resta da confermare.
 3. Premi Esegui app. Apri il package intero, non il singolo AppController.swift. Attendi il caricamento da iCloud/File prima di eseguire.
 4. La nuova versione dichiara microfono, fotocamera e riconoscimento vocale. Il sistema chiede il consenso quando usi la funzione; la negazione deve lasciare disponibile la scrittura.
 5. Sidebar → Verifica sul dispositivo → Esegui controlli sul mio iPad. Sono 35 controlli, non ancora eseguiti su questo dispositivo dalla sessione di sviluppo. [Comandi della 0.12.0 e limiti](DELIVERY_0_12_0.md), [verifiche effettive](ROADMAP_VALIDATION.md). Restano documentate [la trascrizione lunga](TESTING_0_9_1.md), [le funzioni della 0.9](STUDY_WORKSPACE_0_9.md), [salvataggio e recupero](CONSOLIDATION_0_8_1.md), [workspace e forme](TESTING_0_8.md), [zoom](FIXES_0_7_1.md) e [scorrimento](TESTING_0_7.md).

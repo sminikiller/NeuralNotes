@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.15.1
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.15.2
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Patch 0.15.2 — secondo riscontro iPad del 22 ottobre 2026
+
+La foto successiva documenta il fallimento della build 0.15.1: RulerGuideView dichiara gestureRecognizerShouldBegin senza override del metodo di UIView. Corretto l’override e ricontrollate le altre dichiarazioni della classe e le implementazioni omonime dei coordinatori. Grafo 406 oggetti / 257 Swift / 313 metodi XCTest presenti, grammatica e parsing Swift 5 riusciti. Core/backend non modificati e non rieseguiti. **Nessuna compilazione Apple della patch**. [Correzione e riferimento Apple](FIXES_0_15_2.md).
 
 ## Patch 0.15.1 — riscontro iPad del 22 ottobre 2026
 
