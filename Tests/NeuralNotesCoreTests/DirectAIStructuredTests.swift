@@ -38,6 +38,7 @@ final class DirectAIStructuredTests: XCTestCase {
         XCTAssertEqual(call.value(forHTTPHeaderField: "Authorization"), "Bearer secret-fixture")
         let json = try body(call)
         XCTAssertEqual((json["response_format"] as? [String: Any])?["type"] as? String, "json_object")
+        XCTAssertEqual((json["thinking"] as? [String: Any])?["type"] as? String, "disabled")
         let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
         XCTAssertTrue((messages[0]["content"] as? String)?.contains("JSON") == true)
         XCTAssertFalse(String(decoding: call.httpBody!, as: UTF8.self).contains("secret-fixture"))

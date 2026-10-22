@@ -261,8 +261,10 @@ public enum DirectAIWire {
                     "generationConfig": ["responseMimeType": "application/json", "responseJsonSchema": schema, "maxOutputTokens": 8192]]
         case .deepSeek:
             // Chat Completions JSON mode: the expected shape travels with the instruction.
+            // Thinking is on by default: off keeps short study answers fast and within max_tokens.
             call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
             body = ["model": configuration.model, "max_tokens": 4096, "stream": false, "response_format": ["type": "json_object"],
+                    "thinking": ["type": "disabled"],
                     "messages": [["role": "system", "content": instruction + " Restituisci solo JSON valido, senza Markdown, con questa forma: " + shape],
                                  ["role": "user", "content": prompt]]]
         default:

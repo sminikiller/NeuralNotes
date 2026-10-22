@@ -52,6 +52,10 @@ struct AIConnectionPanel: View {
                     TextField("URL HTTPS completo della richiesta", text: $draft.endpoint).keyboardType(.URL)
                 }
                 if draft.engine != .backend { TextField("Identificativo del modello", text: $draft.model) }
+                if draft.engine == .deepSeek {
+                    Text("Modello consigliato: deepseek-flash (veloce ed economico); deepseek-v4-pro per risposte più accurate. Chiave da platform.deepseek.com.").font(.caption)
+                    if draft.model.isEmpty { Button("Usa deepseek-flash") { draft.model = "deepseek-flash" }.font(.caption) }
+                }
                 if draft.engine == .anthropic { TextField("Workspace ID (se richiesto dalla chiave)", text: $draft.workspaceID) }
                 if draft.engine == .backend && credential.isEmpty {
                     Text("Per il servizio gestito usa Accedi o gestisci account. Per un backend personale puoi inserire un token qui sotto.").font(.caption)
