@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, validateCardsRequest, cardsFromResult, validateResearchRequest, researchFromResponse, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
+import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, validateCardsRequest, cardsFromResult, validateExplainRequest, explanationFromResult, validateResearchRequest, researchFromResponse, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
 import { partialText } from './streaming.mjs';
 
 function quizRequest() { return { count: 4, sources: request().sources }; }
@@ -134,6 +134,40 @@ test('cards adapter uses a strict schema and HTTP shares authorization before ca
     headers.Authorization = `Bearer ${issueToken(secret, 'cards-tester', Math.floor(Date.now() / 1000) + 60)}`;
     response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...cardsRequest(), count: 99 }) }); assert.equal(response.status, 400); await response.body.cancel(); assert.equal(calls, 0);
     response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(cardsRequest()) }); assert.equal(response.status, 200); assert.equal((await response.json()).cards.length, 1); assert.equal(calls, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('explain keeps the underlined term, bounds context and accepts only known kinds', () => {
+  const request = validateExplainRequest({ term: '  Congresso\n di  Vienna ', context: 'Dopo il congresso di Vienna', subject: 'Storia' });
+  assert.deepEqual(request, { term: 'Congresso di Vienna', context: 'Dopo il congresso di Vienna', subject: 'Storia' });
+  for (const value of [{}, { term: '   ' }, { term: 'x'.repeat(201) }, { term: 'x', context: 'c'.repeat(3001) }, { term: 'x', subject: 's'.repeat(121) }]) assert.throws(() => validateExplainRequest(value));
+  const value = explanationFromResult({ term: 'Altro nome', kind: 'Persona', explanation: '  Diplomatico austriaco.  ', certain: false }, request, 'fixture');
+  assert.deepEqual(value, { term: 'Congresso di Vienna', kind: 'persona', explanation: 'Diplomatico austriaco.', certain: false, provider: 'fixture' });
+  assert.equal(explanationFromResult({ kind: 'pianeta', explanation: 'Testo', certain: true }, request, 'fixture').kind, 'altro');
+  for (const bad of [{ kind: 'data', explanation: ' ', certain: true }, { kind: 'data', explanation: 'x'.repeat(1201), certain: true }, { kind: 'data', explanation: 'Testo', certain: 'si' }])
+    assert.throws(() => explanationFromResult(bad, request, 'fixture'));
+});
+
+test('explain uses general knowledge with a strict schema and costs one credit after authorization', async () => {
+  const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async (_url, options) => {
+    const body = JSON.parse(options.body); assert.equal(body.text.format.name, 'neuralnotes_explain'); assert.equal(body.text.format.strict, true);
+    assert.match(body.instructions, /conoscenza generale/); assert.doesNotMatch(body.instructions, /Usa soltanto le fonti/);
+    assert.deepEqual(JSON.parse(body.input[0].content), { term: 'mitocondrio', context: 'nella cellula', subject: 'Biologia' });
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ term: 'mitocondrio', kind: 'concetto', explanation: 'Organulo che produce energia.', certain: true }) }] }] });
+  });
+  assert.equal((await adapter.explain({ term: 'mitocondrio', context: 'nella cellula', subject: 'Biologia' }, new AbortController().signal)).kind, 'concetto');
+  let calls = 0; const credits = [];
+  const limiter = { take(_subject, _now, _token, amount) { credits.push(amount); return true; } };
+  const server = createApp({ secret, limiter, adapter: { async explain(input) { calls++; return explanationFromResult({ kind: 'concetto', explanation: 'Testo', certain: true }, input, 'fixture'); } } });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}/v1/explain`;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    let response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ term: 'mitocondrio' }) }); assert.equal(response.status, 401); await response.body.cancel();
+    headers.Authorization = `Bearer ${issueToken(secret, 'explain-tester', Math.floor(Date.now() / 1000) + 60)}`;
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ term: '' }) }); assert.equal(response.status, 400); await response.body.cancel(); assert.equal(calls, 0);
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ term: 'mitocondrio', context: 'cellula' }) });
+    assert.equal(response.status, 200); assert.equal((await response.json()).term, 'mitocondrio'); assert.equal(calls, 1); assert.deepEqual(credits, [1]);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 

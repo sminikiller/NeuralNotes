@@ -19,6 +19,13 @@ Contiene i sorgenti e un App Playground. Non è un IPA firmato e non è stato co
 
 - **Inserimento:** la risposta va accanto all’area cerchiata o alla selezione, senza coprire testo, immagini e inchiostro, e senza uscire dalla pagina. Corpo 16 pt.
 - **Flashcard dalla risposta:** la domanda non è più il comando ("Spiega"). Con un motore AI vengono proposte fino a tre carte; senza, una bozza locale sull’argomento. Le carte si correggono prima di salvarle.
+- **Spiega e annota:** sottolinei o cerchi con lo strumento Lente un nome, una data, un luogo o un termine tecnico, anche su un PDF importato come quaderno.
+  - L’app legge il termine con l’OCR e chiede al motore una spiegazione di una o due frasi, dalla sua conoscenza generale.
+  - Il testo della pagina, insieme al titolo del quaderno, serve solo a scegliere il significato giusto.
+  - La spiegazione arriva come post-it accanto al termine: in grassetto il termine, poi la spiegazione, con la dicitura "conoscenza generale, non dalle tue fonti". Le risposte incerte sono segnate "da verificare".
+  - È automatico per selezioni brevi (fino a 12 parole) quando il motore è collegato e il consenso è attivo, e si spegne dall’interruttore nella Lente. Il pulsante "Spiega e annota" lo fa a mano, anche su frasi più lunghe.
+  - Un annulla toglie la nota. Ogni nota costa un credito con il servizio NeuralNotes.
+  - Funziona con tutti i motori AI, compreso DeepSeek, e con il servizio (`/v1/explain`).
 
 ### Ripasso
 
@@ -59,11 +66,11 @@ Si trova in Libreria → Cloud e sincronizzazione.
 
 | Prova | Esito |
 |---|---|
-| Swift Core Linux 6.1.2 (Docker) | 231 XCTest: 229 passati, 2 skip Darwin preesistenti, 0 errori; 98 FSRS passati |
+| Swift Core Linux 6.1.2 (Docker) | 234 XCTest: 232 passati, 2 skip Darwin preesistenti, 0 errori; 98 FSRS passati |
 | Nuovi test Core | Chiave personale strutturata (7), sbobina (5), interrogazione e "Difficile" (4), posizionamento della Lente (3), bozza locale (1), consumi dell’account (3), backup cloud (4) |
-| Backend Node | 45 test passati (3 nuovi: `/v1/cards`, DeepSeek cards, consumi dell’account) |
+| Backend Node | 48 test passati (6 nuovi: `/v1/cards`, `/v1/explain`, DeepSeek cards ed explain, consumi dell’account) |
 | Integrazione account | `MANAGED_E2E_PASS` con GoTrue, PostgreSQL 16, PostgREST e Mailpit reali in locale, nuovo controllo dei crediti per account. AI simulata |
-| Sintassi | Grammatica di 282 file Swift (tree-sitter); `swiftc -parse` Swift 5 di 215 sorgenti app e test |
+| Sintassi | Grammatica di 284 file Swift (tree-sitter); `swiftc -parse` Swift 5 di tutti i sorgenti di app e test |
 | Non eseguito | Compilazione SDK Apple, test XCTest e UI sul simulatore, prova sull’iPad, chiamate AI reali, Supabase e Render ospitati |
 
 ## Attivazione

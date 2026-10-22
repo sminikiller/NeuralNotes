@@ -239,7 +239,7 @@ public enum DirectAIWire {
         return url
     }
 
-    private static func call(_ configuration: AIEngineConfiguration, credential: String, instruction: String, content: [String: Any],
+    static func call(_ configuration: AIEngineConfiguration, credential: String, instruction: String, content: [String: Any],
                              schema: [String: Any], name: String, shape: String) throws -> URLRequest {
         let url = try endpoint(configuration, credential: credential)
         let prompt = String(decoding: try JSONSerialization.data(withJSONObject: content, options: [.sortedKeys]), as: UTF8.self)
@@ -328,17 +328,17 @@ public enum DirectAIWire {
         return (visible, order.map { sources[$0 - 1].reference })
     }
 
-    private static func decoded<T: Decodable>(_ type: T.Type, _ text: String) throws -> T {
+    static func decoded<T: Decodable>(_ type: T.Type, _ text: String) throws -> T {
         guard let data = text.data(using: .utf8), let value = try? JSONDecoder().decode(T.self, from: data) else { throw AIWireFailure.response }
         return value
     }
-    private static func provider(_ configuration: AIEngineConfiguration) -> String { "\(configuration.engine.title) / \(configuration.model)" }
+    static func provider(_ configuration: AIEngineConfiguration) -> String { "\(configuration.engine.title) / \(configuration.model)" }
     private static func indexed(_ sources: [IndexedChunk]) -> [[String: Any]] {
         sources.enumerated().map { ["index": $0.offset + 1, "text": $0.element.text] }
     }
-    private static var string: [String: Any] { ["type": "string"] }
+    static var string: [String: Any] { ["type": "string"] }
     private static func citations() -> [String: Any] { ["type": "array", "items": ["type": "integer"]] }
-    private static func object(_ properties: [String: Any]) -> [String: Any] {
+    static func object(_ properties: [String: Any]) -> [String: Any] {
         ["type": "object", "properties": properties, "required": properties.keys.sorted(), "additionalProperties": false]
     }
 }

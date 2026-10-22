@@ -59,6 +59,20 @@ test('DeepSeek lookup and quiz preserve validated app contracts', async () => {
   assert.equal((await adapter.quiz({ count: 2, sources: request().sources }, signal())).questions.length, 1);
 });
 
+test('DeepSeek explain answers from general knowledge in JSON mode with thinking off', async () => {
+  const adapter = new DeepSeekAdapter({ key: 'fixture' }, async (_url, options) => {
+    const body = JSON.parse(options.body), data = JSON.parse(body.messages[1].content);
+    assert.equal(body.response_format.type, 'json_object'); assert.deepEqual(body.thinking, { type: 'disabled' }); assert.ok(body.max_tokens <= 1024);
+    assert.match(body.messages[0].content, /conoscenza generale/); assert.doesNotMatch(body.messages[0].content, /Usa soltanto le fonti/);
+    assert.deepEqual(data, { term: 'Napoleone', context: 'campagna di Russia', subject: 'Storia' });
+    return completed({ term: 'Napoleone', kind: 'persona', explanation: 'Imperatore dei francesi.', certain: true });
+  });
+  const value = await adapter.explain({ term: 'Napoleone', context: 'campagna di Russia', subject: 'Storia' }, signal());
+  assert.equal(value.kind, 'persona'); assert.equal(value.provider, 'DeepSeek / deepseek-flash');
+  const truncated = new DeepSeekAdapter({ key: 'fixture' }, async () => Response.json({ choices: [{ finish_reason: 'length', message: { content: '{' } }] }));
+  await assert.rejects(truncated.explain({ term: 'x', context: '', subject: '' }, signal()));
+});
+
 test('DeepSeek cards ask for JSON drafts with focus and keep validated citations', async () => {
   const adapter = new DeepSeekAdapter({ key: 'fixture' }, async (_url, options) => {
     const body = JSON.parse(options.body), data = JSON.parse(body.messages[1].content);

@@ -26,6 +26,8 @@ struct LensPanel: View {
     @State private var discardedCards: Set<UUID> = []
     @State private var cardsProvider = ""
     @State private var cardsSheet = false
+    @State private var lastNote: TermExplanation?
+    @AppStorage("lens.autoAnnotate") private var autoAnnotate = true
     var body: some View {
         VStack(spacing: 10) {
             HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal)
@@ -36,6 +38,15 @@ struct LensPanel: View {
                     if sourcesLoading { ProgressView("Lettura della selezione…") }
                     if sourcesChanged { Button("Pagina modificata: aggiorna le fonti", systemImage: "arrow.clockwise") { Task { await load() } }.font(.caption) }
                     if configuration.engine != .offline && consentKey != configuration.consentKey { Text("Attiva questa connessione AI dal pulsante delle impostazioni prima di inviare le fonti.").font(.caption).foregroundStyle(.secondary) }
+                    Toggle("Spiega e annota da sola i termini sottolineati con la Lente", isOn: $autoAnnotate).font(.caption)
+                    if let lastNote {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Nota inserita · \(lastNote.term)").font(.caption.bold())
+                            Text(lastNote.noteBody).font(.caption).textSelection(.enabled)
+                            Text(lastNote.origin).font(.caption2).foregroundStyle(.secondary)
+                            Button("Annulla la nota", systemImage: "arrow.uturn.backward") { Task { await model.performUndo(); self.lastNote = nil } }.font(.caption)
+                        }.padding(8).background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+                    }
                     ForEach(turns) { turn in
                         Text(turn.question).font(.headline)
                         CitedAnswer(artifact: turn.answer)
@@ -63,6 +74,8 @@ struct LensPanel: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
+                    Button("Spiega e annota", systemImage: "note.text.badge.plus") { if let request = termRequest(strict: false) { annotate(request) } }
+                        .buttonStyle(.borderedProminent).disabled(!canSend || termRequest(strict: false) == nil || !configuration.supportsStructuredStudy)
                     Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }.buttonStyle(.bordered).disabled(busy || sourcesLoading || sourcesChanged || sources.isEmpty)
                     ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(!canSend) }
                 }.padding(.horizontal)
@@ -103,6 +116,12 @@ struct LensPanel: View {
         await loadSources(key: key)
         guard !Task.isCancelled, key == selectionKey else { return }
         sourcesLoading = false
+        // An underlined or circled term with the Lente tool gets an explaining note
+        // by itself, when the student enabled it and approved the AI connection.
+        if model.lensPrefersPopup, model.lensArea != nil, autoAnnotate, canSend, lastAutomaticKey != key,
+           configuration.supportsStructuredStudy, let request = termRequest(strict: true) {
+            lastAutomaticKey = key; annotate(request); return
+        }
         // Only an intentional Lente gesture and an already approved managed
         // account can start a request automatically. Ordinary ink is untouched.
         if model.lensPrefersPopup, canSend, lastAutomaticKey != key,
@@ -180,6 +199,34 @@ struct LensPanel: View {
                 catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
             } catch is CancellationError { }
             catch { if jobGeneration == generation && key == selectionKey { self.error = error.localizedDescription; question = prompt } }
+        }
+    }
+    /// The selection is a term (a name, a date, a technical word), not a paragraph.
+    private func termRequest(strict: Bool) -> TermExplanationRequest? {
+        let request = TermExplanationRequest(term: sources.map(\.text).joined(separator: " "), subject: notebook.title)
+        return (strict ? request.isTerm : request.isValid) ? request : nil
+    }
+    /// Explains the term with the model's general knowledge, using the page only to
+    /// choose the meaning, then places a sticky note beside the underline.
+    private func annotate(_ base: TermExplanationRequest) {
+        guard !busy, let page = model.page else { return }
+        busy = true; error = nil
+        let area = model.lensArea, key = selectionKey, generation = UUID(); jobGeneration = generation
+        let selected = configuration, consent = consentKey
+        job = Task {
+            defer { if jobGeneration == generation { busy = false } }
+            do {
+                var pageText = page.texts.map(\.text).joined(separator: "\n") + "\n" + page.recognizedText
+                if page.pdfFile != nil, let pdf = try? await DocumentServices.pdfText(page: page, workspace: model.workspace) { pageText = pdf + "\n" + pageText }
+                let request = TermExplanationRequest(term: base.term, context: TermExplanationRequest.context(for: base.term, in: pageText), subject: base.subject)
+                let value = try await AIEngineRouter.explain(request, configuration: selected, consentKey: consent)
+                try Task.checkCancellation()
+                guard jobGeneration == generation, key == selectionKey, model.page?.id == page.id else { return }
+                lastNote = value
+                if model.insertTermNote(value, near: area) { model.status = "Nota della Lente inserita: \(value.term)" }
+                else { error = "Spiegazione pronta, ma il foglio è occupato: riprova dopo aver finito il tratto." }
+            } catch is CancellationError { }
+            catch { if jobGeneration == generation { self.error = error.localizedDescription } }
         }
     }
     private var cardsReview: some View {

@@ -121,6 +121,17 @@ enum AIEngineRouter {
         let value: QuizBank = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
         return try value.validated(for: input)
     }
+    /// General-knowledge explanation of an underlined term, for the "Spiega e annota" note.
+    static func explain(_ input: TermExplanationRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> TermExplanation {
+        guard input.isValid, consentKey == configuration.consentKey else { throw AIWireFailure.configuration }
+        if configuration.engine != .backend {
+            let data = try await personal(configuration, consentKey: consentKey) { try DirectAIWire.explainRequest(input, configuration: configuration, credential: $0) }
+            return try DirectAIWire.termExplanation(data, request: input, configuration: configuration)
+        }
+        guard let url = configuration.explainURL else { throw AIWireFailure.configuration }
+        let value: TermExplanation = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
+        return try value.validated(for: input)
+    }
     static func flashcards(_ input: FlashcardRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> FlashcardSet {
         guard input.isValid else { throw AIWireFailure.configuration }
         if configuration.engine != .backend {

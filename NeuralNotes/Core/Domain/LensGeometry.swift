@@ -45,10 +45,10 @@ public extension LensGeometry {
     /// Where an inserted answer goes: beside the selection when there is one,
     /// otherwise in the first free band of the page. It never leaves the page and
     /// never covers the selection; other notes are avoided whenever possible.
-    static func placement(text: String, near anchor: CGRect?, occupied: [CGRect], pageWidth: Double, pageHeight: Double, fontSize: Double = 16) -> CGRect {
+    static func placement(text: String, near anchor: CGRect?, occupied: [CGRect], pageWidth: Double, pageHeight: Double, fontSize: Double = 16, maximumWidth: CGFloat = 360) -> CGRect {
         let margin: CGFloat = 24
         let pageW = CGFloat(pageWidth.isFinite && pageWidth > 0 ? pageWidth : 768), pageH = CGFloat(pageHeight.isFinite && pageHeight > 0 ? pageHeight : 1024)
-        let width = max(80, min(360, pageW - 2 * margin))
+        let width = max(80, min(maximumWidth.isFinite ? maximumWidth : 360, pageW - 2 * margin))
         let height = min(answerSize(text: text, fontSize: fontSize, width: Double(width)).height, max(40, pageH - 2 * margin))
         let page = CGRect(x: 0, y: 0, width: pageW, height: pageH)
         let others = occupied.filter { !$0.isNull && $0.minX.isFinite && $0.minY.isFinite && $0.width.isFinite && $0.height.isFinite }
