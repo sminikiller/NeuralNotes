@@ -143,7 +143,7 @@ struct LensSessionView: View {
     private func answer(_ turn: LensTurn) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(turn.label, systemImage: turn.icon).font(.subheadline.bold()).lineLimit(3)
-            Text(turn.answer.noteBody).textSelection(.enabled)
+            LensFormattedText(text: turn.answer.noteBody).textSelection(.enabled)
             Text(turn.answer.origin).font(.caption2).foregroundStyle(.secondary)
             if let notice = turn.notice { Text(notice).font(.caption2).foregroundStyle(.orange) }
             answerActions(turn)
@@ -165,7 +165,34 @@ struct LensSessionView: View {
     }
 
     private func copy(_ turn: LensTurn) {
-        UIPasteboard.general.string = turn.noteTitle + "\n" + turn.answer.noteBody
+        UIPasteboard.general.string = turn.noteTitle + "\n" + LensMarkup.plain(turn.answer.noteBody)
+    }
+}
+
+/// An answer with its paragraphs, bullet lists, numbered steps and bold key terms.
+struct LensFormattedText: View {
+    let text: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(LensMarkup.blocks(text).enumerated()), id: \.offset) { item in block(item.element) }
+        }
+    }
+
+    @ViewBuilder private func block(_ block: LensMarkup.Block) -> some View {
+        switch block {
+        case .paragraph(let spans): styled(spans)
+        case .heading(let spans): styled(spans).bold()
+        case .bullet(let spans):
+            HStack(alignment: .firstTextBaseline, spacing: 6) { Text(verbatim: "•"); styled(spans) }
+        case .numbered(let marker, let spans):
+            HStack(alignment: .firstTextBaseline, spacing: 6) { Text(verbatim: marker).monospacedDigit(); styled(spans) }
+        }
+    }
+
+    private func styled(_ spans: [LensMarkup.Span]) -> Text {
+        var result = Text(verbatim: "")
+        for span in spans { result = result + Text(verbatim: span.text).bold(span.bold).italic(span.italic) }
+        return result
     }
 }
 

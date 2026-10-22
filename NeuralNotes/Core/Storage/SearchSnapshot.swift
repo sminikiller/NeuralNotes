@@ -9,7 +9,7 @@ struct SearchSnapshot: Codable {
         var chunks: [IndexedChunk] = []
         for page in pages {
             var sources: [(String, SearchContentKind)] = [(page.texts.map(\.text).joined(separator: "\n"), .text), (page.recognizedText, page.pdfFile == nil ? .handwriting : .pdf)]
-            if let ocr = automaticOCR[page.id.uuidString], ocr.revision == page.revision { sources.append((ocr.text, .handwriting)) }
+            if let ocr = automaticOCR[page.id.uuidString], ocr.revision == page.revision { sources.append((ocr.text, page.pdfFile == nil ? .handwriting : .pdf)) }
             for (text, kind) in sources { for line in text.split(separator: "\n") {
                 let value = String(line); var start = value.startIndex
                 while start < value.endIndex {

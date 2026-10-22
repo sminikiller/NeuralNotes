@@ -12,10 +12,13 @@ struct DocumentSearchPanel: View {
     @State private var shareURL: URL?
     @State private var sharing = false
     @State private var semantic = false
+    @State private var indexing: String?
+    @State private var searchGeneration = UUID()
 
     var body: some View {
         NavigationStack {
             List {
+                if let indexing { Section { HStack { ProgressView(); Text(indexing).font(.caption) } } }
                 Section {
                     Toggle("Cerca per significato con il modello locale", isOn: $semantic)
                     if semantic { Text("Usa gli embedding italiani disponibili nel sistema. La disponibilità dipende dai modelli installati.").font(.caption) }
@@ -48,13 +51,41 @@ struct DocumentSearchPanel: View {
             .navigationTitle("Ricerca e allegati")
             .searchable(text: $query, prompt: "Testo, OCR, PDF e trascrizioni")
             .task(id: query + (semantic ? ":semantic" : ":text")) { await search() }
+            .task { await prepare() }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
         }
     }
 
+    /// Opens with the words picked with the Lens, and reads once the text layer of the
+    /// PDF pages that were not read at import, so numbers, names and terms are found.
+    private func prepare() async {
+        if let pending = model.pendingSearchQuery { model.pendingSearchQuery = nil; query = pending }
+        guard await model.flush() else { return }
+        var batch: [(pageID: UUID, revision: Int, text: String)] = []
+        defer { indexing = nil }
+        do {
+            let missing = try await model.workspace.pagesNeedingPDFText()
+            for (number, page) in missing.enumerated() {
+                try Task.checkCancellation()
+                indexing = "Leggo il testo del PDF: pagina \(number + 1) di \(missing.count)…"
+                let text = try await DocumentServices.pdfText(page: page, workspace: model.workspace)
+                // A successful empty probe is remembered, while scans remain eligible for OCR.
+                batch.append((page.id, page.revision, text.trimmingCharacters(in: .whitespacesAndNewlines)))
+                if batch.count >= 50 { _ = try await model.workspace.storePDFText(batch); batch = [] }
+            }
+            if !batch.isEmpty { _ = try await model.workspace.storePDFText(batch) }
+            if !query.isEmpty { await search() }
+        } catch is CancellationError {
+            // Completed batches persist; the next opening resumes the rest.
+        } catch {
+            self.error = "Lettura PDF non completata: \(error.localizedDescription). Riapri la ricerca per riprendere."
+        }
+    }
+
     private func search() async {
         let input = query, useSemantic = semantic
+        let generation = UUID(); searchGeneration = generation
         error = nil
         do {
             if !input.isEmpty { try await Task.sleep(for: .milliseconds(200)) }
@@ -69,7 +100,7 @@ struct DocumentSearchPanel: View {
                 selected = try await SemanticRetrievalService(embeddings: AppleEmbeddingService()).retrieve(question: input, from: chunks, limit: 12)
             } else { selected = Array(chunks.lazy.filter { $0.text.localizedStandardContains(input) }.prefix(200)) }
             try Task.checkCancellation()
-            guard input == query, useSemantic == semantic else { return }; results = selected
+            guard generation == searchGeneration, input == query, useSemantic == semantic else { return }; results = selected
         } catch is CancellationError { }
         catch { self.error = error.localizedDescription }
     }

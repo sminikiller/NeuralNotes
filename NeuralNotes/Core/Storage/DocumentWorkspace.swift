@@ -45,7 +45,10 @@ public actor DocumentWorkspace {
         let value = (try? Data(contentsOf: ocrCacheURL)).flatMap { try? JSONDecoder().decode([String: AutomaticOCRPage].self, from: $0) } ?? [:]
         ocrCache = value; return value
     }
-    public func needsAutomaticOCR(pageID: UUID, revision: Int) -> Bool { loadOCRCache()[pageID.uuidString]?.revision != revision }
+    public func needsAutomaticOCR(pageID: UUID, revision: Int) -> Bool {
+        guard let cached = loadOCRCache()[pageID.uuidString], cached.revision == revision else { return true }
+        return cached.pdfTextOnly == true && cached.text.isEmpty
+    }
     @discardableResult
     public func storeAutomaticOCR(pageID: UUID, revision: Int, text: String) throws -> Bool {
         guard try readPage(pageID).revision == revision else { return false }
@@ -55,6 +58,28 @@ public actor DocumentWorkspace {
         try FileManager.default.createDirectory(at: ocrCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(value).write(to: ocrCacheURL, options: .atomic)
         ocrCache = value; searchDirty = true; return true
+    }
+    /// Pages still without searchable text: PDF pages whose text layer was not read
+    /// at import (large PDFs), at their current revision.
+    public func pagesNeedingPDFText() throws -> [PageSnapshot] {
+        let cache = loadOCRCache()
+        return try pages().filter { $0.pdfFile != nil && $0.recognizedText.isEmpty && cache[$0.id.uuidString]?.revision != $0.revision }
+    }
+    /// Stores the text layer of many PDF pages with a single write; a page saved
+    /// meanwhile at another revision is skipped and read again later.
+    @discardableResult
+    public func storePDFText(_ items: [(pageID: UUID, revision: Int, text: String)]) throws -> Int {
+        guard !items.isEmpty else { return 0 }
+        var value = loadOCRCache(), stored = 0
+        for item in items where (try? readPage(item.pageID).revision) == item.revision {
+            try Task.checkCancellation()
+            value[item.pageID.uuidString] = AutomaticOCRPage(revision: item.revision, text: String(item.text.prefix(20_000)), pdfTextOnly: true); stored += 1
+        }
+        guard stored > 0 else { return 0 }
+        let live = Set(try manifest().pageIDs.map(\.uuidString)); value = value.filter { live.contains($0.key) }
+        try FileManager.default.createDirectory(at: ocrCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(value).write(to: ocrCacheURL, options: .atomic)
+        ocrCache = value; searchDirty = true; return stored
     }
 
     public func indexedChunks() throws -> [IndexedChunk] {

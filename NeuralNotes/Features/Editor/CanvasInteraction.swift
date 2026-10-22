@@ -7,6 +7,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     weak var host: CanvasHost?
     weak var model: EditorViewModel?
     private let outline = CAShapeLayer(), handle = CAShapeLayer(), marquee = CAShapeLayer()
+    /// Words under a Lens stroke, highlighted like a marker while the stroke goes on.
+    private let wordHighlight = CAShapeLayer()
+    /// The picture of the object being dragged.
+    private var dragPreview: CALayer?
     private var before: EditorContentState?
     private var start = CGPoint.zero
     private var original: [UUID: CGRect] = [:]
@@ -31,7 +35,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         handle.fillColor = UIColor.systemTeal.cgColor
         marquee.fillColor = UIColor.systemTeal.withAlphaComponent(0.1).cgColor
         marquee.strokeColor = UIColor.systemTeal.cgColor; marquee.lineDashPattern = [5, 4]
-        for layer in [outline, handle, marquee] { host.layer.addSublayer(layer) }
+        wordHighlight.fillColor = UIColor.systemYellow.withAlphaComponent(0.38).cgColor; wordHighlight.strokeColor = nil
+        for layer in [wordHighlight, outline, handle, marquee] { host.layer.addSublayer(layer) }
         let tap = objectTap
         tap.addTarget(self, action: #selector(tapped(_:)))
         tap.cancelsTouchesInView = false; tap.delaysTouchesBegan = false
@@ -121,6 +126,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
            model?.tool == .pen || model?.tool == .marker || model?.tool == .eraser { return false }
         if pageSwipes.contains(where: { $0 === gesture }) && touch.type != .direct { return false }
         if let input = host?.textInput?.view, let touched = touch.view, touched.isDescendant(of: input) { return false }
+        if let bar = host?.lensBar, let touched = touch.view, touched.isDescendant(of: bar) { return false }
         return true
     }
 
@@ -156,7 +162,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             }
         }
         if model.tool == .lens {
-            model.lensTap(at: point, anchor: host.surface.convert(CGRect(x: point.x - 70, y: point.y - 22, width: 140, height: 44), to: host)); return
+            model.lensTap(at: point, anchor: host.surface.convert(CGRect(x: point.x - 70, y: point.y - 22, width: 140, height: 44), to: host),
+                          tolerance: lensTolerance); return
         }
         if model.toggleChecklist(at: point) { return }
         if let tape = model.tapeHit(at: point), model.tool != .objects { model.toggleTape(tape); return }
@@ -180,78 +187,128 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     @objc private func panned(_ gesture: UIPanGestureRecognizer) {
         guard let host, let model, let page = model.page else { return }
         let point = gesture.location(in: host.surface)
-        if gesture.state == .began {
-            model.cancelMaintenance()
-            start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
-            selectionTrace = [point]
-            model.movingObjects = true
-            originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
-            movingLensNote = nil
-            // With the Lens a note (or its 💡) is dragged to a new place instead of tracing a selection.
-            if model.tool == .lens, let note = model.lensNoteHit(at: point, tolerance: lensTolerance), note.part != .control,
-               !(page.lockedObjects ?? []).contains(note.id), let rect = objectRect(note.id, visual: false) {
-                movingLensNote = note.id; model.selectedObjectID = note.id; original[note.id] = rect; resizing = false
-            }
-            if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
-                if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
-                for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
-                if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
-                if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
-                    resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
-                } else { resizing = false }
-            }
-        }
+        if gesture.state == .began { beginPan(at: point, page: page, host: host, model: model) }
         if gesture.state == .cancelled || gesture.state == .failed {
             if let before { model.page = before.page; if let data = before.drawing, let restored = try? PKDrawing(data: data) { model.canvas.drawing = restored } }
-            model.movingObjects = false; marquee.path = nil; before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
+            endPreview(host: host)
+            model.movingObjects = false; marquee.path = nil; wordHighlight.path = nil
+            before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
         }
-        if model.selectRectangle || model.selectFreehand || (model.tool == .lens && movingLensNote == nil) {
-            let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
-            let selection: UIBezierPath
-            if model.tool == .lens {
-                selectionTrace.append(point); selection = UIBezierPath(); selection.move(to: start)
-                for point in selectionTrace.dropFirst() { selection.addLine(to: point) }
-            } else if model.selectFreehand {
-                selectionTrace.append(point); selection = UIBezierPath(); selection.move(to: start)
-                for point in selectionTrace.dropFirst() { selection.addLine(to: point) }; selection.close()
-            } else { selection = UIBezierPath(rect: rect) }
-            let display = UIBezierPath(cgPath: selection.cgPath)
-            var transform = host.surface.transform; transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
-            display.apply(transform); marquee.path = display.cgPath
-            if gesture.state == .ended {
-                model.movingObjects = false
-                if model.tool == .lens {
-                    let trace = selectionTrace.map { StrokeSample(x: $0.x, y: $0.y) }
-                    if let area = LensGeometry.selection(trace: trace, pageWidth: page.width, pageHeight: page.height) {
-                        model.lensGesture(area: area, underline: LensGeometry.isUnderline(trace: trace), anchor: host.surface.convert(area, to: host))
-                    }
-                    marquee.path = nil; before = nil; originalDrawing = nil; return
-                }
-                let box = selection.bounds
-                let ids = allIDs.filter { id in
-                    guard let frame = objectRect(id), frame.intersects(box) else { return false }
-                    return !model.selectFreehand || selection.contains(CGPoint(x: frame.midX, y: frame.midY))
-                }
-                model.selectedIDs = model.multiSelection ? model.selectedIDs.union(ids) : Set(ids)
-                let strokes = Set(model.canvas.drawing.strokes.indices.filter { index in
-                    let stroke = model.canvas.drawing.strokes[index]
-                    guard stroke.renderBounds.intersects(box) else { return false }
-                    return !model.selectFreehand || stroke.path.interpolatedPoints(by: .distance(8)).contains { selection.contains($0.location.applying(stroke.transform)) }
-                })
-                let previous = model.selectionIncludesInk ? (model.selectedStrokeIndices ?? Set(model.canvas.drawing.strokes.indices)) : []
-                model.selectedStrokeIndices = model.multiSelection ? previous.union(strokes) : strokes
-                model.selectionIncludesInk = !(model.selectedStrokeIndices?.isEmpty ?? true)
-                model.selectRectangle = false; model.selectFreehand = false; marquee.path = nil; before = nil; originalDrawing = nil; refresh()
+        if model.tool == .lens && movingLensNote == nil { lensStroke(gesture, point: point, page: page, host: host, model: model); return }
+        if model.selectRectangle || model.selectFreehand { selectArea(gesture, point: point, host: host, model: model); return }
+        moveObjects(gesture, point: point, page: page, host: host, model: model)
+    }
+
+    private func beginPan(at point: CGPoint, page: PageSnapshot, host: CanvasHost, model: EditorViewModel) {
+        model.cancelMaintenance()
+        start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
+        selectionTrace = [point]
+        model.movingObjects = true
+        originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
+        movingLensNote = nil
+        // With the Lens a note (or its 💡) is dragged to a new place instead of tracing a selection.
+        if model.tool == .lens, let note = model.lensNoteHit(at: point, tolerance: lensTolerance), note.part != .control,
+           !(page.lockedObjects ?? []).contains(note.id), let rect = objectRect(note.id, visual: false) {
+            movingLensNote = note.id; model.selectedObjectID = note.id; original[note.id] = rect; resizing = false
+        }
+        if model.tool == .lens, movingLensNote == nil {
+            model.lensPick = nil
+            if !PageWordIndex.shared.isReady(page) { model.prepareLensWords() }
+        }
+        if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
+            if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
+            for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
+            if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
+            if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
+                resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
+            } else { resizing = false }
+        }
+        // One object moving: a picture of it follows the finger and the page changes once, on release.
+        if original.count == 1, !resizing, !model.selectionIncludesInk, let id = original.keys.first, previewable(id, page: page) {
+            startPreview(id, page: page, host: host)
+        }
+    }
+
+    /// The Lens stroke. With words on the page it highlights whole words as it goes:
+    /// a flat stroke is a highlighter, a loop (or Area mode) a lasso. Without words
+    /// (handwriting before its OCR, Immagine mode) the traced area is used as before.
+    private func lensStroke(_ gesture: UIPanGestureRecognizer, point: CGPoint, page: PageSnapshot, host: CanvasHost, model: EditorViewModel) {
+        selectionTrace.append(point)
+        let mode = LensSettings.mode
+        var picked: (words: [PageWord], indices: [Int])?
+        if mode != .image {
+            for words in PageWordIndex.shared.groups(for: page) {
+                let indices = PageWords.pick(trace: selectionTrace, in: words, area: mode == .area)
+                if !indices.isEmpty { picked = (words, indices); break }
             }
-            if gesture.state == .cancelled { marquee.path = nil; before = nil; originalDrawing = nil }
+        }
+        var transform = host.surface.transform; transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
+        let trace = UIBezierPath(); trace.move(to: start)
+        for point in selectionTrace.dropFirst() { trace.addLine(to: point) }
+        if mode == .area || mode == .image { trace.close() }
+        // In Parole mode the highlight alone shows the selection, like a marker.
+        let showTrace = picked == nil || mode != .text
+        let display = UIBezierPath(cgPath: trace.cgPath); display.apply(transform)
+        let marks = UIBezierPath()
+        for rect in picked.map({ PageWords.lineRects($0.indices, in: $0.words) }) ?? [] {
+            marks.append(UIBezierPath(roundedRect: rect.insetBy(dx: -1.5, dy: -1.5), cornerRadius: 3))
+        }
+        marks.apply(transform)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        marquee.path = showTrace ? display.cgPath : nil; wordHighlight.path = marks.cgPath
+        CATransaction.commit()
+        guard gesture.state == .ended else { return }
+        model.movingObjects = false; marquee.path = nil; wordHighlight.path = nil; before = nil; originalDrawing = nil
+        if let picked {
+            let rects = PageWords.lineRects(picked.indices, in: picked.words)
+            let area = rects.reduce(CGRect.null) { $0.union($1) }
+            model.lensPicked(text: PageWords.text(picked.indices, in: picked.words), rects: rects, tap: false,
+                             anchor: host.surface.convert(area, to: host))
             return
         }
+        let samples = selectionTrace.map { StrokeSample(x: $0.x, y: $0.y) }
+        if let area = LensGeometry.selection(trace: samples, pageWidth: page.width, pageHeight: page.height) {
+            model.lensGesture(area: area, underline: mode == .text && LensGeometry.isUnderline(trace: samples), anchor: host.surface.convert(area, to: host))
+        }
+    }
+
+    private func selectArea(_ gesture: UIPanGestureRecognizer, point: CGPoint, host: CanvasHost, model: EditorViewModel) {
+        let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
+        let selection: UIBezierPath
+        if model.selectFreehand {
+            selectionTrace.append(point); selection = UIBezierPath(); selection.move(to: start)
+            for point in selectionTrace.dropFirst() { selection.addLine(to: point) }; selection.close()
+        } else { selection = UIBezierPath(rect: rect) }
+        let display = UIBezierPath(cgPath: selection.cgPath)
+        var transform = host.surface.transform; transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
+        display.apply(transform); marquee.path = display.cgPath
+        guard gesture.state == .ended else { return }
+        model.movingObjects = false
+        let box = selection.bounds
+        let ids = allIDs.filter { id in
+            guard let frame = objectRect(id), frame.intersects(box) else { return false }
+            return !model.selectFreehand || selection.contains(CGPoint(x: frame.midX, y: frame.midY))
+        }
+        model.selectedIDs = model.multiSelection ? model.selectedIDs.union(ids) : Set(ids)
+        let strokes = Set(model.canvas.drawing.strokes.indices.filter { index in
+            let stroke = model.canvas.drawing.strokes[index]
+            guard stroke.renderBounds.intersects(box) else { return false }
+            return !model.selectFreehand || stroke.path.interpolatedPoints(by: .distance(8)).contains { selection.contains($0.location.applying(stroke.transform)) }
+        })
+        let previous = model.selectionIncludesInk ? (model.selectedStrokeIndices ?? Set(model.canvas.drawing.strokes.indices)) : []
+        model.selectedStrokeIndices = model.multiSelection ? previous.union(strokes) : strokes
+        model.selectionIncludesInk = !(model.selectedStrokeIndices?.isEmpty ?? true)
+        model.selectRectangle = false; model.selectFreehand = false; marquee.path = nil; before = nil; originalDrawing = nil; refresh()
+    }
+
+    private func moveObjects(_ gesture: UIPanGestureRecognizer, point: CGPoint, page: PageSnapshot, host: CanvasHost, model: EditorViewModel) {
         var dx = Double(point.x - start.x), dy = Double(point.y - start.y)
         if !resizing, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
             let a = -Double(group.minX), b = page.width - Double(group.maxX)
             let c = -Double(group.minY), d = page.height - Double(group.maxY)
             dx = max(min(a, b), min(max(a, b), dx)); dy = max(min(c, d), min(max(c, d), dy))
         }
+        if dragPreview != nil, gesture.state != .ended { movePreview(dx: dx, dy: dy, host: host); return }
         var changed = page
         for (id, rect) in original {
             let x = Double(rect.minX), y = Double(rect.minY), w = Double(rect.width), h = Double(rect.height)
@@ -277,6 +334,11 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             }
         }
         model.page = changed
+        if dragPreview != nil {
+            // Show the dropped object at once, before SwiftUI passes the page back.
+            host.surface.page = changed
+            endPreview(host: host)
+        }
         if model.selectionIncludesInk, let drawing = originalDrawing {
             let transform = CGAffineTransform(translationX: dx, y: dy)
             model.canvas.drawing = PKDrawing(strokes: drawing.strokes.enumerated().map { index, stroke in
@@ -293,6 +355,54 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             before = nil; original = [:]; originalDrawing = nil
             if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; refresh() }
         }
+    }
+
+    private func previewable(_ id: UUID, page: PageSnapshot) -> Bool {
+        page.texts.contains { $0.id == id } || page.images.contains { $0.id == id } || (page.shapes ?? []).contains { $0.id == id }
+    }
+
+    private func startPreview(_ id: UUID, page: PageSnapshot, host: CanvasHost) {
+        guard let visual = objectRect(id) else { return }
+        let box = visual.insetBy(dx: -12, dy: -12)
+        guard box.width > 0, box.height > 0 else { return }
+        // Bound the actual bitmap, including Retina scale, to two million pixels.
+        let budget = sqrt(2_000_000 / (box.width * box.height))
+        let scale = min(budget, min(3, max(1, host.canvas.zoomScale * (host.window?.screen.scale ?? 2))))
+        let format = UIGraphicsImageRendererFormat(); format.scale = scale; format.opaque = false
+        let package = host.surface.package
+        let image = UIGraphicsImageRenderer(size: box.size, format: format).image { context in
+            context.cgContext.translateBy(x: -box.minX, y: -box.minY)
+            PageRenderer.drawSingle(id, page: page, package: package, in: context.cgContext)
+        }
+        let layer = CALayer()
+        layer.contents = image.cgImage; layer.contentsScale = scale; layer.contentsGravity = .resize
+        layer.frame = host.surface.convert(box, to: host)
+        layer.shadowColor = UIColor.black.cgColor; layer.shadowOpacity = 0.25; layer.shadowRadius = 10; layer.shadowOffset = CGSize(width: 0, height: 6)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        host.layer.addSublayer(layer)
+        CATransaction.commit()
+        dragPreview = layer
+        host.surface.hiddenObjectID = id
+        host.foregroundObjects.update(host); host.lensNotes.update(host)
+    }
+
+    private func movePreview(dx: Double, dy: Double, host: CanvasHost) {
+        let origin = host.surface.convert(CGPoint.zero, to: host)
+        let moved = host.surface.convert(CGPoint(x: dx, y: dy), to: host)
+        let shift = CGAffineTransform(translationX: moved.x - origin.x, y: moved.y - origin.y)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        dragPreview?.setAffineTransform(shift); outline.setAffineTransform(shift); handle.setAffineTransform(shift)
+        CATransaction.commit()
+    }
+
+    private func endPreview(host: CanvasHost) {
+        guard let layer = dragPreview else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        layer.removeFromSuperlayer(); outline.setAffineTransform(.identity); handle.setAffineTransform(.identity)
+        CATransaction.commit()
+        dragPreview = nil
+        host.surface.hiddenObjectID = nil
+        host.foregroundObjects.update(host); host.lensNotes.update(host)
     }
     /// Touch slack for note icons and controls, constant on screen at any zoom.
     private var lensTolerance: CGFloat { 10 / max(host?.canvas.zoomScale ?? 1, 0.1) }

@@ -187,6 +187,43 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             XCTAssertNil(model.page?.texts.first { $0.id == reducedID })
         }
     }
+    @MainActor func testLensRichEditingKeepsListsTraitsMetadataAndUndo() async throws {
+        try await fixture { model in
+            let answer = TermExplanation(term: "Fotosintesi", kind: "concetto", explanation: "La **luce** fornisce energia.\n- acqua\n1. assorbimento", certain: true, provider: "Fixture")
+            let id = try XCTUnwrap(model.insertLensNote(answer, near: CGRect(x: 40, y: 80, width: 100, height: 20)))
+            let original = try XCTUnwrap(model.page?.texts.first { $0.id == id })
+            let rich = RichText.attributed(original)
+            XCTAssertFalse(rich.string.contains("**"))
+            let light = (rich.string as NSString).range(of: "luce")
+            let font = try XCTUnwrap(rich.attribute(.font, at: light.location, effectiveRange: nil) as? UIFont)
+            XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.traitBold))
+            let view = UITextView(); view.attributedText = rich
+            let commands = TextFormatting(view: view) {}
+            let water = (rich.string as NSString).range(of: "acqua")
+            view.selectedRange = water; commands.italic(); commands.numbered()
+            var edited = original; edited.text = view.attributedText.string; edited.rtf = RichText.data(view.attributedText)
+            model.updateLensNote(id, edited: edited, color: .pink, collapsed: false)
+            let saved = try XCTUnwrap(model.page?.texts.first { $0.id == id })
+            XCTAssertEqual(saved.rtf, edited.rtf); XCTAssertEqual(saved.lensNote?.source, original.lensNote?.source)
+            XCTAssertEqual(saved.lensNote?.origin, original.lensNote?.origin); XCTAssertEqual(saved.background, LensNoteColor.pink.ink)
+            XCTAssertTrue(saved.text.contains("1. acqua"))
+            await model.performUndo()
+            XCTAssertEqual(model.page?.texts.first { $0.id == id }?.rtf, original.rtf)
+            await model.performRedo()
+            let flushed = await model.flush(); XCTAssertTrue(flushed)
+            try await model.load(try XCTUnwrap(model.page))
+            let restored = RichText.attributed(try XCTUnwrap(model.page?.texts.first { $0.id == id }))
+            let range = (restored.string as NSString).range(of: "acqua")
+            let italic = try XCTUnwrap(restored.attribute(.font, at: range.location, effectiveRange: nil) as? UIFont)
+            XCTAssertTrue(italic.fontDescriptor.symbolicTraits.contains(.traitItalic))
+            let indent = try XCTUnwrap(restored.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle)
+            XCTAssertGreaterThan(indent.headIndent, 0)
+            let output = try await DocumentServices.exportPDF(workspace: model.workspace)
+            defer { try? FileManager.default.removeItem(at: output) }
+            XCTAssertTrue(PDFDocument(url: output)?.string?.contains("acqua") == true)
+        }
+    }
+
     @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

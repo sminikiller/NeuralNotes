@@ -64,6 +64,9 @@ test('DeepSeek explain answers from general knowledge in JSON mode with thinking
     const body = JSON.parse(options.body), data = JSON.parse(body.messages[1].content);
     assert.equal(body.response_format.type, 'json_object'); assert.deepEqual(body.thinking, { type: 'disabled' }); assert.ok(body.max_tokens <= 2048);
     assert.match(body.messages[0].content, /conoscenza generale/); assert.doesNotMatch(body.messages[0].content, /Usa soltanto le fonti/);
+    assert.match(body.messages[0].content, /\*\*grassetto\*\*/);
+    assert.match(body.messages[0].content, /"- "/);
+    assert.match(body.messages[0].content, /"1\. "/);
     assert.deepEqual(data, { term: 'Napoleone', selection: '', question: '', context: 'campagna di Russia', subject: 'Storia' });
     return completed({ term: 'Napoleone', kind: 'persona', explanation: 'Imperatore dei francesi.', certain: true });
   });

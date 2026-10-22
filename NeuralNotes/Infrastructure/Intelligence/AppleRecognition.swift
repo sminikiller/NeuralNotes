@@ -23,6 +23,33 @@ struct VisionOCRService: OCRService {
         }
         return try await withTaskCancellationHandler { try await operation.value } onCancel: { operation.cancel() }
     }
+
+    /// Single words with their boxes, as fractions of the image (top-left origin), so
+    /// the Lens can select handwriting and scans word by word.
+    func words(image: Data) async throws -> [PageWord] {
+        let operation: Task<[PageWord], Error> = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.automaticallyDetectsLanguage = true
+            request.usesLanguageCorrection = true
+            try VNImageRequestHandler(data: image, options: [:]).perform([request])
+            try Task.checkCancellation()
+            var words: [PageWord] = []
+            for observation in request.results ?? [] {
+                guard let candidate = observation.topCandidates(1).first else { continue }
+                let string = candidate.string
+                for token in PageWords.tokens(in: string) {
+                    guard let range = Range(token.range, in: string),
+                          let found = try? candidate.boundingBox(for: range) else { continue }
+                    let box = found.boundingBox
+                    words.append(PageWord(text: String(string[range]), rect: CGRect(x: box.minX, y: 1 - box.maxY, width: box.width, height: box.height)))
+                }
+            }
+            return words
+        }
+        return try await withTaskCancellationHandler { try await operation.value } onCancel: { operation.cancel() }
+    }
 }
 
 enum RecognitionFailure: LocalizedError {

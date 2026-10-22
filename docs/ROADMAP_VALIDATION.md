@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.19.0
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.2
+
+## Lente, PDF e RTF 0.20.2 — 23 ottobre 2026
+
+Integrati i commit 0.20 e i 27 file non salvati di Claude, lasciando intatto il suo worktree. Completato l'editor RTF delle note; corretti cache vuote/OCR, errori e concorrenza della ricerca, evidenziazioni non adiacenti, cache della grafia non ancora salvata e bitmap di trascinamento. Core 259 XCTest: 257 passati, due skip Darwin, zero fallimenti; 98 FSRS passati. Backend 48 passati. Integrazione locale Auth/email/PostgREST/PostgreSQL reale, due account/RLS/quote/consumi/refresh/logout passata con modello simulato. Progetto 468 oggetti / 300 Swift / 402 metodi XCTest presenti; grammatica e parsing Swift 5 riusciti. Nuova prova nativa RTF/undo/riapertura/export e ampliamento PDF/parole predisposti, non eseguiti. Ultima CI verificata 39858791254, commit 2372f89: portable fermato prima degli step per fatturazione, Apple saltato. Nessun nuovo tentativo inutile o test dispositivo dichiarato. [Report](DELIVERY_0_20_2.md).
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
 

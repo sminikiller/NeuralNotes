@@ -114,7 +114,7 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
         let colorActions = colors.map { name, color in UIAction(title: name, image: UIImage(systemName: "circle.fill")?.withTintColor(color, renderingMode: .alwaysOriginal)) { [weak self] _ in self?.foreground(color) } }
         let highlights: [(String, UIColor?)] = [("Nessuna", nil), ("Giallo", .systemYellow), ("Verde", .systemGreen), ("Arancione", .systemOrange), ("Rosa", .systemPink)]
         let highlightActions = highlights.map { name, color in UIAction(title: name) { [weak self] _ in self?.highlight(color) } }
-        let extra: [UIAction] = [UIAction(title: "Elenco puntato") { [weak self] _ in self?.bullet() }, UIAction(title: "Checklist") { [weak self] _ in self?.checklist() }, UIAction(title: "Apice") { [weak self] _ in self?.superscript() }, UIAction(title: "Pedice") { [weak self] _ in self?.subscriptText() }, UIAction(title: "Testo normale") { [weak self] _ in self?.normalBaseline() }, UIAction(title: "Dizionario") { [weak self] _ in self?.dictionary() }]
+        let extra: [UIAction] = [UIAction(title: "Elenco puntato") { [weak self] _ in self?.bullet() }, UIAction(title: "Elenco numerato") { [weak self] _ in self?.numbered() }, UIAction(title: "Checklist") { [weak self] _ in self?.checklist() }, UIAction(title: "Apice") { [weak self] _ in self?.superscript() }, UIAction(title: "Pedice") { [weak self] _ in self?.subscriptText() }, UIAction(title: "Testo normale") { [weak self] _ in self?.normalBaseline() }, UIAction(title: "Dizionario") { [weak self] _ in self?.dictionary() }]
         let menu = UIMenu(children: [UIMenu(title: "Stile", children: styles), UIMenu(title: "Colore", children: colorActions),
             UIMenu(title: "Evidenzia", children: highlightActions), UIMenu(title: "Elenchi e altro", children: extra)])
         bar.items?.append(UIBarButtonItem(title: "Aa", image: nil, primaryAction: nil, menu: menu))
@@ -178,21 +178,43 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
     private func baseline(_ offset: CGFloat) { apply { $0[.baselineOffset] = offset } }
     private func prefix(_ value: String) {
         guard let view else { return }
-        let paragraph = (view.text as NSString).paragraphRange(for: view.selectedRange)
+        let source = (view.text ?? "") as NSString, selected = view.selectedRange
+        guard selected.location <= source.length, selected.length <= source.length - selected.location else { return }
+        let paragraph = source.paragraphRange(for: selected)
         let result = NSMutableAttributedString(attributedString: view.attributedText)
-        result.insert(NSAttributedString(string: value, attributes: view.typingAttributes), at: paragraph.location)
-        view.attributedText = result; view.selectedRange = NSRange(location: paragraph.location + value.utf16.count, length: 0); didChange?()
+        let line = source.substring(with: paragraph)
+        let consumed = TextLists.continuation(of: line)?.consumed ?? 0
+        let same = line.hasPrefix(value)
+        let marker = same ? "" : value
+        if consumed > 0 { result.deleteCharacters(in: NSRange(location: paragraph.location, length: consumed)) }
+        var attributes = view.typingAttributes
+        let style = (attributes[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        let indent: CGFloat = marker.isEmpty ? 0 : marker == "1. " ? 22 : 16
+        style.firstLineHeadIndent = 0; style.headIndent = indent
+        style.tabStops = indent > 0 ? [NSTextTab(textAlignment: .left, location: indent)] : []
+        attributes[.paragraphStyle] = style
+        result.insert(NSAttributedString(string: marker, attributes: attributes), at: paragraph.location)
+        let length = paragraph.length - consumed + marker.utf16.count
+        if length > 0 { result.addAttribute(.paragraphStyle, value: style, range: NSRange(location: paragraph.location, length: length)) }
+        view.attributedText = result; view.typingAttributes = attributes
+        let caret = max(paragraph.location + marker.utf16.count, min(result.length, selected.location - consumed + marker.utf16.count))
+        view.selectedRange = NSRange(location: caret, length: 0); didChange?()
     }
     @objc func bullet() { prefix("• ") }
+    @objc func numbered() { prefix("1. ") }
     @objc func checklist() { prefix("☐ ") }
 }
 
 @MainActor
 struct RichTextEditor: UIViewRepresentable {
     @Binding var text: TextElement
+    var paperColor: UIColor? = nil
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView(); view.delegate = context.coordinator; view.allowsEditingTextAttributes = true
         view.attributedText = RichText.attributed(text); view.accessibilityLabel = "Testo formattato"
+        context.coordinator.shown = text
+        view.backgroundColor = paperColor ?? .clear
+        if paperColor != nil { view.overrideUserInterfaceStyle = .light }
         context.coordinator.formatting = TextFormatting(view: view) { [weak coordinator = context.coordinator, weak view] in
             if let view { coordinator?.textViewDidChange(view) }
         }
@@ -201,14 +223,24 @@ struct RichTextEditor: UIViewRepresentable {
     }
     func updateUIView(_ view: UITextView, context: Context) {
         context.coordinator.parent = self
-        if view.text != text.text { view.attributedText = RichText.attributed(text) }
+        view.backgroundColor = paperColor ?? .clear
+        if view.markedTextRange == nil, view.text != text.text || context.coordinator.shown.rtf != text.rtf || context.coordinator.shown.fontSize != text.fontSize {
+            let selected = view.selectedRange
+            view.attributedText = RichText.attributed(text)
+            let location = min(selected.location, view.attributedText.length)
+            view.selectedRange = NSRange(location: location, length: min(selected.length, view.attributedText.length - location))
+            context.coordinator.shown = text
+        }
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: RichTextEditor
         var formatting: TextFormatting?
-        init(_ parent: RichTextEditor) { self.parent = parent }
-        func textViewDidChange(_ textView: UITextView) { parent.text.text = textView.text; parent.text.rtf = RichText.data(textView.attributedText) }
+        var shown: TextElement
+        init(_ parent: RichTextEditor) { self.parent = parent; shown = parent.text }
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text.text = textView.text; parent.text.rtf = RichText.data(textView.attributedText); shown = parent.text
+        }
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             !(formatting?.replaceNewline(in: range, replacement: text) ?? false)
         }

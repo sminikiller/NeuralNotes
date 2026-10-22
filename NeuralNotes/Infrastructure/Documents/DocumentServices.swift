@@ -50,6 +50,62 @@ actor PDFTextReader {
                           width: area.width * sx, height: area.height * sy)
         return autoreleasepool { String((page.selection(for: rect)?.string ?? "").prefix(6000)) }
     }
+
+    private var wordCache: [String: [PageWord]] = [:]
+    private var wordOrder: [String] = []
+
+    /// Every word of a notebook page made from a PDF page, in the order of the PDF text
+    /// layer, with its box in notebook coordinates (top-left origin). Empty for scanned
+    /// pages without a text layer and for rotated pages.
+    func words(url: URL, index: Int, pageWidth: Double, pageHeight: Double) throws -> [PageWord] {
+        try Task.checkCancellation()
+        let key = "\(url.path)|\(index)|\(pageWidth)|\(pageHeight)"
+        if let cached = wordCache[key] { return cached }
+        if file != url || document == nil || reads >= 32 {
+            document = nil; file = url; reads = 0
+            document = PDFDocument(url: url)
+        }
+        guard let document, !document.isLocked, index >= 0, index < document.pageCount, let page = document.page(at: index),
+              pageWidth > 0, pageHeight > 0, page.rotation == 0 else { return [] }
+        reads += 1
+        let box = page.bounds(for: .cropBox)
+        let sx = box.width / CGFloat(pageWidth), sy = box.height / CGFloat(pageHeight)
+        let words: [PageWord] = autoreleasepool { Self.words(of: page, box: box, sx: sx, sy: sy, pageHeight: CGFloat(pageHeight)) }
+        wordCache[key] = words; wordOrder.removeAll { $0 == key }; wordOrder.append(key)
+        if wordOrder.count > 40 { wordCache[wordOrder.removeFirst()] = nil }
+        return words
+    }
+
+    private static func words(of page: PDFPage, box: CGRect, sx: CGFloat, sy: CGFloat, pageHeight: CGFloat) -> [PageWord] {
+        guard let string = page.string, !string.isEmpty, sx > 0, sy > 0 else { return [] }
+        let text = string as NSString
+        let tokens = PageWords.tokens(in: string)
+        var result: [PageWord] = []
+        for (position, token) in tokens.enumerated() {
+            var rect = CGRect.null
+            for offset in 0..<token.range.length {
+                let bounds = page.characterBounds(at: token.range.location + offset)
+                if bounds.width > 0, bounds.height > 0 { rect = rect.union(bounds) }
+            }
+            guard !rect.isNull else { continue }
+            let word = text.substring(with: token.range)
+            var joins = false
+            if position + 1 < tokens.count {
+                let next = tokens[position + 1]
+                joins = PageWords.joinsNext(word, next: text.substring(with: next.range), lineBreak: next.lineBreakBefore)
+            }
+            let x = (rect.minX - box.minX) / sx
+            let y = pageHeight - (rect.maxY - box.minY) / sy
+            result.append(PageWord(text: word, rect: CGRect(x: x, y: y, width: rect.width / sx, height: rect.height / sy), hyphenated: joins))
+        }
+        return result
+    }
+
+    /// Boxes of every occurrence of a search on a PDF page, one per line, in notebook coordinates.
+    func matches(_ query: String, url: URL, index: Int, pageWidth: Double, pageHeight: Double) throws -> [CGRect] {
+        let words = try words(url: url, index: index, pageWidth: pageWidth, pageHeight: pageHeight)
+        return PageWords.matches(query, in: words).flatMap { PageWords.lineRects($0, in: words) }
+    }
 }
 
 @MainActor

@@ -49,12 +49,11 @@ struct LensModeBar: View {
     private var modeControls: some View {
         HStack(spacing: 4) {
             Image(systemName: "sparkle.magnifyingglass").foregroundStyle(Brand.accent).padding(.leading, 8).accessibilityHidden(true)
-            Picker("Modo della Lente", selection: $mode) {
-                Text("Testo").tag(LensMode.text.rawValue)
-                Text("Immagine").tag(LensMode.image.rawValue)
-            }.pickerStyle(.segmented).frame(width: 160).accessibilityIdentifier("lensMode")
+            Picker("Strumento della Lente", selection: $mode) {
+                ForEach(LensMode.allCases, id: \.self) { item in Text(item.title).tag(item.rawValue) }
+            }.pickerStyle(.segmented).frame(width: 240).accessibilityIdentifier("lensMode")
             Toggle(isOn: $autoNote) { Image(systemName: "note.text.badge.plus") }
-                .toggleStyle(.button).disabled(mode == LensMode.image.rawValue)
+                .toggleStyle(.button).disabled(mode != LensMode.text.rawValue)
                 .accessibilityLabel("Nota automatica quando sottolinei").accessibilityIdentifier("lensAutoNote")
         }
     }
@@ -109,10 +108,16 @@ struct LensModeBar: View {
     }
 
     private var hint: String {
-        if mode == LensMode.image.rawValue { return "Tocca una foto o cerchia una zona: l’AI guarda l’immagine. Con la fotocamera scatti, ritagli e chiedi." }
-        return autoNote
-            ? "Sottolinea un termine: arriva una nota collegata al testo. Tocca una parola per spiegarla; cerchia per chiedere. Trascina le note per spostarle."
-            : "Sottolinea, cerchia o trascina: a destra si apre la conversazione con spiegazione, riassunto, traduzione e domande."
+        switch LensMode(rawValue: mode) ?? .text {
+        case .image:
+            return "Immagine: tocca una foto o cerchia una zona, l’AI guarda l’immagine. Con la fotocamera scatti, ritagli e chiedi."
+        case .area:
+            return "Area: cerchia o trascina un rettangolo attorno alle parole; si scelgono parole intere e accanto compaiono Spiega, Chiedi, Cerca e Copia."
+        case .text:
+            return autoNote
+                ? "Parole: tocca una parola per sapere cos’è. Passaci sopra come un evidenziatore: un termine breve diventa subito una nota, un brano più lungo apre Spiega, Chiedi, Cerca e Copia."
+                : "Parole: tocca una parola per sapere cos’è. Passaci sopra come un evidenziatore: accanto compaiono Spiega, Chiedi, Cerca e Copia."
+        }
     }
 
     private func refresh() async {

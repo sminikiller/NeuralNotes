@@ -1,6 +1,7 @@
 import SwiftUI
 import NeuralNotesCore
 
+@MainActor
 struct CitedAnswer: View {
     let artifact: AIArtifact
     private var value: AttributedString {
@@ -9,5 +10,8 @@ struct CitedAnswer: View {
             var value = AttributedString(run.text); value.link = run.link; result.append(value)
         }; return result
     }
-    var body: some View { Text(value).textSelection(.enabled) }
+    @ViewBuilder var body: some View {
+        if (artifact.webSources ?? []).isEmpty { LensFormattedText(text: artifact.text).textSelection(.enabled) }
+        else { Text(value).textSelection(.enabled) }
+    }
 }

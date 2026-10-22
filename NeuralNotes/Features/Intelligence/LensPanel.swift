@@ -42,7 +42,7 @@ struct LensPanel: View {
                     if let lastNote {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Nota inserita · \(lastNote.term)").font(.caption.bold())
-                            Text(lastNote.noteBody).font(.caption).textSelection(.enabled)
+                            LensFormattedText(text: lastNote.noteBody).font(.caption).textSelection(.enabled)
                             Text(lastNote.origin).font(.caption2).foregroundStyle(.secondary)
                             Button("Annulla la nota", systemImage: "arrow.uturn.backward") { Task { await model.performUndo(); self.lastNote = nil } }.font(.caption)
                         }.padding(8).background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))

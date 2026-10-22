@@ -58,6 +58,9 @@ struct EditorView: View {
                 .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
                 .onChange(of: model.searchRequest) { _, _ in panel = .search }
                 .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
+                .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
+                .onChange(of: model.lensHighlight) { _, _ in model.refreshLensOverlays() }
+                .onChange(of: model.lensNoteFocus) { _, _ in model.refreshLensOverlays() }
         }
     }
 

@@ -48,21 +48,28 @@ final class SearchHighlightOverlay: UIView {
         let key = "\(page.id)|\(page.revision)|\(request.query)"
         guard generation != key else { return }; generation = key; job?.cancel()
         var boxes = page.texts.flatMap { RichText.matchingRects(request.query, in: $0, pageHeight: page.height) }
-        if !boxes.isEmpty { show(boxes, host: host); return }
-        highlights.path = nil; isHidden = true
+        if !boxes.isEmpty { show(boxes, host: host) }
+        else { highlights.path = nil; isHidden = true }
         job = Task { [weak self, weak host] in
             guard let self, let host else { return }
             do {
                 try Task.checkCancellation()
+                // A page made from a PDF: exact boxes from its text layer, before any OCR.
+                if let file = page.pdfFile, let index = page.pdfIndex, let url = try? await model.workspace.url(file) {
+                    let rects = (try? await PDFTextReader.shared.matches(request.query, url: url, index: index, pageWidth: page.width, pageHeight: page.height)) ?? []
+                    try Task.checkCancellation()
+                    guard self.generation == key, model.page?.id == page.id, model.searchFocus == request else { return }
+                    if !rects.isEmpty { self.show(boxes + rects, host: host); return }
+                }
                 let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 2000)
                 guard let bytes = image.pngData() else { return }
-                let regions = try await VisionOCRService().recognize(image: bytes)
+                let words = try await VisionOCRService().words(image: bytes)
                 try Task.checkCancellation()
                 guard self.generation == key, model.page?.id == page.id, model.searchFocus == request else { return }
-                boxes = regions.filter { $0.text.localizedStandardContains(request.query) }.prefix(80).map {
-                    CGRect(x: $0.x * page.width, y: $0.y * page.height, width: $0.width * page.width, height: $0.height * page.height)
+                let marks = PageWords.matches(request.query, in: words).prefix(80).flatMap { PageWords.lineRects($0, in: words) }.map {
+                    CGRect(x: $0.minX * page.width, y: $0.minY * page.height, width: $0.width * page.width, height: $0.height * page.height)
                 }
-                self.show(boxes, host: host)
+                self.show(boxes + marks, host: host)
             } catch { /* Highlighting is derived: never mutate or fail a saved note. */ }
         }
     }

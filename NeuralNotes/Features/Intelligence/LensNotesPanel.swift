@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import NeuralNotesCore
 
 /// Every Lens note of the notebook: tap to jump to it, edit, reduce to 💡 or open,
@@ -130,13 +131,14 @@ struct LensNoteEditor: View {
     let model: EditorViewModel
     let noteID: UUID
     @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var content = ""
+    @State private var draft = TextElement(text: "")
+    @State private var original: TextElement?
     @State private var color = LensNoteColor.yellow
     @State private var collapsed = false
     @State private var confirmDelete = false
 
     private var note: TextElement? { model.page?.texts.first { $0.id == noteID && $0.lensNote != nil } }
+    private var paper: UIColor { UIColor(red: color.ink.red, green: color.ink.green, blue: color.ink.blue, alpha: 1) }
 
     var body: some View {
         NavigationStack {
@@ -159,8 +161,12 @@ struct LensNoteEditor: View {
     }
 
     @ViewBuilder private func fields(_ note: TextElement) -> some View {
-        Section("Titolo") { TextField("Titolo della nota", text: $title) }
-        Section("Testo") { TextEditor(text: $content).frame(minHeight: 180) }
+        Section {
+            RichTextEditor(text: $draft, paperColor: paper).frame(minHeight: 260)
+                .accessibilityIdentifier("lensNoteRichEditor")
+        } header: { Text("Titolo e testo") } footer: {
+            Text("La prima riga è il titolo. Seleziona il testo per usare grassetto, corsivo ed elenchi: lo stile resta nella nota e nel PDF esportato.")
+        }
         Section("Aspetto") {
             Picker("Colore", selection: $color) { ForEach(LensNoteColor.allCases) { item in Text(item.title).tag(item) } }
                 .pickerStyle(.segmented)
@@ -200,16 +206,16 @@ struct LensNoteEditor: View {
 
     private func load() {
         guard let note, let info = note.lensNote else { return }
-        title = info.title; content = LensNotes.body(of: note); color = LensNoteColor(note.background); collapsed = info.isCollapsed
+        guard original == nil else { return }
+        draft = note; original = note; color = LensNoteColor(note.background); collapsed = info.isCollapsed
     }
 
     private func save() {
-        guard let current = note, let info = current.lensNote else { return }
-        let renamed = title != info.title
-        let rewritten = content != LensNotes.body(of: current)
+        guard let current = note, let info = current.lensNote, original != nil else { return }
+        let rewritten = draft.text != current.text || draft.rtf != current.rtf
         let recolored = color != LensNoteColor(current.background)
         let folded = collapsed != info.isCollapsed
-        guard renamed || rewritten || recolored || folded else { return }
-        model.updateLensNote(noteID, title: title, body: content, color: color, collapsed: collapsed)
+        guard rewritten || recolored || folded else { return }
+        model.updateLensNote(noteID, edited: draft, color: color, collapsed: collapsed)
     }
 }

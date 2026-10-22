@@ -73,6 +73,8 @@ extension EditorViewModel {
             case .lasso: tool = .lasso; case .objects: tool = .objects; case .text: tool = .text; case .audioLink: tool = .audioLink; case .lens: tool = .lens; default: break }
         }
         restoreToolPalette(); configureTool()
+        // The Lens reads the words of the page ahead; leaving it drops a pending pick.
+        if tool == .lens { prepareLensWords() } else { lensPick = nil; lensHighlight = nil }
     }
     func restoreToolPalette() {
         let palette = activePalette

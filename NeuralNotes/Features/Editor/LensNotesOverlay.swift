@@ -3,13 +3,16 @@ import NeuralNotesCore
 
 /// On-screen helpers for Lens notes, never exported: the round control that
 /// reduces an open note to 💡, the dashed link to the text it explains (with the
-/// Lens tool or when the note is selected) and the outline after a jump.
+/// Lens tool or when the note is selected), the outline after a jump and the
+/// highlight of the words the Lens is working on.
 @MainActor
 final class LensNotesOverlay: UIView {
     private var page = PageSnapshot()
     private var links = false
     private var selected: Set<UUID> = []
     private var focus: LensNoteFocus?
+    private var hidden: UUID?
+    private var marked: [CGRect] = []
     private var signature = ""
 
     init() {
@@ -24,7 +27,8 @@ final class LensNotesOverlay: UIView {
         let current = host.surface.page
         let notes = current.texts.filter { $0.lensNote != nil }
         let shownFocus = model.lensNoteFocus.flatMap { $0.pageID == current.id ? $0 : nil }
-        guard !notes.isEmpty || shownFocus != nil else {
+        let highlight = model.lensHighlight.flatMap { $0.pageID == current.id ? $0.rects : nil } ?? []
+        guard !notes.isEmpty || shownFocus != nil || !highlight.isEmpty else {
             if !isHidden { isHidden = true; layer.contents = nil; signature = "" }
             return
         }
@@ -36,16 +40,25 @@ final class LensNotesOverlay: UIView {
         let showLinks = model.tool == .lens
         let chosen = model.selectedIDs.filter { id in notes.contains { $0.id == id } }
         let shape = notes.map { "\($0.id)|\($0.x)|\($0.y)|\($0.width)|\($0.text.count)|\($0.lensNote?.isCollapsed == true)" }.joined(separator: ";")
-        let key = "\(current.id)|\(shape)|\(showLinks)|\(chosen.map(\.uuidString).sorted())|\(shownFocus?.id.uuidString ?? "")"
+        let dragged = host.surface.hiddenObjectID
+        let marks = highlight.map { "\($0.minX),\($0.minY),\($0.width),\($0.height)" }.joined(separator: ";")
+        let key = "\(current.id)|\(shape)|\(showLinks)|\(chosen.map(\.uuidString).sorted())|\(shownFocus?.id.uuidString ?? "")|\(dragged?.uuidString ?? "")|\(marks)"
         guard key != signature else { return }
-        signature = key; page = current; links = showLinks; selected = chosen; focus = shownFocus
+        signature = key; page = current; links = showLinks; selected = chosen; focus = shownFocus; hidden = dragged; marked = highlight
         setNeedsDisplay()
     }
 
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
+        if !marked.isEmpty {
+            context.saveGState()
+            context.setFillColor(UIColor.systemYellow.withAlphaComponent(0.38).cgColor)
+            for rect in marked { context.addPath(UIBezierPath(roundedRect: rect.insetBy(dx: -1.5, dy: -1.5), cornerRadius: 3).cgPath) }
+            context.fillPath()
+            context.restoreGState()
+        }
         for text in page.texts {
-            guard let note = text.lensNote, !note.isCollapsed else { continue }
+            guard let note = text.lensNote, !note.isCollapsed, text.id != hidden else { continue }
             let box = RichText.bounds(text, pageHeight: page.height)
             if links || selected.contains(text.id), let source = note.source, source.pageID == page.id {
                 context.saveGState()

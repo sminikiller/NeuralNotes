@@ -41,6 +41,7 @@ final class DirectAIStructuredTests: XCTestCase {
         XCTAssertEqual((json["thinking"] as? [String: Any])?["type"] as? String, "disabled")
         let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
         XCTAssertTrue((messages[0]["content"] as? String)?.contains("JSON") == true)
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("**grassetto**") == true)
         XCTAssertFalse(String(decoding: call.httpBody!, as: UTF8.self).contains("secret-fixture"))
         XCTAssertFalse(String(decoding: call.httpBody!, as: UTF8.self).contains(first.documentID.uuidString))
     }

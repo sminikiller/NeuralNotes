@@ -15,6 +15,7 @@ final class CanvasHost: UIView {
     let laserPointer = LaserPointerOverlay()
     let searchHighlight = SearchHighlightOverlay()
     let lensNotes = LensNotesOverlay()
+    let lensBar = LensSelectionBar()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -53,6 +54,7 @@ final class CanvasHost: UIView {
         insertSubview(searchHighlight, belowSubview: zoomNavigator)
         insertSubview(lensNotes, belowSubview: searchHighlight)
         addSubview(laserPointer)
+        addSubview(lensBar)
     }
     required init?(coder: NSCoder) { return nil }
 
@@ -162,7 +164,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)

@@ -1,5 +1,9 @@
 # Piano di Claude — verifica e avanzamento
 
+## Ripresa 0.20.2 — 23 ottobre 2026
+
+Ripreso l'allegato con il lavoro nella cartella `AppAppunti-claude`: integrati i commit successivi alla 0.19 e le modifiche non salvate, con copia originale conservata. Completata la modifica RTF delle note; selezione per parole/area/immagine, barra contestuale, ricerca del livello PDF a gruppi e trascinamento con anteprima. Rieseguiti Core (259: 257 passati, due skip), 98 FSRS, 48 backend e integrazione locale account reale con modello simulato. Nessuna build Apple o inferenza live dichiarata. [Comandi, test e limiti](DELIVERY_0_20_2.md). Il precedente stato qui sotto è storico; non significa che tutti i punti dell'intera roadmap siano conclusi.
+
 Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e roadmap delle funzionalità», allegato del 20 ottobre 2026. Il codice di partenza di questa lavorazione è la 0.9.1, commit `f9867b6`. La richiesta attuale autorizza sviluppo e test autonomi di tutti i lotti, senza altre domande.
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.

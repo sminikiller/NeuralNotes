@@ -45,9 +45,10 @@ final class ForegroundObjectsView: UIView {
     var page = PageSnapshot() { didSet { if oldValue != page { setNeedsDisplay() } } }
     var package = URL(fileURLWithPath: "/")
     var hiddenTextID: UUID?
+    var hiddenObjectID: UUID?
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        PageRenderer.drawForeground(page, package: package, in: context, hidingTextID: hiddenTextID)
+        PageRenderer.drawForeground(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID)
     }
     func update(_ host: CanvasHost) {
         isHidden = (host.surface.page.aboveInkObjects ?? []).isEmpty && (host.surface.page.tapes ?? []).isEmpty
@@ -55,6 +56,7 @@ final class ForegroundObjectsView: UIView {
         isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false
         page = host.surface.page; package = host.surface.package
         if hiddenTextID != host.surface.hiddenTextID { hiddenTextID = host.surface.hiddenTextID; setNeedsDisplay() }
+        if hiddenObjectID != host.surface.hiddenObjectID { hiddenObjectID = host.surface.hiddenObjectID; setNeedsDisplay() }
         bounds = host.surface.bounds; transform = host.surface.transform; center = host.surface.center
         let maximum: CGFloat = sqrt(8_000_000 / max(1, CGFloat(page.width * page.height)))
         contentScaleFactor = min(maximum, max(1, host.canvas.zoomScale * (host.window?.screen.scale ?? UIScreen.main.scale)))

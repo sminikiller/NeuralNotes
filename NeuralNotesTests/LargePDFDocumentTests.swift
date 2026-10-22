@@ -25,6 +25,13 @@ final class LargePDFDocumentTests: XCTestCase {
         XCTAssertTrue(text.contains("Pagina 1500"))
         let firstText = try await DocumentServices.pdfText(page: pages[0], workspace: workspace)
         XCTAssertTrue(firstText.contains("Pagina 1"))
+        let words = try await PDFTextReader.shared.words(url: source, index: 1499, pageWidth: 600, pageHeight: 800)
+        let word = try XCTUnwrap(words.first { $0.text == "1500" })
+        XCTAssertTrue(CGRect(x: 0, y: 0, width: 600, height: 800).contains(word.rect))
+        let picked = try XCTUnwrap(PageWords.word(at: CGPoint(x: word.rect.midX, y: word.rect.midY), in: words))
+        XCTAssertEqual(words[picked].text, "1500")
+        let marks = try await PDFTextReader.shared.matches("Pagina 1500", url: source, index: 1499, pageWidth: 600, pageHeight: 800)
+        XCTAssertFalse(marks.isEmpty)
         let count = DocumentRenderCache.shared.pdfOpens
         for page in [pages[0], pages[1499]] {
             let image = DocumentServices.image(page: page, drawing: PKDrawing(), workspace: workspace, maxDimension: 800)

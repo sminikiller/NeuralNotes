@@ -43,6 +43,11 @@ final class EditorViewModel {
     var lensPanelRequest = 0
     var lensNoteFocus: LensNoteFocus?
     var lensNoteEditor: LensNoteEditTarget?
+    /// Words picked with the Lens and waiting for a command, their highlight, and a
+    /// search to start from them.
+    var lensPick: LensPick?
+    var lensHighlight: LensHighlight?
+    var pendingSearchQuery: String?
     /// Where the last Lens gesture was, in editor view coordinates, and the notebook title as subject.
     @ObservationIgnored var lensAnchor: CGRect?
     var lensSubject = ""
@@ -236,6 +241,7 @@ final class EditorViewModel {
         guard !loading else { return }
         guard !movingObjects else { return }
         if tool == .eraser && drawingShape { return }
+        if let page { PageWordIndex.shared.invalidate(page) }
         if editBeforeGesture != nil && !usingInkTool && !finishingInkGesture { scheduleInkCommit() }
         dirty = true; status = "Modifiche da salvare"
         debounce?.cancel()
@@ -424,7 +430,7 @@ final class EditorViewModel {
     }
 
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
-        lensArea = nil; lensTextSelection = nil
+        lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
         pendingHeldShape = nil; drawingAssistant?.cancel()
         gestureCommitTask?.cancel(); gestureCommitTask = nil; editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         endTextEdit()
@@ -438,6 +444,7 @@ final class EditorViewModel {
         configureTool()
         (pagePresenter as? CanvasHost)?.synchronizePage()
         UserDefaults.standard.set(current.id.uuidString, forKey: "editor.page.\(workspace.documentID)")
+        if tool == .lens { prepareLensWords() }
     }
 
     func addPage() async {
