@@ -157,18 +157,30 @@ struct LensSessionView: View {
     }
 
     private func answerActions(_ turn: LensTurn) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) { HStack {
-            if session.noteExists(turn, model: model), let noteID = turn.noteID {
-                Button("Vai alla nota", systemImage: "arrow.right.circle") { Task { await model.focusLensNote(noteID, pageID: turn.notePageID) } }
-                    .buttonStyle(.bordered)
-            } else {
-                Button("Inserisci come nota", systemImage: "note.text.badge.plus") { session.insert(turn.id, model: model) }
-                    .buttonStyle(.borderedProminent).accessibilityIdentifier("lensInsertNote")
-                Button("Scarta", systemImage: "xmark") { session.discard(turn.id, model: model) }
-                    .buttonStyle(.bordered).accessibilityIdentifier("lensDiscardAnswer")
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack {
+                noteAction(turn)
+                if !session.noteExists(turn, model: model) { discardAction(turn) }
+                Button("Copia", systemImage: "doc.on.doc") { copy(turn) }.buttonStyle(.bordered)
+            }.font(.caption)
+        }
+    }
+
+    @ViewBuilder private func noteAction(_ turn: LensTurn) -> some View {
+        if session.noteExists(turn, model: model), let noteID = turn.noteID {
+            Button("Vai alla nota", systemImage: "arrow.right.circle") {
+                Task { await model.focusLensNote(noteID, pageID: turn.notePageID) }
             }
-            Button("Copia", systemImage: "doc.on.doc") { copy(turn) }.buttonStyle(.bordered)
-        }.font(.caption) }
+            .buttonStyle(.bordered)
+        } else {
+            Button("Inserisci come nota", systemImage: "note.text.badge.plus") { session.insert(turn.id, model: model) }
+                .buttonStyle(.borderedProminent).accessibilityIdentifier("lensInsertNote")
+        }
+    }
+
+    private func discardAction(_ turn: LensTurn) -> some View {
+        Button("Scarta", systemImage: "xmark") { session.discard(turn.id, model: model) }
+            .buttonStyle(.bordered).accessibilityIdentifier("lensDiscardAnswer")
     }
 
     private func copy(_ turn: LensTurn) {

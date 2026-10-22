@@ -1,5 +1,7 @@
 # Piano di Claude — verifica e avanzamento
 
+La 0.20.5 divide il corpo SwiftUI del pannello della Lente e delle azioni per contenere il rischio di timeout. Il nuovo blocco segnalato non ha un log Apple disponibile e la causa resta non confermata. [Evidenze e intervento](BUILD_0_20_5.md).
+
 La 0.20.4 sostituisce l'automatismo della Lente con selezione temporanea e risposta da conservare o scartare. Ripristino del tool, icone compatte e test delle aree di tocco; prove native predisposte ma non eseguite. [Flusso aggiornato](WORKFLOW_0_20_4.md).
 
 La schermata successiva prova un errore reale della 0.20.2: proprietà `hidden` dell'overlay in conflitto con UIKit. [Patch 0.20.3](FIXES_0_20_3.md), rinomina dedicata e controllo AST mirato; non ancora compilata con Apple.

@@ -29,71 +29,146 @@ struct LensPanel: View {
     @State private var lastNoteID: UUID?
     var body: some View {
         VStack(spacing: 10) {
-            HStack { Label("Chat sulla pagina", systemImage: "doc.text.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal).padding(.top, 8)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    Text(configuration.engine != .offline ? "Risposte sul testo della pagina, con riferimenti." : "Modalità offline: estratti della pagina, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
-                    if !sourcesLoading { Text(sources.isEmpty ? "Nessun testo letto in questa pagina." : "Uso \(sources.count) brani di questa pagina.").font(.caption) }
-                    if sourcesLoading { ProgressView("Lettura della selezione…") }
-                    if sourcesChanged { Button("Pagina modificata: aggiorna le fonti", systemImage: "arrow.clockwise") { Task { await load() } }.font(.caption) }
-                    if configuration.engine != .offline && consentKey != configuration.consentKey { Text("Attiva questa connessione AI dal pulsante delle impostazioni prima di inviare le fonti.").font(.caption).foregroundStyle(.secondary) }
-                    if let lastNote {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Spiegazione · \(lastNote.term)").font(.caption.bold())
-                            LensFormattedText(text: lastNote.noteBody).font(.caption).textSelection(.enabled)
-                            Text(lastNote.origin).font(.caption2).foregroundStyle(.secondary)
-                            if lastNoteID == nil {
-                                HStack {
-                                    Button("Inserisci come nota", systemImage: "note.text.badge.plus") { insertPreviewNote(lastNote) }
-                                    Button("Scarta", systemImage: "xmark") { self.lastNote = nil }
-                                }.font(.caption)
-                            } else { Text("Nota inserita").font(.caption).foregroundStyle(.secondary) }
-                        }.padding(8).background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    ForEach(turns) { turn in
-                        Text(turn.question).font(.headline)
-                        CitedAnswer(artifact: turn.answer)
-                        HStack {
-                            Button("Inserisci", systemImage: "text.badge.plus") { insert(turn.answer) }.disabled(model.hasActiveStroke || model.navigating || model.loading)
-                            Button("Glossario", systemImage: "character.book.closed") {
-                                Task {
-                                    do { try await model.workspace.saveGlossaryEntry(GlossaryEntry(term: String(turn.question.prefix(120)), definition: String(turn.answer.text.prefix(16000)), references: turn.answer.references)); glossary = true }
-                                    catch { self.error = error.localizedDescription }
-                                }
-                            }
-                            Button("Flashcard", systemImage: "rectangle.on.rectangle") { makeCards(turn) }
-                                .disabled(busy || turn.answer.references.isEmpty)
-                        }.buttonStyle(.bordered).font(.caption)
-                        ForEach(Array(turn.answer.references.enumerated()), id: \.offset) { item in
-                            Button(sourceTitle(item.element)) { Task { await open(item.element) } }.font(.caption)
-                        }
-                        Divider()
-                    }
-                    if busy {
-                        if partial.isEmpty { ProgressView("Elaborazione…") } else { Text(partial); Text("Risposta in corso · riferimenti verificati al termine").font(.caption).foregroundStyle(.secondary) }
-                    }
-                    if let error { Text(error).foregroundStyle(.red) }
-                }.padding()
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    Button("Spiega", systemImage: "lightbulb") { if let request = termRequest(strict: false) { explainPreview(request) } }
-                        .buttonStyle(.borderedProminent).disabled(!canSend || termRequest(strict: false) == nil || !configuration.supportsStructuredStudy)
-                    Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }.buttonStyle(.bordered).disabled(busy || sourcesLoading || sourcesChanged || sources.isEmpty)
-                    ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(!canSend) }
-                }.padding(.horizontal)
-            }
-            HStack {
-                TextField("Chiedi sulle fonti…", text: $question, axis: .vertical).lineLimit(1...4)
-                Button { send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }.disabled(!canSend || question.isEmpty).accessibilityLabel("Invia alla Lente AI")
-                if busy { Button("Stop") { job?.cancel() } }
-            }.padding()
+            header
+            conversation
+            quickActions
+            composer
         }.sheet(isPresented: $glossary) { GlossaryPanel(model: model) }
         .sheet(isPresented: $lookup) { LookupPanel(model: model, sources: sources, configuration: configuration, consentKey: consentKey) }
         .sheet(isPresented: $cardsSheet) { cardsReview }
         .task(id: selectionKey) { await load() }
             .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { jobGeneration = UUID(); job?.cancel() }
+    }
+
+    // Opaque boundaries let the compiler infer each presentation independently.
+    private var header: some View {
+        HStack {
+            Label("Chat sulla pagina", systemImage: "doc.text.magnifyingglass")
+                .font(.headline).accessibilityIdentifier("lensPanelTitle")
+            Spacer()
+            Button { glossary = true } label: { Image(systemName: "character.book.closed") }
+                .accessibilityLabel("Glossario")
+            settings
+        }.padding(.horizontal).padding(.top, 8)
+    }
+
+    private var conversation: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                sourceStatus
+                if let note = lastNote { explanationPreview(note) }
+                ForEach(turns) { turn in conversationTurn(turn) }
+                generationStatus
+                if let error { Text(error).foregroundStyle(.red) }
+            }.padding()
+        }
+    }
+
+    @ViewBuilder private var sourceStatus: some View {
+        let description = configuration.engine != .offline
+            ? "Risposte sul testo della pagina, con riferimenti."
+            : "Modalità offline: estratti della pagina, senza modello generativo."
+        Text(description).font(.caption).foregroundStyle(.secondary)
+        if sourcesLoading { ProgressView("Lettura della selezione…") }
+        else {
+            let summary = sources.isEmpty ? "Nessun testo letto in questa pagina." : "Uso \(sources.count) brani di questa pagina."
+            Text(summary).font(.caption)
+        }
+        if sourcesChanged {
+            Button("Pagina modificata: aggiorna le fonti", systemImage: "arrow.clockwise") { Task { await load() } }.font(.caption)
+        }
+        if configuration.engine != .offline && consentKey != configuration.consentKey {
+            Text("Attiva questa connessione AI dal pulsante delle impostazioni prima di inviare le fonti.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func explanationPreview(_ note: TermExplanation) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Spiegazione · \(note.term)").font(.caption.bold())
+            LensFormattedText(text: note.noteBody).font(.caption).textSelection(.enabled)
+            Text(note.origin).font(.caption2).foregroundStyle(.secondary)
+            previewActions(note)
+        }.padding(8).background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder private func previewActions(_ note: TermExplanation) -> some View {
+        if lastNoteID == nil {
+            HStack {
+                Button("Inserisci come nota", systemImage: "note.text.badge.plus") { insertPreviewNote(note) }
+                Button("Scarta", systemImage: "xmark") { lastNote = nil }
+            }.font(.caption)
+        } else { Text("Nota inserita").font(.caption).foregroundStyle(.secondary) }
+    }
+
+    @ViewBuilder private func conversationTurn(_ turn: AIConversationTurn) -> some View {
+        Text(turn.question).font(.headline)
+        CitedAnswer(artifact: turn.answer)
+        turnActions(turn)
+        ForEach(Array(turn.answer.references.enumerated()), id: \.offset) { item in
+            Button(sourceTitle(item.element)) { Task { await open(item.element) } }.font(.caption)
+        }
+        Divider()
+    }
+
+    private func turnActions(_ turn: AIConversationTurn) -> some View {
+        HStack {
+            Button("Inserisci", systemImage: "text.badge.plus") { insert(turn.answer) }
+                .disabled(model.hasActiveStroke || model.navigating || model.loading)
+            Button("Glossario", systemImage: "character.book.closed") { saveGlossary(turn) }
+            Button("Flashcard", systemImage: "rectangle.on.rectangle") { makeCards(turn) }
+                .disabled(busy || turn.answer.references.isEmpty)
+        }.buttonStyle(.bordered).font(.caption)
+    }
+
+    private func saveGlossary(_ turn: AIConversationTurn) {
+        let entry = GlossaryEntry(term: String(turn.question.prefix(120)), definition: String(turn.answer.text.prefix(16000)), references: turn.answer.references)
+        Task {
+            do { try await model.workspace.saveGlossaryEntry(entry); glossary = true }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+
+    @ViewBuilder private var generationStatus: some View {
+        if busy {
+            if partial.isEmpty { ProgressView("Elaborazione…") }
+            else {
+                Text(partial)
+                Text("Risposta in corso · riferimenti verificati al termine").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var quickActions: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack {
+                explainButton
+                Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }
+                    .buttonStyle(.bordered).disabled(busy || sourcesLoading || sourcesChanged || sources.isEmpty)
+                ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in quickPrompt(prompt) }
+            }.padding(.horizontal)
+        }
+    }
+
+    private var explainButton: some View {
+        Button("Spiega", systemImage: "lightbulb") {
+            if let request = termRequest(strict: false) { explainPreview(request) }
+        }.buttonStyle(.borderedProminent)
+            .disabled(!canSend || termRequest(strict: false) == nil || !configuration.supportsStructuredStudy)
+    }
+
+    private func quickPrompt(_ prompt: String) -> some View {
+        Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(!canSend)
+    }
+
+    private var composer: some View {
+        HStack {
+            TextField("Chiedi sulle fonti…", text: $question, axis: .vertical).lineLimit(1...4)
+            Button { send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+                .disabled(!canSend || question.isEmpty).accessibilityLabel("Invia alla Lente AI")
+            if busy { Button("Stop") { job?.cancel() } }
+        }.padding()
     }
     private var selectionKey: String {
         let objects = model.selectedIDs.map(\.uuidString).sorted().joined(separator: ",")

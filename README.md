@@ -1,4 +1,6 @@
-# NeuralNotes 0.20.4 — anteprima iPad
+# NeuralNotes 0.20.5 — anteprima iPad
+
+**0.20.5/build 41 — build della Lente:** divise le espressioni SwiftUI del pannello e delle azioni in parti indipendenti, per contenere il rischio di timeout del compilatore. La causa del nuovo blocco segnalato sull'iPad non è accertata senza il messaggio di Playgrounds; questa non è una build SDK verificata. [Intervento ed evidenze](docs/BUILD_0_20_5.md).
 
 **0.20.4/build 40 — Lente temporanea e note facoltative:** selezione evidenziata, ritorno allo strumento precedente, poi Spiega/Chiedi/Cerca/Copia. Risposte in anteprima con Inserisci o Scarta, senza note automatiche; Nuova selezione per riattivare la Lente. Icone più piccole con area di tocco separata. [Flusso e verifiche](docs/WORKFLOW_0_20_4.md).
 
@@ -52,7 +54,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.20.4.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.20.5.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e il recupero sono nella [consegna 0.15.0](docs/DELIVERY_0_15_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).

@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.4
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.5
+
+## Segnalazione di build bloccata 0.20.5 — 23 ottobre 2026
+
+Segnalazione senza nuovo errore/log Apple: causa non confermata. Estratte le parti del grande corpo SwiftUI di LensPanel e i pulsanti di LensCard in espressioni opache indipendenti per ridurre il rischio di timeout. Non è una build SDK né un miglioramento cronometrato. Progetto 468 / 300 Swift / 405 metodi, grammatica/AST e parsing Swift 5 verificati. Core/backend invariati e non rieseguiti; nessuna nuova CI Apple. Ultime run ancora ferme prima degli step per fatturazione. [Dettagli](BUILD_0_20_5.md).
 
 ## Lente temporanea 0.20.4 — 23 ottobre 2026
 

@@ -1,11 +1,13 @@
-# Usare NeuralNotes 0.20.4 con il solo iPad
+# Usare NeuralNotes 0.20.5 con il solo iPad
+
+La 0.20.5 divide le espressioni SwiftUI del pannello della Lente; il nuovo blocco di compilazione segnalato non ha ancora una causa confermata. [Intervento e limiti](BUILD_0_20_5.md).
 
 La 0.20.4 disattiva la Lente dopo la selezione: scegli l'azione dalla barra, leggi l'anteprima e inserisci la nota solo se vuoi. [Nuovo flusso e verifiche](WORKFLOW_0_20_4.md).
 
 La 0.20.3 corregge il conflitto UIKit `hidden` che impediva la compilazione della 0.20.2. [Patch e limiti](FIXES_0_20_3.md). Usare il nuovo ZIP indicato qui sotto.
 
 1. Conserva il vecchio progetto Swift Playground e i suoi dati.
-2. Scarica NeuralNotes-iPad-0.20.4.zip in una cartella nuova di File, decomprimi e apri NeuralNotes.swiftpm con Swift Playground. Include selezione di parole/area/immagine, note formattate modificabili e ricerca del testo dei PDF grandi; [comandi e limiti](DELIVERY_0_20_2.md). Restano tutte le correzioni precedenti di layout, righello, foto, recupero e PDF fino a 1 GiB / 5.000 pagine. La compilazione Apple resta da confermare e i servizi AI pubblici non sono attivati automaticamente.
+2. Scarica NeuralNotes-iPad-0.20.5.zip in una cartella nuova di File, decomprimi e apri NeuralNotes.swiftpm con Swift Playground. Include selezione di parole/area/immagine, note formattate modificabili e ricerca del testo dei PDF grandi; [comandi e limiti](DELIVERY_0_20_2.md). Restano tutte le correzioni precedenti di layout, righello, foto, recupero e PDF fino a 1 GiB / 5.000 pagine. La compilazione Apple resta da confermare e i servizi AI pubblici non sono attivati automaticamente.
 3. Premi Esegui app. Apri il package intero, non il singolo AppController.swift. Attendi il caricamento da iCloud/File prima di eseguire.
 4. La nuova versione dichiara microfono, fotocamera e riconoscimento vocale. Il sistema chiede il consenso quando usi la funzione; la negazione deve lasciare disponibile la scrittura.
 5. Sidebar → Verifica sul dispositivo → Esegui controlli sul mio iPad. Sono 35 controlli, non ancora eseguiti su questo dispositivo dalla sessione di sviluppo. [Comandi della 0.12.0 e limiti](DELIVERY_0_12_0.md), [verifiche effettive](ROADMAP_VALIDATION.md). Restano documentate [la trascrizione lunga](TESTING_0_9_1.md), [le funzioni della 0.9](STUDY_WORKSPACE_0_9.md), [salvataggio e recupero](CONSOLIDATION_0_8_1.md), [workspace e forme](TESTING_0_8.md), [zoom](FIXES_0_7_1.md) e [scorrimento](TESTING_0_7.md).
