@@ -24,10 +24,18 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     var compressingSessionID: UUID?
     var compressionStatus = ""
     @ObservationIgnored var compressionTask: Task<Void, Never>?
+    /// Lecture notes ("sbobina") written by the AI one chapter at a time.
+    var notesSessionID: UUID?
+    var notesProgress = 0.0
+    var notesStatus = ""
+    var notesStatusSessionID: UUID?
+    @ObservationIgnored var notesTask: Task<Void, Never>?
+    /// Tests inject the model call; the app uses the AI engine chosen by the student.
+    @ObservationIgnored var notesGeneration: (@MainActor (AIRequest) async throws -> AIArtifact)?
     @ObservationIgnored var windowRecognition: (@MainActor (URL, SpeechWindow, String) async throws -> [TranscriptSegment])?
     /// Seconds per recognition block; tests use short blocks to simulate long recordings.
     @ObservationIgnored var transcriptionWindowLength: Double = 45
-    var canTranscribe: Bool { !closed && !recording && !transitioning && compressionTask == nil && compressingSessionID == nil }
+    var canTranscribe: Bool { !closed && !recording && !transitioning && compressionTask == nil && compressingSessionID == nil && notesTask == nil }
     var backgroundAudioConfigured: Bool {
         (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("audio") == true
     }
@@ -239,7 +247,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     }
 
     func organize(_ id: UUID, action: AudioLibraryAction) async {
-        guard canTranscribe, transcribingSessionID == nil, active?.id != id, let value = sessions.first(where: { $0.id == id }) else {
+        guard canTranscribe, transcribingSessionID == nil, notesSessionID != id, active?.id != id, let value = sessions.first(where: { $0.id == id }) else {
             error = "Termina la registrazione o attendi la trascrizione prima di modificare l’archivio."; return
         }
         transitioning = true; defer { transitioning = false }
@@ -254,6 +262,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
         guard transcribingSessionID == nil else { error = "Attendi il termine della trascrizione per aggiungere un segnalibro."; return }
         let id = sessionID ?? active?.id ?? playingSessionID
         guard let id else { return }
+        guard notesSessionID != id else { error = "Attendi il termine della sbobina per aggiungere un segnalibro."; return }
         let entry = active?.id == id ? active : sessions.first { $0.id == id }
         guard var value = entry, (value.bookmarks?.count ?? 0) < 1000 else { return }
         let seconds = active?.id == id ? (recordingAnchor?.1 ?? elapsed) : playingSessionID == id ? playback : 0
@@ -265,14 +274,14 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     }
 
     func removeBookmark(_ bookmark: AudioBookmark, sessionID: UUID) async {
-        guard transcribingSessionID == nil, var value = active?.id == sessionID ? active : sessions.first(where: { $0.id == sessionID }) else { return }
+        guard transcribingSessionID == nil, notesSessionID != sessionID, var value = active?.id == sessionID ? active : sessions.first(where: { $0.id == sessionID }) else { return }
         value.bookmarks?.removeAll { $0.id == bookmark.id }; value.revision = (value.revision ?? 0) + 1
         if active?.id == sessionID { active = value }
         _ = await persist(value)
     }
 
     func renameBookmark(_ bookmarkID: UUID, sessionID: UUID, title: String) async {
-        guard transcribingSessionID == nil, var value = active?.id == sessionID ? active : sessions.first(where: { $0.id == sessionID }),
+        guard transcribingSessionID == nil, notesSessionID != sessionID, var value = active?.id == sessionID ? active : sessions.first(where: { $0.id == sessionID }),
               let i = value.bookmarks?.firstIndex(where: { $0.id == bookmarkID }) else { return }
         do {
             value.bookmarks?[i].title = try LibraryName.validated(title); value.revision = (value.revision ?? 0) + 1
@@ -365,6 +374,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
         closed = true
         compressionTask?.cancel(); await compressionTask?.value; compressionTask = nil
         transcriptionTask?.cancel(); await transcriptionTask?.value; transcriptionTask = nil
+        notesTask?.cancel(); await notesTask?.value; notesTask = nil
         if recording { await pause(reason: "Chiusura quaderno") }
         stopPlayback(); ticker?.cancel(); ticker = nil
         if let interruption { NotificationCenter.default.removeObserver(interruption) }

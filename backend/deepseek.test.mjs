@@ -59,6 +59,19 @@ test('DeepSeek lookup and quiz preserve validated app contracts', async () => {
   assert.equal((await adapter.quiz({ count: 2, sources: request().sources }, signal())).questions.length, 1);
 });
 
+test('DeepSeek cards ask for JSON drafts with focus and keep validated citations', async () => {
+  const adapter = new DeepSeekAdapter({ key: 'fixture' }, async (_url, options) => {
+    const body = JSON.parse(options.body), data = JSON.parse(body.messages[1].content);
+    assert.equal(body.response_format.type, 'json_object'); assert.match(body.messages[0].content, /flashcard/);
+    assert.equal(data.focus, 'calore'); assert.equal(data.sources[0].reference, undefined);
+    return completed({ cards: [{ question: 'Domanda [1]', answer: 'Risposta [1]', citations: [1] }] });
+  });
+  const value = await adapter.cards({ count: 2, focus: 'calore', sources: request().sources }, signal());
+  assert.equal(value.cards.length, 1); assert.deepEqual(value.cards[0].references, [ref]);
+  const invented = new DeepSeekAdapter({ key: 'fixture' }, async () => completed({ cards: [{ question: 'Domanda [2]', answer: 'Risposta', citations: [2] }] }));
+  await assert.rejects(invented.cards({ count: 2, focus: '', sources: request().sources }, signal()));
+});
+
 test('DeepSeek web lookup searches isolated term and only cites search URLs', async () => {
   let calls = 0;
   const transport = async (url, options) => {

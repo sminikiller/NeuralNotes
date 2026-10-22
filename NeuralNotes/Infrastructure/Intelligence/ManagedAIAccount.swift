@@ -52,6 +52,16 @@ enum ManagedAIAccount {
         let url = root.appendingPathComponent("v1/study")
         return (try? ManagedAIService.configurationURL(studyURL: url)) != nil ? url : nil
     }
+    /// Plan, limits and credits of the signed-in account; nil without a connected service.
+    static func overview() async throws -> ManagedAccountOverview? {
+        guard let session = await client.snapshot(), let url = ManagedAccountOverview.accountURL(studyURL: session.service.studyURL) else { return nil }
+        let account = try await client.authorization(for: session.service.studyURL)
+        var request = URLRequest(url: url); request.timeoutInterval = 20
+        request.setValue("Bearer \(account.token)", forHTTPHeaderField: "Authorization")
+        let response = try await ManagedNativeTransport().send(request)
+        guard response.status == 200 else { throw response.status == 401 ? ManagedAIFailure.signedOut : ManagedAIFailure.unavailable }
+        return try ManagedAccountOverview.decode(response.data)
+    }
     static func isManaged(_ configuration: AIEngineConfiguration) async -> Bool {
         guard configuration.engine == .backend, let url = configuration.url else { return false }
         let current = await client.snapshot()

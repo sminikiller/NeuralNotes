@@ -40,9 +40,9 @@ struct QuizPanel: View {
             Button("Quiz locale dalle flashcard", systemImage: "rectangle.stack") { prepare(remote: false) }.disabled(busy)
             Text("Usa le risposte delle flashcard come alternative. Servono almeno quattro risposte diverse; non è una generazione AI.").font(.caption).foregroundStyle(.secondary)
             Button("Connessione AI", systemImage: "slider.horizontal.3") { configuring = true }.disabled(busy)
-            Button("Genera quiz con il backend", systemImage: "sparkles") { prepare(remote: true) }
-                .disabled(busy || configuration.quizURL == nil || consentKey != configuration.consentKey)
-            Text("Il backend riceve fino a 40 estratti del quaderno, entro il limite del contesto. Le domande generate mantengono i riferimenti; la qualità va controllata sulle fonti.").font(.caption).foregroundStyle(.secondary)
+            Button("Genera quiz con l’AI", systemImage: "sparkles") { prepare(remote: true) }
+                .disabled(busy || !configuration.supportsStructuredStudy || consentKey != configuration.consentKey)
+            Text("Il motore scelto (\(configuration.engine.title)) riceve fino a 40 estratti del quaderno, entro il limite del contesto. Le domande generate mantengono i riferimenti; la qualità va controllata sulle fonti.").font(.caption).foregroundStyle(.secondary)
         }
     }
     @ViewBuilder

@@ -27,14 +27,18 @@ struct LookupPanel: View {
                         Link(destination: webURL) { Label("Apri ricerca nel browser", systemImage: "safari") }
                         Text("Il browser riceve solo il termine cercato.").font(.caption).foregroundStyle(.secondary)
                     }
-                    if configuration.lookupURL != nil {
+                    if configuration.supportsStructuredStudy {
                         Button("Crea scheda dalle fonti", systemImage: "sparkles") { generate() }
                             .disabled(busy || !LookupRequest(term: term, sources: sources).isValid || consentKey != configuration.consentKey)
-                        Button("Cerca sul web con fonti", systemImage: "globe") { generateResearch() }
-                            .disabled(busy || !WebResearchRequest(term: term).isValid || consentKey != configuration.consentKey)
-                        Text("La ricerca web invia solo il termine, non la pagina o la registrazione. Richiede l’abilitazione sul backend e può avere costi aggiuntivi. Le risposte dalle fonti del quaderno restano separate.").font(.caption).foregroundStyle(.secondary)
+                        if configuration.supportsWebResearch {
+                            Button("Cerca sul web con fonti", systemImage: "globe") { generateResearch() }
+                                .disabled(busy || !WebResearchRequest(term: term).isValid || consentKey != configuration.consentKey)
+                            Text("La ricerca web invia solo il termine, non la pagina o la registrazione. Richiede il backend con ricerca abilitata oppure una chiave OpenAI e può avere costi aggiuntivi. Le risposte dalle fonti del quaderno restano separate.").font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("La ricerca web con fonti richiede il servizio NeuralNotes o una chiave OpenAI. Puoi aprire la ricerca nel browser.").font(.caption).foregroundStyle(.secondary)
+                        }
                         if consentKey != configuration.consentKey { Text("Abilita l’invio delle fonti nella Connessione AI della Lente per questo pannello di studio.").font(.caption) }
-                    } else { Text("Le schede strutturate usano il backend personale aggiornato. Il dizionario di sistema resta disponibile; gli altri motori possono definire il termine nella chat della Lente.").font(.caption) }
+                    } else { Text("Le schede strutturate richiedono un motore AI: servizio NeuralNotes o chiave personale nella Connessione AI. Il dizionario di sistema resta disponibile.").font(.caption) }
                 }
                 if busy { ProgressView("Preparazione della scheda…"); Button("Annulla") { job?.cancel() } }
                 if let error { Text(error).foregroundStyle(.red) }

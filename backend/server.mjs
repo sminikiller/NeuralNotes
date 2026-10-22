@@ -84,6 +84,38 @@ function quizSchema(count) {
   return { type: 'object', properties: { title: { type: 'string' }, questions: { type: 'array', items: question } }, required: ['title', 'questions'], additionalProperties: false };
 }
 
+export function validateCardsRequest(value) {
+  if (!value || !Number.isInteger(value.count) || value.count < 1 || value.count > 20
+      || (value.focus != null && (typeof value.focus !== 'string' || value.focus.length > 300 || /[\r\n]/u.test(value.focus)))) throw new RequestFailure(400, 'invalid_cards');
+  validateRequest({ task: 'flashcards', question: '', sources: value.sources });
+  return { sources: value.sources, count: value.count, focus: (value.focus ?? '').trim() };
+}
+
+function cardsSchema(count) {
+  const card = { type: 'object', properties: {
+    question: { type: 'string' }, answer: { type: 'string' }, citations: { type: 'array', items: { type: 'integer', enum: Array.from({ length: count }, (_, i) => i + 1) } }
+  }, required: ['question', 'answer', 'citations'], additionalProperties: false };
+  return { type: 'object', properties: { cards: { type: 'array', items: card } }, required: ['cards'], additionalProperties: false };
+}
+
+export const cardsInstruction = 'Crea al massimo count flashcard di ripasso dalle fonti. Ogni flashcard contiene una sola idea: una domanda breve e precisa (question) e una risposta di una o due frasi (answer), con citations. Niente domande sì/no, niente duplicati, niente fatti assenti dalle fonti. Se le fonti non bastano crea meno carte. Se focus non è vuoto, concentrati su quell\'argomento.';
+
+/// Draft flashcards: every card cites submitted sources, duplicates are dropped.
+export function cardsFromResult(value, request, provider, now = new Date()) {
+  const validString = (text, max) => typeof text === 'string' && text.trim() && text.length <= max;
+  if (!value || !Array.isArray(value.cards) || value.cards.length < 1 || value.cards.length > request.count) throw new RequestFailure(502, 'invalid_cards');
+  const sourceRequest = { ...request, task: 'flashcards' }, seen = new Set(), cards = [];
+  for (const card of value.cards) {
+    if (!card || !validString(card.question, 1000) || !validString(card.answer, 2000)) throw new RequestFailure(502, 'invalid_card');
+    const question = artifactFromResult({ text: card.question, citations: card.citations }, sourceRequest, provider, now);
+    const answer = artifactFromResult({ text: card.answer, citations: card.citations }, sourceRequest, provider, now).text;
+    const key = question.text.trim().normalize('NFKC').toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key); cards.push({ id: randomUUID(), question: question.text, answer, references: question.references });
+  }
+  return { cards, provider };
+}
+
 export function quizFromResult(value, request, provider, now = new Date()) {
   const validString = (value, max) => typeof value === 'string' && value.trim() && value.length <= max;
   if (!value || !validString(value.title, 120) || /[\r\n]/u.test(value.title) || !Array.isArray(value.questions)
@@ -234,6 +266,22 @@ export class ResponsesAdapter {
     catch { throw new RequestFailure(502, 'invalid_provider_response'); }
     return quizFromResult(result, request, `${this.name} / ${this.model}`);
   }
+  async cards(request, signal) {
+    const body = { ...this.generationOptions(), instructions: instructions + '\n' + cardsInstruction,
+      input: [{ role: 'user', content: JSON.stringify({ count: request.count, focus: request.focus, sources: request.sources.map((s, i) => ({ id: i + 1, text: s.text })) }) }],
+      text: { format: { type: 'json_schema', name: 'neuralnotes_cards', strict: true, schema: cardsSchema(request.sources.length) } } };
+    const response = await this.transport(this.url, { method: 'POST', redirect: 'error', signal,
+      headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!response.ok) { await response.body?.cancel(); throw new RequestFailure(response.status === 429 ? 429 : 502, 'provider_unavailable'); }
+    const data = await boundedJSON(response);
+    if (data.status !== 'completed' || !Array.isArray(data.output)) throw new RequestFailure(502, 'provider_incomplete');
+    const content = data.output.flatMap(item => item?.type === 'message' && Array.isArray(item.content) ? item.content : []);
+    if (content.some(item => item.type === 'refusal')) throw new RequestFailure(422, 'provider_refusal');
+    let result;
+    try { result = JSON.parse(content.filter(item => item.type === 'output_text').map(item => item.text).join('')); }
+    catch { throw new RequestFailure(502, 'invalid_provider_response'); }
+    return cardsFromResult(result, request, `${this.name} / ${this.model}`);
+  }
   async generate(request, signal) {
     const body = {
       ...this.generationOptions(), instructions,
@@ -316,8 +364,8 @@ export function createApp({ secret, authenticate, adapter, limiter = new UsageLi
     let counted = false;
     try {
       if (req.method === 'GET' && req.url === '/health') { reply(200, { status: 'ok' }); return; }
-      const lookup = req.url === '/v1/lookup', quiz = req.url === '/v1/quiz', research = req.url === '/v1/research';
-      if (req.method !== 'POST' || (!lookup && !quiz && !research && req.url !== '/v1/study')) throw new RequestFailure(404, 'not_found');
+      const lookup = req.url === '/v1/lookup', quiz = req.url === '/v1/quiz', research = req.url === '/v1/research', cards = req.url === '/v1/cards';
+      if (req.method !== 'POST' || (!lookup && !quiz && !research && !cards && req.url !== '/v1/study')) throw new RequestFailure(404, 'not_found');
       const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
       const subject = authenticate ? await authenticate(token) : verifyToken(secret, token);
       if (!subject) throw new RequestFailure(401, 'unauthorized');
@@ -337,14 +385,15 @@ export function createApp({ secret, authenticate, adapter, limiter = new UsageLi
       let data;
       try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { throw new RequestFailure(400, 'invalid_json'); }
-      const request = research ? validateResearchRequest(data) : lookup ? validateLookupRequest(data) : quiz ? validateQuizRequest(data) : validateRequest(data);
+      const request = research ? validateResearchRequest(data) : lookup ? validateLookupRequest(data) : quiz ? validateQuizRequest(data)
+        : cards ? validateCardsRequest(data) : validateRequest(data);
       const credits = research ? 8 : Math.max(1, Math.ceil(request.sources.reduce((sum, source) => sum + source.text.length, 0) / 4000));
       if (!(await limiter.take(subject, Date.now(), token, credits))) throw new RequestFailure(429, 'request_limit');
       const cancelled = new AbortController();
       res.on('close', () => { if (!res.writableEnded) cancelled.abort(); });
       const signal = AbortSignal.any([cancelled.signal, AbortSignal.timeout(timeoutMs)]);
-      if (lookup || quiz || research) {
-        const method = research ? 'research' : lookup ? 'lookup' : 'quiz';
+      if (lookup || quiz || research || cards) {
+        const method = research ? 'research' : lookup ? 'lookup' : quiz ? 'quiz' : 'cards';
         if (typeof adapter[method] !== 'function') throw new RequestFailure(503, `${method}_unavailable`);
         reply(200, await adapter[method](request, signal)); return;
       }

@@ -224,6 +224,7 @@ struct AudioPanel: View {
                     Text(audio.transcriptionStatus).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("transcriptionStatus")
                 }
+                LectureNotesSection(audio: audio, model: model, session: session)
                 DisclosureGroup("Diagnosi trascrizione") {
                     Button("Prova il primo blocco", systemImage: "stethoscope") { Task { await audio.probeFirstWindow(session) } }
                         .buttonStyle(.borderless)

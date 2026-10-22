@@ -131,6 +131,8 @@ public struct AudioSession: Codable, Identifiable, Equatable, Sendable {
     public var bookmarks: [AudioBookmark]?
     public var isArchived: Bool?
     public var trashedAt: Date?
+    /// AI study notes rewritten from the transcript, one chapter at a time.
+    public var lectureNotes: LectureNotes?
     public var duration: Double { segments.map { $0.start + $0.duration }.max() ?? 0 }
     public init(title: String) { self.title = title }
 }

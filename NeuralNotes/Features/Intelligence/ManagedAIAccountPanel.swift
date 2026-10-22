@@ -12,6 +12,7 @@ struct ManagedAIAccountPanel: View {
     @State private var sentTo: String?
     @State private var sentAt: Date?
     @State private var account: ManagedAISession?
+    @State private var overview: ManagedAccountOverview?
     @State private var busy = false
     @State private var error: String?
     @State private var job: Task<Void, Never>?
@@ -27,6 +28,16 @@ struct ManagedAIAccountPanel: View {
                     Button("Usa questo account per l’AI") { use(account) }.accessibilityIdentifier("managedAIUseAccount")
                     Button("Esci da questo dispositivo", role: .destructive) { signOut() }
                 }
+                Section("Piano e consumi") {
+                    if let overview {
+                        LabeledContent("Piano", value: overview.planTitle)
+                        LabeledContent("Crediti AI oggi", value: "\(overview.usedToday) di \(overview.dailyLimit)")
+                        LabeledContent("Crediti AI questo mese", value: "\(overview.usedThisMonth) di \(overview.monthlyLimit)")
+                        LabeledContent("Spazio cloud", value: ByteCountFormatter.string(fromByteCount: overview.storageLimit, countStyle: .file))
+                        Text(overview.remaining == 0 ? "Crediti esauriti per ora: le funzioni locali restano disponibili." : "Ancora \(overview.remaining) crediti disponibili. Una spiegazione usa almeno un credito, una ricerca web otto.").font(.caption).foregroundStyle(.secondary)
+                    } else { Text("Consumi non ancora letti.").font(.caption).foregroundStyle(.secondary) }
+                    Button("Aggiorna consumi", systemImage: "arrow.clockwise") { refreshOverview() }.disabled(busy)
+                }
             } else { login }
             if endpoint.isEmpty {
                 Section { Text("Il servizio online non è ancora attivato in questo pacchetto. La scrittura e le funzioni locali sono disponibili.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("managedAINotConfigured") }
@@ -41,6 +52,7 @@ struct ManagedAIAccountPanel: View {
             .task {
                 account = await ManagedAIAccount.client.snapshot()
                 endpoint = account?.service.studyURL.absoluteString ?? ManagedAIAccount.bundledStudyURL?.absoluteString ?? (initial.engine == .backend ? initial.endpoint : "")
+                if account != nil { overview = try? await ManagedAIAccount.overview() }
             }
             .onDisappear { job?.cancel() }
     }
@@ -81,6 +93,15 @@ struct ManagedAIAccountPanel: View {
         job = Task {
             defer { busy = false }
             do { account = try await ManagedAIAccount.client.verify(email: address, code: value); code = "" }
+            catch is CancellationError { }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+    private func refreshOverview() {
+        guard !busy else { return }; busy = true; error = nil
+        job = Task {
+            defer { busy = false }
+            do { overview = try await ManagedAIAccount.overview() }
             catch is CancellationError { }
             catch { self.error = error.localizedDescription }
         }

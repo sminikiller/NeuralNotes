@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, validateResearchRequest, researchFromResponse, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
+import { issueToken, verifyToken, validateRequest, artifactFromResult, validateLookupRequest, lookupFromResult, validateQuizRequest, quizFromResult, validateCardsRequest, cardsFromResult, validateResearchRequest, researchFromResponse, ResponsesAdapter, createApp, UsageLimiter } from './server.mjs';
 import { partialText } from './streaming.mjs';
 
 function quizRequest() { return { count: 4, sources: request().sources }; }
@@ -99,6 +99,41 @@ test('quiz HTTP shares authorization and quotas and does not invoke the provider
     headers.Authorization = `Bearer ${issueToken(secret, 'quiz-tester', Math.floor(Date.now() / 1000) + 60)}`;
     response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...quizRequest(), count: 99 }) }); assert.equal(response.status, 400); await response.body.cancel(); assert.equal(calls, 0);
     response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(quizRequest()) }); assert.equal(response.status, 200); assert.equal((await response.json()).questions.length, 1); assert.equal(calls, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+function cardsRequest() { return { count: 3, focus: 'entropia', sources: request().sources }; }
+function cardsResult() { return { cards: [{ question: 'Che cos’è? [1]', answer: 'Una grandezza [1]', citations: [1] }, { question: 'che cos’è? [1] ', answer: 'Duplicato [1]', citations: [1] }] }; }
+
+test('cards validate count and focus, cite only submitted sources and drop duplicate questions', () => {
+  assert.equal(validateCardsRequest(cardsRequest()).focus, 'entropia');
+  for (const mutation of [{ count: 0 }, { count: 21 }, { count: 2.5 }, { focus: 'a\nb' }, { focus: 'x'.repeat(301) }, { focus: 7 }]) assert.throws(() => validateCardsRequest({ ...cardsRequest(), ...mutation }));
+  const value = cardsFromResult(cardsResult(), cardsRequest(), 'fixture');
+  assert.equal(value.cards.length, 1); assert.equal(value.cards[0].question, 'Che cos’è? [1]');
+  assert.deepEqual(value.cards[0].references, [request().sources[0].reference]); assert.match(value.cards[0].id, /^[0-9a-f-]{36}$/);
+  for (const card of [{ question: 'Q', answer: 'A', citations: [] }, { question: 'Q [2]', answer: 'A', citations: [1] }, { question: 'Q', answer: '', citations: [1] }, { question: 'Q', answer: 'A', citations: [9] }])
+    assert.throws(() => cardsFromResult({ cards: [card] }, cardsRequest(), 'fixture'));
+  assert.throws(() => cardsFromResult({ cards: [] }, cardsRequest(), 'fixture'));
+  assert.throws(() => cardsFromResult({ cards: Array(4).fill(cardsResult().cards[0]) }, cardsRequest(), 'fixture'));
+});
+
+test('cards adapter uses a strict schema and HTTP shares authorization before calling the provider', async () => {
+  const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async (_url, options) => {
+    const body = JSON.parse(options.body); assert.equal(body.store, false); assert.equal(body.text.format.name, 'neuralnotes_cards'); assert.equal(body.text.format.strict, true);
+    const input = JSON.parse(body.input[0].content); assert.equal(input.count, 3); assert.equal(input.focus, 'entropia'); assert.equal(input.sources[0].reference, undefined);
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(cardsResult()) }] }] });
+  });
+  assert.equal((await adapter.cards(cardsRequest(), new AbortController().signal)).cards.length, 1);
+  let calls = 0;
+  const server = createApp({ secret, adapter: { async cards(input) { calls++; return cardsFromResult(cardsResult(), input, 'fixture'); } }, limiter: new UsageLimiter({ perMinute: 3 }) });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}/v1/cards`;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    let response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(cardsRequest()) }); assert.equal(response.status, 401); await response.body.cancel();
+    headers.Authorization = `Bearer ${issueToken(secret, 'cards-tester', Math.floor(Date.now() / 1000) + 60)}`;
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...cardsRequest(), count: 99 }) }); assert.equal(response.status, 400); await response.body.cancel(); assert.equal(calls, 0);
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(cardsRequest()) }); assert.equal(response.status, 200); assert.equal((await response.json()).cards.length, 1); assert.equal(calls, 1);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 

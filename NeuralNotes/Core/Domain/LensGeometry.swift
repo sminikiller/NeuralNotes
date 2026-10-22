@@ -32,3 +32,51 @@ public enum LensGeometry {
         return box.isNull || box.width <= 3 || box.height <= 3 ? nil : box
     }
 }
+
+public extension LensGeometry {
+    /// Approximate size of a typed answer: enough to keep it clear of other notes.
+    static func answerSize(text: String, fontSize: Double, width: Double) -> CGSize {
+        let size = max(8, fontSize.isFinite ? fontSize : 16), lineWidth = max(80, width.isFinite ? width : 360)
+        let perLine = max(10, Int(lineWidth / (size * 0.52)))
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).reduce(0) { $0 + max(1, ($1.count + perLine - 1) / perLine) }
+        return CGSize(width: lineWidth, height: Double(max(1, lines)) * size * 1.35 + 16)
+    }
+
+    /// Where an inserted answer goes: beside the selection when there is one,
+    /// otherwise in the first free band of the page. It never leaves the page and
+    /// never covers the selection; other notes are avoided whenever possible.
+    static func placement(text: String, near anchor: CGRect?, occupied: [CGRect], pageWidth: Double, pageHeight: Double, fontSize: Double = 16) -> CGRect {
+        let margin: CGFloat = 24
+        let pageW = CGFloat(pageWidth.isFinite && pageWidth > 0 ? pageWidth : 768), pageH = CGFloat(pageHeight.isFinite && pageHeight > 0 ? pageHeight : 1024)
+        let width = max(80, min(360, pageW - 2 * margin))
+        let height = min(answerSize(text: text, fontSize: fontSize, width: Double(width)).height, max(40, pageH - 2 * margin))
+        let page = CGRect(x: 0, y: 0, width: pageW, height: pageH)
+        let others = occupied.filter { !$0.isNull && $0.minX.isFinite && $0.minY.isFinite && $0.width.isFinite && $0.height.isFinite }
+        func clamped(_ x: CGFloat, _ y: CGFloat) -> CGRect {
+            CGRect(x: min(max(margin, x), max(margin, pageW - width - margin)), y: min(max(margin, y), max(margin, pageH - height - margin)), width: width, height: height)
+        }
+        func free(_ rect: CGRect) -> Bool { !others.contains(where: { $0.intersects(rect) }) }
+        if let anchor, !anchor.isNull, anchor.minX.isFinite, anchor.minY.isFinite, anchor.width.isFinite, anchor.height.isFinite {
+            let box = anchor.intersection(page).isNull ? anchor : anchor.intersection(page)
+            let candidates = [clamped(box.maxX + 16, box.minY), clamped(box.minX, box.maxY + 12),
+                              clamped(box.minX - width - 16, box.minY), clamped(box.minX, box.minY - height - 12)]
+            let beside = candidates.filter { !$0.intersects(box) }
+            if let found = beside.first(where: free) { return found }
+            // Further down, aligned with the selection, before covering anything else.
+            var y = box.maxY + 12
+            while y + height + margin <= pageH {
+                let rect = clamped(box.minX, y)
+                if !rect.intersects(box), free(rect) { return rect }
+                y += 24
+            }
+            return beside.first ?? clamped(box.minX, box.maxY + 12)
+        }
+        var y: CGFloat = 64
+        while y + height + margin <= pageH {
+            let rect = clamped(48, y)
+            if free(rect) { return rect }
+            y += 24
+        }
+        return clamped(48, 64)
+    }
+}

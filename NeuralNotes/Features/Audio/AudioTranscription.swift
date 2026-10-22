@@ -169,7 +169,7 @@ extension AudioController {
     }
 
     func saveTranscript(_ id: UUID, title: String, blocks: [TranscriptMinute]) async throws {
-        guard transcribingSessionID == nil, compressionTask == nil, compressingSessionID == nil else { throw WorkspaceFailure.staleRevision }
+        guard transcribingSessionID == nil, compressionTask == nil, compressingSessionID == nil, notesSessionID != id else { throw WorkspaceFailure.staleRevision }
         guard var session = try await workspace.catalog().sessions.first(where: { $0.id == id }) else { throw LibraryFailure.missingItem }
         guard session.state == "finished", session.trashedAt == nil, active?.id != id else { throw WorkspaceFailure.staleRevision }
         session.title = try LibraryName.validated(title)

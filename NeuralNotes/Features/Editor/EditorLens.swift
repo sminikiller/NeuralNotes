@@ -1,4 +1,5 @@
 import UIKit
+import PencilKit
 import NeuralNotesCore
 
 @MainActor
@@ -12,15 +13,24 @@ extension EditorViewModel {
     }
     @discardableResult
     func insertAIAnswer(_ artifact: AIArtifact) -> Bool {
-        guard hasLease, !loading, !navigating, !hasActiveStroke else { return false }
-        let color: UIColor = page?.appearance?.tone == .slate && page?.pdfFile == nil ? .white : .black
+        guard hasLease, !loading, !navigating, !hasActiveStroke, let current = page else { return false }
+        let color: UIColor = current.appearance?.tone == .slate && current.pdfFile == nil ? .white : .black
         let rich = NSMutableAttributedString(string: "")
         for run in artifact.citedRuns {
-            var attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 18), .foregroundColor: color]
+            var attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 16), .foregroundColor: color]
             if let link = run.link { attributes[.link] = link; attributes[.foregroundColor] = UIColor.systemBlue; attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
             rich.append(NSAttributedString(string: run.text, attributes: attributes))
         }
-        var text = TextElement(text: rich.string); text.fontSize = 18; text.rtf = RichText.data(rich)
+        // Beside the circled area or the selection, clear of typed notes, images and ink.
+        let selection = selectionBounds
+        let anchor = lensArea ?? (selection.isNull ? nil : selection)
+        var occupied = current.texts.map { RichText.bounds($0, pageHeight: current.height) }
+        occupied += current.images.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+        occupied += (current.shapes ?? []).map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+        occupied += canvas.drawing.strokes.map(\.renderBounds)
+        let frame = LensGeometry.placement(text: rich.string, near: anchor, occupied: occupied, pageWidth: current.width, pageHeight: current.height)
+        var text = TextElement(text: rich.string); text.fontSize = 16; text.rtf = RichText.data(rich)
+        text.x = Double(frame.minX); text.y = Double(frame.minY); text.width = Double(frame.width)
         mutatePage("Inserisci risposta AI con fonti") { $0.texts.append(text) }
         return page?.texts.contains(where: { $0.id == text.id }) == true
     }

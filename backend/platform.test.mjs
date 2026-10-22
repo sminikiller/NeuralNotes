@@ -15,6 +15,23 @@ async function withAPI(store, run) {
 test('Platform requires verified account before any database request', async () => {
   await withAPI({ list() { throw Error('must not execute'); } }, async request => assert.equal((await request('/hubs', undefined, 'forged')).status, 401));
 });
+test('Account overview reports plan limits and credits used today and this month', async () => {
+  const today = new Date().toISOString().slice(0, 10), queries = [];
+  const store = { async list(token, table, parameters) {
+    assert.equal(token, 'fixture-user'); queries.push([table, parameters]);
+    if (table === 'nn_ai_usage') return [{ day: today, used: 3 }, { day: today.slice(0, 8) + '01', used: 5 }, { day: today, used: -2 }, { day: 7, used: 1 }];
+    if (table === 'nn_entitlements') return [{ plan: 'free', daily_ai_limit: 10, monthly_ai_limit: 100, storage_limit: 268435456 }];
+    return [{ user_id: user, display_name: 'Studente' }];
+  } };
+  await withAPI(store, async request => {
+    const response = await request('/account');
+    assert.equal(response.status, 200); assert.equal(response.body.userID, user);
+    assert.deepEqual(response.body.usage, { day: today, today: today.endsWith('-01') ? 8 : 3, month: 8 });
+    assert.equal(response.body.entitlements[0].daily_ai_limit, 10);
+    const usage = queries.find(([table]) => table === 'nn_ai_usage')[1];
+    assert.equal(usage.user_id, 'eq.' + user); assert.equal(usage.day, 'gte.' + today.slice(0, 8) + '01');
+  });
+});
 test('Hub and resource creation cannot choose another owner or publish directly', async () => {
   let inserted;
   const store = { async list() { return [{ object_path: 'reserved' }]; }, async call(_token, path, method, body) { inserted = body; return [body]; } };

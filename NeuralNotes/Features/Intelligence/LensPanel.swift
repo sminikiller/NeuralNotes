@@ -22,6 +22,10 @@ struct LensPanel: View {
     @State private var job: Task<Void, Never>?
     @State private var jobGeneration = UUID()
     @State private var lastAutomaticKey: String?
+    @State private var cardDrafts: [FlashcardDraft] = []
+    @State private var discardedCards: Set<UUID> = []
+    @State private var cardsProvider = ""
+    @State private var cardsSheet = false
     var body: some View {
         VStack(spacing: 10) {
             HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal)
@@ -43,13 +47,8 @@ struct LensPanel: View {
                                     catch { self.error = error.localizedDescription }
                                 }
                             }
-                            Button("Flashcard", systemImage: "rectangle.on.rectangle") {
-                                guard let reference = turn.answer.references.first else { return }
-                                Task {
-                                    do { try await model.workspace.addStudyCards([StudyCard(question: turn.question, answer: turn.answer.text, source: reference)]) }
-                                    catch { self.error = error.localizedDescription }
-                                }
-                            }
+                            Button("Flashcard", systemImage: "rectangle.on.rectangle") { makeCards(turn) }
+                                .disabled(busy || turn.answer.references.isEmpty)
                         }.buttonStyle(.bordered).font(.caption)
                         ForEach(Array(turn.answer.references.enumerated()), id: \.offset) { item in
                             Button(sourceTitle(item.element)) { Task { await open(item.element) } }.font(.caption)
@@ -75,6 +74,7 @@ struct LensPanel: View {
             }.padding()
         }.sheet(isPresented: $glossary) { GlossaryPanel(model: model) }
         .sheet(isPresented: $lookup) { LookupPanel(model: model, sources: sources, configuration: configuration, consentKey: consentKey) }
+        .sheet(isPresented: $cardsSheet) { cardsReview }
         .task(id: selectionKey) { await load() }
             .onChange(of: configuration) { _, _ in job?.cancel() }
             .onDisappear { jobGeneration = UUID(); job?.cancel() }
@@ -180,6 +180,46 @@ struct LensPanel: View {
                 catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
             } catch is CancellationError { }
             catch { if jobGeneration == generation && key == selectionKey { self.error = error.localizedDescription; question = prompt } }
+        }
+    }
+    private var cardsReview: some View {
+        NavigationStack {
+            List {
+                FlashcardDraftsEditor(drafts: $cardDrafts, discarded: $discardedCards, title: cardsProvider, busy: busy) { kept in
+                    Task {
+                        do {
+                            try await model.workspace.addStudyCards(kept.compactMap { $0.card() })
+                            model.status = "\(kept.count) flashcard salvate"; cardsSheet = false
+                        } catch { self.error = error.localizedDescription }
+                    }
+                }
+            }.navigationTitle("Flashcard dalla risposta")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Chiudi") { cardsSheet = false } } }
+        }
+    }
+    /// Cards from a Lens answer: generated with the chosen engine when possible,
+    /// otherwise one local card asking about the selected subject.
+    private func makeCards(_ turn: AIConversationTurn) {
+        guard !busy, let reference = turn.answer.references.first else { return }
+        let subject = sources.first?.text ?? turn.question
+        let fallback = FlashcardDraft.local(subject: subject, answer: turn.answer.text, reference: reference)
+        guard configuration.supportsStructuredStudy, consentKey == configuration.consentKey else {
+            cardDrafts = [fallback]; discardedCards = []; cardsProvider = "Bozza locale"; cardsSheet = true; return
+        }
+        let cited = sources.filter { turn.answer.references.contains($0.reference) }.prefix(10)
+        let request = FlashcardRequest(sources: [IndexedChunk(text: String(turn.answer.text.prefix(8000)), reference: reference)] + cited,
+                                       count: 3, focus: String(turn.question.prefix(300)).replacingOccurrences(of: "\n", with: " "))
+        let selected = configuration, consent = consentKey
+        busy = true; error = nil
+        job = Task {
+            defer { busy = false }
+            do {
+                let set = try await AIEngineRouter.flashcards(request, configuration: selected, consentKey: consent)
+                try Task.checkCancellation()
+                cardDrafts = set.cards; cardsProvider = set.provider
+            } catch is CancellationError { return }
+            catch { cardDrafts = [fallback]; cardsProvider = "Bozza locale · \(error.localizedDescription)" }
+            discardedCards = []; cardsSheet = true
         }
     }
     private func insert(_ artifact: AIArtifact) {

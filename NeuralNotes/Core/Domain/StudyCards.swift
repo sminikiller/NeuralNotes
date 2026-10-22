@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ReviewRating: String, Codable, Sendable { case again, good, easy }
+public enum ReviewRating: String, Codable, Sendable { case again, hard, good, easy }
 
 public struct StudyCard: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
@@ -22,6 +22,9 @@ public struct StudyCard: Codable, Identifiable, Equatable, Sendable {
         switch rating {
         case .again:
             intervalDays = 0; dueAt = now.addingTimeInterval(10 * 60)
+        case .hard:
+            intervalDays = intervalDays == 0 ? 1 : min(365, max(intervalDays, Int(Double(intervalDays) * 1.2)))
+            dueAt = now.addingTimeInterval(Double(intervalDays) * 86400)
         case .good:
             intervalDays = intervalDays == 0 ? 1 : min(365, max(intervalDays + 1, Int(Double(intervalDays) * 2.5)))
             dueAt = now.addingTimeInterval(Double(intervalDays) * 86400)
@@ -40,7 +43,8 @@ public struct StudyCard: Codable, Identifiable, Equatable, Sendable {
         guard previous.stability.isFinite, previous.difficulty.isFinite, previous.elapsedDays.isFinite,
               previous.scheduledDays.isFinite else { throw LibraryFailure.corruptDocument }
         let engine = FSRS(parameters: FSRSParameters(w: FSRSDefaults.defaultWv6, enableFuzz: false))
-        let grade: Rating = rating == .again ? .again : rating == .easy ? .easy : .good
+        let grade: Rating
+        switch rating { case .again: grade = .again; case .hard: grade = .hard; case .good: grade = .good; case .easy: grade = .easy }
         let next = try engine.next(card: previous, now: now, grade: grade).card
         memory = next; dueAt = next.due; intervalDays = max(0, Int(next.scheduledDays.rounded())); reviewCount = next.reps
     }

@@ -50,7 +50,12 @@ export function createPlatformApp({ authenticate, store }) {
       }
       const insert = (table, value) => store.call(token, '/rest/v1/' + table, 'POST', value);
       if (req.method === 'GET' && path === '/account') {
-        reply(200, { userID: subject, profile: await store.list(token, 'nn_profiles', { user_id: 'eq.' + subject, select: '*' }), entitlements: await store.list(token, 'nn_entitlements', { user_id: 'eq.' + subject, select: 'plan,daily_ai_limit,monthly_ai_limit,storage_limit' }) }); return;
+        // Credits used today and this month (UTC), the same days the quota function counts.
+        const now = new Date(), today = now.toISOString().slice(0, 10), month = today.slice(0, 8) + '01';
+        const rows = await store.list(token, 'nn_ai_usage', { user_id: 'eq.' + subject, day: 'gte.' + month, select: 'day,used' });
+        const used = (Array.isArray(rows) ? rows : []).filter(row => typeof row?.day === 'string' && Number.isSafeInteger(row.used) && row.used >= 0);
+        const usage = { day: today, today: used.filter(row => row.day === today).reduce((sum, row) => sum + row.used, 0), month: used.reduce((sum, row) => sum + row.used, 0) };
+        reply(200, { userID: subject, profile: await store.list(token, 'nn_profiles', { user_id: 'eq.' + subject, select: '*' }), entitlements: await store.list(token, 'nn_entitlements', { user_id: 'eq.' + subject, select: 'plan,daily_ai_limit,monthly_ai_limit,storage_limit' }), usage }); return;
       }
       if (req.method === 'POST' && path === '/profile') {
         const response = await store.call(token, '/rest/v1/nn_profiles?on_conflict=user_id', 'POST', { user_id: subject, display_name: text(body.displayName, 80) }); reply(200, response); return;

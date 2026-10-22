@@ -81,6 +81,10 @@ try {
   const callsBefore = providerCalls; assert.equal((await call('/v1/study', input, a.access_token)).status, 429); assert.equal(providerCalls, callsBefore);
   assert.equal((await call('/v1/study', input, b.access_token)).status, 200);
   console.log('PASS verified Auth → gateway → atomic SQL quota → provider fixture → cited NDJSON; quotas isolated per account');
+  const usageA = (await call('/v1/platform/account', undefined, a.access_token)).json().usage;
+  const usageB = (await call('/v1/platform/account', undefined, b.access_token)).json().usage;
+  assert.equal(usageA.today, 10); assert.equal(usageA.month, 10); assert.equal(usageB.today, 1); assert.equal(usageB.month, 1);
+  console.log('PASS account overview reports the credits counted by the SQL quota, separately per account');
   const refreshed = await call('/auth/v1/token?grant_type=refresh_token', { refresh_token: a.refresh_token }); assert.equal(refreshed.status, 200);
   const rotated = refreshed.json(); assert.ok(rotated.refresh_token); assert.equal(rotated.user.id, a.user.id);
   assert.equal((await call('/v1/platform/account', undefined, rotated.access_token)).status, 200);

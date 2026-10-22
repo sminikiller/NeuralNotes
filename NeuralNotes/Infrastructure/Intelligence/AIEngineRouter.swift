@@ -50,7 +50,11 @@ struct DirectAIProvider: AIProvider {
     let configuration: AIEngineConfiguration
     let credential: String
     func generate(_ input: AIRequest) async throws -> AIArtifact {
-        let call = try DirectAIWire.request(input, configuration: configuration, credential: credential)
+        let data = try await send(try DirectAIWire.request(input, configuration: configuration, credential: credential))
+        return try DirectAIWire.artifact(data, request: input, engine: configuration.engine)
+    }
+    /// One bounded, cookie-free and redirect-free exchange with the provider.
+    func send(_ call: URLRequest) async throws -> Data {
         let config = URLSessionConfiguration.ephemeral
         config.httpShouldSetCookies = false; config.urlCache = nil; config.httpCookieStorage = nil
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
@@ -66,7 +70,7 @@ struct DirectAIProvider: AIProvider {
             try Task.checkCancellation()
             guard data.count < DirectAIWire.maximumResponseBytes else { throw AIWireFailure.response }; data.append(byte)
         }
-        return try DirectAIWire.artifact(data, request: input, engine: configuration.engine)
+        return data
     }
 }
 
@@ -98,14 +102,44 @@ enum AIEngineRouter {
         else { UserDefaults.standard.removeObject(forKey: key) }
     }
     static func research(_ input: WebResearchRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> AIArtifact {
-        guard input.isValid, let url = configuration.researchURL else { throw AIWireFailure.configuration }
+        guard input.isValid else { throw AIWireFailure.configuration }
+        if configuration.engine != .backend {
+            let data = try await personal(configuration, consentKey: consentKey) { try DirectAIWire.researchRequest(input, configuration: configuration, credential: $0) }
+            return try DirectAIWire.research(data, configuration: configuration)
+        }
+        guard let url = configuration.researchURL else { throw AIWireFailure.configuration }
         let value: AIArtifact = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
         return try value.validatedWebResearch()
     }
     static func quiz(_ input: QuizRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> QuizBank {
-        guard input.isValid, let url = configuration.quizURL else { throw AIWireFailure.configuration }
+        guard input.isValid else { throw AIWireFailure.configuration }
+        if configuration.engine != .backend {
+            let data = try await personal(configuration, consentKey: consentKey) { try DirectAIWire.quizRequest(input, configuration: configuration, credential: $0) }
+            return try DirectAIWire.quizBank(data, request: input, configuration: configuration)
+        }
+        guard let url = configuration.quizURL else { throw AIWireFailure.configuration }
         let value: QuizBank = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
         return try value.validated(for: input)
+    }
+    static func flashcards(_ input: FlashcardRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> FlashcardSet {
+        guard input.isValid else { throw AIWireFailure.configuration }
+        if configuration.engine != .backend {
+            let data = try await personal(configuration, consentKey: consentKey) { try DirectAIWire.flashcardsRequest(input, configuration: configuration, credential: $0) }
+            return try DirectAIWire.flashcardSet(data, request: input, configuration: configuration)
+        }
+        guard let url = configuration.cardsURL else { throw AIWireFailure.configuration }
+        let value: FlashcardSet = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
+        return try value.validated(for: input)
+    }
+    /// Structured study with a personal key: same consent, credential scope and
+    /// account-change check as the backend path, without leaving the device otherwise.
+    private static func personal(_ configuration: AIEngineConfiguration, consentKey: String?, _ build: (String) throws -> URLRequest) async throws -> Data {
+        guard configuration.engine != .offline, configuration.engine != .backend, consentKey == configuration.consentKey else { throw AIWireFailure.configuration }
+        let auth = try await authorization(configuration)
+        let data = try await DirectAIProvider(configuration: configuration, credential: auth.token).send(try build(auth.token))
+        try Task.checkCancellation()
+        guard try await cacheScope(configuration) == auth.scope else { throw CancellationError() }
+        return data
     }
     private static func backendStructured<T: Decodable>(body: Data, url: URL, configuration: AIEngineConfiguration, consentKey: String?) async throws -> T {
         guard configuration.engine == .backend, consentKey == configuration.consentKey else { throw AIWireFailure.configuration }
@@ -123,7 +157,12 @@ enum AIEngineRouter {
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601; return try decoder.decode(T.self, from: data)
     }
     static func lookup(_ input: LookupRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> LookupCard {
-        guard input.isValid, consentKey == configuration.consentKey, let url = configuration.lookupURL else { throw AIWireFailure.configuration }
+        guard input.isValid, consentKey == configuration.consentKey else { throw AIWireFailure.configuration }
+        if configuration.engine != .backend {
+            let data = try await personal(configuration, consentKey: consentKey) { try DirectAIWire.lookupRequest(input, configuration: configuration, credential: $0) }
+            return try DirectAIWire.lookupCard(data, request: input, configuration: configuration)
+        }
+        guard let url = configuration.lookupURL else { throw AIWireFailure.configuration }
         let value: LookupCard = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
         return try value.validated(for: input)
     }
