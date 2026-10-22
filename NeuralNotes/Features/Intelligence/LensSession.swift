@@ -80,11 +80,12 @@ final class LensSession: Identifiable {
             if text.isEmpty, let png = image.pngData() { text = await LensReader.ocr(png) }
         } else if let area = request.area, request.pageID == nil || request.pageID == model.page?.id {
             if text.isEmpty { text = await LensReader.text(in: area, model: model) }
-            if LensSettings.mode == .image || text.isEmpty, let crop = LensReader.crop(area, model: model, maxDimension: 1600) {
+            if request.useImage || text.isEmpty, let crop = LensReader.crop(area, model: model, maxDimension: 1600) {
                 preview = crop; picture = LensReader.jpegBase64(crop)
             }
         }
         reading = false
+        guard model.lensSession?.id == id else { return }
         if request.startWithExplain, canAsk { ask(.explainTerm, model: model) }
     }
 
@@ -92,7 +93,7 @@ final class LensSession: Identifiable {
         Task {
             do { try await AIEngineRouter.rememberConsent(configuration, allowed: true); consentKey = configuration.consentKey }
             catch { self.error = error.localizedDescription }
-            if request.startWithExplain, turns.isEmpty, canAsk { ask(.explainTerm, model: model) }
+            if request.startWithExplain, turns.isEmpty, canAsk, model.lensSession?.id == id { ask(.explainTerm, model: model) }
         }
     }
 
@@ -112,7 +113,11 @@ final class LensSession: Identifiable {
     /// The image goes along when there is one; if the engine cannot read images, the
     /// answer is retried with the recognized text only.
     private func ask(label: String, icon: String, noteTitle: String, question prompt: String, model: EditorViewModel) {
-        guard canAsk else { return }
+        guard canAsk, model.lensSession?.id == id else { return }
+        let sourcePage = model.page?.id
+        if let owner = request.pageID, owner != sourcePage {
+            error = "Torna alla pagina della selezione oppure scegli Nuova selezione."; return
+        }
         busy = true; error = nil; pending = label
         let selected = configuration, consent = consentKey, subject = model.lensSubject, image = picture
         let words = self.words, short = isShortSelection
@@ -121,6 +126,7 @@ final class LensSession: Identifiable {
         job = Task {
             defer { busy = false; pending = "" }
             let pageText = await LensReader.pageText(model: model)
+            guard !Task.isCancelled, model.lensSession?.id == id, model.page?.id == sourcePage else { return }
             let around = TermExplanationRequest.context(for: short ? words : String(words.prefix(80)), in: pageText)
             let context = history.isEmpty ? around : "Conversazione precedente:\n\(history)\n\nTesto della pagina:\n\(around)"
             func make(_ image: String?) -> TermExplanationRequest {
@@ -146,6 +152,10 @@ final class LensSession: Identifiable {
     func insert(_ turnID: UUID, model: EditorViewModel) {
         guard let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
         let turn = turns[index]
+        guard !noteExists(turn, model: model) else { return }
+        if let source = request.pageID, source != model.page?.id {
+            error = "Torna alla pagina della selezione per inserire la nota accanto al testo."; return
+        }
         var anchor: CGRect?
         if !request.fromSidePDF, request.pageID == nil || request.pageID == model.page?.id {
             if let id = request.imageID, let image = model.page?.images.first(where: { $0.id == id }) {
@@ -158,5 +168,17 @@ final class LensSession: Identifiable {
         turns[index].noteID = id; turns[index].notePageID = model.page?.id
         let reduced = model.page?.texts.first(where: { $0.id == id })?.lensNote?.isCollapsed == true
         model.status = reduced ? "Nota inserita come 💡 accanto al testo: toccala per aprirla" : "Nota della Lente inserita"
+    }
+
+    func noteExists(_ turn: LensTurn, model: EditorViewModel) -> Bool {
+        guard let id = turn.noteID, let pageID = turn.notePageID else { return false }
+        let owner = model.page?.id == pageID ? model.page : model.pages.first { $0.id == pageID }
+        return owner?.texts.contains(where: { $0.id == id }) == true
+    }
+
+    /// Discarding an unsaved answer changes the preview only, never page content.
+    func discard(_ turnID: UUID, model: EditorViewModel) {
+        guard let index = turns.firstIndex(where: { $0.id == turnID }), !noteExists(turns[index], model: model) else { return }
+        turns.remove(at: index)
     }
 }

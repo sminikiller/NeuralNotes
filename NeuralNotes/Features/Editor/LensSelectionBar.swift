@@ -10,6 +10,7 @@ final class LensSelectionBar: UIView {
     private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterial))
     private let stack = UIStackView()
     private let scroll = UIScrollView()
+    private var textButtons: [UIButton] = []
     private var size = CGSize(width: 320, height: 46)
 
     init() {
@@ -23,8 +24,11 @@ final class LensSelectionBar: UIView {
         blur.contentView.addSubview(scroll); scroll.addSubview(stack)
         stack.addArrangedSubview(button("Spiega", icon: "lightbulb", identifier: "lensPickExplain") { $0.lensPickExplain() })
         stack.addArrangedSubview(button("Chiedi", icon: "bubble.left.and.text.bubble.right", identifier: "lensPickAsk") { $0.lensPickAsk() })
-        stack.addArrangedSubview(button("Cerca", icon: "magnifyingglass", identifier: "lensPickSearch") { $0.lensPickSearch() })
-        stack.addArrangedSubview(button("Copia", icon: "doc.on.doc", identifier: "lensPickCopy") { $0.lensPickCopy() })
+        let search = button("Cerca", icon: "magnifyingglass", identifier: "lensPickSearch") { $0.lensPickSearch() }
+        let copy = button("Copia", icon: "doc.on.doc", identifier: "lensPickCopy") { $0.lensPickCopy() }
+        textButtons = [search, copy]
+        for item in textButtons { stack.addArrangedSubview(item) }
+        stack.addArrangedSubview(button(nil, icon: "sparkle.magnifyingglass", identifier: "lensPickAgain") { $0.chooseTool(.lens) })
         stack.addArrangedSubview(button(nil, icon: "xmark", identifier: "lensPickClose") { $0.lensPickDismiss() })
         let fitting = stack.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
         size = CGSize(width: max(200, fitting.width + 12), height: max(46, fitting.height + 6))
@@ -45,19 +49,20 @@ final class LensSelectionBar: UIView {
             if let model = self?.model { action(model) }
         })
         button.accessibilityIdentifier = identifier
-        if title == nil { button.accessibilityLabel = "Chiudi" }
+        if title == nil { button.accessibilityLabel = identifier == "lensPickAgain" ? "Nuova selezione" : "Chiudi" }
         return button
     }
 
     /// Above the picked words, or below them near the top of the screen; always inside the view.
     func update(_ host: CanvasHost) {
         model = host.model
-        guard let model = host.model, model.tool == .lens, let pick = model.lensPick, pick.pageID == host.surface.page.id,
+        guard let model = host.model, let pick = model.lensPick, pick.pageID == host.surface.page.id,
               !pick.area.isNull, host.bounds.width > 0 else {
             if !isHidden { isHidden = true }
             return
         }
         let words = host.surface.convert(pick.area, to: host)
+        for button in textButtons { button.isEnabled = !pick.text.isEmpty }
         let width = min(size.width, max(1, host.bounds.width - 16))
         var origin = CGPoint(x: words.midX - width / 2, y: words.minY - size.height - 10)
         if origin.y < 8 { origin.y = words.maxY + 10 }

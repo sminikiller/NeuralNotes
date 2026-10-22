@@ -103,7 +103,7 @@ enum PageRenderer {
         context.saveGState()
         context.setStrokeColor(UIColor.systemOrange.withAlphaComponent(0.8).cgColor); context.setLineWidth(1)
         context.addPath(shape); context.strokePath()
-        let glyph = NSAttributedString(string: "💡", attributes: [.font: UIFont.systemFont(ofSize: 17)])
+        let glyph = NSAttributedString(string: "💡", attributes: [.font: UIFont.systemFont(ofSize: 14)])
         let size = glyph.size()
         glyph.draw(at: CGPoint(x: box.midX - size.width / 2, y: box.midY - size.height / 2))
         context.restoreGState()

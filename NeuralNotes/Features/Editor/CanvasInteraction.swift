@@ -155,9 +155,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let point = gesture.location(in: host.surface)
         if let note = model.lensNoteHit(at: point, tolerance: lensTolerance) {
             switch note.part {
-            case .control: model.setLensNote(note.id, collapsed: true); refresh(); return
-            case .badge where model.tool != .objects: model.setLensNote(note.id, collapsed: false); refresh(); return
-            case .body where model.tool == .lens: model.lensNoteEditor = LensNoteEditTarget(id: note.id); return
+            case .control: model.setLensNote(note.id, collapsed: true); model.finishLensSelection(); refresh(); return
+            case .badge where model.tool != .objects: model.setLensNote(note.id, collapsed: false); model.finishLensSelection(); refresh(); return
+            case .body where model.tool == .lens: model.lensNoteEditor = LensNoteEditTarget(id: note.id); model.finishLensSelection(); return
             default: break
             }
         }
@@ -353,7 +353,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if movingLensNote != nil { label = "Sposta nota della Lente" }
             model.recordEdit(before, label: label)
             before = nil; original = [:]; originalDrawing = nil
-            if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; refresh() }
+            if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; model.finishLensSelection(); refresh() }
         }
     }
 

@@ -45,7 +45,7 @@ final class LensNotesTests: XCTestCase {
     func testControlsStayOnThePageAndTheLinkAppearsOnlyWhenApart() {
         let control = LensNotes.reduceControl(note: CGRect(x: 700, y: 0, width: 60, height: 40), pageWidth: 768, pageHeight: 1024)
         XCTAssertGreaterThanOrEqual(control.minY, 0); XCTAssertLessThanOrEqual(control.maxX, 768)
-        XCTAssertEqual(LensNotes.badge(x: 5, y: 6), CGRect(x: 5, y: 6, width: 30, height: 30))
+        XCTAssertEqual(LensNotes.badge(x: 5, y: 6), CGRect(x: 5, y: 6, width: 24, height: 24))
         XCTAssertNil(LensNotes.connector(note: CGRect(x: 0, y: 0, width: 100, height: 50), source: CGRect(x: 90, y: 40, width: 50, height: 20)))
         let link = LensNotes.connector(note: CGRect(x: 400, y: 100, width: 200, height: 80), source: CGRect(x: 40, y: 120, width: 120, height: 24))
         XCTAssertNotNil(link)
@@ -60,7 +60,28 @@ final class LensNotesTests: XCTestCase {
         let left = LensNotes.badgePlacement(near: anchor, occupied: [CGRect(x: 300, y: 90, width: 200, height: 60)], pageWidth: 768, pageHeight: 1024)
         XCTAssertEqual(left.maxX, 94); XCTAssertFalse(left.intersects(anchor))
         let corner = LensNotes.badgePlacement(near: nil, occupied: [], pageWidth: 768, pageHeight: 1024)
-        XCTAssertEqual(corner, CGRect(x: 726, y: 24, width: 30, height: 30))
+        XCTAssertEqual(corner, CGRect(x: 732, y: 24, width: 24, height: 24))
+    }
+
+    func testCompactControlsKeepLargeTouchTargetsAtDifferentZoomLevels() {
+        let badge = LensNotes.badge(x: 100, y: 100)
+        let control = LensNotes.reduceControl(note: CGRect(x: 100, y: 100, width: 200, height: 100), pageWidth: 768, pageHeight: 1024)
+        XCTAssertEqual(control.width, 20)
+        for zoom in [0.3, 0.75, 1.0, 2.0, 4.0] {
+            for artwork in [badge, control] {
+                let target = LensNotes.hitRect(artwork, zoom: zoom, slack: 0)
+                XCTAssertGreaterThanOrEqual(Double(target.width) * zoom + 0.0001, 44)
+                XCTAssertGreaterThanOrEqual(Double(target.height) * zoom + 0.0001, 44)
+                XCTAssertEqual(target.midX, artwork.midX, accuracy: 0.001)
+                // CGRect.contains(rect) on swift-corelibs can compare an
+                // intersection's recomputed size exactly; use geometric edges.
+                XCTAssertLessThanOrEqual(target.minX, artwork.minX)
+                XCTAssertLessThanOrEqual(target.minY, artwork.minY)
+                XCTAssertGreaterThanOrEqual(target.maxX, artwork.maxX)
+                XCTAssertGreaterThanOrEqual(target.maxY, artwork.maxY)
+            }
+        }
+        XCTAssertTrue(LensNotes.hitRect(badge, zoom: .nan, slack: .infinity).width.isFinite)
     }
 
     func testPlacementSaysWhenTheNoteWouldCoverSomething() {

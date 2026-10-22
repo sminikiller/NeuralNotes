@@ -13,7 +13,7 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             let input = CanvasTextInput(host: host, model: model); host.textInput = input
             input.view.text = "Energia e quantità"
             let menu = input.textView(input.view, editMenuForTextIn: NSRange(location: 0, length: 7), suggestedActions: [])
-            XCTAssertEqual((menu?.children.first as? UIAction)?.title, "Apri nella Lente AI")
+            XCTAssertEqual((menu?.children.first as? UIAction)?.title, "Chiedi alla Lente AI")
             XCTAssertNil(input.textView(input.view, editMenuForTextIn: NSRange(location: Int.max, length: 7), suggestedActions: []))
             let texts = model.page?.texts, bytes = model.canvas.drawing.dataRepresentation()
             model.requestLens(text: "Energia", compact: true)
@@ -172,7 +172,7 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             XCTAssertEqual(model.lensNoteHit(at: CGPoint(x: control.midX, y: control.midY), tolerance: 4)?.part, .control)
             model.setLensNote(id, collapsed: true)
             note = try XCTUnwrap(model.page?.texts.first { $0.id == id })
-            XCTAssertEqual(RichText.bounds(note, pageHeight: height).size, CGSize(width: 30, height: 30))
+            XCTAssertEqual(RichText.bounds(note, pageHeight: height).size, CGSize(width: 24, height: 24))
             XCTAssertEqual(model.lensNoteHit(at: CGPoint(x: note.x + 15, y: note.y + 15), tolerance: 4)?.part, .badge)
             model.updateLensNote(id, title: "Fotosintesi clorofilliana", body: "Testo corretto a mano.", color: .blue, collapsed: false)
             note = try XCTUnwrap(model.page?.texts.first { $0.id == id })
@@ -221,6 +221,54 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             let output = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: output) }
             XCTAssertTrue(PDFDocument(url: output)?.string?.contains("acqua") == true)
+        }
+    }
+
+    @MainActor func testLensSelectionReleasesTheToolWithoutStartingAIOrInsertingNotes() async throws {
+        try await fixture { model in
+            let old = UserDefaults.standard.object(forKey: "lens.autoAnnotate")
+            UserDefaults.standard.set(true, forKey: "lens.autoAnnotate")
+            defer {
+                if let old { UserDefaults.standard.set(old, forKey: "lens.autoAnnotate") }
+                else { UserDefaults.standard.removeObject(forKey: "lens.autoAnnotate") }
+            }
+            model.chooseTool(.marker); model.chooseWidth(6)
+            model.chooseTool(.lens)
+            model.lensPicked(text: "fotosintesi", rects: [CGRect(x: 20, y: 40, width: 90, height: 18)], tap: true, anchor: nil)
+            XCTAssertEqual(model.tool, .marker); XCTAssertEqual(model.thickness, 6)
+            XCTAssertEqual(model.lensPick?.text, "fotosintesi"); XCTAssertNotNil(model.lensHighlight)
+            XCTAssertNil(model.lensSession); XCTAssertTrue(model.page?.texts.isEmpty == true)
+            XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            model.configureTool() // The view's delayed onChange must keep the pending bar.
+            XCTAssertNotNil(model.lensPick)
+            model.chooseTool(.lens); XCTAssertNil(model.lensPick)
+            model.lensGesture(area: CGRect(x: 20, y: 90, width: 160, height: 40), underline: true, anchor: nil)
+            XCTAssertEqual(model.tool, .marker); XCTAssertNotNil(model.lensPick)
+            XCTAssertNil(model.lensSession); XCTAssertTrue(model.page?.texts.isEmpty == true)
+            model.lensPickDismiss(); XCTAssertNil(model.lensHighlight); XCTAssertNil(model.lensPick)
+        }
+    }
+
+    @MainActor func testLensAnswersStayPreviewsUntilInsertedAndDiscardNeverDeletesNotes() async throws {
+        try await fixture { model in
+            let session = LensSession(request: LensCardRequest(pageID: model.page?.id))
+            let answer = TermExplanation(term: "Termine", kind: "concetto", explanation: "Spiegazione di prova", certain: true, provider: "Fixture")
+            let first = LensTurn(label: "Spiega", icon: "lightbulb", noteTitle: "Termine", answer: answer)
+            session.turns = [first]
+            XCTAssertTrue(model.page?.texts.isEmpty == true)
+            session.discard(first.id, model: model)
+            XCTAssertTrue(session.turns.isEmpty); XCTAssertTrue(model.page?.texts.isEmpty == true)
+            session.turns = [first]
+            session.insert(first.id, model: model); session.insert(first.id, model: model)
+            XCTAssertEqual(model.page?.texts.count, 1)
+            session.discard(first.id, model: model)
+            XCTAssertEqual(session.turns.count, 1); XCTAssertEqual(model.page?.texts.count, 1)
+            await model.performUndo()
+            XCTAssertTrue(model.page?.texts.isEmpty == true)
+            session.insert(first.id, model: model); XCTAssertEqual(model.page?.texts.count, 1)
+            let elsewhere = LensSession(request: LensCardRequest(pageID: UUID())); elsewhere.turns = [first]
+            elsewhere.insert(first.id, model: model)
+            XCTAssertNotNil(elsewhere.error); XCTAssertEqual(model.page?.texts.count, 1)
         }
     }
 

@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.3
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.4
+
+## Lente temporanea 0.20.4 — 23 ottobre 2026
+
+La selezione lascia attiva la barra e ripristina il tool precedente; nessun avvio AI o inserimento automatico. Anteprima da inserire o scartare, icone 24/20 punti e area di tocco 44 punti schermo. 260 Core: 258 passati, due skip; 98 FSRS passati. Due nuove prove native del flusso, non eseguite; 468 oggetti / 300 Swift / 405 metodi XCTest, grammatica/AST e parsing Swift 5 verificati. Backend invariato, non rieseguito; nessuna compilazione SDK/hardware o AI live. [Report](WORKFLOW_0_20_4.md).
 
 ## Errore reale e patch 0.20.3 — 23 ottobre 2026
 

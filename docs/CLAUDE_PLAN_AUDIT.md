@@ -1,5 +1,7 @@
 # Piano di Claude — verifica e avanzamento
 
+La 0.20.4 sostituisce l'automatismo della Lente con selezione temporanea e risposta da conservare o scartare. Ripristino del tool, icone compatte e test delle aree di tocco; prove native predisposte ma non eseguite. [Flusso aggiornato](WORKFLOW_0_20_4.md).
+
 La schermata successiva prova un errore reale della 0.20.2: proprietà `hidden` dell'overlay in conflitto con UIKit. [Patch 0.20.3](FIXES_0_20_3.md), rinomina dedicata e controllo AST mirato; non ancora compilata con Apple.
 
 ## Ripresa 0.20.2 — 23 ottobre 2026

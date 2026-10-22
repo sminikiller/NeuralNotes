@@ -17,7 +17,6 @@ struct LensModeBar: View {
     let model: EditorViewModel
     var actions = LensBarActions()
     @AppStorage(LensSettings.modeKey) private var mode = LensMode.text.rawValue
-    @AppStorage(LensSettings.autoNoteKey) private var autoNote = true
     @AppStorage(LensSettings.hintKey) private var hintSeen = false
     @State private var configuration = AIEngineStore.load()
     @State private var consentKey: String?
@@ -52,9 +51,6 @@ struct LensModeBar: View {
             Picker("Strumento della Lente", selection: $mode) {
                 ForEach(LensMode.allCases, id: \.self) { item in Text(item.title).tag(item.rawValue) }
             }.pickerStyle(.segmented).frame(width: 240).accessibilityIdentifier("lensMode")
-            Toggle(isOn: $autoNote) { Image(systemName: "note.text.badge.plus") }
-                .toggleStyle(.button).disabled(mode != LensMode.text.rawValue)
-                .accessibilityLabel("Nota automatica quando sottolinei").accessibilityIdentifier("lensAutoNote")
         }
     }
 
@@ -91,13 +87,13 @@ struct LensModeBar: View {
                 .accessibilityLabel("Come si usa")
             Button { configuring = true } label: { Image(systemName: icon).frame(width: 44, height: 44).foregroundStyle(tint) }
                 .accessibilityLabel("Connessione AI").accessibilityIdentifier("lensSettings")
-            Button { model.chooseTool(.pen) } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
+            Button { model.finishLensSelection() } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
                 .foregroundStyle(.secondary).accessibilityLabel("Esci dalla Lente").accessibilityIdentifier("lensExit")
         }
     }
 
     private var hintRow: some View {
-        let text: String = ready ? hint : "Collega un motore AI e consenti l’invio per usare la Lente."
+        let text: String = ready ? hint : "Seleziona per cercare o copiare. Collega un motore AI per Spiega e Chiedi: la nota si inserisce solo se lo decidi."
         return HStack(alignment: .top, spacing: 8) {
             Text(text).font(.caption).fixedSize(horizontal: false, vertical: true)
             if !ready { Button("Collega") { configuring = true }.font(.caption.bold()) }
@@ -110,13 +106,11 @@ struct LensModeBar: View {
     private var hint: String {
         switch LensMode(rawValue: mode) ?? .text {
         case .image:
-            return "Immagine: tocca una foto o cerchia una zona, l’AI guarda l’immagine. Con la fotocamera scatti, ritagli e chiedi."
+            return "Seleziona una foto o una zona, poi scegli Spiega o Chiedi. La Lente si disattiva dopo la selezione; nessuna nota viene inserita da sola."
         case .area:
-            return "Area: cerchia o trascina un rettangolo attorno alle parole; si scelgono parole intere e accanto compaiono Spiega, Chiedi, Cerca e Copia."
+            return "Cerchia o trascina un rettangolo. La Lente lascia il posto allo strumento precedente: scegli dalla barra cosa fare con la selezione."
         case .text:
-            return autoNote
-                ? "Parole: tocca una parola per sapere cos’è. Passaci sopra come un evidenziatore: un termine breve diventa subito una nota, un brano più lungo apre Spiega, Chiedi, Cerca e Copia."
-                : "Parole: tocca una parola per sapere cos’è. Passaci sopra come un evidenziatore: accanto compaiono Spiega, Chiedi, Cerca e Copia."
+            return "Tocca o evidenzia le parole, poi scegli Spiega, Chiedi, Cerca o Copia. La risposta resta un’anteprima: decidi tu se inserirla come nota."
         }
     }
 

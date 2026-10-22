@@ -17,6 +17,8 @@ struct LensPick: Equatable {
     var pageID: UUID
     var text: String
     var rects: [CGRect]
+    var imageID: UUID? = nil
+    var asImage = false
     var area: CGRect { rects.reduce(CGRect.null) { $0.union($1) } }
 }
 
@@ -28,9 +30,8 @@ struct LensHighlight: Equatable {
 
 /// Lens preferences shared by the mode bar (AppStorage), the gestures and the panels.
 enum LensSettings {
-    static let modeKey = "lens.mode", autoNoteKey = "lens.autoAnnotate", floatingKey = "lens.floating", hintKey = "lens.hintSeen.2"
+    static let modeKey = "lens.mode", floatingKey = "lens.floating", hintKey = "lens.hintSeen.3"
     static var mode: LensMode { LensMode(rawValue: UserDefaults.standard.string(forKey: modeKey) ?? "") ?? .text }
-    static var autoNote: Bool { UserDefaults.standard.object(forKey: autoNoteKey) as? Bool ?? true }
 }
 
 /// The three parts of the Lens side panel.
@@ -55,6 +56,8 @@ struct LensCardRequest: Identifiable, Equatable {
     var fromSidePDF = false
     /// A tap on a word explains it right away instead of waiting for a button.
     var startWithExplain = false
+    /// Snapshot the selection mode; later preference changes must not change the request.
+    var useImage = false
     /// The page of the selection; an answer inserted on another page goes to a free spot there.
     var pageID: UUID?
 }
@@ -95,6 +98,7 @@ extension EditorViewModel {
         lensSession?.cancel()
         let session = LensSession(request: request)
         lensSession = session
+        finishLensSelection()
         Task { await session.prepare(self) }
         showLensPanel(.selection)
     }
@@ -103,46 +107,55 @@ extension EditorViewModel {
 
     func closeLensSession() { lensSession?.cancel(); lensSession = nil; lensHighlight = nil }
 
-    /// End of a Lens stroke without words to pick (handwriting before its OCR, image mode):
-    /// an underline becomes a note, any other shape opens the conversation.
-    func lensGesture(area: CGRect, underline: Bool, anchor: CGRect?) {
-        lensAnchor = anchor; lensPick = nil
-        if underline, LensSettings.mode == .text, LensSettings.autoNote { explainUnderline(area: area) }
-        else { openLens(LensCardRequest(area: area)) }
+    /// One selection per activation. Keep the pick/highlight, but release the page
+    /// to its previous tool so finger scrolling cannot start another Lens stroke.
+    func finishLensSelection() {
+        guard tool == .lens, !hasActiveStroke else { return }
+        tool = toolBeforeLens == .lens ? .pen : toolBeforeLens
+        restoreToolPalette(); configureTool(); refreshLensOverlays()
     }
 
-    /// Words picked with a tap, a highlighter stroke or a lasso. A tap explains the word
-    /// at once; a short pick makes a note when "Nota automatica" is on; otherwise a bar
-    /// beside the words offers Spiega, Chiedi, Cerca and Copia.
+    /// An unread area waits for a command as well; no OCR/AI is sent automatically.
+    func lensGesture(area: CGRect, underline: Bool, anchor: CGRect?) {
+        guard let pageID = page?.id, !area.isNull, area.width > 0, area.height > 0 else { return }
+        lensAnchor = anchor
+        lensHighlight = LensHighlight(pageID: pageID, rects: [area])
+        lensPick = LensPick(pageID: pageID, text: "", rects: [area], asImage: LensSettings.mode == .image)
+        finishLensSelection()
+    }
+
+    /// Both taps and strokes stop at a highlighted selection and command bar.
     func lensPicked(text: String, rects: [CGRect], tap: Bool, anchor: CGRect?) {
         guard let pageID = page?.id else { return }
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return }
         lensAnchor = anchor
         lensHighlight = LensHighlight(pageID: pageID, rects: rects)
-        let pick = LensPick(pageID: pageID, text: words, rects: rects)
-        if tap { lensPick = nil; openLens(LensCardRequest(area: pick.area, text: words, startWithExplain: true)); return }
-        let probe = TermExplanationRequest(term: words, subject: lensSubject)
-        if LensSettings.mode == .text, LensSettings.autoNote, probe.isTerm { lensPick = nil; annotate(words, near: pick.area); return }
-        lensPick = pick
+        lensPick = LensPick(pageID: pageID, text: words, rects: rects)
+        finishLensSelection()
     }
 
     // Commands of the bar beside picked words.
     func lensPickExplain() {
-        guard let pick = lensPick else { return }
-        lensPick = nil; annotate(pick.text, near: pick.area)
+        openPickedLens(explain: true)
     }
     func lensPickAsk() {
+        openPickedLens(explain: false)
+    }
+    private func openPickedLens(explain: Bool) {
         guard let pick = lensPick else { return }
-        lensPick = nil; openLens(LensCardRequest(area: pick.area, text: pick.text))
+        guard pick.pageID == page?.id else { lensPickDismiss(); return }
+        lensPick = nil
+        openLens(LensCardRequest(area: pick.area, imageID: pick.imageID,
+            text: pick.text.isEmpty ? nil : pick.text, startWithExplain: explain, useImage: pick.asImage, pageID: pick.pageID))
     }
     func lensPickSearch() {
-        guard let pick = lensPick else { return }
+        guard let pick = lensPick, pick.pageID == page?.id, !pick.text.isEmpty else { return }
         lensPick = nil; lensHighlight = nil
         pendingSearchQuery = String(pick.text.prefix(200)); searchRequest += 1
     }
     func lensPickCopy() {
-        guard let pick = lensPick else { return }
+        guard let pick = lensPick, pick.pageID == page?.id, !pick.text.isEmpty else { return }
         UIPasteboard.general.string = pick.text; status = "Testo copiato"
         lensPick = nil; lensHighlight = nil
     }
@@ -158,7 +171,11 @@ extension EditorViewModel {
     func lensTap(at point: CGPoint, anchor: CGRect?, tolerance: CGFloat = 6) {
         lensAnchor = anchor
         if let image = page?.images.last(where: { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height).contains(point) }) {
-            lensPick = nil; openLens(LensCardRequest(imageID: image.id)); return
+            guard let pageID = page?.id else { return }
+            let area = CGRect(x: image.x, y: image.y, width: image.width, height: image.height)
+            lensHighlight = LensHighlight(pageID: pageID, rects: [area])
+            lensPick = LensPick(pageID: pageID, text: "", rects: [area], imageID: image.id, asImage: true)
+            finishLensSelection(); return
         }
         guard let current = page else { return }
         if LensSettings.mode != .image {
@@ -177,17 +194,16 @@ extension EditorViewModel {
             }
             prepareLensWords()
         }
-        lensPick = nil
         let area = CGRect(x: point.x - 70, y: point.y - 22, width: 140, height: 44)
-        openLens(LensCardRequest(area: area, startWithExplain: LensSettings.mode != .image))
+            .intersection(CGRect(x: 0, y: 0, width: current.width, height: current.height))
+        lensGesture(area: area, underline: false, anchor: anchor)
     }
 
     /// Text selected in a text box or in the PDF opened beside the notebook.
     func lensAsk(text: String, fromSidePDF: Bool = false) {
         lensAnchor = nil
-        let request = TermExplanationRequest(term: text, subject: lensSubject)
-        if fromSidePDF, request.isTerm, LensSettings.autoNote { annotate(request.term, near: nil) }
-        else { openLens(LensCardRequest(text: text, fromSidePDF: fromSidePDF, startWithExplain: request.isTerm)) }
+        openLens(LensCardRequest(text: text, fromSidePDF: fromSidePDF))
+        finishLensSelection()
     }
 
     /// "Chiedi alla Lente AI" on the current selection; without one, the page chat opens.
@@ -195,54 +211,6 @@ extension EditorViewModel {
         let bounds = selectionBounds
         if !bounds.isNull, bounds.width > 3, bounds.height > 3 { lensAnchor = nil; openLens(LensCardRequest(area: bounds)) }
         else { requestLens() }
-    }
-
-    private func explainUnderline(area: CGRect) {
-        Task {
-            status = "Lente: leggo la sottolineatura…"
-            let text = await LensReader.text(in: area, model: self)
-            let request = TermExplanationRequest(term: text, subject: lensSubject)
-            guard request.isTerm else {
-                // Several lines or nothing readable: the conversation shows what was read and asks.
-                openLens(LensCardRequest(area: area, text: text)); status = ""; return
-            }
-            annotate(request.term, near: area)
-        }
-    }
-
-    /// Explains a term or a short passage with the chosen engine and puts the note beside
-    /// it; without an engine or consent the conversation opens instead and asks once.
-    private func annotate(_ text: String, near area: CGRect?) {
-        guard hasLease, let pageID = page?.id else { return }
-        let probe = TermExplanationRequest(term: text, subject: lensSubject)
-        let term = probe.isTerm
-        Task {
-            let configuration = AIEngineStore.load()
-            guard configuration.supportsStructuredStudy, let consent = await AIEngineRouter.restoredConsent(configuration) else {
-                openLens(LensCardRequest(area: area, text: text, fromSidePDF: area == nil, startWithExplain: true)); status = ""; return
-            }
-            status = term ? "Lente: cerco «\(probe.term)»…" : "Lente: spiego il brano…"
-            do {
-                let pageText = await LensReader.pageText(model: self)
-                guard page?.id == pageID else { status = ""; return }
-                let request: TermExplanationRequest
-                if term {
-                    request = TermExplanationRequest(term: probe.term, context: TermExplanationRequest.context(for: probe.term, in: pageText), subject: lensSubject)
-                } else {
-                    let context = TermExplanationRequest.context(for: String(text.prefix(80)), in: pageText)
-                    request = TermExplanationRequest(term: "", context: context, subject: lensSubject, selection: text,
-                                                     question: "Spiega in modo chiaro e ordinato il brano selezionato.")
-                }
-                let value = try await AIEngineRouter.explain(request, configuration: configuration, consentKey: consent)
-                guard page?.id == pageID else { status = "Nota non inserita: la pagina è cambiata."; return }
-                let title = term ? value.term : "Spiegazione · " + EditorViewModel.lensTopic(text)
-                if let id = insertLensNote(value, title: title, near: area) {
-                    let reduced = page?.texts.first(where: { $0.id == id })?.lensNote?.isCollapsed == true
-                    status = reduced ? "Nota ridotta a 💡 accanto al testo: toccala per aprirla" : "Nota inserita: \(title)"
-                } else { status = "Spiegazione pronta, ma il foglio è occupato: riprova." }
-            } catch is CancellationError { status = "" }
-            catch { status = ""; self.error = "Lente AI: \(error.localizedDescription)" }
-        }
     }
 
     /// A few words that name a passage in a note title.

@@ -1,4 +1,6 @@
-# NeuralNotes 0.20.3 — anteprima iPad
+# NeuralNotes 0.20.4 — anteprima iPad
+
+**0.20.4/build 40 — Lente temporanea e note facoltative:** selezione evidenziata, ritorno allo strumento precedente, poi Spiega/Chiedi/Cerca/Copia. Risposte in anteprima con Inserisci o Scarta, senza note automatiche; Nuova selezione per riattivare la Lente. Icone più piccole con area di tocco separata. [Flusso e verifiche](docs/WORKFLOW_0_20_4.md).
 
 **0.20.3/build 39 — errore reale di compilazione della Lente:** rinominata la proprietà `hidden` che collide con UIKit e corretto l'avviso della ricerca. Aggiunta una protezione mirata al controllo AST. La 0.20.2 mostrata sull'iPad non compilava; la nuova patch è verificata sintatticamente, senza build Apple. [Correzione e limiti](docs/FIXES_0_20_3.md).
 
@@ -33,7 +35,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 
 **0.14.0/build 25:** eliminazione visibile delle pagine, mini toolbar personalizzabile, popup verso l’interno, stili e colori RTF, forme precise, salti audio ±15 s. Import PDF/foto preparati fuori dal thread UI; PDF esterno affiancato con estratti e ricerca del termine senza import. Compressione PCM → AAC mono 64 kbps dopo la registrazione, transazione riprendibile, limiti di spazio per i backup e comando per le vecchie lezioni. [Comandi, test e pacchetti](docs/DELIVERY_0_14_0.md), [piano AI e dipendenze](docs/AI_FUNCTIONAL_PLAN.md).
 
-**Verifica attuale:** 259 XCTest Core (257 passati, due skip Darwin) e 98 FSRS passati su Swift Linux; 48 test backend passati. Integrazione reale locale Auth/email/PostgREST/RLS/quote/consumi/refresh/logout passata, con solo il trasporto AI simulato. Nuove prove RTF/PDF/Pencil predisposte ma non eseguite con Apple. Il blocco di fatturazione GitHub impedisce ancora la build Apple. Nessuna conferma di funzionamento sull’iPad o attivazione AI remota è implicita nel pacchetto.
+**Verifica attuale:** 260 XCTest Core (258 passati, due skip Darwin) e 98 FSRS passati su Swift Linux. Backend invariato: restano i 48 test e l'integrazione account locale della 0.20.2, con trasporto AI simulato. Nuove prove RTF/PDF/Pencil e flusso della Lente predisposte ma non eseguite con Apple. Il blocco di fatturazione GitHub impedisce ancora la build Apple. Nessuna conferma di funzionamento sull’iPad o attivazione AI remota è implicita nel pacchetto.
 
 **0.12.2:** correzioni degli errori reali segnalati in `SelectionCommands`, `LibraryView` e `PencilControls`, con riduzione delle espressioni SwiftUI e controllo mirato delle assegnazioni nei `catch`. [Patch e verifica](docs/FIXES_0_12_2.md). Conserva la [correzione CoreGraphics della 0.12.1](docs/FIXES_0_12_1.md). La nuova CI è stata fermata prima dei comandi dal blocco di fatturazione GitHub: la compilazione Apple resta non eseguita, non viene dichiarata una versione finale verificata.
 
@@ -50,7 +52,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.20.3.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.20.4.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e il recupero sono nella [consegna 0.15.0](docs/DELIVERY_0_15_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).

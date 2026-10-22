@@ -32,6 +32,7 @@ final class EditorViewModel {
     var sections: [NotebookSection] = []
     var page: PageSnapshot?
     var tool = InkTool.pen
+    @ObservationIgnored var toolBeforeLens = InkTool.pen
     var lensArea: CGRect?
     var lensTextSelection: String?
     var lensPrefersPopup = false

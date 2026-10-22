@@ -53,7 +53,7 @@ public struct IndexedLensNote: Identifiable, Equatable, Sendable {
 public enum LensNotes {
     public static let titleLimit = 400
     /// Side of the icon that stands for a reduced note.
-    public static let badgeSize = 30.0
+    public static let badgeSize = 24.0
 
     /// Every Lens note of the notebook, page by page and top to bottom.
     public static func index(_ pages: [PageSnapshot]) -> [IndexedLensNote] {
@@ -93,10 +93,19 @@ public extension LensNotes {
 
     /// The round control that reduces an open note, on its top-right corner and inside the page.
     static func reduceControl(note box: CGRect, pageWidth: Double, pageHeight: Double) -> CGRect {
-        let side: CGFloat = 24
+        let side: CGFloat = 20
         let x = min(max(0, box.maxX + 8 - side / 2), max(0, CGFloat(pageWidth) - side))
         let y = min(max(0, box.minY - 8 - side / 2), max(0, CGFloat(pageHeight) - side))
         return CGRect(x: x, y: y, width: side, height: side)
+    }
+
+    /// Compact artwork keeps a finger target of at least 44 screen points.
+    static func hitRect(_ rect: CGRect, zoom: Double, slack: Double) -> CGRect {
+        let scale = zoom.isFinite && zoom > 0 ? max(0.1, zoom) : 1
+        let extra = slack.isFinite ? max(0, slack) : 0
+        let x = max(extra, (44 / scale - Double(rect.width)) / 2)
+        let y = max(extra, (44 / scale - Double(rect.height)) / 2)
+        return rect.insetBy(dx: -x, dy: -y)
     }
 
     /// A line from the note to the text it explains, only when the two are apart.

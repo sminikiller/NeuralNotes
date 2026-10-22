@@ -162,11 +162,11 @@ extension EditorViewModel {
             guard let note = text.lensNote else { continue }
             let box = RichText.bounds(text, pageHeight: page.height)
             if note.isCollapsed {
-                if box.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return (text.id, LensNotePart.badge) }
+                if LensNotes.hitRect(box, zoom: Double(canvas.zoomScale), slack: Double(tolerance)).contains(point) { return (text.id, LensNotePart.badge) }
                 continue
             }
             let control = LensNotes.reduceControl(note: box, pageWidth: page.width, pageHeight: page.height)
-            if control.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return (text.id, LensNotePart.control) }
+            if LensNotes.hitRect(control, zoom: Double(canvas.zoomScale), slack: Double(tolerance)).contains(point) { return (text.id, LensNotePart.control) }
             if box.insetBy(dx: -8, dy: -8).contains(point) { return (text.id, LensNotePart.body) }
         }
         return nil

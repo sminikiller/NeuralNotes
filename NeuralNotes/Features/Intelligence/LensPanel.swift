@@ -21,13 +21,12 @@ struct LensPanel: View {
     @State private var error: String?
     @State private var job: Task<Void, Never>?
     @State private var jobGeneration = UUID()
-    @State private var lastAutomaticKey: String?
     @State private var cardDrafts: [FlashcardDraft] = []
     @State private var discardedCards: Set<UUID> = []
     @State private var cardsProvider = ""
     @State private var cardsSheet = false
     @State private var lastNote: TermExplanation?
-    @AppStorage("lens.autoAnnotate") private var autoAnnotate = true
+    @State private var lastNoteID: UUID?
     var body: some View {
         VStack(spacing: 10) {
             HStack { Label("Chat sulla pagina", systemImage: "doc.text.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal).padding(.top, 8)
@@ -38,13 +37,17 @@ struct LensPanel: View {
                     if sourcesLoading { ProgressView("Lettura della selezione…") }
                     if sourcesChanged { Button("Pagina modificata: aggiorna le fonti", systemImage: "arrow.clockwise") { Task { await load() } }.font(.caption) }
                     if configuration.engine != .offline && consentKey != configuration.consentKey { Text("Attiva questa connessione AI dal pulsante delle impostazioni prima di inviare le fonti.").font(.caption).foregroundStyle(.secondary) }
-                    Toggle("Spiega e annota da sola i termini sottolineati con la Lente", isOn: $autoAnnotate).font(.caption)
                     if let lastNote {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Nota inserita · \(lastNote.term)").font(.caption.bold())
+                            Text("Spiegazione · \(lastNote.term)").font(.caption.bold())
                             LensFormattedText(text: lastNote.noteBody).font(.caption).textSelection(.enabled)
                             Text(lastNote.origin).font(.caption2).foregroundStyle(.secondary)
-                            Button("Annulla la nota", systemImage: "arrow.uturn.backward") { Task { await model.performUndo(); self.lastNote = nil } }.font(.caption)
+                            if lastNoteID == nil {
+                                HStack {
+                                    Button("Inserisci come nota", systemImage: "note.text.badge.plus") { insertPreviewNote(lastNote) }
+                                    Button("Scarta", systemImage: "xmark") { self.lastNote = nil }
+                                }.font(.caption)
+                            } else { Text("Nota inserita").font(.caption).foregroundStyle(.secondary) }
                         }.padding(8).background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
                     }
                     ForEach(turns) { turn in
@@ -74,7 +77,7 @@ struct LensPanel: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
-                    Button("Spiega e annota", systemImage: "note.text.badge.plus") { if let request = termRequest(strict: false) { annotate(request) } }
+                    Button("Spiega", systemImage: "lightbulb") { if let request = termRequest(strict: false) { explainPreview(request) } }
                         .buttonStyle(.borderedProminent).disabled(!canSend || termRequest(strict: false) == nil || !configuration.supportsStructuredStudy)
                     Button("Scheda definizione", systemImage: "character.book.closed") { lookup = true }.buttonStyle(.bordered).disabled(busy || sourcesLoading || sourcesChanged || sources.isEmpty)
                     ForEach(["Spiega", "Definisci", "Semplifica", "Traduci in italiano", "Fai un esempio"], id: \.self) { prompt in Button(prompt) { question = prompt; send(continuation: false) }.buttonStyle(.bordered).disabled(!canSend) }
@@ -108,6 +111,7 @@ struct LensPanel: View {
     }
     private func load() async {
         jobGeneration = UUID(); job?.cancel(); busy = false; partial = ""; sources = []; error = nil; sourcesLoading = true
+        lastNote = nil; lastNoteID = nil
         let key = selectionKey
         defer { if key == selectionKey { sourcesLoading = false } }
         if consentKey == nil { consentKey = await AIEngineRouter.restoredConsent(configuration) }
@@ -116,19 +120,7 @@ struct LensPanel: View {
         await loadSources(key: key)
         guard !Task.isCancelled, key == selectionKey else { return }
         sourcesLoading = false
-        // An underlined or circled term with the Lente tool gets an explaining note
-        // by itself, when the student enabled it and approved the AI connection.
-        if model.lensPrefersPopup, model.lensArea != nil, autoAnnotate, canSend, lastAutomaticKey != key,
-           configuration.supportsStructuredStudy, let request = termRequest(strict: true) {
-            lastAutomaticKey = key; annotate(request); return
-        }
-        // Only an intentional Lente gesture and an already approved managed
-        // account can start a request automatically. Ordinary ink is untouched.
-        if model.lensPrefersPopup, canSend, lastAutomaticKey != key,
-           await ManagedAIAccount.isManaged(configuration) {
-            lastAutomaticKey = key; question = "Spiega brevemente il testo selezionato, usando le fonti disponibili."
-            send(continuation: false)
-        }
+        // Reading/selecting content never starts an inference or inserts a note.
     }
     private func loadSources(key: String) async {
         guard await model.flush(), let page = model.page else { return }
@@ -207,11 +199,11 @@ struct LensPanel: View {
         return (strict ? request.isTerm : request.isValid) ? request : nil
     }
     /// Explains the term with the model's general knowledge, using the page only to
-    /// choose the meaning, then places a sticky note beside the underline.
-    private func annotate(_ base: TermExplanationRequest) {
+    /// choose the meaning; saving the preview is always a separate action.
+    private func explainPreview(_ base: TermExplanationRequest) {
         guard !busy, let page = model.page else { return }
         busy = true; error = nil
-        let area = model.lensArea, key = selectionKey, generation = UUID(); jobGeneration = generation
+        let key = selectionKey, generation = UUID(); jobGeneration = generation
         let selected = configuration, consent = consentKey
         job = Task {
             defer { if jobGeneration == generation { busy = false } }
@@ -222,12 +214,15 @@ struct LensPanel: View {
                 let value = try await AIEngineRouter.explain(request, configuration: selected, consentKey: consent)
                 try Task.checkCancellation()
                 guard jobGeneration == generation, key == selectionKey, model.page?.id == page.id else { return }
-                lastNote = value
-                if model.insertTermNote(value, near: area) { model.status = "Nota della Lente inserita: \(value.term)" }
-                else { error = "Spiegazione pronta, ma il foglio è occupato: riprova dopo aver finito il tratto." }
+                lastNote = value; lastNoteID = nil
             } catch is CancellationError { }
             catch { if jobGeneration == generation { self.error = error.localizedDescription } }
         }
+    }
+    private func insertPreviewNote(_ value: TermExplanation) {
+        guard lastNoteID == nil else { return }
+        if let id = model.insertLensNote(value, near: model.lensArea) { lastNoteID = id }
+        else { error = "Finisci il tratto prima di inserire la nota." }
     }
     private var cardsReview: some View {
         NavigationStack {

@@ -29,6 +29,8 @@ struct LensSessionView: View {
             VStack(alignment: .leading, spacing: 12) {
                 engineNotice
                 selection
+                Button("Nuova selezione", systemImage: "sparkle.magnifyingglass") { model.chooseTool(.lens) }
+                    .font(.caption).buttonStyle(.bordered)
                 if !session.reading { prompts }
                 ForEach(session.turns) { turn in answer(turn).id(turn.id) }
                 if session.busy { busyRow.id("lensBusy") }
@@ -146,22 +148,27 @@ struct LensSessionView: View {
             LensFormattedText(text: turn.answer.noteBody).textSelection(.enabled)
             Text(turn.answer.origin).font(.caption2).foregroundStyle(.secondary)
             if let notice = turn.notice { Text(notice).font(.caption2).foregroundStyle(.orange) }
+            if !session.noteExists(turn, model: model) {
+                Text("Anteprima · non aggiunta al foglio").font(.caption2).foregroundStyle(.secondary)
+            }
             answerActions(turn)
         }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func answerActions(_ turn: LensTurn) -> some View {
-        HStack {
-            if let noteID = turn.noteID {
+        ScrollView(.horizontal, showsIndicators: false) { HStack {
+            if session.noteExists(turn, model: model), let noteID = turn.noteID {
                 Button("Vai alla nota", systemImage: "arrow.right.circle") { Task { await model.focusLensNote(noteID, pageID: turn.notePageID) } }
                     .buttonStyle(.bordered)
             } else {
                 Button("Inserisci come nota", systemImage: "note.text.badge.plus") { session.insert(turn.id, model: model) }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent).accessibilityIdentifier("lensInsertNote")
+                Button("Scarta", systemImage: "xmark") { session.discard(turn.id, model: model) }
+                    .buttonStyle(.bordered).accessibilityIdentifier("lensDiscardAnswer")
             }
             Button("Copia", systemImage: "doc.on.doc") { copy(turn) }.buttonStyle(.bordered)
-        }.font(.caption)
+        }.font(.caption) }
     }
 
     private func copy(_ turn: LensTurn) {
@@ -204,9 +211,9 @@ struct LensGuide: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Come si usa la Lente").font(.headline)
-                Label("Sottolinea un nome, una data o un termine: arriva una nota con la spiegazione.", systemImage: "underline")
-                Label("Tocca una parola per spiegarla.", systemImage: "hand.tap")
-                Label("Cerchia o trascina un rettangolo: qui puoi chiedere, riassumere, tradurre e continuare a domandare.", systemImage: "lasso")
+                Label("Tocca o evidenzia le parole, poi scegli Spiega, Chiedi, Cerca o Copia.", systemImage: "underline")
+                Label("Dopo la selezione torni allo strumento precedente: scorri senza riselezionare. Per ricominciare usa Nuova selezione.", systemImage: "hand.draw")
+                Label("Leggi la risposta prima di decidere: Inserisci come nota la conserva sul foglio; Scarta elimina solo l’anteprima.", systemImage: "note.text.badge.plus")
                 Label("Con la fotocamera scatti, ritagli la parte che ti serve e chiedi.", systemImage: "camera")
                 Label("Le note si spostano trascinandole. Il cerchietto in alto le riduce a 💡; tocca 💡 per riaprirle.", systemImage: "note.text")
                 if model.tool != .lens {
