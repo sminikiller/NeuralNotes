@@ -65,6 +65,8 @@ struct AIConnectionPanel: View {
                 Text("Le chiavi sono conservate nel portachiavi di questo dispositivo. Le API personali possono avere costi sul tuo account; il modello deve supportare risposte JSON strutturate.").font(.caption)
             }
         }.textInputAutocapitalization(.never).autocorrectionDisabled()
+            // DeepSeek's fastest and cheapest model is the default; the student can still change it.
+            .onChange(of: draft.engine) { _, engine in if engine == .deepSeek && draft.model.isEmpty { draft.model = "deepseek-flash" } }
     }
     @ViewBuilder
     private var consentSection: some View {
