@@ -1,4 +1,6 @@
-# NeuralNotes 0.20.2 — anteprima iPad
+# NeuralNotes 0.20.3 — anteprima iPad
+
+**0.20.3/build 39 — errore reale di compilazione della Lente:** rinominata la proprietà `hidden` che collide con UIKit e corretto l'avviso della ricerca. Aggiunta una protezione mirata al controllo AST. La 0.20.2 mostrata sull'iPad non compilava; la nuova patch è verificata sintatticamente, senza build Apple. [Correzione e limiti](docs/FIXES_0_20_3.md).
 
 **0.20.2/build 38 — parole, ricerca PDF e note formattate:** integrato il lavoro non salvato di Claude e completato l'editor RTF delle note. Lente con parole intere, lazo/area, barra sulla selezione e cache; ricerca del livello digitale dei PDF grandi con avanzamento e ripresa; trascinamento di singoli oggetti tramite anteprima limitata. Elenchi, grassetti e paragrafi nel pannello e nella nota. [Comandi, verifiche e limiti](docs/DELIVERY_0_20_2.md).
 
@@ -48,7 +50,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.20.2.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.20.3.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e il recupero sono nella [consegna 0.15.0](docs/DELIVERY_0_15_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).

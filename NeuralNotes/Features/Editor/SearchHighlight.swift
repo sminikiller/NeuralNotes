@@ -47,7 +47,7 @@ final class SearchHighlightOverlay: UIView {
         bounds = host.surface.bounds; transform = host.surface.transform; center = host.surface.center
         let key = "\(page.id)|\(page.revision)|\(request.query)"
         guard generation != key else { return }; generation = key; job?.cancel()
-        var boxes = page.texts.flatMap { RichText.matchingRects(request.query, in: $0, pageHeight: page.height) }
+        let boxes = page.texts.flatMap { RichText.matchingRects(request.query, in: $0, pageHeight: page.height) }
         if !boxes.isEmpty { show(boxes, host: host) }
         else { highlights.path = nil; isHidden = true }
         job = Task { [weak self, weak host] in

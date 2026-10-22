@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.2
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.3
+
+## Errore reale e patch 0.20.3 — 23 ottobre 2026
+
+La foto iPad dimostra che la 0.20.2 non compilava: `LensNotesOverlay.hidden: UUID?` collide con la proprietà Bool di UIKit. Rinominata in `draggedNoteID`; `SearchHighlight.boxes` reso costante. Controllo AST mirato con fixture errata/corretta aggiunto. Grafo/membership, grammatica e parsing Swift 5 verificati; non sono una build SDK. Nessuna nuova esecuzione Core/backend, invariati, né nuovo tentativo CI bloccato. Compilazione Apple della patch ancora non eseguita. [Dettagli](FIXES_0_20_3.md).
 
 ## Lente, PDF e RTF 0.20.2 — 23 ottobre 2026
 

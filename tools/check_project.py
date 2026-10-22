@@ -155,12 +155,32 @@ def check_syntax():
         for child in node.named_children:
             result.extend(shadowed_error_assignments(child, source, implicit_error))
         return result
+    def uikit_hidden_properties(node, source, view=False):
+        # UIView's Objective-C property hidden is imported as isHidden. A Swift
+        # stored property named hidden still collides, even if it is private.
+        if node.type == "class_declaration":
+            header = source[node.start_byte:node.end_byte].split(b"{", 1)[0]
+            view = re.search(rb"\bclass\s+\w+\s*:\s*(?:UIView|UIControl|UILabel|UIImageView|UITextView|UIScrollView|UIButton|UIStackView|PKCanvasView)\b", header) is not None
+        result = []
+        if view and node.type == "property_declaration":
+            declaration = source[node.start_byte:node.end_byte]
+            if re.search(rb"\b(?:var|let)\s+hidden\b", declaration):
+                result.append(node.start_point.row + 1)
+        for child in node.named_children:
+            result.extend(uikit_hidden_properties(child, source, view))
+        return result
     # The old SelectionCommands failure is valid grammar but invalid Swift:
     # bare catch binds an immutable Error named error, shadowing the UI property.
     bad = b'func f() { do { try g() } catch { error = "failed" } }'
     good = b'func f() { do { try g() } catch { self.error = error.localizedDescription } }'
     assert shadowed_error_assignments(parser.parse(bad).root_node, bad)
     assert not shadowed_error_assignments(parser.parse(good).root_node, good)
+    hidden_bad = b'class Overlay: UIView { private var hidden: UUID? }'
+    hidden_good = b'class Overlay: UIView { private var draggedNoteID: UUID? }'
+    hidden_state = b'struct State { var hidden: UUID? }; class Overlay: UIView { var state = State() }'
+    assert uikit_hidden_properties(parser.parse(hidden_bad).root_node, hidden_bad)
+    assert not uikit_hidden_properties(parser.parse(hidden_good).root_node, hidden_good)
+    assert not uikit_hidden_properties(parser.parse(hidden_state).root_node, hidden_state)
     paths = [ROOT / "Package.swift"]
     paths += [p for base in ["NeuralNotes", "Tests", "NeuralNotesTests", "NeuralNotesUITests"]
               for p in (ROOT / base).rglob("*.swift")]
@@ -170,6 +190,8 @@ def check_syntax():
         tree = parser.parse(source)
         for line in shadowed_error_assignments(tree.root_node, source):
             failures.append(f"{path.relative_to(ROOT)}:{line}: assignment to implicit catch error; qualify the UI property")
+        for line in uikit_hidden_properties(tree.root_node, source):
+            failures.append(f"{path.relative_to(ROOT)}:{line}: hidden collides with UIKit; use a dedicated property name")
         if tree.root_node.has_error:
             def walk(node):
                 if node.type == "ERROR" or node.is_missing:
@@ -180,6 +202,7 @@ def check_syntax():
     assert not failures, "\n".join(failures)
     print(f"PASS: syntax grammar parsing of {len(paths)} Swift files (not type checking or an SDK build)")
     print("PASS: no assignment to the implicit immutable error in bare catch blocks")
+    print("PASS: no stored hidden property in the checked UIKit view subclasses (not a full SDK audit)")
 
 
 if __name__ == "__main__":

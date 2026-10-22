@@ -1,5 +1,7 @@
 # Piano di Claude — verifica e avanzamento
 
+La schermata successiva prova un errore reale della 0.20.2: proprietà `hidden` dell'overlay in conflitto con UIKit. [Patch 0.20.3](FIXES_0_20_3.md), rinomina dedicata e controllo AST mirato; non ancora compilata con Apple.
+
 ## Ripresa 0.20.2 — 23 ottobre 2026
 
 Ripreso l'allegato con il lavoro nella cartella `AppAppunti-claude`: integrati i commit successivi alla 0.19 e le modifiche non salvate, con copia originale conservata. Completata la modifica RTF delle note; selezione per parole/area/immagine, barra contestuale, ricerca del livello PDF a gruppi e trascinamento con anteprima. Rieseguiti Core (259: 257 passati, due skip), 98 FSRS, 48 backend e integrazione locale account reale con modello simulato. Nessuna build Apple o inferenza live dichiarata. [Comandi, test e limiti](DELIVERY_0_20_2.md). Il precedente stato qui sotto è storico; non significa che tutti i punti dell'intera roadmap siano conclusi.

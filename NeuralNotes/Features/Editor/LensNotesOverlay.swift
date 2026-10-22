@@ -11,7 +11,7 @@ final class LensNotesOverlay: UIView {
     private var links = false
     private var selected: Set<UUID> = []
     private var focus: LensNoteFocus?
-    private var hidden: UUID?
+    private var draggedNoteID: UUID?
     private var marked: [CGRect] = []
     private var signature = ""
 
@@ -44,7 +44,7 @@ final class LensNotesOverlay: UIView {
         let marks = highlight.map { "\($0.minX),\($0.minY),\($0.width),\($0.height)" }.joined(separator: ";")
         let key = "\(current.id)|\(shape)|\(showLinks)|\(chosen.map(\.uuidString).sorted())|\(shownFocus?.id.uuidString ?? "")|\(dragged?.uuidString ?? "")|\(marks)"
         guard key != signature else { return }
-        signature = key; page = current; links = showLinks; selected = chosen; focus = shownFocus; hidden = dragged; marked = highlight
+        signature = key; page = current; links = showLinks; selected = chosen; focus = shownFocus; draggedNoteID = dragged; marked = highlight
         setNeedsDisplay()
     }
 
@@ -58,7 +58,7 @@ final class LensNotesOverlay: UIView {
             context.restoreGState()
         }
         for text in page.texts {
-            guard let note = text.lensNote, !note.isCollapsed, text.id != hidden else { continue }
+            guard let note = text.lensNote, !note.isCollapsed, text.id != draggedNoteID else { continue }
             let box = RichText.bounds(text, pageHeight: page.height)
             if links || selected.contains(text.id), let source = note.source, source.pageID == page.id {
                 context.saveGState()
