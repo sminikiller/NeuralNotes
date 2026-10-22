@@ -1,6 +1,32 @@
 import XCTest
+import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testPageStripStaysCompactAndLeavesTheRemainingHeightToTheCanvas() {
+        let device = XCUIDevice.shared, previous = device.orientation
+        defer { device.orientation = previous }
+        device.orientation = .landscapeLeft
+        let app = XCUIApplication(); openEditor(app)
+        let strip = app.descendants(matching: .any)["editorPageStrip"].firstMatch
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(strip.waitForExistence(timeout: 5)); XCTAssertTrue(canvas.exists)
+        for number in 2...6 {
+            app.buttons["editorAddPage"].tap()
+            XCTAssertTrue(app.buttons["pageSelect-\(number)"].waitForExistence(timeout: 5))
+        }
+        let orientations: [UIDeviceOrientation] = [.landscapeLeft, .portrait]
+        for orientation in orientations {
+            device.orientation = orientation
+            let compact = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                let bar = strip.frame, page = canvas.frame
+                return abs(bar.height - 56) <= 2 && page.height > app.frame.height * 0.65
+                    && abs(bar.minY - page.maxY) <= 2
+            }, object: strip)
+            wait(for: [compact], timeout: 5)
+            XCTAssertGreaterThanOrEqual(app.buttons["pageSelect-6"].frame.height, 44)
+        }
+    }
+
     @MainActor func testPageDeleteConfirmationKeepsItsTargetAndTrashRestoresIt() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorAddPage"].tap()

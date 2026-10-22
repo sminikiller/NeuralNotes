@@ -306,7 +306,14 @@ struct EditorView: View {
                     Button("Elimina pagina", role: .destructive) { confirmDelete = true }
                 } label: { Image(systemName: "doc.on.doc").frame(minWidth: 44, minHeight: 44) }
             }.padding(.horizontal).padding(.vertical, 6)
-        }.background(.bar).disabled(working || model.loading || model.saving || model.navigating || !model.hasLease)
+        }
+        // LazyHStack has no intrinsic cross-axis height. Bound the scroll view
+        // so it cannot compete with the writing canvas for vertical space.
+        .frame(height: 56)
+        .background(.bar)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("editorPageStrip")
+        .disabled(working || model.loading || model.saving || model.navigating || !model.hasLease)
     }
 
     private var importTypes: [UTType] {

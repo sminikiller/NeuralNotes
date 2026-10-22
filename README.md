@@ -1,7 +1,9 @@
-# NeuralNotes 0.17.0 — anteprima iPad
+# NeuralNotes 0.17.1 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
+
+**0.17.1/build 32:** corregge la regressione del layout mostrata sull’iPad nella 0.17.0: la barra delle pagine con LazyHStack occupava altezza senza limite e comprimeva il foglio. Altezza ora vincolata a 56 punti, mantenendo pulsanti da almeno 44 e creazione lazy. Predisposto test UI delle dimensioni in verticale/orizzontale, non eseguito con Apple. [Patch e verifiche](docs/FIXES_0_17_1.md).
 
 **0.17.0/build 31:** corretta la conferma di eliminazione delle pagine, ripristino esplicito, righello più largo e ridimensionabile con due dita, ritaglio foto con presentazione legata ai dati, testo sul foglio senza autofocus della tastiera o reset dello zoom per la sola variazione di altezza. [Consegna e limiti](docs/DELIVERY_0_17_0.md). Backend locale ampliato con DeepSeek, account verificati, quote atomiche, community e revisioni cloud; servizi online e schermate account/community non attivati. [Piano completo e costi](docs/AI_COMMUNITY_PLAN_0_17.md), [configurazione server](backend/ENVIRONMENT.md).
 

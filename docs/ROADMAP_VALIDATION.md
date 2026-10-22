@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.17.0
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.17.1
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Patch 0.17.1 — regressione layout sul dispositivo
+
+Il riscontro iPad prova un layout errato nella 0.17.0: barra pagine troppo alta e foglio compresso. Vincolata la ScrollView lazy a 56 punti. Nuovo metodo UI per controllare altezza, contiguità e spazio canvas con sei pagine in entrambe le orientazioni: predisposto, non eseguito. Core/backend invariati: nessuna nuova esecuzione delle loro suite dichiarata. Grafo 410 oggetti / 259 Swift / 322 metodi XCTest presenti; grammatica e parsing Swift 5 verificati. Questi controlli non verificano il layout SwiftUI né la compilazione SDK. [Dettagli e pacchetto](FIXES_0_17_1.md).
 
 ## Lotto 0.17.0 — editor e backend gestito, 22 ottobre 2026
 
