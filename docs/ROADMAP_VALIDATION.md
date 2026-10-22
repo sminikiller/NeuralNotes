@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.17.1
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.17.2
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Patch 0.17.2 — sbavatura iniziale della retta
+
+Tolleranza locale e misurata sulla lunghezza del tratto iniziale, mantenendo il rifiuto di pieghe centrali/finali e scarabocchi. Geometria coerente tra anteprima e salvataggio. 189 Core (187 passati, due skip) e 98 FSRS passati; grafo 412 / 260 Swift / 326 metodi XCTest, parsing riuscito. Nessuna prova hardware o compilazione SDK Apple. [Dettagli](FIXES_0_17_2.md).
 
 ## Patch 0.17.1 — regressione layout sul dispositivo
 

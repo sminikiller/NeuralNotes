@@ -22,19 +22,7 @@ public enum HeldShapeRecognition {
         let span: Double = hypot(width, height)
         guard span >= 24, length.isFinite else { return nil }
         let chord: Double = distance(first, last)
-        if chord >= 24 && length / chord < 1.18 {
-            let dx: Double = last.x - first.x, dy: Double = last.y - first.y
-            var maximumError: Double = 0
-            for point in points {
-                let offsetX: Double = point.x - first.x
-                let offsetY: Double = point.y - first.y
-                let cross: Double = dy * offsetX - dx * offsetY
-                let error: Double = abs(cross) / chord
-                maximumError = max(maximumError, error)
-            }
-            let tolerance: Double = max(3, chord * 0.045)
-            if maximumError <= tolerance { return .line }
-        }
+        if lineEndpoints(points) != nil { return .line }
         if arrowEndpoints(points) != nil { return .arrow }
         guard width >= 20, height >= 20, chord < span * 0.22,
               length > span * 1.5, length < span * 4.5 else { return nil }
@@ -73,6 +61,50 @@ public enum HeldShapeRecognition {
         if meanError < 0.14 && maximumError < 0.4 { return .ellipse }
         return nil
     }
+    /// A short initial hook may be ignored for fitting, never a bend in the
+    /// middle/end. Arc length, rather than sample count, bounds that allowance.
+    /// Projecting the original start retains its along-line position.
+    public static func lineEndpoints(_ points: [StrokeSample]) -> (StrokeSample, StrokeSample)? {
+        guard points.count >= 5, points.count <= 10_000,
+              points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              !ScratchGesture.matches(points), let first = points.first, let last = points.last else { return nil }
+        let chord = distance(first, last)
+        guard chord.isFinite, chord >= 24 else { return nil }
+        var length: Double = 0
+        for index in 1..<points.count { length += distance(points[index - 1], points[index]) }
+        guard length.isFinite else { return nil }
+        func straight(_ samples: ArraySlice<StrokeSample>, start: StrokeSample, length: Double, ratio: Double, tolerance: Double) -> Bool {
+            let span = distance(start, last)
+            guard span >= 24, length / span < ratio else { return false }
+            let dx = last.x - start.x, dy = last.y - start.y
+            for point in samples {
+                let cross = dy * (point.x - start.x) - dx * (point.y - start.y)
+                if abs(cross) / span > tolerance { return false }
+            }
+            return true
+        }
+        if straight(points[...], start: first, length: length, ratio: 1.18, tolerance: max(3, chord * 0.045)) { return (first, last) }
+        let allowance = min(24, chord * 0.12)
+        var walked: Double = 0
+        for index in 1..<points.count {
+            let a = points[index - 1], b = points[index], segment = distance(a, b)
+            if walked + segment >= allowance, segment > 0 {
+                let t = (allowance - walked) / segment
+                let start = StrokeSample(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+                let span = distance(start, last)
+                guard straight(points[index...], start: start, length: length - allowance, ratio: 1.12, tolerance: max(2.5, span * 0.025)) else { return nil }
+                let ux = (last.x - start.x) / span, uy = (last.y - start.y) / span
+                let offsetX = first.x - start.x, offsetY = first.y - start.y
+                let deviation = abs(offsetX * uy - offsetY * ux)
+                guard deviation <= min(12, max(4, chord * 0.08)) else { return nil }
+                let along = offsetX * ux + offsetY * uy
+                return (StrokeSample(x: start.x + along * ux, y: start.y + along * uy), last)
+            }
+            walked += segment
+        }
+        return nil
+    }
+
     public static func arrowEndpoints(_ points: [StrokeSample]) -> (StrokeSample, StrokeSample)? {
         guard points.count >= 5, let first = points.first,
               let tipIndex = points.indices.max(by: { distance(first, points[$0]) < distance(first, points[$1]) }),

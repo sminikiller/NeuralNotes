@@ -211,7 +211,7 @@ enum PreciseStrokeGeometry {
         let rect = CGRect(x: xs.min() ?? a.x, y: ys.min() ?? a.y, width: max(1, (xs.max() ?? b.x) - (xs.min() ?? a.x)), height: max(1, (ys.max() ?? b.y) - (ys.min() ?? a.y)))
         switch kind {
         case .line, .arrow:
-            let endpoints = kind == .arrow ? HeldShapeRecognition.arrowEndpoints(points) : nil
+            let endpoints = kind == .arrow ? HeldShapeRecognition.arrowEndpoints(points) : HeldShapeRecognition.lineEndpoints(points)
             let a = endpoints?.0 ?? a
             let rawEnd = endpoints?.1 ?? b
             let b = PreciseLine.snappedEnd(from: a, to: rawEnd)
@@ -244,7 +244,9 @@ enum PreciseStrokeGeometry {
         // replacement is stored in the notebook or its vector PDF export.
         let bounds = path.bounds
         if kind == .line, let a = points.first, let b = points.last {
-            locations = PreciseLine.samples(from: a, to: PreciseLine.snappedEnd(from: a, to: b)).map { CGPoint(x: $0.x, y: $0.y) }
+            let endpoints = HeldShapeRecognition.lineEndpoints(points)
+            let start = endpoints?.0 ?? a, end = endpoints?.1 ?? b
+            locations = PreciseLine.samples(from: start, to: PreciseLine.snappedEnd(from: start, to: end)).map { CGPoint(x: $0.x, y: $0.y) }
         } else if kind == .arrow || kind == .rectangle || kind == .triangle {
             // Respect move commands (arrow wings): return to the tip rather than
             // connecting the two wings across their opening.
