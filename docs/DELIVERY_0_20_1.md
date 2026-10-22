@@ -102,6 +102,14 @@ Restano caselle di testo normali: si spostano, si ridimensionano, si esportano e
 | Scritti ma non eseguiti | Test d'integrazione dell'app sulle note (inserimento collegato, riduzione a icona, modifica, inserimento ridotto delle risposte lunghe, annulla) e test UI (barra sotto gli strumenti, elenco note nel pannello) |
 | Non eseguito | Compilazione con l'SDK Apple, test sul simulatore, prova sull'iPad, chiamate AI reali |
 
+## Correzione dopo la prima prova in Swift Playgrounds
+
+La prima versione di questo pacchetto non compilava: «The compiler is unable to type-check this expression in reasonable time» in `EditorView`.
+
+- **Causa.** Le aggiunte della Lente hanno allungato troppo il corpo di `EditorView`: menu a pressione lunga, ritaglio con testi alternativi, nuovi fogli e reazioni ai cambiamenti. Il controllo dei tipi era una sola espressione lunghissima.
+- **Correzione.** Il corpo è ora diviso in parti piccole: pagina e barre, barra in alto e ciclo di vita, fogli e avvisi, ogni menu separato. Con lo stesso criterio ho diviso anche le viste nuove della Lente (barra, conversazione, finestra mobile, elenco ed editor delle note). Ho tolto anche le scelte di testo e di colore scritte dentro le espressioni.
+- **Comportamento.** Nulla cambia rispetto a quanto descritto sopra.
+
 ## Pacchetto
 
 Il pacchetto è `.verification/NeuralNotes-iPad-0.20.1.zip`, nella cartella `AppAppunti-claude`. Aprilo in File, decomprimilo in una cartella nuova e apri `NeuralNotes.swiftpm` con Swift Playgrounds.

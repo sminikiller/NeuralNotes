@@ -55,7 +55,10 @@ final class LensSession: Identifiable {
         return words.split(whereSeparator: \.isWhitespace).prefix(6).joined(separator: " ") + "…"
     }
     var prompts: [LensPrompt] {
-        (picture != nil ? [LensPrompt.describe] : []) + (isShortSelection ? [LensPrompt.explainTerm] : []) + LensPrompt.study
+        var list: [LensPrompt] = []
+        if picture != nil { list.append(LensPrompt.describe) }
+        if isShortSelection { list.append(LensPrompt.explainTerm) }
+        return list + LensPrompt.study
     }
 
     func cancel() { job?.cancel() }

@@ -51,240 +51,350 @@ struct EditorView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if model.page != nil {
-                    writingSurface
-                } else { ProgressView("Apertura pagine…").frame(maxWidth: .infinity, maxHeight: .infinity) }
-                if !focus && model.currentWorkspace.showPages { pageStrip }
-                if !focus && model.currentWorkspace.showStatus { HStack {
-                    Image(systemName: model.dirty ? "circle.dotted" : "checkmark.circle")
-                    Text(model.status)
-                    Spacer()
-                    if model.audio?.recording == true { Label("REC", systemImage: "record.circle.fill").foregroundStyle(.red) }
-                    if working || model.saving { ProgressView().controlSize(.small) }
-                }
-                .font(.caption).padding(.horizontal).padding(.vertical, 6).background(.bar) }
-            }
-            .animation(.easeInOut(duration: 0.25), value: focus)
-            .overlay { FocusControl(model: model, focus: $focus).allowsHitTesting(!model.navigating && !working && model.hasLease) }
-            .overlay(alignment: .topLeading) {
-                if let audio = model.audio, audio.recording || audio.transcribingSessionID != nil {
-                    RecordingIndicator(audio: audio) { panel = .audio }.padding(12)
-                }
-            }
-            .toolbar(focus ? .hidden : .visible, for: .navigationBar)
-            .statusBarHidden(focus)
-            .navigationTitle(notebook.title)
-            .onAppear { model.backupMetadata = notebook }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Libreria", systemImage: "chevron.backward") {
-                        Task {
-                            if let returnToLibrary { await returnToLibrary(); return }
-                            guard await model.close() else { return }
-                            library.didEdit(notebook)
-                            dismiss()
-                        }
-                    }.disabled(working || model.loading || model.navigating).accessibilityIdentifier("editorReturnToLibrary")
-                }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button { model.fitPageRequest += 1 } label: { Label("Pagina intera", systemImage: "arrow.up.left.and.arrow.down.right") }
-                        .accessibilityIdentifier("editorFitPage")
-                        .disabled(model.navigating)
-                    Menu {
-                        Picker("Navigazione", selection: $model.pageNavigation) {
-                            ForEach(PageNavigationMode.allCases, id: \.self) { mode in Label(mode.title, systemImage: mode.icon).tag(mode) }
-                        }.pickerStyle(.inline)
-                    } label: { Label("Navigazione pagine", systemImage: model.pageNavigation.icon) }
-                        .accessibilityIdentifier("editorPageNavigation")
-                        .disabled(model.navigating || model.interactionBusy)
-                    Button { panel = .paper } label: { Label("Carta e formato", systemImage: "doc.text") }
-                        .disabled(!model.hasLease || working || model.loading || model.navigating)
-                    Button { Task { if await model.flush() { panel = .pages } } } label: { Label("Pagine", systemImage: "square.grid.2x2") }
-                        .disabled(model.navigating || !model.hasLease)
-                    Button { panel = .audio } label: {
-                        Label(model.audio?.recording == true ? "REC" : "Audio", systemImage: model.audio?.recording == true ? "record.circle.fill" : "waveform")
-                            .foregroundStyle(model.audio?.recording == true ? Color.red : Brand.accent)
-                    }.disabled(!model.hasLease).accessibilityIdentifier("editorAudio")
-                    Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
-                    Button { if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true } } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
-                    // The Lens is a tool: underline, circle or tap on the page. A long press opens
-                    // the notes, the page chat and the last conversation (⌘K also toggles the tool).
-                    Menu {
-                        Button("Note della Lente", systemImage: "list.bullet.rectangle.portrait") { model.showLensPanel(.notes) }
-                        Button("Ultima conversazione", systemImage: "bubble.left.and.text.bubble.right") { model.showLensPanel(.selection) }
-                            .disabled(model.lensSession == nil)
-                        Button("Chat sulla pagina", systemImage: "doc.text.magnifyingglass") { openLensChat() }
-                    } label: {
-                        Label(model.tool == .lens ? "Esci dalla Lente AI" : "Lente AI", systemImage: "sparkle.magnifyingglass")
-                    } primaryAction: { model.chooseTool(model.tool == .lens ? .pen : .lens) }
-                        .accessibilityIdentifier("editorLens")
-                    Menu {
-                        Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
-                        Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
-                        Toggle("Puntatore laser", systemImage: "scope", isOn: Binding(get: { model.laserActive }, set: { model.setLaserActive($0) })).disabled(model.interactionBusy)
-                        Menu("Inserisci", systemImage: "plus.circle") {
-                            Button("Testi e immagini", systemImage: "textformat") { panel = .elements }
-                            Button("Scatta foto", systemImage: "camera") { Task { await openCamera() } }
-                            Button("Scansiona documento", systemImage: "doc.viewfinder") { Task { await openMedia(.scanner) } }
-                            Button("Inserisci da Foto", systemImage: "photo.on.rectangle") { media = .photos }
-                            Button("Importa immagine", systemImage: "photo") { importKind = "image"; importing = true }
-                            Button("Importa PDF", systemImage: "doc.badge.plus") { importKind = "pdf"; importing = true }
-                            Button("Aggiungi pagine da un backup", systemImage: "doc.on.doc") { importKind = "native"; importing = true }
-                            Button("Aggiungi allegato", systemImage: "paperclip") { importKind = "attachment"; importing = true }
-                        }
-                        Menu("Documento", systemImage: "book.closed") {
-                            Button("Carta e formato", systemImage: "doc.text") { panel = .paper }
-                            Button("Spazio e recupero", systemImage: "externaldrive") { panel = .storage }
-                            Button("Cerca nel documento", systemImage: "magnifyingglass") { panel = .search }
-                            Button("Salva adesso", systemImage: "checkmark.circle") { Task { _ = await model.flush() } }
-                            Button("Nuova finestra", systemImage: "macwindow.badge.plus") {
-                                if UIApplication.shared.supportsMultipleScenes { openWindow(id: "library") }
-                                else { model.error = "Più finestre non disponibili in questa esecuzione." }
-                            }
-                        }
-                        Menu("Studio e riconoscimento", systemImage: "sparkles") {
-                            Button("Flashcard e ripasso", systemImage: "rectangle.stack") { panel = .practice }
-                            Button("Riconosci testo pagina", systemImage: "text.viewfinder") { Task { await recognize() } }
-                            Button("Riconosci un’area", systemImage: "crop") { panel = .crop }
-                        }
-                        Menu("Esporta", systemImage: "square.and.arrow.up") {
-                            Button("PDF vettoriale", systemImage: "doc") { Task { await export(native: false) } }
-                            Button("PDF con aspetto PencilKit", systemImage: "paintbrush") { Task { await export(native: false, vector: false) } }
-                            Button("Quaderno nativo e backup", systemImage: "externaldrive") { Task { await export(native: true) } }
-                            Button("Pagina PNG", systemImage: "photo") { Task { await exportExtra("png") } }
-                            Button("Pagina JPEG", systemImage: "photo") { Task { await exportExtra("jpeg") } }
-                            Button("Area selezionata PNG", systemImage: "selection.pin.in.out") { Task { await exportExtra("selection") } }
-                                .disabled(model.selectionBounds.isNull)
-                            Button("Appunti Markdown", systemImage: "text.document") { Task { await exportExtra("markdown") } }
-                            Button("Appunti testo", systemImage: "text.alignleft") { Task { await exportExtra("text") } }
-                            Button("Raccolta evidenziazioni PDF", systemImage: "highlighter") { Task { await exportExtra("highlights") } }
-                            Button("Stampa", systemImage: "printer") { Task { await exportExtra("print") } }
-                        }
-                    } label: { Label("Azioni", systemImage: "ellipsis.circle") }
-                    .disabled(working || model.loading || model.navigating || !model.hasLease)
-                }
-            }
+            presentations
+                .inspector(isPresented: $sideOpen) { studyInspector }
+                .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
+                .onChange(of: model.lensPanelRequest) { _, _ in lensPanelRequested() }
+                .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
+                .onChange(of: model.searchRequest) { _, _ in panel = .search }
+                .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
+        }
+    }
+
+    // The editor is built from a few small parts, so the type checker of Swift
+    // Playgrounds handles each one quickly: page and bars, toolbar and lifecycle, sheets.
+    private var editorStack: some View {
+        VStack(spacing: 0) {
+            if model.page != nil {
+                writingSurface
+            } else { ProgressView("Apertura pagine…").frame(maxWidth: .infinity, maxHeight: .infinity) }
+            if !focus && model.currentWorkspace.showPages { pageStrip }
+            if !focus && model.currentWorkspace.showStatus { statusLine }
+        }
+        .animation(.easeInOut(duration: 0.25), value: focus)
+        .overlay { FocusControl(model: model, focus: $focus).allowsHitTesting(!model.navigating && !working && model.hasLease) }
+        .overlay(alignment: .topLeading) { recordingBadge }
+        .toolbar(focus ? .hidden : .visible, for: .navigationBar)
+        .statusBarHidden(focus)
+        .navigationTitle(notebook.title)
+        .onAppear { model.backupMetadata = notebook }
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var statusLine: some View {
+        HStack {
+            Image(systemName: model.dirty ? "circle.dotted" : "checkmark.circle")
+            Text(model.status)
+            Spacer()
+            if model.audio?.recording == true { Label("REC", systemImage: "record.circle.fill").foregroundStyle(.red) }
+            if working || model.saving { ProgressView().controlSize(.small) }
+        }
+        .font(.caption).padding(.horizontal).padding(.vertical, 6).background(.bar)
+    }
+
+    @ViewBuilder private var recordingBadge: some View {
+        if let audio = model.audio, audio.recording || audio.transcribingSessionID != nil {
+            RecordingIndicator(audio: audio) { panel = .audio }.padding(12)
+        }
+    }
+
+    private var lifecycle: some View {
+        editorStack
+            .toolbar { editorToolbar }
             .task { library.markOpened(notebook); model.lensSubject = notebook.title; await model.open() }
             .interactiveDismissDisabled()
-            .fullScreenCover(item: $media, onDismiss: finishMediaImport) { source in
-                switch source {
-                case .photos:
-                    PhotoLibraryImport { result in
-                        switch result { case .success(let data): pendingPhoto = data; case .failure(let error): mediaError = error.localizedDescription }
-                        media = nil
-                    }
-                case .camera:
-                    CameraCapture { image in pendingPhoto = image?.jpegData(compressionQuality: 0.92); media = nil }
-                case .scanner:
-                    DocumentScanner { result in
-                        switch result { case .success(let scan): pendingScan = scan; case .failure(let error): mediaError = error.localizedDescription }
-                        media = nil
-                    }
-                }
-            }
+            .fullScreenCover(item: $media, onDismiss: finishMediaImport) { source in mediaCapture(source) }
             .onChange(of: model.tool) { _, _ in model.restoreToolPalette(); model.configureTool() }
             .onChange(of: model.ink) { _, _ in model.configureTool() }
             .onChange(of: model.thickness) { _, _ in model.configureTool() }
             .onChange(of: model.fingerDrawing) { _, _ in model.configureTool() }
-            .onChange(of: scenePhase) { _, phase in
-                if phase != .active {
-                    Task {
-                        let identifier = UIApplication.shared.beginBackgroundTask(withName: "Salvataggio NeuralNotes")
-                        _ = await model.flush()
-                        model.audio?.transcriptionTask?.cancel()
-                        await model.audio?.checkpointRecording()
-                        if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier) }
-                    }
-                } else { Task { await model.audio?.refreshRecordingAfterForeground() } }
-            }
-            .alert("NeuralNotes", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
+            .onChange(of: scenePhase) { _, phase in sceneChanged(phase) }
+    }
+
+    private var presentations: some View {
+        lifecycle
+            .alert("NeuralNotes", isPresented: errorShown) {
                 Button("OK", role: .cancel) { model.error = nil }
             } message: { Text(model.error ?? "") }
             .confirmationDialog("Eliminare questa pagina?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Elimina pagina", role: .destructive) { Task { await model.deletePage() } }
             } message: { Text("La pagina verrà rimossa dal quaderno. I file vengono conservati per il recupero.") }
-            .fileImporter(isPresented: $importing, allowedContentTypes: importTypes) { result in
-                switch result {
-                case .success(let url): Task { await importFile(url) }
-                case .failure(let error): model.error = error.localizedDescription
-                }
-            }
-            .sheet(item: $panel) { item in
-                switch item {
-                case .workspace: WorkspacePanel(model: model)
-                case .paper: PageTemplatePanel(model: model)
-                case .storage: StoragePanel(workspace: model.workspace, editor: model, metadata: notebook)
-                case .pages: PageBrowser(model: model)
-                case .practice: PracticePanel(model: model, notebook: notebook)
-                case .elements: ElementEditor(model: model)
-                case .audio:
-                    if let audio = model.audio { AudioPanel(audio: audio, model: model) }
-                case .search: DocumentSearchPanel(model: model)
-                case .study: StudyPanel(model: model, notebook: notebook, library: library)
-                case .crop:
-                    if let page = model.page {
-                        AreaRecognitionPanel(image: DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace),
-                            workspace: model.workspace, pageID: page.id) { text in
-                            model.page?.recognizedText += "\n" + text; model.drawingChanged()
-                        }
-                    }
-                }
-            }
-            .sheet(item: $photoCrop) { request in
-                PhotoCropPanel(image: request.image, initial: request.crop, title: request.lens ? "Cosa vuoi chiedere?" : "Ritaglia foto",
-                               confirm: request.lens ? "Chiedi alla Lente" : "Usa ritaglio",
-                               hint: request.lens ? "Trascina un rettangolo sulla parte da chiedere (una formula, un grafico, un paragrafo). «Tutto» usa la foto intera." : "Trascina per scegliere l’area. L’immagine originale rimane conservata.") { crop in
-                    if request.lens {
-                        let chosen = crop.width < 0.03 || crop.height < 0.03 ? NormalizedCrop.full : crop
-                        model.lensAnchor = nil
-                        model.openLens(LensCardRequest(photo: request.data, photoCrop: chosen)); return
-                    }
-                    guard model.page?.id == request.pageID else { model.error = "La pagina di destinazione è cambiata. Riprova l’inserimento."; return }
-                    if let imageID = request.imageID { model.selectedObjectID = imageID; model.cropSelectedImage(crop) }
-                    else if let data = request.data { Task { await insertPhoto(data: data, crop: crop, pageID: request.pageID) } }
-                }
-            }
+            .fileImporter(isPresented: $importing, allowedContentTypes: importTypes) { result in imported(result) }
+            .sheet(item: $panel) { item in panelSheet(item) }
+            .sheet(item: $photoCrop) { request in photoCropSheet(request) }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
             .sheet(item: $model.lensNoteEditor) { target in LensNoteEditor(model: model, noteID: target.id) }
-            .inspector(isPresented: $sideOpen) {
-                studyInspector
-            }
-            .onChange(of: model.lensRequest) { _, _ in
-                sidePDF = false; sideOpen = true
-            }
-            .onChange(of: model.lensPanelRequest) { _, _ in
-                // The conversation shows in the floating window when the student chose it;
-                // with the PDF beside the notebook it opens under the PDF.
-                if model.lensTab == .selection && lensFloating { return }
-                if model.lensTab != .selection { sidePDF = false }
-                sideOpen = true
-            }
-            .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
-            .onChange(of: model.searchRequest) { _, _ in panel = .search }
-            .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
+    }
+
+    private var errorShown: Binding<Bool> {
+        Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })
+    }
+
+    @ToolbarContentBuilder private var editorToolbar: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) { libraryButton }
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button { model.fitPageRequest += 1 } label: { Label("Pagina intera", systemImage: "arrow.up.left.and.arrow.down.right") }
+                .accessibilityIdentifier("editorFitPage")
+                .disabled(model.navigating)
+            navigationMenu
+            Button { panel = .paper } label: { Label("Carta e formato", systemImage: "doc.text") }
+                .disabled(!model.hasLease || working || model.loading || model.navigating)
+            Button { Task { if await model.flush() { panel = .pages } } } label: { Label("Pagine", systemImage: "square.grid.2x2") }
+                .disabled(model.navigating || !model.hasLease)
+            audioButton
+            Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
+            Button { toggleSidePDF() } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
+            lensMenu
+            actionsMenu
         }
+    }
+
+    private var libraryButton: some View {
+        Button("Libreria", systemImage: "chevron.backward") { Task { await returnToLibraryNow() } }
+            .disabled(working || model.loading || model.navigating).accessibilityIdentifier("editorReturnToLibrary")
+    }
+
+    private func returnToLibraryNow() async {
+        if let returnToLibrary { await returnToLibrary(); return }
+        guard await model.close() else { return }
+        library.didEdit(notebook)
+        dismiss()
+    }
+
+    private var navigationMenu: some View {
+        Menu {
+            Picker("Navigazione", selection: $model.pageNavigation) {
+                ForEach(PageNavigationMode.allCases, id: \.self) { mode in Label(mode.title, systemImage: mode.icon).tag(mode) }
+            }.pickerStyle(.inline)
+        } label: { Label("Navigazione pagine", systemImage: model.pageNavigation.icon) }
+            .accessibilityIdentifier("editorPageNavigation")
+            .disabled(model.navigating || model.interactionBusy)
+    }
+
+    private var audioButton: some View {
+        let recording = model.audio?.recording == true
+        let title: String = recording ? "REC" : "Audio"
+        let icon: String = recording ? "record.circle.fill" : "waveform"
+        let tint: Color = recording ? Color.red : Brand.accent
+        return Button { panel = .audio } label: { Label(title, systemImage: icon).foregroundStyle(tint) }
+            .disabled(!model.hasLease).accessibilityIdentifier("editorAudio")
+    }
+
+    private func toggleSidePDF() {
+        if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true }
+    }
+
+    /// The Lens is a tool: underline, circle or tap on the page. A long press opens
+    /// the notes, the page chat and the last conversation (⌘K also toggles the tool).
+    private var lensMenu: some View {
+        let title: String = model.tool == .lens ? "Esci dalla Lente AI" : "Lente AI"
+        return Menu {
+            Button("Note della Lente", systemImage: "list.bullet.rectangle.portrait") { model.showLensPanel(.notes) }
+            Button("Ultima conversazione", systemImage: "bubble.left.and.text.bubble.right") { model.showLensPanel(.selection) }
+                .disabled(model.lensSession == nil)
+            Button("Chat sulla pagina", systemImage: "doc.text.magnifyingglass") { openLensChat() }
+        } label: {
+            Label(title, systemImage: "sparkle.magnifyingglass")
+        } primaryAction: { toggleLens() }
+            .accessibilityIdentifier("editorLens")
+    }
+
+    private func toggleLens() {
+        let next: WorkspaceTool = model.tool == .lens ? .pen : .lens
+        model.chooseTool(next)
+    }
+
+    private var actionsMenu: some View {
+        Menu {
+            Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
+            Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
+            Toggle("Puntatore laser", systemImage: "scope", isOn: laserBinding).disabled(model.interactionBusy)
+            insertMenu
+            documentMenu
+            studyMenu
+            exportMenu
+        } label: { Label("Azioni", systemImage: "ellipsis.circle") }
+            .disabled(working || model.loading || model.navigating || !model.hasLease)
+    }
+
+    private var laserBinding: Binding<Bool> {
+        Binding(get: { model.laserActive }, set: { model.setLaserActive($0) })
+    }
+
+    private var insertMenu: some View {
+        Menu("Inserisci", systemImage: "plus.circle") {
+            Button("Testi e immagini", systemImage: "textformat") { panel = .elements }
+            Button("Scatta foto", systemImage: "camera") { Task { await openCamera() } }
+            Button("Scansiona documento", systemImage: "doc.viewfinder") { Task { await openMedia(.scanner) } }
+            Button("Inserisci da Foto", systemImage: "photo.on.rectangle") { media = .photos }
+            Button("Importa immagine", systemImage: "photo") { startImport("image") }
+            Button("Importa PDF", systemImage: "doc.badge.plus") { startImport("pdf") }
+            Button("Aggiungi pagine da un backup", systemImage: "doc.on.doc") { startImport("native") }
+            Button("Aggiungi allegato", systemImage: "paperclip") { startImport("attachment") }
+        }
+    }
+
+    private func startImport(_ kind: String) { importKind = kind; importing = true }
+
+    private var documentMenu: some View {
+        Menu("Documento", systemImage: "book.closed") {
+            Button("Carta e formato", systemImage: "doc.text") { panel = .paper }
+            Button("Spazio e recupero", systemImage: "externaldrive") { panel = .storage }
+            Button("Cerca nel documento", systemImage: "magnifyingglass") { panel = .search }
+            Button("Salva adesso", systemImage: "checkmark.circle") { Task { _ = await model.flush() } }
+            Button("Nuova finestra", systemImage: "macwindow.badge.plus") { openNewWindow() }
+        }
+    }
+
+    private func openNewWindow() {
+        if UIApplication.shared.supportsMultipleScenes { openWindow(id: "library") }
+        else { model.error = "Più finestre non disponibili in questa esecuzione." }
+    }
+
+    private var studyMenu: some View {
+        Menu("Studio e riconoscimento", systemImage: "sparkles") {
+            Button("Flashcard e ripasso", systemImage: "rectangle.stack") { panel = .practice }
+            Button("Riconosci testo pagina", systemImage: "text.viewfinder") { Task { await recognize() } }
+            Button("Riconosci un’area", systemImage: "crop") { panel = .crop }
+        }
+    }
+
+    private var exportMenu: some View {
+        Menu("Esporta", systemImage: "square.and.arrow.up") {
+            Button("PDF vettoriale", systemImage: "doc") { Task { await export(native: false) } }
+            Button("PDF con aspetto PencilKit", systemImage: "paintbrush") { Task { await export(native: false, vector: false) } }
+            Button("Quaderno nativo e backup", systemImage: "externaldrive") { Task { await export(native: true) } }
+            Button("Pagina PNG", systemImage: "photo") { Task { await exportExtra("png") } }
+            Button("Pagina JPEG", systemImage: "photo") { Task { await exportExtra("jpeg") } }
+            Button("Area selezionata PNG", systemImage: "selection.pin.in.out") { Task { await exportExtra("selection") } }
+                .disabled(model.selectionBounds.isNull)
+            Button("Appunti Markdown", systemImage: "text.document") { Task { await exportExtra("markdown") } }
+            Button("Appunti testo", systemImage: "text.alignleft") { Task { await exportExtra("text") } }
+            Button("Raccolta evidenziazioni PDF", systemImage: "highlighter") { Task { await exportExtra("highlights") } }
+            Button("Stampa", systemImage: "printer") { Task { await exportExtra("print") } }
+        }
+    }
+
+    @ViewBuilder private func mediaCapture(_ source: EditorMedia) -> some View {
+        switch source {
+        case .photos:
+            PhotoLibraryImport { result in
+                switch result { case .success(let data): pendingPhoto = data; case .failure(let error): mediaError = error.localizedDescription }
+                media = nil
+            }
+        case .camera:
+            CameraCapture { image in pendingPhoto = image?.jpegData(compressionQuality: 0.92); media = nil }
+        case .scanner:
+            DocumentScanner { result in
+                switch result { case .success(let scan): pendingScan = scan; case .failure(let error): mediaError = error.localizedDescription }
+                media = nil
+            }
+        }
+    }
+
+    private func sceneChanged(_ phase: ScenePhase) {
+        if phase != .active {
+            Task {
+                let identifier = UIApplication.shared.beginBackgroundTask(withName: "Salvataggio NeuralNotes")
+                _ = await model.flush()
+                model.audio?.transcriptionTask?.cancel()
+                await model.audio?.checkpointRecording()
+                if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier) }
+            }
+        } else { Task { await model.audio?.refreshRecordingAfterForeground() } }
+    }
+
+    private func imported(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url): Task { await importFile(url) }
+        case .failure(let error): model.error = error.localizedDescription
+        }
+    }
+
+    @ViewBuilder private func panelSheet(_ item: EditorPanel) -> some View {
+        switch item {
+        case .workspace: WorkspacePanel(model: model)
+        case .paper: PageTemplatePanel(model: model)
+        case .storage: StoragePanel(workspace: model.workspace, editor: model, metadata: notebook)
+        case .pages: PageBrowser(model: model)
+        case .practice: PracticePanel(model: model, notebook: notebook)
+        case .elements: ElementEditor(model: model)
+        case .audio:
+            if let audio = model.audio { AudioPanel(audio: audio, model: model) }
+        case .search: DocumentSearchPanel(model: model)
+        case .study: StudyPanel(model: model, notebook: notebook, library: library)
+        case .crop:
+            if let page = model.page { areaRecognition(page) }
+        }
+    }
+
+    private func areaRecognition(_ page: PageSnapshot) -> some View {
+        let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace)
+        return AreaRecognitionPanel(image: image, workspace: model.workspace, pageID: page.id) { text in
+            model.page?.recognizedText += "\n" + text; model.drawingChanged()
+        }
+    }
+
+    private func photoCropSheet(_ request: PhotoCropPresentation) -> some View {
+        let title: String = request.lens ? "Cosa vuoi chiedere?" : "Ritaglia foto"
+        let confirm: String = request.lens ? "Chiedi alla Lente" : "Usa ritaglio"
+        let hint: String = request.lens ? Self.lensCropHint : Self.photoCropHint
+        return PhotoCropPanel(image: request.image, initial: request.crop, title: title, confirm: confirm, hint: hint) { crop in
+            finishPhotoCrop(request, crop)
+        }
+    }
+
+    private static let lensCropHint = "Trascina un rettangolo sulla parte da chiedere (una formula, un grafico, un paragrafo). «Tutto» usa la foto intera."
+    private static let photoCropHint = "Trascina per scegliere l’area. L’immagine originale rimane conservata."
+
+    private func finishPhotoCrop(_ request: PhotoCropPresentation, _ crop: NormalizedCrop) {
+        if request.lens {
+            // A tap without a drag selects almost nothing: then the whole photo is asked about.
+            let tiny = crop.width < 0.03 || crop.height < 0.03
+            let chosen: NormalizedCrop = tiny ? .full : crop
+            model.lensAnchor = nil
+            model.openLens(LensCardRequest(photo: request.data, photoCrop: chosen))
+            return
+        }
+        guard model.page?.id == request.pageID else { model.error = "La pagina di destinazione è cambiata. Riprova l’inserimento."; return }
+        if let imageID = request.imageID { model.selectedObjectID = imageID; model.cropSelectedImage(crop) }
+        else if let data = request.data { Task { await insertPhoto(data: data, crop: crop, pageID: request.pageID) } }
+    }
+
+    private func lensPanelRequested() {
+        // The conversation shows in the floating window when the student chose it;
+        // with the PDF beside the notebook it opens under the PDF.
+        if model.lensTab == .selection && lensFloating { return }
+        if model.lensTab != .selection { sidePDF = false }
+        sideOpen = true
     }
 
     private var writingSurface: some View {
         DocumentPageViewport(model: model)
             .allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
-            .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
-                let host = model.pagePresenter as? CanvasHost
-                let point = host?.surface.convert(location, from: host) ?? location
-                Task { await PageDrop.insert(providers, at: point, model: model) }; return model.hasLease
-            }
-            .overlay(alignment: toolbarAlignment) {
-                if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
-            }
-            .overlay {
-                // The floating Lens window: it can be dragged and docked again on the right.
-                if lensFloating, !focus, let session = model.lensSession {
-                    LensFloatingCard(model: model, session: session, dock: dockLens, insertPhoto: insertLensPhoto)
-                }
-            }
+            .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in dropped(providers, at: location) }
+            .overlay(alignment: toolbarAlignment) { toolbarLayer }
+            .overlay { floatingLens }
     }
+
+    private func dropped(_ providers: [NSItemProvider], at location: CGPoint) -> Bool {
+        let host = model.pagePresenter as? CanvasHost
+        let point = host?.surface.convert(location, from: host) ?? location
+        Task { await PageDrop.insert(providers, at: point, model: model) }
+        return model.hasLease
+    }
+
+    @ViewBuilder private var toolbarLayer: some View {
+        if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
+    }
+
+    /// The floating Lens window: it can be dragged and docked again on the right.
+    @ViewBuilder private var floatingLens: some View {
+        if lensFloating, !focus, let session = model.lensSession {
+            LensFloatingCard(model: model, session: session, dock: dockLens, insertPhoto: insertLensPhoto)
+        }
+    }
+
     private func openLensChat() { sidePDF = false; sideOpen = true; model.requestLens() }
     private func dockLens() { lensFloating = false; sidePDF = false; model.showLensPanel(.selection) }
     private func undockLens() {
@@ -307,37 +417,45 @@ struct EditorView: View {
     }
     private var studyInspector: some View {
         Group {
-            if sidePDF {
-                VStack(spacing: 0) {
-                    HStack { Spacer(); Button("Chiudi pannello", systemImage: "xmark") { sideOpen = false }.accessibilityIdentifier("closeStudyInspector") }
-                        .padding(.horizontal).padding(.vertical, 8)
-                    PDFStudyPanel(model: model)
-                    // A question about the PDF opens under it, so the PDF stays in view.
-                    if !lensFloating, let session = model.lensSession {
-                        Divider()
-                        HStack {
-                            Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.subheadline.bold())
-                            Spacer()
-                            Button(action: undockLens) { Image(systemName: "rectangle.on.rectangle") }.accessibilityLabel("Finestra mobile")
-                            Button { model.closeLensSession() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                                .accessibilityLabel("Chiudi la conversazione")
-                        }.padding(.horizontal, 12).padding(.vertical, 6)
-                        LensSessionView(model: model, session: session, insertPhoto: insertLensPhoto).id(session.id).frame(height: 360)
-                    }
-                }
-            } else {
-                LensSidePanel(model: model, notebook: notebook, close: { sideOpen = false }, undock: undockLens, insertPhoto: insertLensPhoto)
-            }
+            if sidePDF { pdfInspector }
+            else { LensSidePanel(model: model, notebook: notebook, close: { sideOpen = false }, undock: undockLens, insertPhoto: insertLensPhoto) }
         }.inspectorColumnWidth(min: 320, ideal: 400, max: 600)
     }
+    private var pdfInspector: some View {
+        VStack(spacing: 0) {
+            HStack { Spacer(); Button("Chiudi pannello", systemImage: "xmark") { sideOpen = false }.accessibilityIdentifier("closeStudyInspector") }
+                .padding(.horizontal).padding(.vertical, 8)
+            PDFStudyPanel(model: model)
+            // A question about the PDF opens under it, so the PDF stays in view.
+            if !lensFloating, let session = model.lensSession { pdfLens(session) }
+        }
+    }
+    private func pdfLens(_ session: LensSession) -> some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.subheadline.bold())
+                Spacer()
+                Button(action: undockLens) { Image(systemName: "rectangle.on.rectangle") }.accessibilityLabel("Finestra mobile")
+                Button { model.closeLensSession() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .accessibilityLabel("Chiudi la conversazione")
+            }.padding(.horizontal, 12).padding(.vertical, 6)
+            LensSessionView(model: model, session: session, insertPhoto: insertLensPhoto).id(session.id).frame(height: 360)
+        }
+    }
     private var floatingToolbar: some View {
-        EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
-            text: { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace },
-            lens: LensBarActions(photo: { lensPhoto(.camera) }, library: { lensPhoto(.photos) }, notes: { model.showLensPanel(.notes) }, chat: { openLensChat() }))
+        let dock = model.currentWorkspace.dock
+        let along: CGFloat = dock.vertical ? 72 : 12
+        let trailing: CGFloat = dock.vertical ? 0 : 60
+        let top: CGFloat = model.audio?.recording == true && dock == .top ? 42 : 0
+        return EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
+                                  text: startTyping, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace }, lens: lensActions)
             .disabled(!model.hasLease || model.loading || model.navigating || working)
-            .padding(.horizontal, 12).padding(.vertical, model.currentWorkspace.dock.vertical ? 72 : 12)
-            .padding(.trailing, model.currentWorkspace.dock.vertical ? 0 : 60)
-            .padding(.top, model.audio?.recording == true && model.currentWorkspace.dock == .top ? 42 : 0)
+            .padding(.horizontal, 12).padding(.vertical, along).padding(.trailing, trailing).padding(.top, top)
+    }
+    private func startTyping() { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }
+    private var lensActions: LensBarActions {
+        LensBarActions(photo: { lensPhoto(.camera) }, library: { lensPhoto(.photos) }, notes: { model.showLensPanel(.notes) }, chat: { openLensChat() })
     }
 
     private var pageStrip: some View {

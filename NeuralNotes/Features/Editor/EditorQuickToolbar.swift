@@ -57,18 +57,7 @@ struct EditorQuickToolbar: View {
                             .overlay(alignment: .bottomTrailing) { Circle().fill(model.ink).frame(width: 10, height: 10).padding(5) }
                     }.accessibilityLabel("Colori e spessori di \(model.tool.rawValue)")
                         .popover(isPresented: $paletteOpen, arrowEdge: popoverEdge) { ToolPalettePanel(model: model).padding().frame(width: 310).presentationCompactAdaptation(.popover) } }
-                    if vertical && model.tool == .objects {
-                        Button { selectionOpen = true } label: { Image(systemName: "selection.pin.in.out").frame(width: 44, height: 44) }
-                            .accessibilityLabel("Azioni sulla selezione")
-                            .popover(isPresented: $selectionOpen, arrowEdge: popoverEdge) { selectionBar.frame(width: 310, height: 64).presentationCompactAdaptation(.popover) }
-                    }
-                    if vertical && model.tool == .lens {
-                        Button { lensOpen = true } label: { Image(systemName: "sparkle.magnifyingglass").frame(width: 44, height: 44) }
-                            .accessibilityLabel("Comandi della Lente")
-                            .popover(isPresented: $lensOpen, arrowEdge: popoverEdge) {
-                                LensModeBar(model: model, actions: lens).padding().frame(width: 460).presentationCompactAdaptation(.popover)
-                            }
-                    }
+                    verticalExtras
                     Button(action: workspace) { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44) }
                         .accessibilityLabel("Workspace \(model.currentWorkspace.name)").accessibilityIdentifier("editorWorkspace")
                 }.padding(6)
@@ -81,6 +70,22 @@ struct EditorQuickToolbar: View {
             // The Lens commands sit right under the toolbar, not over the page.
             if model.tool == .lens && !vertical { LensModeBar(model: model, actions: lens) }
         }.buttonStyle(EditorIconButtonStyle())
+    }
+    /// With the toolbar on a side, selection and Lens commands open from one button each.
+    @ViewBuilder private var verticalExtras: some View {
+        if vertical && model.tool == .objects {
+            Button { selectionOpen = true } label: { Image(systemName: "selection.pin.in.out").frame(width: 44, height: 44) }
+                .accessibilityLabel("Azioni sulla selezione")
+                .popover(isPresented: $selectionOpen, arrowEdge: popoverEdge) { selectionBar.frame(width: 310, height: 64).presentationCompactAdaptation(.popover) }
+        }
+        if vertical && model.tool == .lens {
+            Button { lensOpen = true } label: { Image(systemName: "sparkle.magnifyingglass").frame(width: 44, height: 44) }
+                .accessibilityLabel("Comandi della Lente")
+                .popover(isPresented: $lensOpen, arrowEdge: popoverEdge) { lensPopover }
+        }
+    }
+    private var lensPopover: some View {
+        LensModeBar(model: model, actions: lens).padding().frame(width: 460).presentationCompactAdaptation(.popover)
     }
     private var usesInk: Bool { model.tool == .pen || model.tool == .marker || model.tool == .shape }
     private var quickColors: [InkColor] {

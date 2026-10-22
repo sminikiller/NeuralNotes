@@ -31,55 +31,81 @@ struct LensModeBar: View {
         VStack(spacing: 6) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
-                    Image(systemName: "sparkle.magnifyingglass").foregroundStyle(Brand.accent).padding(.leading, 8).accessibilityHidden(true)
-                    Picker("Modo della Lente", selection: $mode) {
-                        Text("Testo").tag(LensMode.text.rawValue)
-                        Text("Immagine").tag(LensMode.image.rawValue)
-                    }.pickerStyle(.segmented).frame(width: 160).accessibilityIdentifier("lensMode")
-                    Toggle(isOn: $autoNote) { Image(systemName: "note.text.badge.plus") }
-                        .toggleStyle(.button).disabled(mode == LensMode.image.rawValue)
-                        .accessibilityLabel("Nota automatica quando sottolinei").accessibilityIdentifier("lensAutoNote")
-                    Menu {
-                        Button("Scatta, ritaglia e chiedi", systemImage: "camera", action: actions.photo)
-                        Button("Scegli da Foto e chiedi", systemImage: "photo.on.rectangle", action: actions.library)
-                    } label: { Image(systemName: "camera").frame(width: 44, height: 44) }
-                        .accessibilityLabel("Foto e chiedi").accessibilityIdentifier("lensPhoto")
-                    Button(action: actions.notes) {
-                        Image(systemName: "list.bullet.rectangle.portrait").frame(width: 44, height: 44)
-                            .overlay(alignment: .topTrailing) {
-                                if notesCount > 0 {
-                                    Text("\(notesCount)").font(.caption2.bold()).foregroundStyle(.white).padding(.horizontal, 4)
-                                        .background(Brand.accent, in: Capsule()).offset(x: 2, y: 4)
-                                }
-                            }
-                    }.accessibilityLabel("Note della Lente").accessibilityIdentifier("lensNotes")
-                    Button(action: actions.chat) { Image(systemName: "bubble.left.and.text.bubble.right").frame(width: 44, height: 44) }
-                        .accessibilityLabel("Chat sulla pagina").accessibilityIdentifier("lensOpenChat")
-                    Button { help.toggle() } label: { Image(systemName: "questionmark.circle").frame(width: 44, height: 44) }
-                        .accessibilityLabel("Come si usa")
-                    Button { configuring = true } label: {
-                        Image(systemName: ready ? "slider.horizontal.3" : "exclamationmark.triangle.fill").frame(width: 44, height: 44)
-                            .foregroundStyle(ready ? Color.primary : Color.orange)
-                    }.accessibilityLabel("Connessione AI").accessibilityIdentifier("lensSettings")
-                    Button { model.chooseTool(.pen) } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
-                        .foregroundStyle(.secondary).accessibilityLabel("Esci dalla Lente").accessibilityIdentifier("lensExit")
+                    modeControls
+                    askControls
+                    panelControls
                 }.padding(.horizontal, 4)
             }
             .frame(maxWidth: 640, minHeight: 48, maxHeight: 52)
             .background(.regularMaterial, in: Capsule())
             .overlay(Capsule().stroke(.white.opacity(0.18)))
-            if !ready || !hintSeen || help {
-                HStack(alignment: .top, spacing: 8) {
-                    Text(ready ? hint : "Collega un motore AI e consenti l’invio per usare la Lente.").font(.caption).fixedSize(horizontal: false, vertical: true)
-                    if !ready { Button("Collega") { configuring = true }.font(.caption.bold()) }
-                    else { Button("Ho capito") { hintSeen = true; help = false }.font(.caption.bold()) }
-                }
-                .padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: 560)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            }
+            if !ready || !hintSeen || help { hintRow }
         }
         .task { await refresh() }
         .sheet(isPresented: $configuring, onDismiss: { Task { await refresh() } }) { AIConnectionPanel(configuration: $configuration, consentKey: $consentKey) }
+    }
+
+    // Small parts keep each expression quick for the Swift Playgrounds type checker.
+    private var modeControls: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkle.magnifyingglass").foregroundStyle(Brand.accent).padding(.leading, 8).accessibilityHidden(true)
+            Picker("Modo della Lente", selection: $mode) {
+                Text("Testo").tag(LensMode.text.rawValue)
+                Text("Immagine").tag(LensMode.image.rawValue)
+            }.pickerStyle(.segmented).frame(width: 160).accessibilityIdentifier("lensMode")
+            Toggle(isOn: $autoNote) { Image(systemName: "note.text.badge.plus") }
+                .toggleStyle(.button).disabled(mode == LensMode.image.rawValue)
+                .accessibilityLabel("Nota automatica quando sottolinei").accessibilityIdentifier("lensAutoNote")
+        }
+    }
+
+    private var askControls: some View {
+        HStack(spacing: 4) {
+            Menu {
+                Button("Scatta, ritaglia e chiedi", systemImage: "camera", action: actions.photo)
+                Button("Scegli da Foto e chiedi", systemImage: "photo.on.rectangle", action: actions.library)
+            } label: { Image(systemName: "camera").frame(width: 44, height: 44) }
+                .accessibilityLabel("Foto e chiedi").accessibilityIdentifier("lensPhoto")
+            Button(action: actions.notes) { notesIcon }
+                .accessibilityLabel("Note della Lente").accessibilityIdentifier("lensNotes")
+            Button(action: actions.chat) { Image(systemName: "bubble.left.and.text.bubble.right").frame(width: 44, height: 44) }
+                .accessibilityLabel("Chat sulla pagina").accessibilityIdentifier("lensOpenChat")
+        }
+    }
+
+    private var notesIcon: some View {
+        let count = notesCount
+        return Image(systemName: "list.bullet.rectangle.portrait").frame(width: 44, height: 44)
+            .overlay(alignment: .topTrailing) {
+                if count > 0 {
+                    Text("\(count)").font(.caption2.bold()).foregroundStyle(.white).padding(.horizontal, 4)
+                        .background(Brand.accent, in: Capsule()).offset(x: 2, y: 4)
+                }
+            }
+    }
+
+    private var panelControls: some View {
+        let icon: String = ready ? "slider.horizontal.3" : "exclamationmark.triangle.fill"
+        let tint: Color = ready ? Color.primary : Color.orange
+        return HStack(spacing: 4) {
+            Button { help.toggle() } label: { Image(systemName: "questionmark.circle").frame(width: 44, height: 44) }
+                .accessibilityLabel("Come si usa")
+            Button { configuring = true } label: { Image(systemName: icon).frame(width: 44, height: 44).foregroundStyle(tint) }
+                .accessibilityLabel("Connessione AI").accessibilityIdentifier("lensSettings")
+            Button { model.chooseTool(.pen) } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
+                .foregroundStyle(.secondary).accessibilityLabel("Esci dalla Lente").accessibilityIdentifier("lensExit")
+        }
+    }
+
+    private var hintRow: some View {
+        let text: String = ready ? hint : "Collega un motore AI e consenti l’invio per usare la Lente."
+        return HStack(alignment: .top, spacing: 8) {
+            Text(text).font(.caption).fixedSize(horizontal: false, vertical: true)
+            if !ready { Button("Collega") { configuring = true }.font(.caption.bold()) }
+            else { Button("Ho capito") { hintSeen = true; help = false }.font(.caption.bold()) }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: 560)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var hint: String {

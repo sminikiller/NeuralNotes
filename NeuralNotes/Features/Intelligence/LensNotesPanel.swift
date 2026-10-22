@@ -36,61 +36,88 @@ struct LensNotesList: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack {
-                TextField("Cerca nelle note", text: $query).textFieldStyle(.roundedBorder)
-                Toggle(isOn: $thisPage) { Text("Questa pagina") }.toggleStyle(.button).font(.caption)
-            }.padding(.horizontal, 12).padding(.top, 8)
-            HStack {
-                Button("Apri tutte", systemImage: "rectangle.expand.vertical") { model.setAllLensNotes(collapsed: false) }
-                Button("Riduci a 💡", systemImage: "rectangle.compress.vertical") { model.setAllLensNotes(collapsed: true) }
-                Spacer()
-            }.font(.caption).buttonStyle(.bordered).disabled(!pageHasNotes).padding(.horizontal, 12)
-            if notes.isEmpty {
-                ContentUnavailableView(emptyTitle, systemImage: "note.text",
-                    description: Text("Sottolinea un termine con la Lente, oppure inserisci una risposta come nota: compare qui."))
-            } else {
-                List {
-                    ForEach(groups) { group in
-                        Section(header(group)) {
-                            ForEach(group.notes) { note in row(note) }
-                        }
-                    }
-                }.listStyle(.plain)
-            }
+            filters
+            pageCommands
+            if notes.isEmpty { emptyState } else { notesList }
         }
         .sheet(item: $editing) { target in LensNoteEditor(model: model, noteID: target.id) }
     }
 
+    // Small parts keep each expression quick for the Swift Playgrounds type checker.
+    private var filters: some View {
+        HStack {
+            TextField("Cerca nelle note", text: $query).textFieldStyle(.roundedBorder)
+            Toggle(isOn: $thisPage) { Text("Questa pagina") }.toggleStyle(.button).font(.caption)
+        }.padding(.horizontal, 12).padding(.top, 8)
+    }
+
+    private var pageCommands: some View {
+        HStack {
+            Button("Apri tutte", systemImage: "rectangle.expand.vertical") { model.setAllLensNotes(collapsed: false) }
+            Button("Riduci a 💡", systemImage: "rectangle.compress.vertical") { model.setAllLensNotes(collapsed: true) }
+            Spacer()
+        }.font(.caption).buttonStyle(.bordered).disabled(!pageHasNotes).padding(.horizontal, 12)
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView(emptyTitle, systemImage: "note.text",
+            description: Text("Sottolinea un termine con la Lente, oppure inserisci una risposta come nota: compare qui."))
+    }
+
+    private var notesList: some View {
+        List {
+            ForEach(groups) { group in
+                Section(header(group)) {
+                    ForEach(group.notes) { note in row(note) }
+                }
+            }
+        }.listStyle(.plain)
+    }
+
     private func row(_ note: IndexedLensNote) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Button { Task { await model.focusLensNote(note.textID, pageID: note.pageID) } } label: {
-                HStack(alignment: .top, spacing: 10) {
-                    Text(note.collapsed ? "💡" : "📝").font(.title3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(note.title).font(.subheadline.bold()).lineLimit(2)
-                        if !note.body.isEmpty { Text(note.body).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                    }
-                    Spacer(minLength: 0)
-                }.contentShape(Rectangle())
-            }.buttonStyle(.borderless).foregroundStyle(.primary).accessibilityHint("Mostra la nota sulla pagina")
+            Button { show(note) } label: { rowLabel(note) }
+                .buttonStyle(.borderless).foregroundStyle(.primary).accessibilityHint("Mostra la nota sulla pagina")
             Button { edit(note) } label: { Image(systemName: "square.and.pencil") }
                 .buttonStyle(.borderless).accessibilityLabel("Modifica nota")
         }
-        .swipeActions(edge: .trailing) {
-            Button("Elimina", systemImage: "trash", role: .destructive) { Task { await model.deleteLensNote(note.textID, pageID: note.pageID) } }
-            Button(note.collapsed ? "Apri" : "Riduci", systemImage: note.collapsed ? "rectangle.expand.vertical" : "rectangle.compress.vertical") {
-                Task { await model.toggleLensNote(note.textID, pageID: note.pageID) }
-            }.tint(.orange)
-        }
-        .contextMenu {
-            Button("Modifica", systemImage: "square.and.pencil") { edit(note) }
-            if note.hasSource {
-                Button("Mostra il testo di origine", systemImage: "text.viewfinder") { Task { await model.focusLensNote(note.textID, pageID: note.pageID, source: true) } }
-            }
-            Button(note.collapsed ? "Apri sulla pagina" : "Riduci a 💡", systemImage: "note.text") { Task { await model.toggleLensNote(note.textID, pageID: note.pageID) } }
-            Button("Elimina", systemImage: "trash", role: .destructive) { Task { await model.deleteLensNote(note.textID, pageID: note.pageID) } }
-        }
+        .swipeActions(edge: .trailing) { swipeButtons(note) }
+        .contextMenu { menuButtons(note) }
     }
+
+    private func rowLabel(_ note: IndexedLensNote) -> some View {
+        let icon: String = note.collapsed ? "💡" : "📝"
+        return HStack(alignment: .top, spacing: 10) {
+            Text(icon).font(.title3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(note.title).font(.subheadline.bold()).lineLimit(2)
+                if !note.body.isEmpty { Text(note.body).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+            }
+            Spacer(minLength: 0)
+        }.contentShape(Rectangle())
+    }
+
+    @ViewBuilder private func swipeButtons(_ note: IndexedLensNote) -> some View {
+        let title: String = note.collapsed ? "Apri" : "Riduci"
+        let icon: String = note.collapsed ? "rectangle.expand.vertical" : "rectangle.compress.vertical"
+        Button("Elimina", systemImage: "trash", role: .destructive) { remove(note) }
+        Button(title, systemImage: icon) { toggle(note) }.tint(.orange)
+    }
+
+    @ViewBuilder private func menuButtons(_ note: IndexedLensNote) -> some View {
+        let title: String = note.collapsed ? "Apri sulla pagina" : "Riduci a 💡"
+        Button("Modifica", systemImage: "square.and.pencil") { edit(note) }
+        if note.hasSource {
+            Button("Mostra il testo di origine", systemImage: "text.viewfinder") { showSource(note) }
+        }
+        Button(title, systemImage: "note.text") { toggle(note) }
+        Button("Elimina", systemImage: "trash", role: .destructive) { remove(note) }
+    }
+
+    private func show(_ note: IndexedLensNote) { Task { await model.focusLensNote(note.textID, pageID: note.pageID) } }
+    private func showSource(_ note: IndexedLensNote) { Task { await model.focusLensNote(note.textID, pageID: note.pageID, source: true) } }
+    private func toggle(_ note: IndexedLensNote) { Task { await model.toggleLensNote(note.textID, pageID: note.pageID) } }
+    private func remove(_ note: IndexedLensNote) { Task { await model.deleteLensNote(note.textID, pageID: note.pageID) } }
 
     private func edit(_ note: IndexedLensNote) {
         Task { if await model.focusLensNote(note.textID, pageID: note.pageID, outline: false) { editing = LensNoteEditTarget(id: note.textID) } }
@@ -113,42 +140,62 @@ struct LensNoteEditor: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let note {
-                    Section("Titolo") { TextField("Titolo della nota", text: $title) }
-                    Section("Testo") { TextEditor(text: $content).frame(minHeight: 180) }
-                    Section("Aspetto") {
-                        Picker("Colore", selection: $color) { ForEach(LensNoteColor.allCases) { item in Text(item.title).tag(item) } }
-                            .pickerStyle(.segmented)
-                        Toggle("Ridotta a 💡 sulla pagina", isOn: $collapsed)
-                    }
-                    Section {
-                        if note.lensNote?.source != nil {
-                            Button("Mostra il testo di origine", systemImage: "text.viewfinder") {
-                                save(); dismiss(); Task { await model.focusLensNote(noteID, source: true) }
-                            }
-                        }
-                        Button("Chiedi ancora alla Lente", systemImage: "sparkle.magnifyingglass") { save(); dismiss(); model.askLensAgain(noteID) }
-                        Button("Elimina nota", systemImage: "trash", role: .destructive) { confirmDelete = true }
-                    }
-                    if let origin = note.lensNote?.origin { Section { Text(origin).font(.caption).foregroundStyle(.secondary) } }
-                } else {
-                    Text("La nota non è sulla pagina aperta: aprila dall’elenco delle note.").foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Nota della Lente").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Salva") { save(); dismiss() }.disabled(note == nil) }
-            }
-            .confirmationDialog("Eliminare questa nota?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Elimina nota", role: .destructive) {
-                    if let pageID = model.page?.id { Task { await model.deleteLensNote(noteID, pageID: pageID) } }
-                    dismiss()
-                }
-            } message: { Text("Puoi recuperarla con Annulla.") }
+            form
+                .navigationTitle("Nota della Lente").navigationBarTitleDisplayMode(.inline)
+                .toolbar { editorToolbar }
+                .confirmationDialog("Eliminare questa nota?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                    Button("Elimina nota", role: .destructive) { delete() }
+                } message: { Text("Puoi recuperarla con Annulla.") }
         }
         .onAppear(perform: load)
+    }
+
+    // Small parts keep each expression quick for the Swift Playgrounds type checker.
+    private var form: some View {
+        Form {
+            if let note { fields(note) }
+            else { Text("La nota non è sulla pagina aperta: aprila dall’elenco delle note.").foregroundStyle(.secondary) }
+        }
+    }
+
+    @ViewBuilder private func fields(_ note: TextElement) -> some View {
+        Section("Titolo") { TextField("Titolo della nota", text: $title) }
+        Section("Testo") { TextEditor(text: $content).frame(minHeight: 180) }
+        Section("Aspetto") {
+            Picker("Colore", selection: $color) { ForEach(LensNoteColor.allCases) { item in Text(item.title).tag(item) } }
+                .pickerStyle(.segmented)
+            Toggle("Ridotta a 💡 sulla pagina", isOn: $collapsed)
+        }
+        Section { actions(note) }
+        if let origin = note.lensNote?.origin { Section { Text(origin).font(.caption).foregroundStyle(.secondary) } }
+    }
+
+    @ViewBuilder private func actions(_ note: TextElement) -> some View {
+        if note.lensNote?.source != nil {
+            Button("Mostra il testo di origine", systemImage: "text.viewfinder") { showSource() }
+        }
+        Button("Chiedi ancora alla Lente", systemImage: "sparkle.magnifyingglass") { askAgain() }
+        Button("Elimina nota", systemImage: "trash", role: .destructive) { confirmDelete = true }
+    }
+
+    @ToolbarContentBuilder private var editorToolbar: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) { Button("Salva") { save(); dismiss() }.disabled(note == nil) }
+    }
+
+    private func showSource() {
+        save(); dismiss()
+        Task { await model.focusLensNote(noteID, source: true) }
+    }
+
+    private func askAgain() {
+        save(); dismiss()
+        model.askLensAgain(noteID)
+    }
+
+    private func delete() {
+        if let pageID = model.page?.id { Task { await model.deleteLensNote(noteID, pageID: pageID) } }
+        dismiss()
     }
 
     private func load() {
@@ -158,7 +205,11 @@ struct LensNoteEditor: View {
 
     private func save() {
         guard let current = note, let info = current.lensNote else { return }
-        let changed = title != info.title || content != LensNotes.body(of: current) || color != LensNoteColor(current.background) || collapsed != info.isCollapsed
-        if changed { model.updateLensNote(noteID, title: title, body: content, color: color, collapsed: collapsed) }
+        let renamed = title != info.title
+        let rewritten = content != LensNotes.body(of: current)
+        let recolored = color != LensNoteColor(current.background)
+        let folded = collapsed != info.isCollapsed
+        guard renamed || rewritten || recolored || folded else { return }
+        model.updateLensNote(noteID, title: title, body: content, color: color, collapsed: collapsed)
     }
 }

@@ -287,7 +287,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         refresh()
         if gesture.state == .ended {
             model.movingObjects = false; model.drawingChanged()
-            model.recordEdit(before, label: movingLensNote != nil ? "Sposta nota della Lente" : resizing ? "Ridimensiona" : "Sposta selezione")
+            var label = resizing ? "Ridimensiona" : "Sposta selezione"
+            if movingLensNote != nil { label = "Sposta nota della Lente" }
+            model.recordEdit(before, label: label)
             before = nil; original = [:]; originalDrawing = nil
             if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; refresh() }
         }
