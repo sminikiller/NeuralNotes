@@ -62,7 +62,14 @@ struct DirectAIProvider: AIProvider {
         let (bytes, response) = try await session.bytes(for: call)
         guard let http = response as? HTTPURLResponse else { throw AIWireFailure.response }
         guard http.statusCode == 200 else {
-            let message = http.statusCode == 429 ? "Limite del motore raggiunto. Riprova più tardi." : "Richiesta rifiutata (HTTP \(http.statusCode)). Controlla credenziale, modello e supporto JSON del motore."
+            let message: String
+            switch http.statusCode {
+            case 401, 403: message = "Chiave API non valida, scaduta o revocata (HTTP \(http.statusCode)). Incolla una chiave nuova."
+            case 402: message = "Credito esaurito sul conto del provider (HTTP 402). Ricarica il conto e riprova."
+            case 404: message = "Modello non trovato (HTTP 404). Controlla il nome del modello."
+            case 429: message = "Limite del motore raggiunto. Riprova più tardi."
+            default: message = "Richiesta rifiutata (HTTP \(http.statusCode)). Controlla credenziale, modello e supporto JSON del motore."
+            }
             throw AIConnectionFailure.backend(message)
         }
         var data = Data()

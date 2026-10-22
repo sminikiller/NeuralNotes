@@ -7,7 +7,11 @@ final class EditorQuickActionsUITests: XCTestCase {
         app.buttons["editorLens"].tap()
         let settings = app.buttons["aiConnectionSettings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5)); settings.tap()
-        app.buttons["managedAIAccount"].tap()
+        // Without an online service the personal key path comes first; the account sits below.
+        XCTAssertTrue(app.buttons["quickStartDeepSeek"].waitForExistence(timeout: 5))
+        let account = app.buttons["managedAIAccount"]
+        for _ in 0..<5 where !(account.exists && account.isHittable) { app.swipeUp() }
+        account.tap()
         XCTAssertTrue(app.staticTexts["managedAINotConfigured"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["managedAIEmail"].exists)
         XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
