@@ -11,8 +11,27 @@ enum PDFImportFailure: LocalizedError {
         switch self {
         case .unreadable: return "Il PDF non è leggibile o non contiene pagine valide. Il file originale è stato conservato."
         case .locked: return "Il PDF è protetto da password. Sbloccalo prima di importarlo. Il file originale è stato conservato."
-        case .tooManyPages: return "Il PDF supera il limite di 1000 pagine per importazione. Dividilo in più quaderni."
+        case .tooManyPages: return "Il PDF supera il limite di \(PDFImportPolicy.maximumPages) pagine per importazione. Dividilo in più quaderni."
         }
+    }
+}
+
+/// Reuse a file-backed PDF while indexing nearby pages, then release its page
+/// objects periodically. Only strings cross the actor boundary.
+actor PDFTextReader {
+    static let shared = PDFTextReader()
+    private var file: URL?
+    private var document: PDFDocument?
+    private var reads = 0
+    func text(url: URL, index: Int) throws -> String {
+        try Task.checkCancellation()
+        if file != url || document == nil || reads >= 32 {
+            document = nil; file = url; reads = 0
+            document = PDFDocument(url: url)
+        }
+        guard let document, !document.isLocked, index >= 0, index < document.pageCount else { throw PDFImportFailure.unreadable }
+        reads += 1
+        return autoreleasepool { String((document.page(at: index)?.string ?? "").prefix(20_000)) }
     }
 }
 
@@ -25,17 +44,27 @@ enum DocumentServices {
                 kCGImageSourceThumbnailMaxPixelSize: 2400] as CFDictionary) else { throw CocoaError(.fileReadCorruptFile) }
         return UIImage(cgImage: image)
     }
-    static func importPDF(from url: URL, into workspace: DocumentWorkspace) async throws -> [PageSnapshot] {
+    static func importPDF(from url: URL, into workspace: DocumentWorkspace,
+                          progress: @escaping @MainActor @Sendable (String) -> Void = { _ in }) async throws -> [PageSnapshot] {
         try Task.checkCancellation()
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        let job = Task.detached(priority: .userInitiated) { try CoordinatedFileAccess.read(url, operation: preparePDF) }
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("NN-PDF-\(UUID()).pdf")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        progress("Preparazione PDF…")
+        let job = Task.detached(priority: .userInitiated) {
+            try CoordinatedFileAccess.read(url) { source in
+                let staged = try PDFFileImport.stage(from: source, to: temporary) { copied, total in
+                    let percent = copied * 100 / max(1, total)
+                    Task { @MainActor in progress("Copia PDF · \(percent)%") }
+                }
+                return try preparePDF(staged)
+            }
+        }
         let prepared = try await withTaskCancellationHandler { try await job.value } onCancel: { job.cancel() }
         try Task.checkCancellation()
-        let attachment = try await workspace.addAttachment(prepared.data, name: url.lastPathComponent, type: "pdf", hash: prepared.hash)
-        var pages = prepared.pages
-        for index in pages.indices { pages[index].pdfFile = attachment.file }
-        return try await workspace.appendPages(pages)
+        progress("Salvataggio di \(prepared.pages.count) pagine…")
+        return try await workspace.installPDF(prepared.file, name: url.lastPathComponent, pages: prepared.pages)
     }
 
     static func importImage(from url: URL, into workspace: DocumentWorkspace) async throws -> ImageElement {
@@ -55,28 +84,37 @@ enum DocumentServices {
         return ImageElement(file: file, width: width, height: width * Double(prepared.height) / Double(prepared.width))
     }
 
-    private struct PreparedPDF: Sendable { let data: Data; let hash: String; let pages: [PageSnapshot] }
-    nonisolated private static func preparePDF(_ url: URL) throws -> PreparedPDF {
-        let data = try boundedRead(url)
-        guard let pdf = PDFDocument(data: data) else { throw PDFImportFailure.unreadable }
-        guard !pdf.isLocked else { throw PDFImportFailure.locked }
-        guard pdf.pageCount > 0 else { throw PDFImportFailure.unreadable }
-        guard pdf.pageCount <= 1000 else { throw PDFImportFailure.tooManyPages }
+    private struct PreparedPDF: Sendable { let file: StagedPDFFile; let pages: [PageSnapshot] }
+    nonisolated private static func preparePDF(_ file: StagedPDFFile) throws -> PreparedPDF {
+        guard let pdf = CGPDFDocument(file.url as CFURL) else { throw PDFImportFailure.unreadable }
+        guard pdf.isUnlocked else { throw PDFImportFailure.locked }
+        guard pdf.numberOfPages > 0 else { throw PDFImportFailure.unreadable }
+        guard pdf.numberOfPages <= PDFImportPolicy.maximumPages else { throw PDFImportFailure.tooManyPages }
+        // Large PDFs need only their geometry at import. Text extraction is
+        // available on demand and through the resumable library indexer.
+        let textPDF = pdf.numberOfPages <= PDFImportPolicy.eagerTextPageLimit ? PDFDocument(url: file.url) : nil
         var pages: [PageSnapshot] = []
-        for index in 0..<pdf.pageCount {
+        for index in 0..<pdf.numberOfPages {
             try Task.checkCancellation()
             let page: PageSnapshot = try autoreleasepool {
-                guard let source = pdf.page(at: index), let reference = source.pageRef else { throw PDFImportFailure.unreadable }
+                guard let reference = pdf.page(at: index + 1) else { throw PDFImportFailure.unreadable }
                 let box = reference.getBoxRect(.cropBox), rotated = abs(reference.rotationAngle) % 180 == 90
                 var page = PageSnapshot()
                 page.width = rotated ? box.height : box.width; page.height = rotated ? box.width : box.height
                 guard page.width.isFinite, page.height.isFinite, (1...20000).contains(page.width), (1...20000).contains(page.height) else { throw PDFImportFailure.unreadable }
-                page.pdfIndex = index; page.recognizedText = String((source.string ?? "").prefix(20000))
+                page.pdfIndex = index; page.recognizedText = String((textPDF?.page(at: index)?.string ?? "").prefix(20000))
                 return page
             }
             pages.append(page)
         }
-        return PreparedPDF(data: data, hash: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(), pages: pages)
+        return PreparedPDF(file: file, pages: pages)
+    }
+    static func pdfText(page: PageSnapshot, workspace: DocumentWorkspace) async throws -> String {
+        guard let file = page.pdfFile, let index = page.pdfIndex else { return "" }
+        let url = try await workspace.url(file)
+        let text = try await PDFTextReader.shared.text(url: url, index: index)
+        try Task.checkCancellation()
+        return text
     }
     private struct PreparedImage: Sendable { let data: Data; let width: Int; let height: Int }
     nonisolated private static func prepareImage(_ data: Data) throws -> PreparedImage {

@@ -1,0 +1,26 @@
+# Staging blueprint. No deployment is performed by committing this file.
+services:
+  - type: web
+    name: neuralnotes-ai
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: codex/editor-reliability-and-roadmap
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: NN_PROVIDER
+        value: deepseek
+      - key: NN_MODEL
+        value: deepseek-flash
+      - key: NN_MAX_OUTPUT_TOKENS
+        value: '2048'
+      - key: NN_ENABLE_WEB_SEARCH
+        value: '1'
+      - key: NN_PROVIDER_KEY
+        sync: false
+      - key: NN_SUPABASE_URL
+        sync: false
+      - key: NN_SUPABASE_PUBLIC_KEY
+        sync: false

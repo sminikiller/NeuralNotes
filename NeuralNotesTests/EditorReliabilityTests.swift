@@ -8,6 +8,19 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testNewlyCommittedPagesCanLoadBeforeTheUIListHasTheirIDs() async throws {
+        try await fixture { model in
+            let first = try XCTUnwrap(model.page)
+            let added = try await model.workspace.addDefaultPage()
+            XCTAssertFalse(model.pages.contains(where: { $0.id == added.id }))
+            try await model.load(added)
+            XCTAssertEqual(model.page?.id, added.id); XCTAssertEqual(model.pages.map(\.id), [first.id, added.id])
+            let duplicate = try await model.workspace.duplicatePage(added.id)
+            try await model.load(duplicate)
+            XCTAssertEqual(model.page?.id, duplicate.id); XCTAssertEqual(model.pages.count, 3)
+        }
+    }
+
     @MainActor func testKeyboardHeightChangePreservesManualZoomAndViewport() async throws {
         try await fixture { model in
             let host = CanvasHost(canvas: model.canvas); host.model = model; host.surface.page = try XCTUnwrap(model.page)

@@ -27,10 +27,10 @@ struct GlobalSearchPanel: View {
                 Toggle("Quaderni in Spotlight", isOn: $spotlight)
                 Text("Spotlight usa soltanto titoli e tag dei quaderni. Il testo degli appunti resta nella ricerca interna.").font(.caption).foregroundStyle(.secondary)
                 if !SpotlightIndexer.shared.message.isEmpty { Text(SpotlightIndexer.shared.message).font(.caption).foregroundStyle(.secondary) }
-                DisclosureGroup("Grafia dei quaderni precedenti") {
+                DisclosureGroup("Testo PDF e grafia dei quaderni") {
                     Button(indexer.running ? "Sospendi indicizzazione" : "Indicizza i quaderni esistenti", systemImage: indexer.running ? "pause.circle" : "text.viewfinder") { if indexer.running { indexer.stop() } else { indexer.start(library) } }
                     if !indexer.status.isEmpty { Text(indexer.status).font(.caption).foregroundStyle(.secondary) }
-                    Text("Una pagina per volta, con ripresa dalle revisioni già completate. I quaderni aperti in altre finestre vengono saltati.").font(.caption)
+                    Text("Una pagina per volta: testo digitale dei PDF, poi OCR quando serve. Riprende dalle revisioni completate; i quaderni aperti vengono saltati.").font(.caption)
                 }
                 Picker("Contenuto", selection: $kind) {
                     Text("Tutto").tag(nil as SearchContentKind?)

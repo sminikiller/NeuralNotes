@@ -154,7 +154,7 @@ public actor DocumentWorkspace {
     /// Publish a PDF's pages with one manifest commit. Validation happens before
     /// any write; interrupted preparation cannot expose a partially imported PDF.
     public func appendPages(_ inputs: [PageSnapshot]) throws -> [PageSnapshot] {
-        guard !inputs.isEmpty, inputs.count <= 1000 else { throw LibraryFailure.corruptDocument }
+        guard !inputs.isEmpty, inputs.count <= PDFImportPolicy.maximumPages else { throw LibraryFailure.corruptDocument }
         var index = try manifest()
         var ids = Set(index.pageIDs)
         for page in inputs {

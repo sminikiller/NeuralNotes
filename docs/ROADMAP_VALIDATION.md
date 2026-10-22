@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.18.0
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.19.0
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## PDF grandi e integrazione account 0.19.0
+
+Import locale 1 GiB / 5.000 pagine con streaming, hash e controllo spazio; oltre 200 pagine testo differito a Lente/indicizzazione. Ripristinato il caricamento di pagine appena pubblicate non ancora nell’elenco UI, mantenendo il percorso isolato delle pagine note. Suite Core 204 (202 passati, due skip) + 98 FSRS; backend 41 passati. Nuova integrazione reale locale Auth/email/PostgREST/PostgreSQL, due utenti/RLS/quote e refresh/logout passata; trasporto DeepSeek simulato, nessuna inferenza live. Fixture valida 734.003.416 byte / 1.500 pagine verificata con pypdf e prima/ultima pagina controllate visivamente via Poppler. Non è una prova di rendering/importazione con Apple. Grafo 422 / 267 Swift / 344 metodi XCTest, grammatica e parsing riusciti. Due nuove prove native predisposte, non eseguite. Nessuna attivazione pubblica: connessioni Supabase/Render e chiave provider mancanti. [Consegna e limiti](DELIVERY_0_19_0.md), [attivazione](../backend/ACTIVATION.md).
 
 ## Primo lotto AI gestita 0.18.0
 

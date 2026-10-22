@@ -377,8 +377,16 @@ final class EditorViewModel {
         // Only the destination needs a fresh header. The workspace verifies
         // manifest membership; unrelated pages/media are not part of this read.
         let current = try await workspace.pageSnapshot(target.id)
-        guard let index = pages.firstIndex(where: { $0.id == target.id }) else { throw LibraryFailure.missingItem }
-        pages[index] = current
+        if let index = pages.firstIndex(where: { $0.id == target.id }) { pages[index] = current }
+        else {
+            // Add/duplicate/mind-map can publish a new page before the model's
+            // list is updated. Trust verified manifest membership, not the old UI.
+            let order = try await workspace.manifest().pageIDs
+            var known = Dictionary(uniqueKeysWithValues: pages.map { ($0.id, $0) })
+            known[current.id] = current
+            if order.allSatisfy({ known[$0] != nil }) { pages = order.compactMap { known[$0] } }
+            else { pages = try await workspace.pages() }
+        }
         let drawing: PKDrawing
         var recovered = false
         do {

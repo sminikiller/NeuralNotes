@@ -129,6 +129,9 @@ struct LensPanel: View {
                 }
             } else if exact == nil && model.selectedIDs.isEmpty {
                 text += "\n" + page.recognizedText
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, page.pdfFile != nil {
+                    text = try await DocumentServices.pdfText(page: page, workspace: model.workspace)
+                }
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 1600)
                     if let data = image.pngData() { text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n") }

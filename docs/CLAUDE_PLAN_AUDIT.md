@@ -4,9 +4,13 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.18.0/build 34**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.19.0/build 35**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
 
 La foto successiva documenta due errori SDK reali nella 0.14.0 (delegato ereditato di PDFView). [Patch 0.14.1](FIXES_0_14_1.md): nessuna conformità o metodo delegato ridichiarati; filtro sul riconoscitore Pencil dedicato. Non ancora compilata con Apple.
+
+## PDF grandi e integrazione account 0.19.0
+
+Import locale 1 GiB / 5.000 pagine con streaming, hash e controllo spazio; oltre 200 pagine testo differito a Lente/indicizzazione. Ripristinato il caricamento di pagine appena pubblicate non ancora nell’elenco UI, mantenendo il percorso isolato delle pagine note. Suite Core 204 (202 passati, due skip) + 98 FSRS; backend 41 passati. Nuova integrazione reale locale Auth/email/PostgREST/PostgreSQL, due utenti/RLS/quote e refresh/logout passata; trasporto DeepSeek simulato, nessuna inferenza live. Fixture valida 734.003.416 byte / 1.500 pagine verificata con pypdf e prima/ultima pagina controllate visivamente via Poppler. Non è una prova di rendering/importazione con Apple. Grafo 422 / 267 Swift / 344 metodi XCTest, grammatica e parsing riusciti. Due nuove prove native predisposte, non eseguite. Nessuna attivazione pubblica: connessioni Supabase/Render e chiave provider mancanti. [Consegna e limiti](DELIVERY_0_19_0.md), [attivazione](../backend/ACTIVATION.md).
 
 ## Primo lotto AI gestita 0.18.0
 

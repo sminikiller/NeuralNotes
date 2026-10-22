@@ -27,12 +27,21 @@ extension EditorViewModel {
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
                 imported = try await workspace.appendNative(from: url)
-            } else { imported = try await DocumentServices.importPDF(from: url, into: workspace) }
+            } else {
+                imported = try await DocumentServices.importPDF(from: url, into: workspace) { [weak self] message in
+                    if self?.navigating == true { self?.status = message }
+                }
+            }
+            // Reuse the committed headers instead of rereading every imported
+            // page merely to make the destination visible to load(_:).
+            pages.append(contentsOf: imported)
             if let first = imported.first { try await load(first) }
+            error = nil
         } catch { self.error = error.localizedDescription }
         do {
             pages = try await workspace.pages()
             recordOrder(before, selectedBefore: selected, label: "Importa pagine")
+            status = "Salvato sul dispositivo"
         } catch { self.error = error.localizedDescription }
     }
 }

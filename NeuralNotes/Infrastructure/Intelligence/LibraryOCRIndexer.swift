@@ -39,6 +39,13 @@ final class LibraryOCRIndexer {
         let page = try await workspace.pageSnapshot(id)
         guard await workspace.needsAutomaticOCR(pageID: id, revision: page.revision) else { return false }
         guard page.drawingFile != nil || !page.images.isEmpty || (page.pdfFile != nil && page.recognizedText.isEmpty) else { return false }
+        if page.pdfFile != nil, page.drawingFile == nil, page.images.isEmpty {
+            let text = try await DocumentServices.pdfText(page: page, workspace: workspace)
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try Task.checkCancellation()
+                return try await workspace.storeAutomaticOCR(pageID: id, revision: page.revision, text: text)
+            }
+        }
         let bytes = try await workspace.drawing(page)
         let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
         var visual = page; visual.texts = []; visual.tapes = []; visual.shapes = []

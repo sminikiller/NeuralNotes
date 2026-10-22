@@ -1,0 +1,74 @@
+# Ephemeral loopback-only integration environment, not a production deployment.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${NN_TEST_DB_PASSWORD}
+    volumes:
+      - ./bootstrap.sql:/docker-entrypoint-initdb.d/bootstrap.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres]
+      interval: 1s
+      timeout: 2s
+      retries: 40
+  mail:
+    image: axllent/mailpit:v1.27.10
+    ports:
+      - 127.0.0.1:${NN_TEST_MAIL_PORT}:8025
+  templates:
+    image: node:22-alpine
+    volumes:
+      - ./otp.html:/otp.html:ro
+    command: [node, -e, "require('http').createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end(require('fs').readFileSync('/otp.html'))}).listen(8080,'0.0.0.0')"]
+  auth:
+    image: supabase/gotrue:v2.197.0
+    depends_on:
+      db:
+        condition: service_healthy
+      mail:
+        condition: service_started
+      templates:
+        condition: service_started
+    ports:
+      - 127.0.0.1:${NN_TEST_AUTH_PORT}:9999
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${NN_TEST_ORIGIN}
+      GOTRUE_SITE_URL: ${NN_TEST_ORIGIN}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:nn-integration-auth-only@db:5432/postgres
+      GOTRUE_DB_NAMESPACE: auth
+      GOTRUE_JWT_SECRET: ${NN_TEST_JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
+      GOTRUE_DISABLE_SIGNUP: 'false'
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: 'false'
+      GOTRUE_MAILER_AUTOCONFIRM: 'false'
+      GOTRUE_SMTP_HOST: mail
+      GOTRUE_SMTP_PORT: 1025
+      GOTRUE_SMTP_ADMIN_EMAIL: no-reply@neuralnotes.test
+      GOTRUE_SMTP_SENDER_NAME: NeuralNotes integration
+      GOTRUE_SMTP_MAX_FREQUENCY: 1s
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 100
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://templates:8080/otp.html
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://templates:8080/otp.html
+    healthcheck:
+      test: [CMD, wget, --quiet, --spider, http://127.0.0.1:9999/health]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+  rest:
+    image: postgrest/postgrest:v14.18
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${NN_TEST_REST_PORT}:3000
+    environment:
+      PGRST_DB_URI: postgres://authenticator:nn-integration-role-only@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${NN_TEST_JWT_SECRET}
