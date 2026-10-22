@@ -79,6 +79,7 @@ struct StudyPanel: View {
             }
             .navigationTitle("Studia con le fonti")
             .task {
+                consentKey = await AIEngineRouter.restoredConsent(configuration)
                 do { history = try await model.workspace.artifacts(); result = history.last }
                 catch { self.error = error.localizedDescription }
             }

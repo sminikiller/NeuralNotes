@@ -20,6 +20,8 @@ struct LensPanel: View {
     @State private var sourcesLoading = false
     @State private var error: String?
     @State private var job: Task<Void, Never>?
+    @State private var jobGeneration = UUID()
+    @State private var lastAutomaticKey: String?
     var body: some View {
         VStack(spacing: 10) {
             HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal)
@@ -75,12 +77,12 @@ struct LensPanel: View {
         .sheet(isPresented: $lookup) { LookupPanel(model: model, sources: sources, configuration: configuration, consentKey: consentKey) }
         .task(id: selectionKey) { await load() }
             .onChange(of: configuration) { _, _ in job?.cancel() }
-            .onDisappear { job?.cancel() }
+            .onDisappear { jobGeneration = UUID(); job?.cancel() }
     }
     private var selectionKey: String {
         let objects = model.selectedIDs.map(\.uuidString).sorted().joined(separator: ",")
         let strokes = (model.selectedStrokeIndices ?? []).sorted().map(String.init).joined(separator: ",")
-        return "\(model.page?.id.uuidString ?? "")|\(objects)|\(strokes)|\(model.selectionIncludesInk)|\(String(describing: model.lensArea))|\(model.lensTextSelection ?? "")|\(model.lensRequest)"
+        return "\(model.page?.id.uuidString ?? "")|\(objects)|\(strokes)|\(model.selectionIncludesInk)|\(String(describing: model.lensArea))|\(model.lensTextSelection ?? "")|\(model.lensRequest)|\(configuration.consentKey)"
     }
     private var sourcesChanged: Bool {
         !sources.isEmpty && (model.dirty || sources.contains { $0.reference.pageID != model.page?.id || $0.reference.pageRevision != model.page?.revision })
@@ -88,15 +90,26 @@ struct LensPanel: View {
     private var canSend: Bool { !busy && !sourcesLoading && !sourcesChanged && !sources.isEmpty && (configuration.engine == .offline || consentKey == configuration.consentKey) }
     private var settings: some View {
         Button { configuring = true } label: { Image(systemName: "slider.horizontal.3") }
+            .accessibilityLabel("Connessione AI").accessibilityIdentifier("aiConnectionSettings")
             .sheet(isPresented: $configuring) { AIConnectionPanel(configuration: $configuration, consentKey: $consentKey) }
     }
     private func load() async {
-        job?.cancel(); sources = []; error = nil; sourcesLoading = true
+        jobGeneration = UUID(); job?.cancel(); busy = false; partial = ""; sources = []; error = nil; sourcesLoading = true
         let key = selectionKey
         defer { if key == selectionKey { sourcesLoading = false } }
+        if consentKey == nil { consentKey = await AIEngineRouter.restoredConsent(configuration) }
         turns = (try? await model.workspace.catalog().conversation) ?? []
         guard !Task.isCancelled, key == selectionKey else { return }
         await loadSources(key: key)
+        guard !Task.isCancelled, key == selectionKey else { return }
+        sourcesLoading = false
+        // Only an intentional Lente gesture and an already approved managed
+        // account can start a request automatically. Ordinary ink is untouched.
+        if model.lensPrefersPopup, canSend, lastAutomaticKey != key,
+           await ManagedAIAccount.isManaged(configuration) {
+            lastAutomaticKey = key; question = "Spiega brevemente il testo selezionato, usando le fonti disponibili."
+            send(continuation: false)
+        }
     }
     private func loadSources(key: String) async {
         guard await model.flush(), let page = model.page else { return }
@@ -133,27 +146,37 @@ struct LensPanel: View {
         guard canSend else { return }
         let prompt = String(question.prefix(1000)); question = ""; error = nil; partial = ""; busy = true
         let selectedSources = sources, selectedConfiguration = configuration, selectedConsent = consentKey, previousTurns = turns
+        let key = selectionKey, generation = UUID(); jobGeneration = generation
         job = Task {
-            defer { busy = false; partial = "" }
+            defer { if jobGeneration == generation { busy = false; partial = "" } }
             do {
+                let scope = try await AIEngineRouter.cacheScope(selectedConfiguration)
                 let context = (continuation ? Array(previousTurns.suffix(2)) : []).map { "Domanda: \($0.question.prefix(300))\nRisposta precedente: \($0.answer.text.prefix(500))" }.joined(separator: "\n")
                 let request = AIRequest(task: .chat, question: "\(context)\nDomanda attuale: \(prompt)", sources: selectedSources)
                 let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]; encoder.dateEncodingStrategy = .iso8601
                 var identity = try encoder.encode(request); identity.append(Data(selectedConfiguration.consentKey.utf8))
+                identity.append(Data("|account:\(scope)".utf8))
                 let cacheKey = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
                 let answer: AIArtifact
                 if let cached = try? await model.workspace.cachedLensAnswer(key: cacheKey) { answer = cached }
                 else {
-                    answer = try await AIEngineRouter.generate(request, configuration: selectedConfiguration, consentKey: selectedConsent) { partial += $0 }
-                    try Task.checkCancellation(); try? await model.workspace.cacheLensAnswer(key: cacheKey, artifact: answer)
+                    answer = try await AIEngineRouter.generate(request, configuration: selectedConfiguration, consentKey: selectedConsent) { delta in
+                        if jobGeneration == generation && key == selectionKey { partial += delta }
+                    }
+                    try Task.checkCancellation()
+                    guard jobGeneration == generation, key == selectionKey,
+                          try await AIEngineRouter.cacheScope(selectedConfiguration) == scope else { throw CancellationError() }
+                    try? await model.workspace.cacheLensAnswer(key: cacheKey, artifact: answer)
                 }
                 try Task.checkCancellation()
+                guard jobGeneration == generation, key == selectionKey,
+                      try await AIEngineRouter.cacheScope(selectedConfiguration) == scope else { throw CancellationError() }
                 let turn = AIConversationTurn(question: prompt, answer: answer)
                 turns = Array((turns + [turn]).suffix(20))
                 do { try await model.workspace.saveConversationTurn(turn) }
                 catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
             } catch is CancellationError { }
-            catch { self.error = error.localizedDescription; question = prompt }
+            catch { if jobGeneration == generation && key == selectionKey { self.error = error.localizedDescription; question = prompt } }
         }
     }
     private func insert(_ artifact: AIArtifact) {

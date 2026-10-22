@@ -1,6 +1,10 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.17.2
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.18.0
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Primo lotto AI gestita 0.18.0
+
+Aggiunti accesso email nativo, sessione rinnovabile e storage Keychain, collegamento comune a chat/studio/lookup/quiz/ricerca, consenso e cache per account e invio automatico dopo un gesto Lente esplicito già autorizzato. Non è un servizio online attivato. Dieci nuovi test portabili con fixture; suite completa 199 Core (197 passati, due skip) e 98 FSRS passati. Grafo 418 / 264 Swift / 337 metodi XCTest e parsing riusciti. Nuova prova UI predisposta, non eseguita; niente compilazione SDK o Keychain reale. Backend invariato, nessuna nuova esecuzione live. [Dettagli e lavoro aperto](AI_MANAGED_0_18_0.md).
 
 ## Patch 0.17.2 — sbavatura iniziale della retta
 

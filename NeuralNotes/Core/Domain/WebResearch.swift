@@ -20,10 +20,11 @@ public struct WebResearchRequest: Codable, Sendable {
     public let term: String
     public init(term: String) { self.term = term.trimmingCharacters(in: .whitespacesAndNewlines) }
     public var isValid: Bool { !term.isEmpty && term.utf16.count <= 120 && !term.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) || CharacterSet.newlines.contains($0) }) }
-    public func cacheKey(configuration: AIEngineConfiguration) -> String {
+    public func cacheKey(configuration: AIEngineConfiguration, accountScope: String = "") -> String {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         var data = Data("/v1/research|".utf8)
         data.append((try? encoder.encode(self)) ?? Data()); data.append(Data(configuration.consentKey.utf8))
+        if !accountScope.isEmpty { data.append(Data("|account:\(accountScope)".utf8)) }
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

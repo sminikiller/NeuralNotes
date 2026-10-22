@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import CryptoKit
 import NeuralNotesCore
 
 enum EngineCredentials {
@@ -71,6 +72,31 @@ struct DirectAIProvider: AIProvider {
 
 @MainActor
 enum AIEngineRouter {
+    private static func authorization(_ configuration: AIEngineConfiguration) async throws -> (token: String, scope: String) {
+        if await ManagedAIAccount.isManaged(configuration), let url = configuration.url {
+            let account = try await ManagedAIAccount.client.authorization(for: url)
+            return (account.token, "managed|\(url.absoluteString)|\(account.userID.uuidString)")
+        }
+        let token = EngineCredentials.load(configuration.engine)
+        guard !token.isEmpty else { throw AIWireFailure.configuration }
+        let hash = SHA256.hash(data: Data(token.utf8)).map { String(format: "%02x", $0) }.joined()
+        return (token, "personal|\(configuration.consentKey)|\(hash)")
+    }
+    static func cacheScope(_ configuration: AIEngineConfiguration) async throws -> String {
+        if configuration.engine == .offline { return "offline" }
+        return try await authorization(configuration).scope
+    }
+    static func restoredConsent(_ configuration: AIEngineConfiguration) async -> String? {
+        guard await ManagedAIAccount.isManaged(configuration), let scope = try? await cacheScope(configuration) else { return nil }
+        let saved = UserDefaults.standard.string(forKey: "ai.managed.consent.\(scope)")
+        return saved == configuration.consentKey ? saved : nil
+    }
+    static func rememberConsent(_ configuration: AIEngineConfiguration, allowed: Bool) async throws {
+        guard await ManagedAIAccount.isManaged(configuration) else { return }
+        let scope = try await cacheScope(configuration), key = "ai.managed.consent.\(scope)"
+        if allowed { UserDefaults.standard.set(configuration.consentKey, forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
     static func research(_ input: WebResearchRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> AIArtifact {
         guard input.isValid, let url = configuration.researchURL else { throw AIWireFailure.configuration }
         let value: AIArtifact = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
@@ -83,7 +109,7 @@ enum AIEngineRouter {
     }
     private static func backendStructured<T: Decodable>(body: Data, url: URL, configuration: AIEngineConfiguration, consentKey: String?) async throws -> T {
         guard configuration.engine == .backend, consentKey == configuration.consentKey else { throw AIWireFailure.configuration }
-        let credential = EngineCredentials.load(.backend); guard !credential.isEmpty else { throw AIWireFailure.configuration }
+        let auth = try await authorization(configuration), credential = auth.token
         var call = URLRequest(url: url); call.httpMethod = "POST"; call.timeoutInterval = 90
         call.setValue("application/json", forHTTPHeaderField: "Content-Type"); call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization"); call.httpBody = body
         let config = URLSessionConfiguration.ephemeral; config.urlCache = nil; config.httpShouldSetCookies = false
@@ -92,37 +118,29 @@ enum AIEngineRouter {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw AIConnectionFailure.backend("Richiesta non disponibile: controlla connessione, token e funzioni abilitate sul backend.") }
         var data = Data()
         for try await byte in bytes { try Task.checkCancellation(); guard data.count < DirectAIWire.maximumResponseBytes else { throw AIWireFailure.response }; data.append(byte) }
+        try Task.checkCancellation()
+        guard try await cacheScope(configuration) == auth.scope else { throw CancellationError() }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601; return try decoder.decode(T.self, from: data)
     }
     static func lookup(_ input: LookupRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> LookupCard {
         guard input.isValid, consentKey == configuration.consentKey, let url = configuration.lookupURL else { throw AIWireFailure.configuration }
-        let credential = EngineCredentials.load(.backend)
-        guard !credential.isEmpty else { throw AIWireFailure.configuration }
-        var call = URLRequest(url: url); call.httpMethod = "POST"; call.timeoutInterval = 90
-        call.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization"); call.httpBody = try JSONEncoder().encode(input)
-        let config = URLSessionConfiguration.ephemeral; config.urlCache = nil; config.httpShouldSetCookies = false
-        let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
-        let (bytes, response) = try await session.bytes(for: call)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw AIConnectionFailure.backend("Scheda non disponibile: controlla connessione, token e aggiornamento del backend /v1/lookup.")
-        }
-        var data = Data()
-        for try await byte in bytes {
-            try Task.checkCancellation(); guard data.count < DirectAIWire.maximumResponseBytes else { throw AIWireFailure.response }; data.append(byte)
-        }
-        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(LookupCard.self, from: data).validated(for: input)
+        let value: LookupCard = try await backendStructured(body: JSONEncoder().encode(input), url: url, configuration: configuration, consentKey: consentKey)
+        return try value.validated(for: input)
     }
     static func generate(_ input: AIRequest, configuration: AIEngineConfiguration, consentKey: String?, onDelta: @MainActor (String) -> Void = { _ in }) async throws -> AIArtifact {
         if configuration.engine == .offline { return try await ExtractiveStudyProvider().generate(input) }
         guard consentKey == configuration.consentKey, let url = configuration.url else { throw AIWireFailure.configuration }
-        let token = EngineCredentials.load(configuration.engine)
-        guard !token.isEmpty else { throw AIWireFailure.configuration }
+        let auth = try await authorization(configuration), token = auth.token
+        let result: AIArtifact
         if configuration.engine == .backend {
-            return try await RemoteAIProvider(endpoint: url, sessionToken: token).generateStreaming(input, onDelta: onDelta)
+            result = try await RemoteAIProvider(endpoint: url, sessionToken: token).generateStreaming(input) { delta in
+                if !Task.isCancelled { onDelta(delta) }
+            }
+        } else {
+            result = try await DirectAIProvider(configuration: configuration, credential: token).generate(input)
         }
-        return try await DirectAIProvider(configuration: configuration, credential: token).generate(input)
+        try Task.checkCancellation()
+        guard try await cacheScope(configuration) == auth.scope else { throw CancellationError() }
+        return result
     }
 }

@@ -4,9 +4,13 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.17.2/build 33**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.18.0/build 34**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
 
 La foto successiva documenta due errori SDK reali nella 0.14.0 (delegato ereditato di PDFView). [Patch 0.14.1](FIXES_0_14_1.md): nessuna conformità o metodo delegato ridichiarati; filtro sul riconoscitore Pencil dedicato. Non ancora compilata con Apple.
+
+## Primo lotto AI gestita 0.18.0
+
+Aggiunti accesso email nativo, sessione rinnovabile e storage Keychain, collegamento comune a chat/studio/lookup/quiz/ricerca, consenso e cache per account e invio automatico dopo un gesto Lente esplicito già autorizzato. Non è un servizio online attivato. Dieci nuovi test portabili con fixture; suite completa 199 Core (197 passati, due skip) e 98 FSRS passati. Grafo 418 / 264 Swift / 337 metodi XCTest e parsing riusciti. Nuova prova UI predisposta, non eseguita; niente compilazione SDK o Keychain reale. Backend invariato, nessuna nuova esecuzione live. [Dettagli e lavoro aperto](AI_MANAGED_0_18_0.md).
 
 ## Patch 0.17.2 — sbavatura iniziale della retta
 

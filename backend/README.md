@@ -1,6 +1,6 @@
 # Gateway gestito e piattaforma NeuralNotes 0.4
 
-La 0.17 aggiunge DeepSeek e un server account/community/sync con Supabase. [Configurazione e limiti](ENVIRONMENT.md), [piano prodotto e costi](../docs/AI_COMMUNITY_PLAN_0_17.md). Il servizio non è distribuito; l’app non ha ancora le schermate account/community o la coda cloud. Le sezioni seguenti descrivono anche il percorso personale HMAC e l’adapter Responses precedente, ancora disponibili. `npm start` ora esegue `start.mjs`; per i test completi usa `node --test backend/*.test.mjs` dalla radice. 39 test a fixture passati, più il controllo PostgreSQL separato `backend/platform/verify.ps1`.
+La 0.17 aggiunge DeepSeek e un server account/community/sync con Supabase. [Configurazione e limiti](ENVIRONMENT.md), [piano prodotto e costi](../docs/AI_COMMUNITY_PLAN_0_17.md). Il servizio non è distribuito; la 0.18 ha la schermata account email, mentre community e coda cloud native restano da realizzare. [Client nativo e limiti](../docs/AI_MANAGED_0_18_0.md). Le sezioni seguenti descrivono anche il percorso personale HMAC e l’adapter Responses precedente, ancora disponibili. `npm start` ora esegue `start.mjs`; per i test completi usa `node --test backend/*.test.mjs` dalla radice. 39 test a fixture passati, più il controllo PostgreSQL separato `backend/platform/verify.ps1`.
 
 # NeuralNotes backend personale
 

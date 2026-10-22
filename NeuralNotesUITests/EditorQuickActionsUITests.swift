@@ -2,6 +2,17 @@ import XCTest
 import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testManagedAIAccountExplainsMissingServiceWithoutEnablingLogin() {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["editorLens"].tap()
+        let settings = app.buttons["aiConnectionSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5)); settings.tap()
+        app.buttons["managedAIAccount"].tap()
+        XCTAssertTrue(app.staticTexts["managedAINotConfigured"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["managedAIEmail"].exists)
+        XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
+    }
+
     @MainActor func testPageStripStaysCompactAndLeavesTheRemainingHeightToTheCanvas() {
         let device = XCUIDevice.shared, previous = device.orientation
         defer { device.orientation = previous }

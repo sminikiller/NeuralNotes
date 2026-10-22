@@ -2,6 +2,8 @@
 
 Proposta e stato dei sorgenti del 22 ottobre 2026, versione 0.17.0. Nessun servizio è stato pubblicato o addebitato. Il backend sviluppato è una base verificata localmente, non una piattaforma già utilizzabile dall’iPad.
 
+Aggiornamento successivo: la [0.18.0](AI_MANAGED_0_18_0.md) implementa il primo collegamento nativo con email OTP, rinnovo e azioni della Lente. Lo stato per componente sotto resta la fotografia della 0.17; hosting, community e sincronizzazione non sono attivati.
+
 ## Esperienza nell’app
 
 L’app deve conoscere un solo indirizzo HTTPS NeuralNotes. Modello, chiavi, limiti e abbonamenti si gestiscono sul server. Dopo l’accesso con Apple o codice email, l’utente usa gli strumenti senza configurare provider o token. La chiave del provider non entra nel pacchetto iPad. `/v1/config` restituisce solo configurazione pubblica; l’integrazione nativa di login, rinnovo della sessione e configurazione gestita resta da realizzare.

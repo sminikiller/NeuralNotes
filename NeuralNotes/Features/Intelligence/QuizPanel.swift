@@ -108,6 +108,7 @@ struct QuizPanel: View {
         }
     }
     private func load() async {
+        if consentKey == nil { consentKey = await AIEngineRouter.restoredConsent(configuration) }
         do { let catalog = try await model.workspace.catalog(); history = catalog.quizHistory ?? []; if run == nil { run = catalog.activeQuiz } }
         catch { self.error = error.localizedDescription }
     }

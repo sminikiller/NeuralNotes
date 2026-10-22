@@ -106,7 +106,8 @@ struct LookupPanel: View {
         job = Task {
             defer { busy = false }
             do {
-                let key = input.cacheKey(configuration: configuration)
+                let scope = try await AIEngineRouter.cacheScope(configuration)
+                let key = input.cacheKey(configuration: configuration, accountScope: scope)
                 let value: AIArtifact
                 if let cached = try? await model.workspace.cachedLensAnswer(key: key),
                    let valid = try? cached.validatedWebResearch(), (0..<3600).contains(Date().timeIntervalSince(valid.createdAt)) { value = valid }
@@ -115,7 +116,9 @@ struct LookupPanel: View {
                     try Task.checkCancellation()
                     if value.text.count <= 16_000 { try? await model.workspace.cacheLensAnswer(key: key, artifact: value) }
                 }
-                try Task.checkCancellation(); research = value
+                try Task.checkCancellation()
+                guard try await AIEngineRouter.cacheScope(configuration) == scope else { throw CancellationError() }
+                research = value
                 do { try await model.workspace.saveArtifact(value) }
                 catch { self.error = "Risposta visibile, ma non salvata: \(error.localizedDescription)" }
             } catch is CancellationError { }

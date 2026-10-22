@@ -1,7 +1,9 @@
-# NeuralNotes 0.17.2 — anteprima iPad
+# NeuralNotes 0.18.0 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
+
+**0.18.0/build 34 — primo lotto AI gestita:** accesso email con codice, sessione rinnovabile nel portachiavi, consenso/cache per account e collegamento delle azioni della Lente al gateway. Spiegazione automatica dopo un gesto Lente esplicito con account e consenso attivi. Nessun servizio pubblicato o AI remota già attiva; schermate native e Keychain reale non ancora provati con Apple. [Implementazione, test e attivazione](docs/AI_MANAGED_0_18_0.md). Include la correzione della linea della 0.17.2 e la barra compatta 0.17.1.
 
 **0.17.2/build 33:** riconoscimento della retta trattenuta con tolleranza limitata a una piccola sbavatura iniziale; la linea corretta usa la stessa geometria in anteprima e nell’inchiostro salvato. Pieghe centrali/finali e scarabocchi restano esclusi. [Correzione e test](docs/FIXES_0_17_2.md).
 
@@ -21,7 +23,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 
 **0.14.0/build 25:** eliminazione visibile delle pagine, mini toolbar personalizzabile, popup verso l’interno, stili e colori RTF, forme precise, salti audio ±15 s. Import PDF/foto preparati fuori dal thread UI; PDF esterno affiancato con estratti e ricerca del termine senza import. Compressione PCM → AAC mono 64 kbps dopo la registrazione, transazione riprendibile, limiti di spazio per i backup e comando per le vecchie lezioni. [Comandi, test e pacchetti](docs/DELIVERY_0_14_0.md), [piano AI e dipendenze](docs/AI_FUNCTIONAL_PLAN.md).
 
-**Verifica attuale:** 185 XCTest Core (183 passati, due skip Darwin) e 98 FSRS passati su Swift Linux; 39 test backend e verifiche SQL su PostgreSQL passati. Nuovi test codec/PDF/Pencil/RTF predisposti ma non eseguiti con Apple; 35 controlli incorporati. Il blocco di fatturazione GitHub impedisce ancora la build Apple. Nessuna conferma di funzionamento sull’iPad o attivazione AI remota è implicita nel pacchetto.
+**Verifica attuale:** 199 XCTest Core (197 passati, due skip Darwin) e 98 FSRS passati su Swift Linux. Backend invariato: restano le 39 prove e verifiche PostgreSQL eseguite nella 0.17.0, non una nuova prova live. Nuovi test codec/PDF/Pencil/RTF predisposti ma non eseguiti con Apple; 35 controlli incorporati. Il blocco di fatturazione GitHub impedisce ancora la build Apple. Nessuna conferma di funzionamento sull’iPad o attivazione AI remota è implicita nel pacchetto.
 
 **0.12.2:** correzioni degli errori reali segnalati in `SelectionCommands`, `LibraryView` e `PencilControls`, con riduzione delle espressioni SwiftUI e controllo mirato delle assegnazioni nei `catch`. [Patch e verifica](docs/FIXES_0_12_2.md). Conserva la [correzione CoreGraphics della 0.12.1](docs/FIXES_0_12_1.md). La nuova CI è stata fermata prima dei comandi dal blocco di fatturazione GitHub: la compilazione Apple resta non eseguita, non viene dichiarata una versione finale verificata.
 
