@@ -198,7 +198,7 @@ struct PDFStudyPanel: View {
                 Button("Spiega e annota", systemImage: "note.text.badge.plus") { model.lensAsk(text: controller.view?.currentSelection?.string ?? "", fromSidePDF: true) }
                     .disabled(!controller.hasSelection)
                 Button("Chiedi", systemImage: "sparkle.magnifyingglass") {
-                    model.lensCardAnchor = nil; model.lensCard = LensCardRequest(text: controller.view?.currentSelection?.string ?? "", fromSidePDF: true)
+                    model.lensAnchor = nil; model.openLens(LensCardRequest(text: controller.view?.currentSelection?.string ?? "", fromSidePDF: true))
                 }.disabled(!controller.hasSelection)
                 Button("Web", systemImage: "globe") { lookup(controller.view?.currentSelection?.string ?? "") }.disabled(!controller.hasSelection)
             }.font(.caption).buttonStyle(.bordered).padding(.horizontal)

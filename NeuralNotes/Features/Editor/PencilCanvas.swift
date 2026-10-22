@@ -14,6 +14,7 @@ final class CanvasHost: UIView {
     let zoomNavigator = ZoomNavigator()
     let laserPointer = LaserPointerOverlay()
     let searchHighlight = SearchHighlightOverlay()
+    let lensNotes = LensNotesOverlay()
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
@@ -50,6 +51,7 @@ final class CanvasHost: UIView {
         inputShield.isUserInteractionEnabled = true; inputShield.isOpaque = false; addSubview(inputShield)
         addSubview(zoomNavigator)
         insertSubview(searchHighlight, belowSubview: zoomNavigator)
+        insertSubview(lensNotes, belowSubview: searchHighlight)
         addSubview(laserPointer)
     }
     required init?(coder: NSCoder) { return nil }
@@ -160,7 +162,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
@@ -182,10 +184,10 @@ final class CanvasHost: UIView {
         interaction?.refresh()
         textInput?.layout()
     }
-    func centerWritingArea(_ point: CGPoint) {
+    func centerWritingArea(_ point: CGPoint, zoomFactor: CGFloat = 3) {
         guard let model, !model.interactionBusy, !model.navigating, !model.loading else { return }
         fitsPageWidth = false
-        let zoom = min(canvas.maximumZoomScale, max(canvas.zoomScale, canvas.minimumZoomScale * 3))
+        let zoom = min(canvas.maximumZoomScale, max(canvas.zoomScale, canvas.minimumZoomScale * zoomFactor))
         canvas.setZoomScale(zoom, animated: false); alignSurface()
         let x = max(-canvas.contentInset.left, min(canvas.contentSize.width + canvas.contentInset.right - bounds.width, point.x * zoom - bounds.width / 2))
         let y = max(-canvas.contentInset.top, min(canvas.contentSize.height + canvas.contentInset.bottom - bounds.height, point.y * zoom - bounds.height / 2))

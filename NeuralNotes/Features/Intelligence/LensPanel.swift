@@ -30,11 +30,11 @@ struct LensPanel: View {
     @AppStorage("lens.autoAnnotate") private var autoAnnotate = true
     var body: some View {
         VStack(spacing: 10) {
-            HStack { Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal)
+            HStack { Label("Chat sulla pagina", systemImage: "doc.text.magnifyingglass").font(.headline).accessibilityIdentifier("lensPanelTitle"); Spacer(); Button { glossary = true } label: { Image(systemName: "character.book.closed") }.accessibilityLabel("Glossario"); settings }.padding(.horizontal).padding(.top, 8)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    Text(configuration.engine != .offline ? "Risposte sulle fonti selezionate, con riferimenti." : "Modalità offline: estratti delle fonti, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
-                    Text("\(sources.count) fonti · area cerchiata o selezione; altrimenti la pagina corrente").font(.caption)
+                    Text(configuration.engine != .offline ? "Risposte sul testo della pagina, con riferimenti." : "Modalità offline: estratti della pagina, senza modello generativo.").font(.caption).foregroundStyle(.secondary)
+                    if !sourcesLoading { Text(sources.isEmpty ? "Nessun testo letto in questa pagina." : "Uso \(sources.count) brani di questa pagina.").font(.caption) }
                     if sourcesLoading { ProgressView("Lettura della selezione…") }
                     if sourcesChanged { Button("Pagina modificata: aggiorna le fonti", systemImage: "arrow.clockwise") { Task { await load() } }.font(.caption) }
                     if configuration.engine != .offline && consentKey != configuration.consentKey { Text("Attiva questa connessione AI dal pulsante delle impostazioni prima di inviare le fonti.").font(.caption).foregroundStyle(.secondary) }

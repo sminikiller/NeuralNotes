@@ -7,6 +7,9 @@ struct SearchFocusRequest: Equatable { var pageID: UUID; var query: String }
 extension RichText {
     static func matchingRects(_ query: String, in text: TextElement, pageHeight: Double) -> [CGRect] {
         guard !query.isEmpty else { return [] }
+        if text.lensNote?.isCollapsed == true {
+            return text.text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) == nil ? [] : [bounds(text, pageHeight: pageHeight)]
+        }
         let value = attributed(text), storage = NSTextStorage(attributedString: value), layout = NSLayoutManager()
         let container = NSTextContainer(size: CGSize(width: text.width, height: max(1, pageHeight - text.y)))
         container.lineFragmentPadding = 0; storage.addLayoutManager(layout); layout.addTextContainer(container); layout.ensureLayout(for: container)

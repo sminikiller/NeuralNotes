@@ -11,8 +11,11 @@ extension EditorViewModel {
             let box = RichText.bounds(text, pageHeight: page.height).insetBy(dx: 0, dy: -6)
             return box.contains(point.applying(RichText.rotation(text, pageHeight: page.height).inverted()))
         }
-        if let hit { editingTextID = hit.id }
-        else {
+        if let hit {
+            // A Lens note reduced to 💡 opens before its text can be edited.
+            if hit.lensNote?.isCollapsed == true { setLensNote(hit.id, collapsed: false) }
+            editingTextID = hit.id
+        } else {
             var text = TextElement(text: "")
             text.x = max(0, min(Double(point.x), page.width - 40)); text.y = max(0, min(Double(point.y), page.height - 40))
             text.width = max(40, min(480, page.width - text.x - 12))

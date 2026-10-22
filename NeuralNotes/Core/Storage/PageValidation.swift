@@ -11,7 +11,7 @@ public enum PageValidation {
         for text in page.texts {
             guard [text.x, text.y, text.width, text.fontSize].allSatisfy(\.isFinite), text.width > 0, (1...1000).contains(text.fontSize),
                   text.background?.isValid != false, (text.rtf?.count ?? 0) <= 2 * 1024 * 1024,
-                  text.rotation?.isFinite != false else { throw LibraryFailure.corruptDocument }
+                  text.rotation?.isFinite != false, text.lensNote?.isValid != false else { throw LibraryFailure.corruptDocument }
         }
         for image in page.images {
             guard [image.x, image.y, image.width, image.height].allSatisfy(\.isFinite), image.width > 0, image.height > 0,

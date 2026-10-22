@@ -67,6 +67,9 @@ struct CameraCapture: UIViewControllerRepresentable {
 struct PhotoCropPanel: View {
     let image: UIImage
     var initial: NormalizedCrop = .full
+    var title = "Ritaglia foto"
+    var confirm = "Usa ritaglio"
+    var hint = "Trascina per scegliere l’area. L’immagine originale rimane conservata."
     let completion: (NormalizedCrop) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var crop = NormalizedCrop.full
@@ -74,7 +77,7 @@ struct PhotoCropPanel: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Text("Trascina per scegliere l’area. L’immagine originale rimane conservata.").font(.callout).foregroundStyle(.secondary)
+                Text(hint).font(.callout).foregroundStyle(.secondary)
                 GeometryReader { geometry in
                     let size: CGSize = PhotoCropGeometry.fittedSize(image: image.size, available: geometry.size)
                     let selected: CGRect = PhotoCropGeometry.frame(crop: crop, size: size)
@@ -99,11 +102,11 @@ struct PhotoCropPanel: View {
                     }
                 }.buttonStyle(.bordered)
             }.padding()
-            .navigationTitle("Ritaglia foto")
+            .navigationTitle(title)
             .onAppear { crop = initial }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Usa ritaglio") { completion(crop); dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button(confirm) { completion(crop); dismiss() }.accessibilityIdentifier("photoCropConfirm") }
             }
         }
     }

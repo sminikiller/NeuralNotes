@@ -1,7 +1,9 @@
-# NeuralNotes 0.20.0 — anteprima iPad
+# NeuralNotes 0.20.1 — anteprima iPad
 
 
 Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFoundation, Vision e Apple Speech. iPadOS 17 minimo. FSRS-6 è incluso con licenza MIT; le altre funzioni dell’app usano i framework di sistema. Pacchetto App Playground per iPad 10 / iPadOS 18.7.8 e progetto Xcode con test.
+
+**0.20.1/build 37 — Lente AI più comoda e note collegate:** la conversazione della Lente si apre in un pannello a destra (o in una finestra mobile da trascinare), mai sopra la pagina; la barra della Lente sta sotto la barra degli strumenti; foto ritagliata prima di chiedere; domande successive sulla stessa selezione. Le note della Lente sono collegate al testo che spiegano, si spostano trascinandole, si riducono a 💡 e si riaprono con un tocco, si modificano e hanno un elenco con salto alla pagina. [Consegna e verifiche](docs/DELIVERY_0_20_1.md).
 
 **0.20.0/build 36 — funzioni AI complete, account e cloud:** scheda, quiz e flashcard anche con chiave personale (OpenAI, Claude, Gemini, DeepSeek) e ricerca web con OpenAI; Lente con inserimento accanto alla selezione e flashcard sensate; flashcard generate, Interrogami e valutazione Difficile; sbobina AI a capitoli riprendibile; piano e consumi dell'account; backup nel cloud NeuralNotes con coda e conflitti. Core e backend verificati su Linux e con servizi locali reali; compilazione Apple e servizi ospitati non ancora provati. [Consegna, verifiche e attivazione](docs/DELIVERY_0_20_0.md).
 

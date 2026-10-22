@@ -1,57 +1,58 @@
 import SwiftUI
 import NeuralNotesCore
 
-/// The card next to a circled area, a touched photo or a selected text: what was
-/// read, quick actions, a free question and the answer, ready to become a note.
+/// The Lens conversation about a selection: what was read (editable), ready-made
+/// questions, the answers one under the other and a box for follow-up questions.
+/// Each answer can become a note linked to the selected text.
 @MainActor
-struct LensCard: View {
+struct LensSessionView: View {
     let model: EditorViewModel
-    let request: LensCardRequest
-    let openChat: () -> Void
-    let insertPhoto: (Data) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var configuration = AIEngineStore.load()
-    @State private var consentKey: String?
-    @State private var configuring = false
-    @State private var text = ""
-    @State private var picture: String?
-    @State private var preview: UIImage?
-    @State private var reading = true
-    @State private var busy = false
+    @Bindable var session: LensSession
+    let insertPhoto: (Data, NormalizedCrop) -> Void
     @State private var question = ""
-    @State private var asked = ""
-    @State private var answer: TermExplanation?
-    @State private var notice: String?
-    @State private var error: String?
-    @State private var inserted = false
-    @State private var job: Task<Void, Never>?
+    @State private var configuring = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline)
-                    Spacer()
-                    Text(configuration.engine == .offline ? "Nessun motore" : configuration.engine.title).font(.caption).foregroundStyle(.secondary)
-                    Button("Chiudi", systemImage: "xmark.circle.fill") { dismiss() }.labelStyle(.iconOnly).foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if !session.engineReady { setup } else if !session.consented { consent }
+                        selection
+                        if !session.reading { prompts }
+                        ForEach(session.turns) { turn in answer(turn).id(turn.id) }
+                        if session.busy {
+                            HStack {
+                                ProgressView()
+                                Text("\(session.pending) · chiedo a \(session.configuration.engine.title)…").font(.caption).lineLimit(2)
+                                Spacer()
+                                Button("Stop") { session.cancel() }.font(.caption)
+                            }.id("lensBusy")
+                        }
+                        if let error = session.error { Text(error).font(.caption).foregroundStyle(.red) }
+                    }.padding(14)
                 }
-                if !engineReady { setup } else if consentKey != configuration.consentKey { consent }
-                if reading { ProgressView("Leggo la selezione…") } else { selection; actions; result }
-                Divider()
-                Button("Chat sulla pagina", systemImage: "bubble.left.and.text.bubble.right") { dismiss(); openChat() }.font(.caption)
-            }.padding(14)
+                .onChange(of: session.turns.count) { _, _ in
+                    guard let last = session.turns.last else { return }
+                    withAnimation { proxy.scrollTo(last.id, anchor: .top) }
+                }
+                .onChange(of: session.busy) { _, busy in
+                    if busy { withAnimation { proxy.scrollTo("lensBusy", anchor: .bottom) } }
+                }
+            }
+            Divider()
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField(session.turns.isEmpty ? "Chiedi qualcosa su questa selezione…" : "Fai un’altra domanda…", text: $question, axis: .vertical)
+                    .lineLimit(1...4).textFieldStyle(.roundedBorder).accessibilityIdentifier("lensQuestion")
+                Button { let value = question; question = ""; session.ask(question: value, model: model) } label: {
+                    Image(systemName: "arrow.up.circle.fill").font(.title)
+                }.disabled(!session.canAsk || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("Invia domanda").accessibilityIdentifier("lensSend")
+            }.padding(10)
         }
-        .frame(width: 380).frame(minHeight: 220, maxHeight: 620)
-        .task { await prepare() }
-        .onDisappear { job?.cancel() }
-        .sheet(isPresented: $configuring, onDismiss: { Task { configuration = AIEngineStore.load(); consentKey = await AIEngineRouter.restoredConsent(configuration) } }) {
-            AIConnectionPanel(configuration: $configuration, consentKey: $consentKey)
+        .sheet(isPresented: $configuring, onDismiss: { Task { await session.refreshEngine() } }) {
+            AIConnectionPanel(configuration: $session.configuration, consentKey: $session.consentKey)
         }
-    }
-
-    private var engineReady: Bool {
-        guard configuration.supportsStructuredStudy else { return false }
-        return configuration.engine == .backend || !EngineCredentials.load(configuration.engine).isEmpty
     }
 
     private var setup: some View {
@@ -64,137 +65,186 @@ struct LensCard: View {
 
     private var consent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Inviare la selezione a \(configuration.engine.title)?").font(.subheadline.bold())
-            Text("Il testo letto (e l’immagine, se c’è) parte solo quando premi un’azione. La scelta vale per questo motore.").font(.caption)
+            Text("Inviare la selezione a \(session.configuration.engine.title)?").font(.subheadline.bold())
+            Text("Il testo letto (e l’immagine, se c’è) parte solo quando premi una domanda. La scelta vale per questo motore.").font(.caption)
             HStack {
-                Button("Sì, sempre") { grant() }.buttonStyle(.borderedProminent)
+                Button("Sì, sempre") { session.grant(model) }.buttonStyle(.borderedProminent)
                 Button("Impostazioni") { configuring = true }.buttonStyle(.bordered)
             }
         }.padding(10).frame(maxWidth: .infinity, alignment: .leading).background(Color.yellow.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
     }
 
     @ViewBuilder private var selection: some View {
-        if let preview {
-            Image(uiImage: preview).resizable().scaledToFit().frame(maxHeight: 150).clipShape(RoundedRectangle(cornerRadius: 8))
-            if let photo = request.photo {
-                Button("Inserisci la foto nella pagina", systemImage: "photo.badge.plus") { dismiss(); insertPhoto(photo) }.font(.caption)
-            }
-        }
-        TextField(picture == nil ? "Testo selezionato" : "Testo letto nell’immagine (facoltativo)", text: $text, axis: .vertical)
-            .lineLimit(1...5).textFieldStyle(.roundedBorder)
-        if text.isEmpty && picture == nil { Text("Nessun testo letto: scrivilo qui o cerchia una zona più grande.").font(.caption).foregroundStyle(.secondary) }
-    }
-
-    private var actions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    if picture != nil { quick("Descrivi", "Descrivi cosa mostra l’immagine e cosa è utile sapere per studiarla.") }
-                    quick("Chi è / Cos’è", "")
-                    quick("Spiega", "Spiega in modo semplice e chiaro il contenuto selezionato.")
-                    quick("Riassumi", "Riassumi il contenuto selezionato in 3-5 punti brevi.")
-                    quick("Traduci", "Traduci in italiano il testo selezionato.")
-                }.buttonStyle(.bordered).font(.caption)
-            }
-            HStack {
-                TextField("Chiedi qualcosa su questa selezione…", text: $question, axis: .vertical).lineLimit(1...3).textFieldStyle(.roundedBorder)
-                Button { let value = question; question = ""; ask(value) } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-                    .disabled(!canAsk || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Invia domanda")
-            }
-        }
-    }
-
-    @ViewBuilder private var result: some View {
-        if busy { HStack { ProgressView(); Text("Sto chiedendo a \(configuration.engine.title)…").font(.caption); Spacer(); Button("Stop") { job?.cancel() }.font(.caption) } }
-        if let answer {
+        if session.reading {
+            HStack { ProgressView(); Text("Leggo la selezione…").font(.caption).foregroundStyle(.secondary) }
+        } else {
             VStack(alignment: .leading, spacing: 6) {
-                Text(asked.isEmpty ? answer.term : asked).font(.subheadline.bold())
-                Text(answer.noteBody).textSelection(.enabled)
-                Text(answer.origin).font(.caption2).foregroundStyle(.secondary)
-                if let notice { Text(notice).font(.caption2).foregroundStyle(.orange) }
-                HStack {
-                    Button(inserted ? "Nota inserita" : "Inserisci come nota", systemImage: inserted ? "checkmark" : "note.text.badge.plus") { insert(answer) }
-                        .buttonStyle(.borderedProminent).disabled(inserted)
-                    Button("Copia", systemImage: "doc.on.doc") { UIPasteboard.general.string = "\(answer.term)\n\(answer.noteBody)" }.buttonStyle(.bordered)
-                }.font(.caption)
-            }.padding(10).background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-        }
-        if let error { Text(error).font(.caption).foregroundStyle(.red) }
-    }
-
-    private var canAsk: Bool {
-        !busy && !reading && engineReady && consentKey == configuration.consentKey
-            && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || picture != nil)
-    }
-
-    private func quick(_ title: String, _ prompt: String) -> some View {
-        Button(title) { ask(prompt) }.disabled(!canAsk)
-    }
-
-    private func prepare() async {
-        consentKey = await AIEngineRouter.restoredConsent(configuration)
-        if let known = request.text { text = known }
-        if let photo = request.photo, let image = try? DocumentServices.photoPreview(photo) {
-            preview = image; picture = LensReader.jpegBase64(image)
-            if text.isEmpty { text = await LensReader.ocr(photo) }
-        } else if let id = request.imageID, let image = await LensReader.picture(id, model: model) {
-            preview = image; picture = LensReader.jpegBase64(image)
-            if text.isEmpty, let png = image.pngData() { text = await LensReader.ocr(png) }
-        } else if let area = request.area {
-            if text.isEmpty { text = await LensReader.text(in: area, model: model) }
-            if LensSettings.mode == .image || text.isEmpty, let crop = LensReader.crop(area, model: model, maxDimension: 1600) {
-                preview = crop; picture = LensReader.jpegBase64(crop)
+                Text("Selezione").font(.caption.bold()).foregroundStyle(.secondary)
+                if let preview = session.preview {
+                    Image(uiImage: preview).resizable().scaledToFit().frame(maxHeight: 160).frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    if let photo = session.request.photo {
+                        Button("Inserisci la foto nella pagina", systemImage: "photo.badge.plus") { insertPhoto(photo, session.request.photoCrop ?? .full) }
+                            .font(.caption)
+                    }
+                }
+                TextField(session.picture == nil ? "Testo selezionato" : "Testo letto nell’immagine (facoltativo)", text: $session.text, axis: .vertical)
+                    .lineLimit(1...6).textFieldStyle(.roundedBorder)
+                if session.text.isEmpty && session.picture == nil {
+                    Text("Nessun testo letto: scrivilo qui o cerchia una zona più grande.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
-        reading = false
-        if request.startWithExplain, canAsk { ask("") }
     }
 
-    private func grant() {
-        Task {
-            do { try await AIEngineRouter.rememberConsent(configuration, allowed: true); consentKey = configuration.consentKey }
-            catch { self.error = error.localizedDescription }
-            if request.startWithExplain, answer == nil, canAsk { ask("") }
-        }
-    }
-
-    /// Short selections are terms; longer ones are passages and get a question even
-    /// for "Chi è / Cos’è". The image goes along when there is one; if the engine
-    /// cannot read images, the answer is retried with the recognized text only.
-    private func ask(_ prompt: String) {
-        guard canAsk else { return }
-        busy = true; error = nil; notice = nil; answer = nil; inserted = false; asked = prompt
-        let selected = configuration, consent = consentKey, subject = model.lensSubject, image = picture
-        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let short = words.count <= 120 && words.split(whereSeparator: \.isWhitespace).count <= 12
-        let asking = !prompt.isEmpty || short || image != nil ? prompt : "Spiega il contenuto selezionato in modo chiaro."
-        job = Task {
-            defer { busy = false }
-            let pageText = await LensReader.pageText(model: model)
-            let context = TermExplanationRequest.context(for: short ? words : String(words.prefix(80)), in: pageText)
-            func make(_ image: String?) -> TermExplanationRequest {
-                TermExplanationRequest(term: short ? words : "", context: context, subject: subject, selection: short ? "" : words,
-                                       question: asking.isEmpty && image != nil && words.isEmpty ? "Descrivi l’immagine." : asking, image: image)
+    private var prompts: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(session.prompts) { prompt in
+                Button { session.ask(prompt, model: model) } label: {
+                    Label(prompt.label, systemImage: prompt.icon).font(.caption).lineLimit(1).frame(maxWidth: .infinity)
+                }.buttonStyle(.bordered).disabled(!session.canAsk)
             }
-            do {
-                answer = try await AIEngineRouter.explain(make(image), configuration: selected, consentKey: consent)
-            } catch is CancellationError {
-            } catch _ where image != nil && !words.isEmpty {
-                do {
-                    answer = try await AIEngineRouter.explain(make(nil), configuration: selected, consentKey: consent)
-                    notice = "Il motore non ha letto l’immagine: risposta basata sul testo riconosciuto."
-                } catch is CancellationError {
-                } catch { self.error = error.localizedDescription }
-            } catch { self.error = error.localizedDescription }
         }
     }
 
-    private func insert(_ value: TermExplanation) {
-        let anchor: CGRect?
-        if request.fromSidePDF { anchor = nil }
-        else if let id = request.imageID, let image = model.page?.images.first(where: { $0.id == id }) { anchor = CGRect(x: image.x, y: image.y, width: image.width, height: image.height) }
-        else { anchor = request.area }
-        if model.insertTermNote(value, near: anchor) { inserted = true; model.status = "Nota della Lente inserita" }
-        else { error = "Il foglio è occupato: finisci il tratto e riprova." }
+    private func answer(_ turn: LensTurn) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(turn.label, systemImage: turn.icon).font(.subheadline.bold()).lineLimit(3)
+            Text(turn.answer.noteBody).textSelection(.enabled)
+            Text(turn.answer.origin).font(.caption2).foregroundStyle(.secondary)
+            if let notice = turn.notice { Text(notice).font(.caption2).foregroundStyle(.orange) }
+            HStack {
+                if let noteID = turn.noteID {
+                    Button("Vai alla nota", systemImage: "arrow.right.circle") { Task { await model.focusLensNote(noteID, pageID: turn.notePageID) } }
+                        .buttonStyle(.bordered)
+                } else {
+                    Button("Inserisci come nota", systemImage: "note.text.badge.plus") { session.insert(turn.id, model: model) }
+                        .buttonStyle(.borderedProminent)
+                }
+                Button("Copia", systemImage: "doc.on.doc") { UIPasteboard.general.string = "\(turn.noteTitle)\n\(turn.answer.noteBody)" }
+                    .buttonStyle(.bordered)
+            }.font(.caption)
+        }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// What the Lens does, shown before the first selection.
+@MainActor
+struct LensGuide: View {
+    let model: EditorViewModel
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Come si usa la Lente").font(.headline)
+                Label("Sottolinea un nome, una data o un termine: arriva una nota con la spiegazione.", systemImage: "underline")
+                Label("Tocca una parola per spiegarla.", systemImage: "hand.tap")
+                Label("Cerchia o trascina un rettangolo: qui puoi chiedere, riassumere, tradurre e continuare a domandare.", systemImage: "lasso")
+                Label("Con la fotocamera scatti, ritagli la parte che ti serve e chiedi.", systemImage: "camera")
+                Label("Le note si spostano trascinandole. Il cerchietto in alto le riduce a 💡; tocca 💡 per riaprirle.", systemImage: "note.text")
+                if model.tool != .lens {
+                    Button("Attiva la Lente", systemImage: "sparkle.magnifyingglass") { model.chooseTool(.lens) }.buttonStyle(.borderedProminent)
+                }
+            }.font(.callout).padding()
+        }
+    }
+}
+
+/// The Lens on the right of the page: the conversation about the selection,
+/// the list of notes and the chat about the whole page.
+@MainActor
+struct LensSidePanel: View {
+    @Bindable var model: EditorViewModel
+    let notebook: Notebook
+    let close: () -> Void
+    let undock: () -> Void
+    let insertPhoto: (Data, NormalizedCrop) -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Picker("Lente AI", selection: $model.lensTab) {
+                    ForEach(LensTab.allCases) { tab in Text(tab.title).tag(tab) }
+                }.pickerStyle(.segmented).accessibilityIdentifier("lensTabs")
+                if model.lensTab == .selection && model.lensSession != nil {
+                    Button(action: undock) { Image(systemName: "rectangle.on.rectangle") }
+                        .accessibilityLabel("Finestra mobile").help("Sposta la conversazione in una finestra mobile")
+                }
+                Button("Chiudi pannello", systemImage: "xmark", action: close).labelStyle(.iconOnly).accessibilityIdentifier("closeStudyInspector")
+            }.padding(.horizontal, 12).padding(.vertical, 8)
+            Divider()
+            switch model.lensTab {
+            case .selection:
+                if let session = model.lensSession { LensSessionView(model: model, session: session, insertPhoto: insertPhoto).id(session.id) }
+                else { LensGuide(model: model) }
+            case .notes: LensNotesList(model: model)
+            case .page: LensPanel(model: model, notebook: notebook)
+            }
+        }
+    }
+}
+
+/// The conversation as a window above the page: drag it by its top bar; it never
+/// leaves the visible area and keeps clear of the toolbar.
+@MainActor
+struct LensFloatingCard: View {
+    let model: EditorViewModel
+    let session: LensSession
+    let dock: () -> Void
+    let insertPhoto: (Data, NormalizedCrop) -> Void
+    @AppStorage("lens.floating.x") private var savedX = -1.0
+    @AppStorage("lens.floating.y") private var savedY = -1.0
+    @State private var drag = CGSize.zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = CGSize(width: min(380, max(240, geometry.size.width - 24)), height: min(520, max(220, geometry.size.height - 24)))
+            let base = origin(in: geometry.size, card: size)
+            let shown = clamp(CGPoint(x: base.x + drag.width, y: base.y + drag.height), in: geometry.size, card: size)
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
+                    Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.headline)
+                    Spacer()
+                    Button(action: dock) { Image(systemName: "sidebar.right") }.accessibilityLabel("Aggancia a destra")
+                    Button { model.closeLensSession() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .accessibilityLabel("Chiudi")
+                }
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 4).onChanged { value in drag = value.translation }.onEnded { value in
+                    let end = clamp(CGPoint(x: base.x + value.translation.width, y: base.y + value.translation.height), in: geometry.size, card: size)
+                    savedX = Double(end.x); savedY = Double(end.y); drag = .zero
+                })
+                Divider()
+                LensSessionView(model: model, session: session, insertPhoto: insertPhoto).id(session.id)
+            }
+            .frame(width: size.width, height: size.height)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.gray.opacity(0.25)))
+            .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
+            .offset(x: shown.x, y: shown.y)
+        }
+        .accessibilityIdentifier("lensFloatingCard")
+    }
+
+    /// The toolbar edge stays free; the first time the window opens on the side away from the selection.
+    private var insets: EdgeInsets {
+        switch model.currentWorkspace.dock {
+        case .top: return EdgeInsets(top: 132, leading: 12, bottom: 12, trailing: 12)
+        case .bottom: return EdgeInsets(top: 12, leading: 12, bottom: 132, trailing: 12)
+        case .leading: return EdgeInsets(top: 12, leading: 80, bottom: 12, trailing: 12)
+        case .trailing: return EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 80)
+        }
+    }
+
+    private func origin(in area: CGSize, card: CGSize) -> CGPoint {
+        if savedX >= 0, savedY >= 0 { return CGPoint(x: savedX, y: savedY) }
+        let left = (model.lensAnchor?.midX ?? 0) > area.width / 2
+        return CGPoint(x: left ? insets.leading : area.width - card.width - insets.trailing, y: insets.top)
+    }
+
+    private func clamp(_ point: CGPoint, in area: CGSize, card: CGSize) -> CGPoint {
+        let maxX = max(12, area.width - card.width - insets.trailing), maxY = max(12, area.height - card.height - insets.bottom)
+        return CGPoint(x: min(max(min(insets.leading, maxX), point.x), maxX), y: min(max(min(insets.top, maxY), point.y), maxY))
     }
 }

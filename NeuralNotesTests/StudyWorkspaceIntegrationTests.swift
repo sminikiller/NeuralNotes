@@ -158,6 +158,35 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             XCTAssertEqual(model.page?.id, current); XCTAssertNotNil(model.error)
         }
     }
+    @MainActor func testLensNotesLinkToTheirTextReduceToAnIconAndCanBeEdited() async throws {
+        try await fixture { model in
+            let source = CGRect(x: 60, y: 120, width: 160, height: 30)
+            let short = TermExplanation(term: "Fotosintesi", kind: "concetto", explanation: "Processo con cui le piante producono zuccheri dalla luce.", certain: true, provider: "Test")
+            let id = try XCTUnwrap(model.insertLensNote(short, near: source))
+            var note = try XCTUnwrap(model.page?.texts.first { $0.id == id })
+            XCTAssertEqual(note.lensNote?.source?.rect, source); XCTAssertEqual(note.lensNote?.source?.pageID, model.page?.id)
+            XCTAssertFalse(note.lensNote?.isCollapsed ?? true)
+            XCTAssertEqual(LensNotes.body(of: note), short.noteBody)
+            let height = model.page?.height ?? 1024, width = model.page?.width ?? 768
+            let control = LensNotes.reduceControl(note: RichText.bounds(note, pageHeight: height), pageWidth: width, pageHeight: height)
+            XCTAssertEqual(model.lensNoteHit(at: CGPoint(x: control.midX, y: control.midY), tolerance: 4)?.part, .control)
+            model.setLensNote(id, collapsed: true)
+            note = try XCTUnwrap(model.page?.texts.first { $0.id == id })
+            XCTAssertEqual(RichText.bounds(note, pageHeight: height).size, CGSize(width: 30, height: 30))
+            XCTAssertEqual(model.lensNoteHit(at: CGPoint(x: note.x + 15, y: note.y + 15), tolerance: 4)?.part, .badge)
+            model.updateLensNote(id, title: "Fotosintesi clorofilliana", body: "Testo corretto a mano.", color: .blue, collapsed: false)
+            note = try XCTUnwrap(model.page?.texts.first { $0.id == id })
+            XCTAssertEqual(note.lensNote?.title, "Fotosintesi clorofilliana"); XCTAssertEqual(LensNotes.body(of: note), "Testo corretto a mano.")
+            XCTAssertEqual(note.background, LensNoteColor.blue.ink); XCTAssertFalse(note.lensNote?.isCollapsed ?? true)
+            let long = TermExplanation(term: "Rivoluzione", kind: "evento", explanation: String(repeating: "Una spiegazione molto lunga. ", count: 80), certain: true, provider: "Test")
+            let reducedID = try XCTUnwrap(model.insertLensNote(long, near: CGRect(x: 60, y: 400, width: 120, height: 24)))
+            XCTAssertTrue(model.page?.texts.first { $0.id == reducedID }?.lensNote?.isCollapsed == true)
+            let pages = model.pages.map { $0.id == model.page?.id ? (model.page ?? $0) : $0 }
+            XCTAssertEqual(LensNotes.index(pages).count, 2)
+            await model.performUndo()
+            XCTAssertNil(model.page?.texts.first { $0.id == reducedID })
+        }
+    }
     @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

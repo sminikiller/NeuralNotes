@@ -18,6 +18,8 @@ private struct PhotoCropPresentation: Identifiable {
     let imageID: UUID?
     let data: Data?
     let crop: NormalizedCrop
+    /// "Foto e chiedi": the chosen part goes to the Lens, not onto the page.
+    var lens = false
 }
 
 @MainActor
@@ -40,10 +42,10 @@ struct EditorView: View {
     @State private var pendingScan: VNDocumentCameraScan?
     @State private var mediaError: String?
     @State private var sideOpen = false
-    @State private var lensPopup = false
     @State private var sidePDF = false
     @State private var askAboutPhoto = false
     @State private var photoCrop: PhotoCropPresentation?
+    @AppStorage(LensSettings.floatingKey) private var lensFloating = false
     @Environment(\.openWindow) private var openWindow
     @SceneStorage("editor.focus") private var focus = false
 
@@ -107,10 +109,16 @@ struct EditorView: View {
                     }.disabled(!model.hasLease).accessibilityIdentifier("editorAudio")
                     Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
                     Button { if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true } } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
-                    // The Lens is a tool: underline, circle or tap on the page; the bar explains the modes.
-                    Button { model.chooseTool(model.tool == .lens ? .pen : .lens) } label: {
+                    // The Lens is a tool: underline, circle or tap on the page. A long press opens
+                    // the notes, the page chat and the last conversation (⌘K also toggles the tool).
+                    Menu {
+                        Button("Note della Lente", systemImage: "list.bullet.rectangle.portrait") { model.showLensPanel(.notes) }
+                        Button("Ultima conversazione", systemImage: "bubble.left.and.text.bubble.right") { model.showLensPanel(.selection) }
+                            .disabled(model.lensSession == nil)
+                        Button("Chat sulla pagina", systemImage: "doc.text.magnifyingglass") { openLensChat() }
+                    } label: {
                         Label(model.tool == .lens ? "Esci dalla Lente AI" : "Lente AI", systemImage: "sparkle.magnifyingglass")
-                    }.keyboardShortcut("k", modifiers: .command)
+                    } primaryAction: { model.chooseTool(model.tool == .lens ? .pen : .lens) }
                         .accessibilityIdentifier("editorLens")
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
@@ -225,20 +233,33 @@ struct EditorView: View {
                 }
             }
             .sheet(item: $photoCrop) { request in
-                PhotoCropPanel(image: request.image, initial: request.crop) { crop in
+                PhotoCropPanel(image: request.image, initial: request.crop, title: request.lens ? "Cosa vuoi chiedere?" : "Ritaglia foto",
+                               confirm: request.lens ? "Chiedi alla Lente" : "Usa ritaglio",
+                               hint: request.lens ? "Trascina un rettangolo sulla parte da chiedere (una formula, un grafico, un paragrafo). «Tutto» usa la foto intera." : "Trascina per scegliere l’area. L’immagine originale rimane conservata.") { crop in
+                    if request.lens {
+                        let chosen = crop.width < 0.03 || crop.height < 0.03 ? NormalizedCrop.full : crop
+                        model.lensAnchor = nil
+                        model.openLens(LensCardRequest(photo: request.data, photoCrop: chosen)); return
+                    }
                     guard model.page?.id == request.pageID else { model.error = "La pagina di destinazione è cambiata. Riprova l’inserimento."; return }
                     if let imageID = request.imageID { model.selectedObjectID = imageID; model.cropSelectedImage(crop) }
                     else if let data = request.data { Task { await insertPhoto(data: data, crop: crop, pageID: request.pageID) } }
                 }
             }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
+            .sheet(item: $model.lensNoteEditor) { target in LensNoteEditor(model: model, noteID: target.id) }
             .inspector(isPresented: $sideOpen) {
                 studyInspector
             }
             .onChange(of: model.lensRequest) { _, _ in
-                sidePDF = false
-                if model.lensPrefersPopup { sideOpen = false; lensPopup = true }
-                else { lensPopup = false; sideOpen = true }
+                sidePDF = false; sideOpen = true
+            }
+            .onChange(of: model.lensPanelRequest) { _, _ in
+                // The conversation shows in the floating window when the student chose it;
+                // with the PDF beside the notebook it opens under the PDF.
+                if model.lensTab == .selection && lensFloating { return }
+                if model.lensTab != .selection { sidePDF = false }
+                sideOpen = true
             }
             .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
             .onChange(of: model.searchRequest) { _, _ in panel = .search }
@@ -249,15 +270,6 @@ struct EditorView: View {
     private var writingSurface: some View {
         DocumentPageViewport(model: model)
             .allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
-            .popover(item: $model.lensCard, attachmentAnchor: model.lensCardAnchor.map { PopoverAttachmentAnchor.rect(.rect($0)) } ?? .rect(.bounds)) { request in
-                LensCard(model: model, request: request, openChat: openLensChat, insertPhoto: { preparePhoto($0) })
-            }
-            .overlay(alignment: model.currentWorkspace.dock == .bottom ? .top : .bottom) {
-                if model.tool == .lens && !focus {
-                    LensModeBar(model: model, openChat: openLensChat, photo: { askAboutPhoto = true; Task { await openCamera() } })
-                        .padding(.horizontal, 16).padding(.vertical, 72)
-                }
-            }
             .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
                 let host = model.pagePresenter as? CanvasHost
                 let point = host?.surface.convert(location, from: host) ?? location
@@ -266,30 +278,62 @@ struct EditorView: View {
             .overlay(alignment: toolbarAlignment) {
                 if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
             }
+            .overlay {
+                // The floating Lens window: it can be dragged and docked again on the right.
+                if lensFloating, !focus, let session = model.lensSession {
+                    LensFloatingCard(model: model, session: session, dock: dockLens, insertPhoto: insertLensPhoto)
+                }
+            }
     }
-    private func openLensChat() { model.lensCard = nil; sidePDF = false; sideOpen = true; model.requestLens() }
-    private var quickLens: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Button("Apri pannello", systemImage: "sidebar.right") { lensPopup = false; sidePDF = false; sideOpen = true }
-                Spacer(); Button("Chiudi", systemImage: "xmark") { lensPopup = false }
-            }.font(.caption).padding(.horizontal).padding(.top, 12)
-            LensPanel(model: model, notebook: notebook)
-        }.frame(width: 360, height: 520).accessibilityIdentifier("lensQuickPopup")
+    private func openLensChat() { sidePDF = false; sideOpen = true; model.requestLens() }
+    private func dockLens() { lensFloating = false; sidePDF = false; model.showLensPanel(.selection) }
+    private func undockLens() {
+        lensFloating = true
+        if !sidePDF { sideOpen = false }
+    }
+    private func lensPhoto(_ source: EditorMedia) {
+        guard media == nil, photoCrop == nil else { return }
+        askAboutPhoto = true
+        if source == .photos { media = .photos; return }
+        // Without camera access nothing opens: the next ordinary photo must not go to the Lens.
+        Task { await openCamera(); if media == nil { askAboutPhoto = false } }
+    }
+    private func insertLensPhoto(_ data: Data, _ crop: NormalizedCrop) {
+        guard let pageID = model.page?.id else { return }
+        Task { await insertPhoto(data: data, crop: crop, pageID: pageID) }
     }
     private var toolbarAlignment: Alignment {
         switch model.currentWorkspace.dock { case .top: return .top; case .bottom: return .bottom; case .leading: return .leading; case .trailing: return .trailing }
     }
     private var studyInspector: some View {
-        VStack(spacing: 0) {
-            HStack { Spacer(); Button("Chiudi pannello", systemImage: "xmark") { sideOpen = false }.accessibilityIdentifier("closeStudyInspector") }.padding()
-            if sidePDF { PDFStudyPanel(model: model) }
-            else { LensPanel(model: model, notebook: notebook) }
-        }.inspectorColumnWidth(min: 320, ideal: 420, max: 600)
+        Group {
+            if sidePDF {
+                VStack(spacing: 0) {
+                    HStack { Spacer(); Button("Chiudi pannello", systemImage: "xmark") { sideOpen = false }.accessibilityIdentifier("closeStudyInspector") }
+                        .padding(.horizontal).padding(.vertical, 8)
+                    PDFStudyPanel(model: model)
+                    // A question about the PDF opens under it, so the PDF stays in view.
+                    if !lensFloating, let session = model.lensSession {
+                        Divider()
+                        HStack {
+                            Label("Lente AI", systemImage: "sparkle.magnifyingglass").font(.subheadline.bold())
+                            Spacer()
+                            Button(action: undockLens) { Image(systemName: "rectangle.on.rectangle") }.accessibilityLabel("Finestra mobile")
+                            Button { model.closeLensSession() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                                .accessibilityLabel("Chiudi la conversazione")
+                        }.padding(.horizontal, 12).padding(.vertical, 6)
+                        LensSessionView(model: model, session: session, insertPhoto: insertLensPhoto).id(session.id).frame(height: 360)
+                    }
+                }
+            } else {
+                LensSidePanel(model: model, notebook: notebook, close: { sideOpen = false }, undock: undockLens, insertPhoto: insertLensPhoto)
+            }
+        }.inspectorColumnWidth(min: 320, ideal: 400, max: 600)
     }
     private var floatingToolbar: some View {
         EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
-            text: { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace })
+            text: { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace },
+            lens: LensBarActions(photo: { lensPhoto(.camera) }, library: { lensPhoto(.photos) }, notes: { model.showLensPanel(.notes) }, chat: { openLensChat() }))
             .disabled(!model.hasLease || model.loading || model.navigating || working)
             .padding(.horizontal, 12).padding(.vertical, model.currentWorkspace.dock.vertical ? 72 : 12)
             .padding(.trailing, model.currentWorkspace.dock.vertical ? 0 : 60)
@@ -407,6 +451,10 @@ struct EditorView: View {
         guard let pageID = model.page?.id else { return }
         photoCrop = PhotoCropPresentation(image: image, pageID: pageID, imageID: nil, data: data, crop: .full)
     }
+    private func prepareLensPhoto(_ data: Data) {
+        guard let image = try? DocumentServices.photoPreview(data) else { model.error = "Immagine non leggibile o troppo grande."; return }
+        photoCrop = PhotoCropPresentation(image: image, pageID: model.page?.id ?? UUID(), imageID: nil, data: data, crop: .full, lens: true)
+    }
     private func openImageCrop() {
         guard model.selectedIDs.count == 1, let item = model.page?.images.first(where: { $0.id == model.selectedObjectID }),
               let image = UIImage(contentsOfFile: model.workspace.package.appendingPathComponent(item.file).path) else {
@@ -437,8 +485,8 @@ struct EditorView: View {
         if let error = mediaError { mediaError = nil; model.error = error }
         if let data = pendingPhoto {
             pendingPhoto = nil
-            // "Foto e chiedi" from the Lens: the photo goes to the card first, onto the page only if wanted.
-            if askAboutPhoto { askAboutPhoto = false; model.lensCardAnchor = nil; model.lensCard = LensCardRequest(photo: data) }
+            // "Foto e chiedi" from the Lens: crop the part to ask about; the photo goes onto the page only if wanted.
+            if askAboutPhoto { askAboutPhoto = false; prepareLensPhoto(data) }
             else { preparePhoto(data) }
         } else { askAboutPhoto = false }
         if let scan = pendingScan {

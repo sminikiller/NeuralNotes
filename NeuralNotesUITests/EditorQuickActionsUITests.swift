@@ -240,6 +240,22 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["editorAddText"].exists)
     }
     @MainActor
+    func testLensBarSitsUnderTheToolbarAndOpensTheNotesBesideThePage() {
+        let app = XCUIApplication(); openEditor(app)
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        app.buttons["editorLens"].tap()
+        let notes = app.buttons["lensNotes"]; XCTAssertTrue(notes.waitForExistence(timeout: 5))
+        // The Lens commands stay in the top part of the writing area, not over the middle of the page.
+        XCTAssertLessThan(notes.frame.midY, canvas.frame.minY + canvas.frame.height * 0.3)
+        notes.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["lensTabs"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Nessuna nota della Lente"].waitForExistence(timeout: 5))
+        XCTAssertTrue(canvas.exists); XCTAssertGreaterThan(canvas.frame.width, 0)
+        app.buttons["closeStudyInspector"].tap()
+        app.buttons["lensExit"].tap(); XCTAssertFalse(app.buttons["lensNotes"].waitForExistence(timeout: 2))
+    }
+    @MainActor
     func testWorkspaceProvidesNativePenKindsAndEraserSettings() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorWorkspace"].tap()

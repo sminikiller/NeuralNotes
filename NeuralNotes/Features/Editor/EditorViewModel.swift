@@ -36,9 +36,15 @@ final class EditorViewModel {
     var lensTextSelection: String?
     var lensPrefersPopup = false
     var lensRequest = 0
-    /// The Lens card next to a selection, where it points in the editor view, and the notebook title as subject.
-    var lensCard: LensCardRequest?
-    @ObservationIgnored var lensCardAnchor: CGRect?
+    /// The Lens conversation about the last selection, the tab of the Lens side panel,
+    /// a request to show that panel, the note outlined after a jump and the note to edit.
+    var lensSession: LensSession?
+    var lensTab = LensTab.selection
+    var lensPanelRequest = 0
+    var lensNoteFocus: LensNoteFocus?
+    var lensNoteEditor: LensNoteEditTarget?
+    /// Where the last Lens gesture was, in editor view coordinates, and the notebook title as subject.
+    @ObservationIgnored var lensAnchor: CGRect?
     var lensSubject = ""
     var searchRequest = 0
     var focusRequest = 0

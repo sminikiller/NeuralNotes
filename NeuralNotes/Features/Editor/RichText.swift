@@ -28,6 +28,8 @@ enum RichText {
         try? text.data(from: NSRange(location: 0, length: text.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
     }
     static func bounds(_ text: TextElement, pageHeight: Double) -> CGRect {
+        // A Lens note reduced to 💡 takes only the room of its icon.
+        if text.lensNote?.isCollapsed == true { return LensNotes.badge(x: text.x, y: text.y) }
         let measured = attributed(text).boundingRect(with: CGSize(width: text.width, height: max(0, pageHeight - text.y)), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         return CGRect(x: text.x, y: text.y, width: text.width, height: max(text.fontSize + 4, measured.height))
     }

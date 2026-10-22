@@ -85,7 +85,8 @@ struct ToolOptionsPopover: View {
                 Text("Scrivi con Pencil o tastiera. I comandi nel piccolo overlay sul foglio contengono stile, elenchi e tastiera.").font(.callout)
                 Button("Nuova casella", systemImage: "text.badge.plus") { model.beginTextEdit(at: CGPoint(x: 48, y: 64)) }
             } else if tool == .lens {
-                Text("Sottolinea un nome o un termine per una nota con la spiegazione, tocca una parola per spiegarla, cerchia o trascina per chiedere. La penna normale continua a scrivere.").font(.callout)
+                Text("Sottolinea un nome o un termine per una nota collegata al testo, tocca una parola per spiegarla, cerchia o trascina per chiedere. Trascina le note per spostarle; il cerchietto le riduce a 💡.").font(.callout)
+                Button("Note della Lente", systemImage: "list.bullet.rectangle.portrait") { model.showLensPanel(.notes) }
                 Button("Chat sulla pagina", systemImage: "bubble.left.and.text.bubble.right") { model.requestLens() }
             } else { Text("Tocca un tratto per ascoltare il punto della registrazione collegato.").font(.callout) }
         }

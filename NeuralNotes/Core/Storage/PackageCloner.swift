@@ -69,7 +69,7 @@ extension NativeDocumentStore {
                 guard page.id == original else { throw LibraryFailure.corruptDocument }
                 page.id = UUID()
                 pageMap[original] = page.id
-                if page.texts.contains(where: { $0.pageLink != nil }) { linkedPageIDs.append(page.id) }
+                if page.texts.contains(where: { $0.pageLink != nil || $0.lensNote?.source != nil }) { linkedPageIDs.append(page.id) }
                 page.renewObjectIDs()
                 for index in page.anchors.indices {
                     page.anchors[index].id = UUID()
@@ -84,9 +84,11 @@ extension NativeDocumentStore {
             for id in linkedPageIDs {
                 let file = destination.appendingPathComponent("pages/\(id).json")
                 var page = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: file))
-                guard page.texts.contains(where: { $0.pageLink != nil }) else { continue }
+                guard page.texts.contains(where: { $0.pageLink != nil || $0.lensNote?.source != nil }) else { continue }
                 for i in page.texts.indices {
                     page.texts[i].pageLink = page.texts[i].pageLink?.remapped(from: manifest.documentID, to: documentID, pages: pageMap)
+                    // A Lens note points at the text it explains; a missing page falls back to the note's own page.
+                    if let source = page.texts[i].lensNote?.source { page.texts[i].lensNote?.source?.pageID = pageMap[source.pageID] ?? id }
                 }
                 try encoder.encode(page).write(to: file, options: .atomic)
             }

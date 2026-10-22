@@ -8,7 +8,8 @@ enum LensReader {
     static func text(in area: CGRect, model: EditorViewModel) async -> String {
         guard let page = model.page else { return "" }
         var parts: [String] = []
-        for text in page.texts where RichText.bounds(text, pageHeight: page.height).intersects(area) { parts.append(text.text) }
+        // Lens notes are answers, not the student's material: they are never read back.
+        for text in page.texts where text.lensNote == nil && RichText.bounds(text, pageHeight: page.height).intersects(area) { parts.append(text.text) }
         if let file = page.pdfFile, let index = page.pdfIndex, let url = try? await model.workspace.url(file),
            let digital = try? await PDFTextReader.shared.text(url: url, index: index, in: area, pageWidth: page.width, pageHeight: page.height),
            !digital.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -48,6 +49,16 @@ enum LensReader {
         guard let element = model.page?.images.first(where: { $0.id == id }), let url = try? await model.workspace.url(element.file),
               let data = try? Data(contentsOf: url) else { return nil }
         return try? DocumentServices.photoPreview(data)
+    }
+
+    /// The part of a photo chosen in the crop panel; the whole photo when the part is tiny.
+    static func cropped(_ image: UIImage, to crop: NormalizedCrop) -> UIImage {
+        let size = image.size
+        let rect = CGRect(x: size.width * CGFloat(crop.x), y: size.height * CGFloat(crop.y),
+                          width: size.width * CGFloat(crop.width), height: size.height * CGFloat(crop.height))
+        guard rect.width >= 8, rect.height >= 8, rect.width < size.width - 1 || rect.height < size.height - 1 else { return image }
+        let format = UIGraphicsImageRendererFormat(); format.scale = image.scale; format.opaque = true
+        return UIGraphicsImageRenderer(size: rect.size, format: format).image { _ in image.draw(at: CGPoint(x: -rect.minX, y: -rect.minY)) }
     }
 
     /// A JPEG small enough for every provider (at most 1024 px per side), as base64.

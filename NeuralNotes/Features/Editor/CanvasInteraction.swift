@@ -14,6 +14,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private let inkID = UUID()
     private var originalDrawing: PKDrawing?
     private var selectionTrace: [CGPoint] = []
+    /// A Lens note dragged while the Lens tool is active.
+    private var movingLensNote: UUID?
     private let fitTap = UITapGestureRecognizer()
     private let objectTap = UITapGestureRecognizer()
     private let pointerFitTap = UITapGestureRecognizer()
@@ -100,6 +102,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
            model.checklistHit(at: gesture.location(in: host.surface)) != nil { return true }
         if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,
            model.tapeHit(at: gesture.location(in: host.surface)) != nil { return true }
+        // A Lens note opens from its 💡 and closes from its round control with any tool.
+        if gesture === objectTap, let note = model.lensNoteHit(at: gesture.location(in: host.surface), tolerance: lensTolerance), note.part != .body { return true }
         if gesture === fitTap || gesture === pointerFitTap { return model.editingTextID == nil }
         if pageSwipes.contains(where: { $0 === gesture }) {
             return model.hasLease && !model.interactionBusy && host.canvas.zoomScale <= host.canvas.minimumZoomScale * 1.05
@@ -143,6 +147,14 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             host.flow?.activateAtPoint(gesture.location(in: host)); return
         }
         let point = gesture.location(in: host.surface)
+        if let note = model.lensNoteHit(at: point, tolerance: lensTolerance) {
+            switch note.part {
+            case .control: model.setLensNote(note.id, collapsed: true); refresh(); return
+            case .badge where model.tool != .objects: model.setLensNote(note.id, collapsed: false); refresh(); return
+            case .body where model.tool == .lens: model.lensNoteEditor = LensNoteEditTarget(id: note.id); return
+            default: break
+            }
+        }
         if model.tool == .lens {
             model.lensTap(at: point, anchor: host.surface.convert(CGRect(x: point.x - 70, y: point.y - 22, width: 140, height: 44), to: host)); return
         }
@@ -174,6 +186,12 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             selectionTrace = [point]
             model.movingObjects = true
             originalDrawing = model.selectionIncludesInk ? model.canvas.drawing : nil
+            movingLensNote = nil
+            // With the Lens a note (or its 💡) is dragged to a new place instead of tracing a selection.
+            if model.tool == .lens, let note = model.lensNoteHit(at: point, tolerance: lensTolerance), note.part != .control,
+               !(page.lockedObjects ?? []).contains(note.id), let rect = objectRect(note.id, visual: false) {
+                movingLensNote = note.id; model.selectedObjectID = note.id; original[note.id] = rect; resizing = false
+            }
             if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
                 if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
                 for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
@@ -185,9 +203,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         if gesture.state == .cancelled || gesture.state == .failed {
             if let before { model.page = before.page; if let data = before.drawing, let restored = try? PKDrawing(data: data) { model.canvas.drawing = restored } }
-            model.movingObjects = false; marquee.path = nil; before = nil; original = [:]; originalDrawing = nil; refresh(); return
+            model.movingObjects = false; marquee.path = nil; before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
         }
-        if model.selectRectangle || model.selectFreehand || model.tool == .lens {
+        if model.selectRectangle || model.selectFreehand || (model.tool == .lens && movingLensNote == nil) {
             let rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y), width: abs(point.x - start.x), height: abs(point.y - start.y))
             let selection: UIBezierPath
             if model.tool == .lens {
@@ -269,9 +287,13 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         refresh()
         if gesture.state == .ended {
             model.movingObjects = false; model.drawingChanged()
-            model.recordEdit(before, label: resizing ? "Ridimensiona" : "Sposta selezione"); before = nil; original = [:]; originalDrawing = nil
+            model.recordEdit(before, label: movingLensNote != nil ? "Sposta nota della Lente" : resizing ? "Ridimensiona" : "Sposta selezione")
+            before = nil; original = [:]; originalDrawing = nil
+            if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; refresh() }
         }
     }
+    /// Touch slack for note icons and controls, constant on screen at any zoom.
+    private var lensTolerance: CGFloat { 10 / max(host?.canvas.zoomScale ?? 1, 0.1) }
 
     private var allIDs: [UUID] {
         guard let page = model?.page else { return [] }
@@ -326,7 +348,18 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
             let lock = UIAction(title: "Blocca", image: UIImage(systemName: "lock")) { _ in model.lockSelection() }
             let ai = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkles")) { _ in model.lensAskAboutSelection() }
             let remove = UIAction(title: "Elimina", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in model.deleteSelectedObject() }
-            return UIMenu(children: [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove])
+            var lens: [UIMenuElement] = []
+            if let note = model.page?.texts.first(where: { $0.id == id })?.lensNote {
+                let collapsed = note.isCollapsed
+                lens.append(UIAction(title: collapsed ? "Apri nota" : "Riduci a 💡", image: UIImage(systemName: "note.text")) { _ in model.setLensNote(id, collapsed: !collapsed) })
+                lens.append(UIAction(title: "Modifica nota della Lente", image: UIImage(systemName: "square.and.pencil")) { _ in model.lensNoteEditor = LensNoteEditTarget(id: id) })
+                if note.source != nil {
+                    lens.append(UIAction(title: "Mostra il testo di origine", image: UIImage(systemName: "text.viewfinder")) { _ in Task { await model.focusLensNote(id, source: true) } })
+                }
+            }
+            var items: [UIMenuElement] = [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
+            if !lens.isEmpty { items.insert(UIMenu(title: "", options: .displayInline, children: lens), at: 0) }
+            return UIMenu(children: items)
         }
     }
 }

@@ -60,6 +60,12 @@ public extension LensGeometry {
     /// otherwise in the first free band of the page. It never leaves the page and
     /// never covers the selection; other notes are avoided whenever possible.
     static func placement(text: String, near anchor: CGRect?, occupied: [CGRect], pageWidth: Double, pageHeight: Double, fontSize: Double = 16, maximumWidth: CGFloat = 360) -> CGRect {
+        placementResult(text: text, near: anchor, occupied: occupied, pageWidth: pageWidth, pageHeight: pageHeight, fontSize: fontSize, maximumWidth: maximumWidth).rect
+    }
+
+    /// The same placement, saying whether the spot is clear of other content;
+    /// a Lens note that would cover something starts reduced to an icon.
+    static func placementResult(text: String, near anchor: CGRect?, occupied: [CGRect], pageWidth: Double, pageHeight: Double, fontSize: Double = 16, maximumWidth: CGFloat = 360) -> (rect: CGRect, clear: Bool) {
         let margin: CGFloat = 24
         let pageW = CGFloat(pageWidth.isFinite && pageWidth > 0 ? pageWidth : 768), pageH = CGFloat(pageHeight.isFinite && pageHeight > 0 ? pageHeight : 1024)
         let width = max(80, min(maximumWidth.isFinite ? maximumWidth : 360, pageW - 2 * margin))
@@ -75,22 +81,22 @@ public extension LensGeometry {
             let candidates = [clamped(box.maxX + 16, box.minY), clamped(box.minX, box.maxY + 12),
                               clamped(box.minX - width - 16, box.minY), clamped(box.minX, box.minY - height - 12)]
             let beside = candidates.filter { !$0.intersects(box) }
-            if let found = beside.first(where: free) { return found }
+            if let found = beside.first(where: free) { return (found, true) }
             // Further down, aligned with the selection, before covering anything else.
             var y = box.maxY + 12
             while y + height + margin <= pageH {
                 let rect = clamped(box.minX, y)
-                if !rect.intersects(box), free(rect) { return rect }
+                if !rect.intersects(box), free(rect) { return (rect, true) }
                 y += 24
             }
-            return beside.first ?? clamped(box.minX, box.maxY + 12)
+            return (beside.first ?? clamped(box.minX, box.maxY + 12), false)
         }
         var y: CGFloat = 64
         while y + height + margin <= pageH {
             let rect = clamped(48, y)
-            if free(rect) { return rect }
+            if free(rect) { return (rect, true) }
             y += 24
         }
-        return clamped(48, 64)
+        return (clamped(48, 64), false)
     }
 }

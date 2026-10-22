@@ -6,8 +6,10 @@ struct EditorQuickToolbar: View {
     @Bindable var model: EditorViewModel
     let photo: () -> Void, camera: () -> Void, text: () -> Void, edit: () -> Void, crop: () -> Void
     let workspace: () -> Void
+    var lens = LensBarActions()
     @State private var paletteOpen = false
     @State private var selectionOpen = false
+    @State private var lensOpen = false
     @State private var optionsTool: WorkspaceTool?
     private var vertical: Bool { model.currentWorkspace.dock.vertical }
     private var popoverEdge: Edge {
@@ -60,6 +62,13 @@ struct EditorQuickToolbar: View {
                             .accessibilityLabel("Azioni sulla selezione")
                             .popover(isPresented: $selectionOpen, arrowEdge: popoverEdge) { selectionBar.frame(width: 310, height: 64).presentationCompactAdaptation(.popover) }
                     }
+                    if vertical && model.tool == .lens {
+                        Button { lensOpen = true } label: { Image(systemName: "sparkle.magnifyingglass").frame(width: 44, height: 44) }
+                            .accessibilityLabel("Comandi della Lente")
+                            .popover(isPresented: $lensOpen, arrowEdge: popoverEdge) {
+                                LensModeBar(model: model, actions: lens).padding().frame(width: 460).presentationCompactAdaptation(.popover)
+                            }
+                    }
                     Button(action: workspace) { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44) }
                         .accessibilityLabel("Workspace \(model.currentWorkspace.name)").accessibilityIdentifier("editorWorkspace")
                 }.padding(6)
@@ -69,6 +78,8 @@ struct EditorQuickToolbar: View {
             .overlay(RoundedRectangle(cornerRadius: 23).stroke(.white.opacity(0.18)))
             .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
             if model.tool == .objects && !vertical { selectionBar.padding(6).frame(maxWidth: 700).background(.regularMaterial, in: Capsule()) }
+            // The Lens commands sit right under the toolbar, not over the page.
+            if model.tool == .lens && !vertical { LensModeBar(model: model, actions: lens) }
         }.buttonStyle(EditorIconButtonStyle())
     }
     private var usesInk: Bool { model.tool == .pen || model.tool == .marker || model.tool == .shape }

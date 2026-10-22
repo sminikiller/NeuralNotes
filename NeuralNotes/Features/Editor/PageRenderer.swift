@@ -72,6 +72,7 @@ enum PageRenderer {
         if let image = objects.images[id] { ElementRendering.drawImage(image, package: package, context: context) }
         else if let shape = objects.shapes[id] { ElementRendering.drawShape(shape, context: context) }
         else if let text = objects.texts[id] {
+            if text.lensNote?.isCollapsed == true { drawLensBadge(text, context: context); return }
             let tone = page.appearance?.tone ?? .white
             let value = RichText.attributed(text, color: text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black)
             let box = RichText.bounds(text, pageHeight: page.height)
@@ -85,6 +86,23 @@ enum PageRenderer {
             if id != hidingTextID { value.draw(in: local) }
             context.restoreGState()
         }
+    }
+    /// A Lens note reduced to its icon: a small sticky square with 💡.
+    private static func drawLensBadge(_ text: TextElement, context: CGContext) {
+        let box = LensNotes.badge(x: text.x, y: text.y), color = text.background ?? InkColor(1, 0.94, 0.55)
+        let shape = UIBezierPath(roundedRect: box, cornerRadius: 8).cgPath
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: 1), blur: 3, color: UIColor.black.withAlphaComponent(0.3).cgColor)
+        context.setFillColor(UIColor(red: color.red, green: color.green, blue: color.blue, alpha: 1).cgColor)
+        context.addPath(shape); context.fillPath()
+        context.restoreGState()
+        context.saveGState()
+        context.setStrokeColor(UIColor.systemOrange.withAlphaComponent(0.8).cgColor); context.setLineWidth(1)
+        context.addPath(shape); context.strokePath()
+        let glyph = NSAttributedString(string: "💡", attributes: [.font: UIFont.systemFont(ofSize: 17)])
+        let size = glyph.size()
+        glyph.draw(at: CGPoint(x: box.midX - size.width / 2, y: box.midY - size.height / 2))
+        context.restoreGState()
     }
 }
 
