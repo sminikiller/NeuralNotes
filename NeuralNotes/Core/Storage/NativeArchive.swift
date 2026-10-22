@@ -22,12 +22,7 @@ public enum NativeArchive {
     private struct Header: Codable { let version: Int; let entries: [Entry] }
     private static let magic = Data("NNBOOK01".utf8)
     private static let maximumSize: UInt64 = 16 * 1024 * 1024 * 1024
-    private static let chunkSize = 256 * 1024
-    private static let table: [UInt32] = (0..<256).map { value in
-        var c = UInt32(value)
-        for _ in 0..<8 { c = (c & 1 == 1) ? 0xEDB88320 ^ (c >> 1) : c >> 1 }
-        return c
-    }
+    private static let chunkSize = 1024 * 1024
 
     public static func fileURL(_ path: String, in root: URL) throws -> URL {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false)
@@ -56,16 +51,18 @@ public enum NativeArchive {
         guard sources.count < 50_000 else { throw NativeArchiveFailure.limit }
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         let metadataData = try encoder.encode(metadata)
-        var entries: [Entry] = []
+        var entries: [Entry] = [], stamps: [Date?] = []
         var total = UInt64(metadataData.count)
         for (path, url) in sources {
             try Task.checkCancellation()
-            let size = UInt64(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+            let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+            let size = UInt64(values.fileSize ?? 0)
             guard size <= maximumSize, total <= maximumSize - size else { throw NativeArchiveFailure.limit }
             total += size
-            entries.append(Entry(path: path, size: size, checksum: try checksum(url)))
+            entries.append(Entry(path: path, size: size, checksum: try checksum(url, size: size, modified: values.contentModificationDate)))
+            stamps.append(values.contentModificationDate)
         }
-        entries.append(Entry(path: "metadata.json", size: UInt64(metadataData.count), checksum: crc(metadataData)))
+        entries.append(Entry(path: "metadata.json", size: UInt64(metadataData.count), checksum: CRC32.checksum(metadataData)))
         let header = try encoder.encode(Header(version: 1, entries: entries))
         guard header.count <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
         guard !FileManager.default.fileExists(atPath: destination.path) else { throw CocoaError(.fileWriteFileExists) }
@@ -77,15 +74,19 @@ public enum NativeArchive {
             let length = UInt64(header.count)
             try output.write(contentsOf: Data((0..<8).map { UInt8(truncatingIfNeeded: length >> ($0 * 8)) }))
             try output.write(contentsOf: header)
+            // Checksums were taken once above; a file changed meanwhile (size or
+            // modification date) invalidates the copy instead of a second full read.
             for (index, item) in sources.enumerated() {
                 let input = try FileHandle(forReadingFrom: item.1)
                 defer { try? input.close() }
-                let result = try transfer(input: input, output: output, count: entries[index].size)
-                guard result == entries[index].checksum,
+                try copy(input: input, output: output, count: entries[index].size)
+                let now = try URL(fileURLWithPath: item.1.path).resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+                guard now.fileSize.map(UInt64.init) == entries[index].size, now.contentModificationDate == stamps[index],
                       (try input.read(upToCount: 1) ?? Data()).isEmpty else { throw WorkspaceFailure.staleRevision }
             }
             try output.write(contentsOf: metadataData)
             try output.synchronize()
+            ArchiveChecksumCache.shared.persist()
         } catch {
             try? FileManager.default.removeItem(at: destination)
             throw error
@@ -166,24 +167,38 @@ public enum NativeArchive {
         while remaining > 0 {
             try Task.checkCancellation()
             let chunk = try exact(input, count: Int(min(UInt64(chunkSize), remaining)))
-            value = update(value, chunk)
+            value = CRC32.update(value, chunk)
             try output.write(contentsOf: chunk)
             remaining -= UInt64(chunk.count)
         }
         return value ^ UInt32.max
     }
 
-    private static func checksum(_ url: URL) throws -> UInt32 {
+    private static func copy(input: FileHandle, output: FileHandle, count: UInt64) throws {
+        var remaining = count
+        while remaining > 0 {
+            try Task.checkCancellation()
+            let chunk = try exact(input, count: Int(min(UInt64(chunkSize), remaining)))
+            try output.write(contentsOf: chunk)
+            remaining -= UInt64(chunk.count)
+        }
+    }
+
+    /// Unchanged files (same path, size and modification date) reuse the checksum
+    /// of an earlier backup; a value is remembered only if the file stayed stable.
+    private static func checksum(_ url: URL, size: UInt64, modified: Date?) throws -> UInt32 {
+        if let cached = ArchiveChecksumCache.shared.checksum(path: url.path, size: size, modified: modified) { return cached }
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
         var value = UInt32.max
         while let bytes = try file.read(upToCount: chunkSize), !bytes.isEmpty {
-            try Task.checkCancellation(); value = update(value, bytes)
+            try Task.checkCancellation(); value = CRC32.update(value, bytes)
         }
-        return value ^ UInt32.max
-    }
-    private static func crc(_ bytes: Data) -> UInt32 { update(UInt32.max, bytes) ^ UInt32.max }
-    private static func update(_ value: UInt32, _ bytes: Data) -> UInt32 {
-        bytes.reduce(value) { table[Int(($0 ^ UInt32($1)) & 255)] ^ ($0 >> 8) }
+        let result = value ^ UInt32.max
+        let after = try? URL(fileURLWithPath: url.path).resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        if after?.fileSize.map(UInt64.init) == size, after?.contentModificationDate == modified {
+            ArchiveChecksumCache.shared.store(result, path: url.path, size: size, modified: modified)
+        }
+        return result
     }
 }
