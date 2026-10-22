@@ -23,13 +23,27 @@ public enum LensGeometry {
         let x = CGFloat(min(start.x, end.x)), y = CGFloat(min(start.y, end.y))
         let width = CGFloat(abs(end.x - start.x)), height = CGFloat(abs(end.y - start.y))
         var box = CGRect(x: x, y: y, width: width, height: height)
-        if box.width >= 12, box.height <= 12 {
+        if isUnderline(width: Double(width), height: Double(height)) {
             let above: CGFloat = min(80, max(32, box.width * 0.2))
             box = CGRect(x: box.minX - 4, y: box.minY - above, width: box.width + 8, height: box.height + above + 8)
         }
         let page = CGRect(x: CGFloat.zero, y: CGFloat.zero, width: CGFloat(pageWidth), height: CGFloat(pageHeight))
         box = box.intersection(page)
         return box.isNull || box.width <= 3 || box.height <= 3 ? nil : box
+    }
+
+    /// A wide, flat stroke is an underline. Hand-drawn lines wobble, so up to a
+    /// fifth of their length (at most 24 pt) still counts as flat.
+    public static func isUnderline(width: Double, height: Double) -> Bool {
+        guard width.isFinite, height.isFinite else { return false }
+        return (width >= 12 && height <= 12) || (width >= 24 && height <= min(24, width * 0.2))
+    }
+
+    public static func isUnderline(trace: [StrokeSample]) -> Bool {
+        guard let first = trace.first, trace.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return false }
+        var minX = first.x, maxX = first.x, minY = first.y, maxY = first.y
+        for point in trace { minX = min(minX, point.x); maxX = max(maxX, point.x); minY = min(minY, point.y); maxY = max(maxY, point.y) }
+        return isUnderline(width: maxX - minX, height: maxY - minY)
     }
 }
 

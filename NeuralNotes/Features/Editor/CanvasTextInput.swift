@@ -135,8 +135,8 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
               range.location <= value.length, range.length <= value.length - range.location else { return nil }
         let selected = value.substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !selected.isEmpty else { return nil }
-        let lens = UIAction(title: "Apri nella Lente AI", image: UIImage(systemName: "sparkle.magnifyingglass")) { [weak self] _ in
-            self?.model?.requestLens(text: selected, compact: true)
+        let lens = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkle.magnifyingglass")) { [weak self] _ in
+            self?.model?.lensAsk(text: selected)
         }
         return UIMenu(children: suggestedActions + [lens])
     }

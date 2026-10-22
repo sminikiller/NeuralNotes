@@ -27,7 +27,7 @@ extension CanvasHost {
             switch input {
             case "n": Task { await model.addPage() }
             case "f": model.searchRequest += 1
-            case "k": model.requestLens()
+            case "k": model.chooseTool(model.tool == .lens ? .pen : .lens)
             case "0": fitPage(animated: true)
             case "+", "-": canvas.setZoomScale(min(canvas.maximumZoomScale, max(canvas.minimumZoomScale, canvas.zoomScale * (input == "+" ? 1.25 : 0.8))), animated: true)
             case ".": model.focusRequest += 1

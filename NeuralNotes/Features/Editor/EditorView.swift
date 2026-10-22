@@ -42,6 +42,7 @@ struct EditorView: View {
     @State private var sideOpen = false
     @State private var lensPopup = false
     @State private var sidePDF = false
+    @State private var askAboutPhoto = false
     @State private var photoCrop: PhotoCropPresentation?
     @Environment(\.openWindow) private var openWindow
     @SceneStorage("editor.focus") private var focus = false
@@ -106,7 +107,10 @@ struct EditorView: View {
                     }.disabled(!model.hasLease).accessibilityIdentifier("editorAudio")
                     Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
                     Button { if sidePDF { sideOpen.toggle() } else { sidePDF = true; sideOpen = true } } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
-                    Button { sidePDF = false; sideOpen = true; model.requestLens() } label: { Label("Lente AI", systemImage: "sparkle.magnifyingglass") }.keyboardShortcut("k", modifiers: .command)
+                    // The Lens is a tool: underline, circle or tap on the page; the bar explains the modes.
+                    Button { model.chooseTool(model.tool == .lens ? .pen : .lens) } label: {
+                        Label(model.tool == .lens ? "Esci dalla Lente AI" : "Lente AI", systemImage: "sparkle.magnifyingglass")
+                    }.keyboardShortcut("k", modifiers: .command)
                         .accessibilityIdentifier("editorLens")
                     Menu {
                         Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
@@ -154,7 +158,7 @@ struct EditorView: View {
                     .disabled(working || model.loading || model.navigating || !model.hasLease)
                 }
             }
-            .task { library.markOpened(notebook); await model.open() }
+            .task { library.markOpened(notebook); model.lensSubject = notebook.title; await model.open() }
             .interactiveDismissDisabled()
             .fullScreenCover(item: $media, onDismiss: finishMediaImport) { source in
                 switch source {
@@ -245,7 +249,15 @@ struct EditorView: View {
     private var writingSurface: some View {
         DocumentPageViewport(model: model)
             .allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
-            .popover(isPresented: $lensPopup, attachmentAnchor: .point(.topTrailing)) { quickLens }
+            .popover(item: $model.lensCard, attachmentAnchor: model.lensCardAnchor.map { PopoverAttachmentAnchor.rect(.rect($0)) } ?? .rect(.bounds)) { request in
+                LensCard(model: model, request: request, openChat: openLensChat, insertPhoto: { preparePhoto($0) })
+            }
+            .overlay(alignment: model.currentWorkspace.dock == .bottom ? .top : .bottom) {
+                if model.tool == .lens && !focus {
+                    LensModeBar(model: model, openChat: openLensChat, photo: { askAboutPhoto = true; Task { await openCamera() } })
+                        .padding(.horizontal, 16).padding(.vertical, 72)
+                }
+            }
             .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in
                 let host = model.pagePresenter as? CanvasHost
                 let point = host?.surface.convert(location, from: host) ?? location
@@ -255,6 +267,7 @@ struct EditorView: View {
                 if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
             }
     }
+    private func openLensChat() { model.lensCard = nil; sidePDF = false; sideOpen = true; model.requestLens() }
     private var quickLens: some View {
         VStack(spacing: 8) {
             HStack {
@@ -422,7 +435,12 @@ struct EditorView: View {
     }
     private func finishMediaImport() {
         if let error = mediaError { mediaError = nil; model.error = error }
-        if let data = pendingPhoto { pendingPhoto = nil; preparePhoto(data) }
+        if let data = pendingPhoto {
+            pendingPhoto = nil
+            // "Foto e chiedi" from the Lens: the photo goes to the card first, onto the page only if wanted.
+            if askAboutPhoto { askAboutPhoto = false; model.lensCardAnchor = nil; model.lensCard = LensCardRequest(photo: data) }
+            else { preparePhoto(data) }
+        } else { askAboutPhoto = false }
         if let scan = pendingScan {
             pendingScan = nil
             Task { working = true; defer { working = false }; await model.importScan(scan) }

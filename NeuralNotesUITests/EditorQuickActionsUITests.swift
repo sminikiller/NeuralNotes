@@ -5,7 +5,8 @@ final class EditorQuickActionsUITests: XCTestCase {
     @MainActor func testManagedAIAccountExplainsMissingServiceWithoutEnablingLogin() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorLens"].tap()
-        let settings = app.buttons["aiConnectionSettings"]
+        // The Lens is now a tool: its bar opens the AI connection.
+        let settings = app.buttons["lensSettings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5)); settings.tap()
         // Without an online service the personal key path comes first; the account sits below.
         XCTAssertTrue(app.buttons["quickStartDeepSeek"].waitForExistence(timeout: 5))
@@ -229,11 +230,13 @@ final class EditorQuickActionsUITests: XCTestCase {
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5)); let original = canvas.frame
         app.buttons["editorLens"].tap()
+        let chat = app.buttons["lensOpenChat"]; XCTAssertTrue(chat.waitForExistence(timeout: 5)); chat.tap()
         XCTAssertTrue(app.descendants(matching: .any)["lensPanelTitle"].firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(canvas.exists); XCTAssertGreaterThan(canvas.frame.width, 0)
         app.buttons["closeStudyInspector"].tap()
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in abs(canvas.frame.width - original.width) <= 2 }, object: canvas)
         wait(for: [restored], timeout: 5)
+        app.buttons["lensExit"].tap(); XCTAssertFalse(app.buttons["lensOpenChat"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["editorAddText"].exists)
     }
     @MainActor

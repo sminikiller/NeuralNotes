@@ -69,7 +69,7 @@ struct ToolOptionsPopover: View {
             Button("Applica spessore a tratti e forme") { model.changeSelectionWidth(model.selectionWidth) }
             Button("Seleziona tutto", systemImage: "checkmark.square") { model.chooseTool(.objects); model.selectAll() }
             MoveSelectionMenu(model: model)
-            Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.requestLens() }
+            Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }
         }
     }
     private var otherOptions: some View {
@@ -85,8 +85,8 @@ struct ToolOptionsPopover: View {
                 Text("Scrivi con Pencil o tastiera. I comandi nel piccolo overlay sul foglio contengono stile, elenchi e tastiera.").font(.callout)
                 Button("Nuova casella", systemImage: "text.badge.plus") { model.beginTextEdit(at: CGPoint(x: 48, y: 64)) }
             } else if tool == .lens {
-                Text("Tocca una parola, cerchia un’area o sottolinea con questo strumento per aprire la Lente rapida. La penna normale continua a scrivere.").font(.callout)
-                Button("Apri la Lente AI", systemImage: "sparkles") { model.requestLens() }
+                Text("Sottolinea un nome o un termine per una nota con la spiegazione, tocca una parola per spiegarla, cerchia o trascina per chiedere. La penna normale continua a scrivere.").font(.callout)
+                Button("Chat sulla pagina", systemImage: "bubble.left.and.text.bubble.right") { model.requestLens() }
             } else { Text("Tocca un tratto per ascoltare il punto della registrazione collegato.").font(.callout) }
         }
     }

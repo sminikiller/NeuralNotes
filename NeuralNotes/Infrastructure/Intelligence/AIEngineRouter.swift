@@ -98,16 +98,28 @@ enum AIEngineRouter {
         return try await authorization(configuration).scope
     }
     static func restoredConsent(_ configuration: AIEngineConfiguration) async -> String? {
-        guard await ManagedAIAccount.isManaged(configuration), let scope = try? await cacheScope(configuration) else { return nil }
+        guard configuration.engine != .offline else { return nil }
+        // A personal key keeps its consent for the same engine, destination and model.
+        let managed = await ManagedAIAccount.isManaged(configuration)
+        if !managed {
+            let saved = UserDefaults.standard.string(forKey: personalConsentKey(configuration))
+            return saved == configuration.consentKey ? saved : nil
+        }
+        guard let scope = try? await cacheScope(configuration) else { return nil }
         let saved = UserDefaults.standard.string(forKey: "ai.managed.consent.\(scope)")
         return saved == configuration.consentKey ? saved : nil
     }
     static func rememberConsent(_ configuration: AIEngineConfiguration, allowed: Bool) async throws {
-        guard await ManagedAIAccount.isManaged(configuration) else { return }
-        let scope = try await cacheScope(configuration), key = "ai.managed.consent.\(scope)"
+        guard configuration.engine != .offline else { return }
+        let key: String
+        if await ManagedAIAccount.isManaged(configuration) {
+            let scope = try await cacheScope(configuration)
+            key = "ai.managed.consent.\(scope)"
+        } else { key = personalConsentKey(configuration) }
         if allowed { UserDefaults.standard.set(configuration.consentKey, forKey: key) }
         else { UserDefaults.standard.removeObject(forKey: key) }
     }
+    private static func personalConsentKey(_ configuration: AIEngineConfiguration) -> String { "ai.personal.consent.\(configuration.engine.rawValue)" }
     static func research(_ input: WebResearchRequest, configuration: AIEngineConfiguration, consentKey: String?) async throws -> AIArtifact {
         guard input.isValid else { throw AIWireFailure.configuration }
         if configuration.engine != .backend {

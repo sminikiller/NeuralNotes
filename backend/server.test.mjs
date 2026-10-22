@@ -139,12 +139,17 @@ test('cards adapter uses a strict schema and HTTP shares authorization before ca
 
 test('explain keeps the underlined term, bounds context and accepts only known kinds', () => {
   const request = validateExplainRequest({ term: '  Congresso\n di  Vienna ', context: 'Dopo il congresso di Vienna', subject: 'Storia' });
-  assert.deepEqual(request, { term: 'Congresso di Vienna', context: 'Dopo il congresso di Vienna', subject: 'Storia' });
-  for (const value of [{}, { term: '   ' }, { term: 'x'.repeat(201) }, { term: 'x', context: 'c'.repeat(3001) }, { term: 'x', subject: 's'.repeat(121) }]) assert.throws(() => validateExplainRequest(value));
+  assert.deepEqual(request, { term: 'Congresso di Vienna', context: 'Dopo il congresso di Vienna', subject: 'Storia', selection: '', question: '', image: null });
+  for (const value of [{}, { term: '   ' }, { term: 'x'.repeat(201) }, { term: 'x', context: 'c'.repeat(3001) }, { term: 'x', subject: 's'.repeat(121) },
+    { selection: 's'.repeat(6001) }, { term: 'x', question: 'q'.repeat(501) }, { image: 'not base64!' }, { image: 'A'.repeat(1_400_001) }, { term: 'x', question: 7 }])
+    assert.throws(() => validateExplainRequest(value), JSON.stringify(value).slice(0, 60));
+  assert.equal(validateExplainRequest({ selection: ' Brano ', question: ' Riassumi ' }).question, 'Riassumi');
+  assert.equal(explanationFromResult({ kind: 'immagine', explanation: 'Una foto', certain: true }, validateExplainRequest({ image: 'aGVsbG8=' }), 'fixture').term, 'Immagine');
+  assert.equal(explanationFromResult({ kind: 'concetto', explanation: 'Tre punti', certain: true }, validateExplainRequest({ selection: 'Brano', question: 'Riassumi in tre punti' }), 'fixture').term, 'Riassumi in tre punti');
   const value = explanationFromResult({ term: 'Altro nome', kind: 'Persona', explanation: '  Diplomatico austriaco.  ', certain: false }, request, 'fixture');
   assert.deepEqual(value, { term: 'Congresso di Vienna', kind: 'persona', explanation: 'Diplomatico austriaco.', certain: false, provider: 'fixture' });
   assert.equal(explanationFromResult({ kind: 'pianeta', explanation: 'Testo', certain: true }, request, 'fixture').kind, 'altro');
-  for (const bad of [{ kind: 'data', explanation: ' ', certain: true }, { kind: 'data', explanation: 'x'.repeat(1201), certain: true }, { kind: 'data', explanation: 'Testo', certain: 'si' }])
+  for (const bad of [{ kind: 'data', explanation: ' ', certain: true }, { kind: 'data', explanation: 'x'.repeat(4001), certain: true }, { kind: 'data', explanation: 'Testo', certain: 'si' }])
     assert.throws(() => explanationFromResult(bad, request, 'fixture'));
 });
 
@@ -152,10 +157,13 @@ test('explain uses general knowledge with a strict schema and costs one credit a
   const adapter = new ResponsesAdapter({ key: 'test-only', model: 'fixture-model' }, async (_url, options) => {
     const body = JSON.parse(options.body); assert.equal(body.text.format.name, 'neuralnotes_explain'); assert.equal(body.text.format.strict, true);
     assert.match(body.instructions, /conoscenza generale/); assert.doesNotMatch(body.instructions, /Usa soltanto le fonti/);
-    assert.deepEqual(JSON.parse(body.input[0].content), { term: 'mitocondrio', context: 'nella cellula', subject: 'Biologia' });
+    if (Array.isArray(body.input[0].content)) {
+      assert.deepEqual(body.input[0].content.map(part => part.type), ['input_text', 'input_image']); assert.equal(body.input[0].content[1].image_url, 'data:image/jpeg;base64,aGVsbG8=');
+    } else assert.deepEqual(JSON.parse(body.input[0].content), { term: 'mitocondrio', selection: '', question: '', context: 'nella cellula', subject: 'Biologia' });
     return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ term: 'mitocondrio', kind: 'concetto', explanation: 'Organulo che produce energia.', certain: true }) }] }] });
   });
   assert.equal((await adapter.explain({ term: 'mitocondrio', context: 'nella cellula', subject: 'Biologia' }, new AbortController().signal)).kind, 'concetto');
+  assert.equal((await adapter.explain({ term: 'mitocondrio', context: 'nella cellula', subject: 'Biologia', image: 'aGVsbG8=' }, new AbortController().signal)).kind, 'concetto');
   let calls = 0; const credits = [];
   const limiter = { take(_subject, _now, _token, amount) { credits.push(amount); return true; } };
   const server = createApp({ secret, limiter, adapter: { async explain(input) { calls++; return explanationFromResult({ kind: 'concetto', explanation: 'Testo', certain: true }, input, 'fixture'); } } });

@@ -33,6 +33,23 @@ actor PDFTextReader {
         reads += 1
         return autoreleasepool { String((document.page(at: index)?.string ?? "").prefix(20_000)) }
     }
+    /// Digital text inside an area of a notebook page made from a PDF page. Notebook
+    /// coordinates grow downward from the top, PDF coordinates upward from the bottom.
+    func text(url: URL, index: Int, in area: CGRect, pageWidth: Double, pageHeight: Double) throws -> String {
+        try Task.checkCancellation()
+        if file != url || document == nil || reads >= 32 {
+            document = nil; file = url; reads = 0
+            document = PDFDocument(url: url)
+        }
+        guard let document, !document.isLocked, index >= 0, index < document.pageCount, let page = document.page(at: index),
+              pageWidth > 0, pageHeight > 0, page.rotation == 0 else { return "" }
+        reads += 1
+        let box = page.bounds(for: .cropBox)
+        let sx = box.width / CGFloat(pageWidth), sy = box.height / CGFloat(pageHeight)
+        let rect = CGRect(x: box.minX + area.minX * sx, y: box.minY + (CGFloat(pageHeight) - area.maxY) * sy,
+                          width: area.width * sx, height: area.height * sy)
+        return autoreleasepool { String((page.selection(for: rect)?.string ?? "").prefix(6000)) }
+    }
 }
 
 @MainActor

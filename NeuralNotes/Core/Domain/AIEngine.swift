@@ -239,8 +239,9 @@ public enum DirectAIWire {
         return url
     }
 
+    /// `image` is a base64 JPEG sent with the text, in the format of each provider.
     static func call(_ configuration: AIEngineConfiguration, credential: String, instruction: String, content: [String: Any],
-                             schema: [String: Any], name: String, shape: String) throws -> URLRequest {
+                     schema: [String: Any], name: String, shape: String, image: String? = nil) throws -> URLRequest {
         let url = try endpoint(configuration, credential: credential)
         let prompt = String(decoding: try JSONSerialization.data(withJSONObject: content, options: [.sortedKeys]), as: UTF8.self)
         var call = URLRequest(url: url); call.httpMethod = "POST"; call.timeoutInterval = 120
@@ -251,25 +252,47 @@ public enum DirectAIWire {
             call.setValue(credential, forHTTPHeaderField: "x-api-key")
             call.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
             if !configuration.workspaceID.isEmpty { call.setValue(configuration.workspaceID, forHTTPHeaderField: "anthropic-workspace-id") }
+            var user: Any = prompt
+            if let image {
+                let picture: [String: Any] = ["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": image]]
+                let text: [String: Any] = ["type": "text", "text": prompt]
+                user = [picture, text]
+            }
             // Current Claude models think adaptively: the budget covers thinking and the JSON answer.
             body = ["model": configuration.model, "max_tokens": 16000, "system": instruction,
-                    "messages": [["role": "user", "content": prompt]],
+                    "messages": [["role": "user", "content": user]],
                     "output_config": ["format": ["type": "json_schema", "schema": schema]]]
         case .gemini:
             call.setValue(credential, forHTTPHeaderField: "x-goog-api-key")
-            body = ["systemInstruction": ["parts": [["text": instruction]]], "contents": [["role": "user", "parts": [["text": prompt]]]],
+            var parts: [[String: Any]] = []
+            if let image { parts.append(["inline_data": ["mime_type": "image/jpeg", "data": image]]) }
+            parts.append(["text": prompt])
+            body = ["systemInstruction": ["parts": [["text": instruction]]], "contents": [["role": "user", "parts": parts]],
                     "generationConfig": ["responseMimeType": "application/json", "responseJsonSchema": schema, "maxOutputTokens": 8192]]
         case .deepSeek:
             // Chat Completions JSON mode: the expected shape travels with the instruction.
             // Thinking is on by default: off keeps short study answers fast and within max_tokens.
             call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+            var user: Any = prompt
+            if let image {
+                let text: [String: Any] = ["type": "text", "text": prompt]
+                let picture: [String: Any] = ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + image]]
+                user = [text, picture]
+            }
             body = ["model": configuration.model, "max_tokens": 4096, "stream": false, "response_format": ["type": "json_object"],
                     "thinking": ["type": "disabled"],
                     "messages": [["role": "system", "content": instruction + " Restituisci solo JSON valido, senza Markdown, con questa forma: " + shape],
-                                 ["role": "user", "content": prompt]]]
+                                 ["role": "user", "content": user]]]
         default:
             call.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
-            body = ["model": configuration.model, "store": false, "instructions": instruction, "input": prompt,
+            var input: Any = prompt
+            if let image {
+                let text: [String: Any] = ["type": "input_text", "text": prompt]
+                let picture: [String: Any] = ["type": "input_image", "image_url": "data:image/jpeg;base64," + image]
+                let message: [String: Any] = ["role": "user", "content": [text, picture]]
+                input = [message]
+            }
+            body = ["model": configuration.model, "store": false, "instructions": instruction, "input": input,
                     "text": ["format": ["type": "json_schema", "name": name, "strict": true, "schema": schema]], "max_output_tokens": 8192]
         }
         call.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])

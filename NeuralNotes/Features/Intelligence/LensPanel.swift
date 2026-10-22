@@ -98,7 +98,7 @@ struct LensPanel: View {
         return "\(model.page?.id.uuidString ?? "")|\(objects)|\(strokes)|\(model.selectionIncludesInk)|\(String(describing: model.lensArea))|\(model.lensTextSelection ?? "")|\(model.lensRequest)|\(configuration.consentKey)"
     }
     private var sourcesChanged: Bool {
-        !sources.isEmpty && (model.dirty || sources.contains { $0.reference.pageID != model.page?.id || $0.reference.pageRevision != model.page?.revision })
+        !sources.isEmpty && sources.contains { $0.reference.pageID != model.page?.id }
     }
     private var canSend: Bool { !busy && !sourcesLoading && !sourcesChanged && !sources.isEmpty && (configuration.engine == .offline || consentKey == configuration.consentKey) }
     private var settings: some View {

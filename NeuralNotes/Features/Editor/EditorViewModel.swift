@@ -36,6 +36,10 @@ final class EditorViewModel {
     var lensTextSelection: String?
     var lensPrefersPopup = false
     var lensRequest = 0
+    /// The Lens card next to a selection, where it points in the editor view, and the notebook title as subject.
+    var lensCard: LensCardRequest?
+    @ObservationIgnored var lensCardAnchor: CGRect?
+    var lensSubject = ""
     var searchRequest = 0
     var focusRequest = 0
     var objectEditorRequest = 0

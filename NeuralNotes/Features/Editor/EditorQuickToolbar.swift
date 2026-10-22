@@ -106,7 +106,7 @@ struct EditorQuickToolbar: View {
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
                 Menu {
                     Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
-                    Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.requestLens() }
+                    Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }
                     Button("Converti in testo", systemImage: "text.viewfinder") { Task { await model.convertSelectionToText() } }
                     Button("Copia area come immagine", systemImage: "photo.on.rectangle") { model.copySelectionImage() }
                     Button("Porta dietro", systemImage: "square.3.layers.3d.bottom.filled") { model.arrangeSelection(front: false) }

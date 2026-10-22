@@ -15,6 +15,37 @@ Contiene i sorgenti e un App Playground. Non è un IPA firmato e non è stato co
 - **DeepSeek API:** è un nuovo motore personale (Chat Completions in modalità JSON). Il modello si scrive nella Connessione AI.
 - **Claude API:** ora accetta le risposte dei modelli attuali, che includono blocchi di ragionamento adattivo. Il budget di uscita sale a 16.000 token. Prima queste risposte venivano rifiutate come non valide.
 
+### Nuova Lente AI (strumento, non pannello)
+
+Il pulsante "Lente AI" della barra attiva lo strumento Lente. Compare una barra con:
+
+- **modo Testo o Immagine**;
+- **Nota automatica**;
+- **Foto e chiedi**;
+- **Chat pagina**;
+- **Connessione AI** ed esci.
+
+**Gesti nel modo Testo:**
+- **Sottolinea** un nome, una data o un termine: legge le parole e inserisce da sola una nota gialla accanto, con la spiegazione.
+  - Il testo viene preso dal PDF digitale della pagina, dalle caselle di testo o con l’OCR, in quest’ordine.
+  - Una sottolineatura tremolante conta comunque come sottolineatura.
+- **Tocca** una parola: si apre la scheda, che la spiega subito.
+- **Cerchia** o **trascina un rettangolo**: si apre la scheda accanto alla zona. Mostra il testo letto (correggibile), le azioni Chi è/Cos’è · Spiega · Riassumi · Traduci, una domanda libera e "Inserisci come nota".
+
+**Gesti nel modo Immagine:**
+- tocchi una foto della pagina, o cerchi una zona, e l’AI guarda l’immagine;
+- con "Foto e chiedi" scatti e chiedi subito, poi decidi se inserire la foto nella pagina.
+
+**Immagini:** l’immagine viaggia nel formato di ogni motore (DeepSeek `image_url`, OpenAI `input_image`, Claude `image`, Gemini `inline_data`). Se il motore non la legge, la risposta si ripete con il solo testo riconosciuto e lo dice.
+
+**Consenso:** viene chiesto una volta sola nella scheda ("Sì, sempre") e ora resta salvato anche con la chiave personale. Prima si perdeva a ogni apertura e l’invio restava bloccato. La chat della pagina non si blocca più quando la pagina ha modifiche non ancora salvate.
+
+**PDF aperto di fianco:**
+- **Spiega e annota** mette la nota nel quaderno;
+- **Chiedi** apre la scheda;
+- **Web** apre la ricerca;
+- cerchiare o sottolineare con Pencil fa la stessa cosa.
+
 ### Lente
 
 - **Inserimento:** la risposta va accanto all’area cerchiata o alla selezione, senza coprire testo, immagini e inchiostro, e senza uscire dalla pagina. Corpo 16 pt.

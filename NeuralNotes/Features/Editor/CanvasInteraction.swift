@@ -143,7 +143,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             host.flow?.activateAtPoint(gesture.location(in: host)); return
         }
         let point = gesture.location(in: host.surface)
-        if model.tool == .lens { model.requestLens(area: CGRect(x: point.x - 60, y: point.y - 30, width: 120, height: 60), compact: true); return }
+        if model.tool == .lens {
+            model.lensTap(at: point, anchor: host.surface.convert(CGRect(x: point.x - 70, y: point.y - 22, width: 140, height: 44), to: host)); return
+        }
         if model.toggleChecklist(at: point) { return }
         if let tape = model.tapeHit(at: point), model.tool != .objects { model.toggleTape(tape); return }
         if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }
@@ -203,7 +205,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 if model.tool == .lens {
                     let trace = selectionTrace.map { StrokeSample(x: $0.x, y: $0.y) }
                     if let area = LensGeometry.selection(trace: trace, pageWidth: page.width, pageHeight: page.height) {
-                        model.requestLens(area: area, compact: true)
+                        model.lensGesture(area: area, underline: LensGeometry.isUnderline(trace: trace), anchor: host.surface.convert(area, to: host))
                     }
                     marquee.path = nil; before = nil; originalDrawing = nil; return
                 }
@@ -322,7 +324,7 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
             let front = UIAction(title: "Porta davanti", image: UIImage(systemName: "square.3.layers.3d.top.filled")) { _ in model.arrangeSelection(front: true) }
             let back = UIAction(title: "Porta dietro", image: UIImage(systemName: "square.3.layers.3d.bottom.filled")) { _ in model.arrangeSelection(front: false) }
             let lock = UIAction(title: "Blocca", image: UIImage(systemName: "lock")) { _ in model.lockSelection() }
-            let ai = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkles")) { _ in model.requestLens() }
+            let ai = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkles")) { _ in model.lensAskAboutSelection() }
             let remove = UIAction(title: "Elimina", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in model.deleteSelectedObject() }
             return UIMenu(children: [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove])
         }

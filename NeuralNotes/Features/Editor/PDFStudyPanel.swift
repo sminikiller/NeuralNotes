@@ -194,8 +194,13 @@ struct PDFStudyPanel: View {
     }
     @ViewBuilder private var conceptCommands: some View {
             HStack {
-                Toggle("Cerchia / sottolinea per cercare", isOn: $conceptMode).toggleStyle(.button)
-                Button("Cerca selezione", systemImage: "globe") { lookup(controller.view?.currentSelection?.string ?? "") }.disabled(!controller.hasSelection)
+                Toggle("Cerchia / sottolinea con la Lente", isOn: $conceptMode).toggleStyle(.button)
+                Button("Spiega e annota", systemImage: "note.text.badge.plus") { model.lensAsk(text: controller.view?.currentSelection?.string ?? "", fromSidePDF: true) }
+                    .disabled(!controller.hasSelection)
+                Button("Chiedi", systemImage: "sparkle.magnifyingglass") {
+                    model.lensCardAnchor = nil; model.lensCard = LensCardRequest(text: controller.view?.currentSelection?.string ?? "", fromSidePDF: true)
+                }.disabled(!controller.hasSelection)
+                Button("Web", systemImage: "globe") { lookup(controller.view?.currentSelection?.string ?? "") }.disabled(!controller.hasSelection)
             }.font(.caption).buttonStyle(.bordered).padding(.horizontal)
     }
     @ViewBuilder private var searchControls: some View {
@@ -209,7 +214,7 @@ struct PDFStudyPanel: View {
     }
     @ViewBuilder private var documentView: some View {
             if !selectedFile.isEmpty {
-                StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package, index: isExternal ? 0 : model.page?.pdfIndex ?? 0, pages: model.pages, external: isExternal ? externalURL : nil, conceptMode: conceptMode, onConcept: lookup)
+                StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package, index: isExternal ? 0 : model.page?.pdfIndex ?? 0, pages: model.pages, external: isExternal ? externalURL : nil, conceptMode: conceptMode, onConcept: { model.lensAsk(text: $0, fromSidePDF: true) })
             } else { ContentUnavailableView("PDF di riferimento", systemImage: "doc", description: Text("Apri un PDF da File per leggerlo accanto agli appunti, senza importarlo nel quaderno.")) }
     }
     @ViewBuilder private var documentActions: some View {
@@ -220,7 +225,7 @@ struct PDFStudyPanel: View {
                 Task { await model.select(page) }
             }.disabled(isExternal || selectedFile.isEmpty)
             Button("Inserisci estratto con fonte negli appunti", systemImage: "text.badge.plus") { insertExcerpt() }.disabled(!controller.hasSelection)
-            Text(isExternal ? "PDF aperto come riferimento: il file originale non viene modificato. Seleziona testo per inserirlo negli appunti. Con la Lente attiva, cerchia o sottolinea con Apple Pencil per cercare un termine." : "Seleziona testo per copiarlo o evidenziarlo. Attiva la Lente per cercare cerchiando o sottolineando con Apple Pencil.").font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+            Text(isExternal ? "PDF aperto come riferimento: il file originale non viene modificato. Seleziona testo per inserirlo negli appunti. Seleziona un termine e premi Spiega e annota: la nota va nel quaderno. Con «Cerchia / sottolinea» usi Apple Pencil." : "Seleziona testo per copiarlo o evidenziarlo; Spiega e annota mette nel quaderno una nota con la spiegazione, Chiedi apre la scheda della Lente.").font(.caption).foregroundStyle(.secondary).padding(.horizontal)
             if let error { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
         }
     }

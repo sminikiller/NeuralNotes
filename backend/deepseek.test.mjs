@@ -62,13 +62,20 @@ test('DeepSeek lookup and quiz preserve validated app contracts', async () => {
 test('DeepSeek explain answers from general knowledge in JSON mode with thinking off', async () => {
   const adapter = new DeepSeekAdapter({ key: 'fixture' }, async (_url, options) => {
     const body = JSON.parse(options.body), data = JSON.parse(body.messages[1].content);
-    assert.equal(body.response_format.type, 'json_object'); assert.deepEqual(body.thinking, { type: 'disabled' }); assert.ok(body.max_tokens <= 1024);
+    assert.equal(body.response_format.type, 'json_object'); assert.deepEqual(body.thinking, { type: 'disabled' }); assert.ok(body.max_tokens <= 2048);
     assert.match(body.messages[0].content, /conoscenza generale/); assert.doesNotMatch(body.messages[0].content, /Usa soltanto le fonti/);
-    assert.deepEqual(data, { term: 'Napoleone', context: 'campagna di Russia', subject: 'Storia' });
+    assert.deepEqual(data, { term: 'Napoleone', selection: '', question: '', context: 'campagna di Russia', subject: 'Storia' });
     return completed({ term: 'Napoleone', kind: 'persona', explanation: 'Imperatore dei francesi.', certain: true });
   });
   const value = await adapter.explain({ term: 'Napoleone', context: 'campagna di Russia', subject: 'Storia' }, signal());
   assert.equal(value.kind, 'persona'); assert.equal(value.provider, 'DeepSeek / deepseek-flash');
+  const photo = new DeepSeekAdapter({ key: 'fixture' }, async (_url, options) => {
+    const user = JSON.parse(options.body).messages[1].content;
+    assert.deepEqual(user.map(part => part.type), ['text', 'image_url']); assert.equal(user[1].image_url.url, 'data:image/jpeg;base64,aGVsbG8=');
+    assert.equal(JSON.parse(user[0].text).question, 'Chi è?');
+    return completed({ term: '', kind: 'persona', explanation: 'Una persona.', certain: false });
+  });
+  assert.equal((await photo.explain({ term: '', selection: '', question: 'Chi è?', context: '', subject: '', image: 'aGVsbG8=' }, signal())).term, 'Chi è?');
   const truncated = new DeepSeekAdapter({ key: 'fixture' }, async () => Response.json({ choices: [{ finish_reason: 'length', message: { content: '{' } }] }));
   await assert.rejects(truncated.explain({ term: 'x', context: '', subject: '' }, signal()));
 });
