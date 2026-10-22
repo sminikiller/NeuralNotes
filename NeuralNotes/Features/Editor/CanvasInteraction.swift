@@ -167,6 +167,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         guard let host, let model, let page = model.page else { return }
         let point = gesture.location(in: host.surface)
         if gesture.state == .began {
+            model.cancelMaintenance()
             start = point; before = model.captureEdit(ink: model.selectionIncludesInk); original = [:]
             selectionTrace = [point]
             model.movingObjects = true

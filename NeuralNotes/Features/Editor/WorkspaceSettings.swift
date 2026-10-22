@@ -62,6 +62,7 @@ extension EditorViewModel {
     func chooseTool(_ item: WorkspaceTool) {
         laserActive = false
         guard !hasActiveStroke else { return }
+        cancelMaintenance()
         if item == .ruler {
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
             rulerActive.toggle(); configureTool(); return

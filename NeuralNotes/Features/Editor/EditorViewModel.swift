@@ -96,13 +96,24 @@ final class EditorViewModel {
     var dirty = false
     @ObservationIgnored var backupMetadata: Notebook?
     @ObservationIgnored private var maintenanceTask: Task<Void, Never>?
+    @ObservationIgnored private var maintenanceGeneration = UUID()
+    @ObservationIgnored var maintenanceDelay: Duration = .seconds(8)
+    var openingTimings: [String: Double] = [:]
     var backupWarning: String?
+    func cancelMaintenance() {
+        maintenanceGeneration = UUID(); maintenanceTask?.cancel(); maintenanceTask = nil
+    }
     func scheduleMaintenance() {
-        guard maintenanceTask == nil else { return }
+        cancelMaintenance()
+        let generation = maintenanceGeneration, delay = maintenanceDelay
         maintenanceTask = Task(priority: .utility) { [weak self] in
-            guard let self else { return }
-            defer { self.maintenanceTask = nil }
+            do { try await Task.sleep(for: delay) } catch { return }
+            guard let self, self.maintenanceGeneration == generation else { return }
+            defer { if self.maintenanceGeneration == generation { self.maintenanceTask = nil } }
+            guard self.hasLease, !self.interactionBusy, !self.dirty, !self.saving, !self.loading, !self.navigating,
+                  self.audio?.recording != true else { return }
             _ = try? await self.workspace.indexedChunks()
+            guard !Task.isCancelled else { return }
             if UserDefaults.standard.object(forKey: "backup.automatic") as? Bool != false, let metadata = self.backupMetadata {
                 do {
                     let created = try await self.workspace.createAutomaticBackup(metadata: metadata)
@@ -111,6 +122,7 @@ final class EditorViewModel {
                     if let latest { _ = try await ExternalBackupWriter.shared.copy(latest, documentID: self.workspace.documentID) }
                     self.backupWarning = nil
                 }
+                catch is CancellationError { return }
                 catch { self.backupWarning = "Backup automatico da riprovare: \(error.localizedDescription)" }
             }
             do { try await Task.sleep(for: .seconds(2)) } catch { return }
@@ -155,8 +167,13 @@ final class EditorViewModel {
             status = "Aperto in un’altra finestra"; return
         }
         hasLease = true
+        let started = ProcessInfo.processInfo.systemUptime
+        var stage = started
+        openingTimings = [:]
         do {
             let catalog = try await workspace.catalog()
+            openingTimings["Catalogo"] = (ProcessInfo.processInfo.systemUptime - stage) * 1000
+            stage = ProcessInfo.processInfo.systemUptime
             sections = catalog.sections ?? []
             workspaces = catalog.editorWorkspaces ?? .starter(
                 scratchErase: UserDefaults.standard.object(forKey: "editor.scratchErase") as? Bool ?? true,
@@ -165,10 +182,21 @@ final class EditorViewModel {
             pages = try await workspace.pages()
             if pages.isEmpty { pages = [try await workspace.addDefaultPage()] }
             let savedID = UserDefaults.standard.string(forKey: "editor.page.\(workspace.documentID)").flatMap(UUID.init(uuidString:))
-            let lastEdited = try await workspace.lastEditedPage()
+            // Metadata was already read above. Do not scan the whole document
+            // again to choose a page or when installing its drawing.
+            let lastEdited = pages.filter { $0.lastEditedAt != nil }.max { ($0.lastEditedAt ?? 0) < ($1.lastEditedAt ?? 0) }
+            openingTimings["Metadati pagine"] = (ProcessInfo.processInfo.systemUptime - stage) * 1000
+            stage = ProcessInfo.processInfo.systemUptime
             if let first = lastEdited ?? pages.first(where: { $0.id == savedID }) ?? pages.first { try await load(first) }
+            openingTimings["Pagina e inchiostro"] = (ProcessInfo.processInfo.systemUptime - stage) * 1000
+            openingTimings["Foglio pronto"] = (ProcessInfo.processInfo.systemUptime - started) * 1000
             let recorder = AudioController(workspace: workspace)
-            await recorder.load(); audio = recorder
+            stage = ProcessInfo.processInfo.systemUptime
+            await recorder.load(catalog: catalog)
+            guard hasLease, !Task.isCancelled else { await recorder.close(); return }
+            audio = recorder
+            openingTimings["Recupero audio"] = (ProcessInfo.processInfo.systemUptime - stage) * 1000
+            scheduleMaintenance()
         } catch { self.error = error.localizedDescription; status = "Apertura non riuscita" }
     }
 
@@ -210,8 +238,10 @@ final class EditorViewModel {
 
     func close() async -> Bool {
         guard !hasActiveStroke else { return false }
+        cancelMaintenance()
         guard await flush() else { return false }
         guard !hasActiveStroke else { return false }
+        cancelMaintenance()
         await audio?.close()
         EditorLeases.shared.release(document: workspace.documentID, owner: leaseOwner); hasLease = false
         return true
@@ -222,6 +252,7 @@ final class EditorViewModel {
     }
 
     func strokeBegan() {
+        cancelMaintenance()
         searchFocus = nil
         finishInkGesture()
         rememberPalette()
@@ -272,6 +303,8 @@ final class EditorViewModel {
 
     @discardableResult
     func flush() async -> Bool {
+        cancelMaintenance()
+        var wrotePage = false
         // Ink is committed before optional toolbar settings. A damaged catalog
         // must never stop an otherwise valid page from reaching disk.
         while true {
@@ -285,7 +318,7 @@ final class EditorViewModel {
             guard dirty, var snapshot = page else {
                 guard await saveWorkspaceSettings() else { return false }
                 if dirty { continue }
-                scheduleMaintenance()
+                if wrotePage { scheduleMaintenance() }
                 return true
             }
             guard hasLease else { return false }
@@ -319,6 +352,7 @@ final class EditorViewModel {
             let result = await task.value
             savingTask = nil; saving = false
             guard result else { return false }
+            wrotePage = true
             // An edit can arrive while the actor writes this snapshot. Drain those
             // changes before a caller is allowed to navigate or close the editor.
         }
@@ -340,9 +374,11 @@ final class EditorViewModel {
     func load(_ target: PageSnapshot) async throws {
         loading = true
         defer { loading = false }
-        // Fetch latest header after a pending flush, never a stale thumbnail snapshot.
-        pages = try await workspace.pages()
-        guard let current = pages.first(where: { $0.id == target.id }) else { throw LibraryFailure.missingItem }
+        // Only the destination needs a fresh header. The workspace verifies
+        // manifest membership; unrelated pages/media are not part of this read.
+        let current = try await workspace.pageSnapshot(target.id)
+        guard let index = pages.firstIndex(where: { $0.id == target.id }) else { throw LibraryFailure.missingItem }
+        pages[index] = current
         let drawing: PKDrawing
         var recovered = false
         do {
@@ -442,6 +478,7 @@ final class EditorViewModel {
             let selected = ids.contains(page.id) ? pages[min(removedIndex, pages.count - 1)] : pages.first(where: { $0.id == page.id }) ?? pages[0]
             try await load(selected)
             recordOrder(before, selectedBefore: page.id, label: ids.count == 1 ? "Elimina pagina" : "Elimina pagine")
+            error = nil
         } catch { self.error = error.localizedDescription }
     }
     func restorePages(_ ids: [UUID]) async {
@@ -452,6 +489,7 @@ final class EditorViewModel {
             try await workspace.restoreRemovedPages(ids)
             pages = try await workspace.pages()
             recordOrder(before, selectedBefore: selected, label: "Ripristina pagine")
+            error = nil
         } catch { self.error = error.localizedDescription }
     }
 

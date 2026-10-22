@@ -24,9 +24,21 @@ struct StoragePanel: View {
     private var canClean: Bool { !EditorLeases.shared.isOpen(workspace.documentID) }
     private var canRestore: Bool { canClean || editor?.hasLease == true }
 
+    @ViewBuilder private var openingMetrics: some View {
+        if let editor, !editor.openingTimings.isEmpty {
+            Section("Tempi dell’ultima apertura") {
+                ForEach(["Catalogo", "Metadati pagine", "Pagina e inchiostro", "Foglio pronto", "Recupero audio"], id: \.self) { stage in
+                    if let ms = editor.openingTimings[stage] { LabeledContent(stage, value: "\(Int(ms.rounded())) ms") }
+                }
+                Text("Foglio pronto misura il modello caricato, prima del recupero audio. Non include la presentazione della finestra o il primo disegno a schermo.").font(.caption)
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                openingMetrics
                 Section("Audio") {
                     NavigationLink { AudioCompressionPanel(workspace: workspace, editor: editor) } label: {
                         Label("Comprimi registrazioni", systemImage: "waveform")
@@ -37,7 +49,7 @@ struct StoragePanel: View {
                 }
                 Section("Backup automatici") {
                     Toggle("Copie automatiche ogni 10 minuti di modifiche", isOn: $automaticBackup)
-                    Text("Fino a cinque versioni entro il minore tra 1 GB e tre volte il quaderno, con un minimo di 64 MB. Le due copie più recenti sono sempre conservate, anche oltre limite. Durante una registrazione il backup attende la pausa.").font(.caption)
+                    Text("Fino a cinque versioni entro il minore tra 1 GB e tre volte il quaderno, con un minimo di 64 MB. Le due copie più recenti sono sempre conservate, anche oltre limite. Il lavoro automatico attende almeno 8 secondi senza interazioni e si interrompe quando riprendi a scrivere. Durante la registrazione attende la pausa.").font(.caption)
                     if let backupUsage {
                         LabeledContent("Spazio backup", value: bytes(backupUsage.usedBytes))
                         LabeledContent("Limite", value: bytes(backupUsage.budgetBytes))

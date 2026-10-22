@@ -1,6 +1,8 @@
 import Foundation
 
 public enum PreviewBudget {
+    public static let maximumPrefetchedPages = 3
+    public static let previewDimension = 800
     public static let maximumBytes = 48 * 1024 * 1024
     public static let maximumEncodedDrawing = 8 * 1024 * 1024
     /// Conservative accounting, not a measurement of PencilKit's private heap.

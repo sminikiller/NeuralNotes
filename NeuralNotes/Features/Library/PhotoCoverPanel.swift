@@ -129,8 +129,8 @@ struct LibraryNotebookCover: View {
 @MainActor
 enum LastEditedCover {
     static func image(workspace: DocumentWorkspace) async throws -> UIImage? {
-        let latest = try await workspace.lastEditedPage()
         let pages = try await workspace.pages()
+        let latest = pages.filter { $0.lastEditedAt != nil }.max { ($0.lastEditedAt ?? 0) < ($1.lastEditedAt ?? 0) }
         guard let page = latest ?? pages.first else { return nil }
         let drawing: PKDrawing
         do {

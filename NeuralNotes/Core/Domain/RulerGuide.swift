@@ -2,14 +2,16 @@ import Foundation
 
 public struct RulerGuide: Equatable, Sendable {
     public var x: Double, y: Double, angle: Double
+    public var length = 640.0
+    public var thickness = 44.0
     public static let halfWidth = 22.0
     public init(x: Double = 384, y: Double = 512, angle: Double = 0) { self.x = x; self.y = y; self.angle = angle }
     public func edge(nearest point: StrokeSample) -> Double {
         (point.x - x) * -sin(angle) + (point.y - y) * cos(angle) >= 0 ? 1 : -1
     }
     public func project(_ point: StrokeSample, edge: Double, width: Double, height: Double) -> StrokeSample? {
-        guard [x, y, angle, point.x, point.y, edge, width, height].allSatisfy(\.isFinite), width > 0, height > 0 else { return nil }
-        let ux = cos(angle), uy = sin(angle), offset = min(1, max(-1, edge)) * Self.halfWidth
+        guard [x, y, angle, thickness, point.x, point.y, edge, width, height].allSatisfy(\.isFinite), width > 0, height > 0, thickness > 0 else { return nil }
+        let ux = cos(angle), uy = sin(angle), offset = min(1, max(-1, edge)) * thickness / 2
         let ox = x - uy * offset, oy = y + ux * offset
         var low = -Double.infinity, high = Double.infinity
         for (origin, direction, bound) in [(ox, ux, width), (oy, uy, height)] {

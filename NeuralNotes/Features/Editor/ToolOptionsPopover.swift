@@ -75,12 +75,14 @@ struct ToolOptionsPopover: View {
     private var otherOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
             if tool == .ruler {
-                Text("Con il righello attivo la penna segue sempre il bordo scelto all’inizio del tratto, anche se la punta si allontana. Sposta e ruota con due dita; vicino a 0°, 45° e 90° l’angolo si aggancia.").font(.caption).foregroundStyle(.secondary)
+                Text("Con il righello attivo la penna segue sempre il bordo scelto all’inizio del tratto, anche se la punta si allontana. Sposta e ruota con due dita, pizzica per allungare; vicino a 0°, 45° e 90° l’angolo si aggancia.").font(.caption).foregroundStyle(.secondary)
                 Toggle("Righello visibile", isOn: Binding(get: { model.rulerActive }, set: { value in if value != model.rulerActive { model.chooseTool(.ruler) } }))
+                Text("Lunghezza del righello")
+                Slider(value: Binding(get: { model.rulerGuide.length }, set: { model.rulerGuide.length = $0 }), in: 240...1800)
                 Button("Penna", systemImage: "pencil.tip") { model.chooseTool(.pen) }
                 Button("Evidenziatore", systemImage: "highlighter") { model.chooseTool(.marker) }
             } else if tool == .text {
-                Text("Scrivi con Pencil o tastiera. La barra sopra la tastiera contiene stile, elenchi e caselle.").font(.callout)
+                Text("Scrivi con Pencil o tastiera. I comandi nel piccolo overlay sul foglio contengono stile, elenchi e tastiera.").font(.callout)
                 Button("Nuova casella", systemImage: "text.badge.plus") { model.beginTextEdit(at: CGPoint(x: 48, y: 64)) }
             } else if tool == .lens {
                 Text("Tocca una parola, cerchia un’area o sottolinea con questo strumento per aprire la Lente rapida. La penna normale continua a scrivere.").font(.callout)

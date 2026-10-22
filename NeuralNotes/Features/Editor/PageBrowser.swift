@@ -15,6 +15,7 @@ struct PageBrowser: View {
     @State private var managingSections = false
     @State private var showingLinks = false
     @State private var deleting: Set<UUID> = []
+    @State private var confirmingDeletion = false
     @State private var selected: Set<UUID> = []
     @State private var selecting = false
     @State private var showingTrash = false
@@ -33,7 +34,7 @@ struct PageBrowser: View {
         NavigationStack {
             pageContents
             .navigationTitle("Pagine · \(model.pages.count)")
-            .confirmationDialog("Spostare \(deleting.count) pagine nel cestino?", isPresented: Binding(get: { !deleting.isEmpty }, set: { if !$0 { deleting = [] } }), titleVisibility: .visible) {
+            .confirmationDialog("Spostare \(deleting.count) pagine nel cestino?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
                 Button("Sposta nel cestino", role: .destructive) {
                     let ids = deleting; deleting = []
                     Task { busy = true; defer { busy = false }; await model.deletePages(ids); selected.subtract(ids) }
@@ -43,9 +44,9 @@ struct PageBrowser: View {
                 ToolbarItem(placement: .cancellationAction) { Button(reorder ? "Fine riordino" : "Riordina") { onlyBookmarks = false; selecting = false; selected = []; reorder.toggle() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) { Button(selecting ? "Fine selezione" : "Seleziona") { selecting.toggle(); selected = []; reorder = false } }
-                ToolbarItem(placement: .bottomBar) { Button("Cestino", systemImage: "trash") { showingTrash = true } }
+                ToolbarItem(placement: .bottomBar) { Button("Pagine eliminate", systemImage: "clock.arrow.circlepath") { showingTrash = true }.labelStyle(.titleAndIcon) }
                 ToolbarItem(placement: .bottomBar) {
-                    if selecting { Button("Elimina \(selected.count)", role: .destructive) { deleting = selected }.disabled(selected.isEmpty) }
+                    if selecting { Button("Elimina \(selected.count)", role: .destructive) { requestDeletion(selected) }.disabled(selected.isEmpty) }
                 }
                 ToolbarItem(placement: .bottomBar) {
                     if selecting { Button("Tutte") { selected = Set(visible.map(\.id)) } }
@@ -115,37 +116,42 @@ struct PageBrowser: View {
     }
 
     private func pageCard(_ page: PageSnapshot) -> some View {
-        Button {
-            if selecting {
-                if selected.contains(page.id) { selected.remove(page.id) } else { selected.insert(page.id) }
-                return
+        VStack(spacing: 2) {
+            Button {
+                if selecting {
+                    if selected.contains(page.id) { selected.remove(page.id) } else { selected.insert(page.id) }
+                    return
+                }
+                Task { await model.select(page); if model.page?.id == page.id { dismiss() } }
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    PageThumbnail(page: page, workspace: model.workspace)
+                        .overlay(alignment: .topTrailing) {
+                            if selecting { Image(systemName: selected.contains(page.id) ? "checkmark.circle.fill" : "circle").font(.title2).padding(6).foregroundStyle(Brand.accent) }
+                            else if page.isBookmarked == true { Image(systemName: "bookmark.fill").padding(6).foregroundStyle(Brand.accent) }
+                        }
+                    Text(label(page)).font(.caption).lineLimit(2)
+                }.padding(8).background(model.page?.id == page.id ? Brand.accent.opacity(0.16) : Brand.surface,
+                    in: RoundedRectangle(cornerRadius: 12))
+            }.buttonStyle(.plain)
+            .contextMenu {
+                Button(page.isBookmarked == true ? "Rimuovi segnalibro" : "Aggiungi segnalibro", systemImage: "bookmark") {
+                    Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
+                }
+                Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
+                assignmentMenu(page)
+                Button("Elimina pagina", systemImage: "trash", role: .destructive) { requestDeletion([page.id]) }
             }
-            Task { await model.select(page); if model.page?.id == page.id { dismiss() } }
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                PageThumbnail(page: page, workspace: model.workspace)
-                    .overlay(alignment: .topTrailing) {
-                        if selecting { Image(systemName: selected.contains(page.id) ? "checkmark.circle.fill" : "circle").font(.title2).padding(6).foregroundStyle(Brand.accent) }
-                        else if page.isBookmarked == true { Image(systemName: "bookmark.fill").padding(6).foregroundStyle(Brand.accent) }
-                    }
-                Text(label(page)).font(.caption).lineLimit(2)
-            }.padding(8).background(model.page?.id == page.id ? Brand.accent.opacity(0.16) : Brand.surface,
-                in: RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain)
-        .overlay(alignment: .bottomTrailing) {
-            if !selecting { Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = [page.id] }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).padding(10)
-                .accessibilityIdentifier("deletePage-\(page.id)")
+            if !selecting {
+                Button("Elimina pagina", systemImage: "trash", role: .destructive) { requestDeletion([page.id]) }
+                    .labelStyle(.titleAndIcon).buttonStyle(.bordered).controlSize(.small)
+                    .frame(minHeight: 44).accessibilityIdentifier("deletePage-\(page.id)")
             }
         }
-        .contextMenu {
-            Button(page.isBookmarked == true ? "Rimuovi segnalibro" : "Aggiungi segnalibro", systemImage: "bookmark") {
-                Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
-            }
-            Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
-            assignmentMenu(page)
-            Button("Elimina pagina", systemImage: "trash", role: .destructive) { deleting = [page.id] }
-        }
+    }
+
+    private func requestDeletion(_ ids: Set<UUID>) {
+        deleting = ids; confirmingDeletion = !ids.isEmpty
     }
 
     private var sectionPicker: some View {

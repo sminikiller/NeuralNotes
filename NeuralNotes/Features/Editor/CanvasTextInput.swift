@@ -5,6 +5,7 @@ import NeuralNotesCore
 extension EditorViewModel {
     func beginTextEdit(at point: CGPoint) {
         guard hasLease, !loading, !navigating, !hasActiveStroke, let page else { return }
+        cancelMaintenance()
         endTextEdit()
         let hit = page.texts.reversed().first { text in
             let box = RichText.bounds(text, pageHeight: page.height).insetBy(dx: 0, dy: -6)
@@ -62,12 +63,29 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         formatting = TextFormatting(view: view) { [weak self] in
             guard let self else { return }; self.model?.updateLiveText(self.view.attributedText); self.layout()
         }
-        view.inputAccessoryView = formatting?.toolbar(doneTarget: self, doneAction: #selector(finishEditing))
+        // Formatting belongs to the themed overlay, not a second keyboard bar.
+        view.inputAccessoryView = nil
+        view.inputAssistantItem.leadingBarButtonGroups = []; view.inputAssistantItem.trailingBarButtonGroups = []
         view.isHidden = true; host.addSubview(view)
     }
-    @objc private func finishEditing() {
+    func finishEditing() {
         model?.endTextEdit(); view.resignFirstResponder(); refresh()
         host?.becomeFirstResponder()
+    }
+    func showKeyboard() { view.becomeFirstResponder(); view.reloadInputViews() }
+    func format(_ action: PageTextAction) {
+        switch action {
+        case .bold: formatting?.bold()
+        case .italic: formatting?.italic()
+        case .underline: formatting?.underline()
+        case .heading: formatting?.paragraphStyle(size: 30, heading: true)
+        case .body: formatting?.paragraphStyle(size: 18, heading: false)
+        case .bullet: formatting?.bullet()
+        case .checklist: formatting?.checklist()
+        case .black: formatting?.foreground(.black)
+        case .blue: formatting?.foreground(.systemBlue)
+        case .red: formatting?.foreground(.systemRed)
+        }
     }
     func refresh() {
         guard let host, let model else { return }
@@ -86,9 +104,8 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         host.surface.hiddenTextID = id
         placeholder.isHidden = !text.text.isEmpty
         layout()
-        // Establish a real on-page frame before UIKit starts its text-input and
-        // accessibility session (a zero-sized first responder can lose its AX children).
-        if needsFocus { view.becomeFirstResponder() }
+        // Pencil can start Scribble in a visible UITextInput without forcing
+        // the software keyboard open on tool selection. Keyboard is explicit.
     }
     func layout() {
         guard !view.isHidden, let host, let model, let page = model.page,

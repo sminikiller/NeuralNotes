@@ -64,12 +64,14 @@ final class CanvasHost: UIView {
         let reference = flow?.fitReference ?? size
         let fit = min((bounds.width - 24) / reference.width, (bounds.height - 24) / reference.height)
         let resized = lastSize != bounds.size
+        let refit = lastSize == .zero || abs(lastSize.width - bounds.width) > 1
+        let preservedZoom = canvas.zoomScale, preservedOffset = canvas.contentOffset
         if resized {
-            canvas.zoomScale = 1
+            if refit { canvas.zoomScale = 1 }
             canvas.contentSize = size
             canvas.minimumZoomScale = max(0.1, fit)
             canvas.maximumZoomScale = max(4, max(fit * 4, bounds.width / size.width))
-            canvas.zoomScale = canvas.minimumZoomScale
+            canvas.zoomScale = refit ? canvas.minimumZoomScale : max(canvas.minimumZoomScale, min(canvas.maximumZoomScale, preservedZoom))
             lastSize = bounds.size
         }
         // UIScrollView creates its pinch recognizer when zoom is enabled.
@@ -77,7 +79,8 @@ final class CanvasHost: UIView {
         PaperInk.configureNavigation(canvas, fingerDrawing: model?.fingerDrawing ?? false)
         if model?.tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
         alignSurface()
-        if resized { fitPage(animated: false) }
+        if resized && refit { fitPage(animated: false) }
+        else if resized { canvas.setContentOffset(preservedOffset, animated: false); alignSurface() }
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {

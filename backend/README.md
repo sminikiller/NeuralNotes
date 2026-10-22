@@ -1,3 +1,7 @@
+# Gateway gestito e piattaforma NeuralNotes 0.4
+
+La 0.17 aggiunge DeepSeek e un server account/community/sync con Supabase. [Configurazione e limiti](ENVIRONMENT.md), [piano prodotto e costi](../docs/AI_COMMUNITY_PLAN_0_17.md). Il servizio non è distribuito; l’app non ha ancora le schermate account/community o la coda cloud. Le sezioni seguenti descrivono anche il percorso personale HMAC e l’adapter Responses precedente, ancora disponibili. `npm start` ora esegue `start.mjs`; per i test completi usa `node --test backend/*.test.mjs` dalla radice. 39 test a fixture passati, più il controllo PostgreSQL separato `backend/platform/verify.ps1`.
+
 # NeuralNotes backend personale
 
 Server Node 22+ senza dipendenze npm. Implementa `POST /v1/study`, `POST /v1/lookup`, `POST /v1/quiz` e la ricerca web facoltativa `POST /v1/research`. Usa la Responses REST API con output JSON strutturato per appunti/quiz e annotazioni URL per la ricerca. Il modello è una configurazione obbligatoria: non viene scelto un modello a pagamento automaticamente. Non vengono eseguite chiamate provider durante i test.

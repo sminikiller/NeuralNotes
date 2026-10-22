@@ -2,6 +2,17 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class RecoveryAndRulerTests: XCTestCase {
+    func testRulerProjectionTracksTheDisplayedThicknessAfterResize() throws {
+        var guide = RulerGuide(x: 300, y: 300, angle: 0); guide.thickness = 120; guide.length = 1000
+        let projected = try XCTUnwrap(guide.project(StrokeSample(x: 500, y: 900), edge: 1, width: 768, height: 1024))
+        XCTAssertEqual(projected.y, 360, accuracy: 0.001)
+        guide.length = 240
+        let shortened = try XCTUnwrap(guide.project(StrokeSample(x: 500, y: 900), edge: 1, width: 768, height: 1024))
+        XCTAssertEqual(shortened.x, projected.x, accuracy: 0.001); XCTAssertEqual(shortened.y, projected.y, accuracy: 0.001)
+        guide.thickness = .nan
+        XCTAssertNil(guide.project(StrokeSample(x: 500, y: 900), edge: 1, width: 768, height: 1024))
+    }
+
     private func fixture() throws -> (URL, DocumentWorkspace, Notebook) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()); try store.create(manifest)

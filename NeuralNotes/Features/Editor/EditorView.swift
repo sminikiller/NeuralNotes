@@ -7,8 +7,17 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, study, crop, pages, practice, photoCrop, storage, paper, workspace
+    case elements, audio, search, study, crop, pages, practice, storage, paper, workspace
     var id: String { rawValue }
+}
+
+private struct PhotoCropPresentation: Identifiable {
+    let id = UUID()
+    let image: UIImage
+    let pageID: UUID
+    let imageID: UUID?
+    let data: Data?
+    let crop: NormalizedCrop
 }
 
 @MainActor
@@ -33,8 +42,7 @@ struct EditorView: View {
     @State private var sideOpen = false
     @State private var lensPopup = false
     @State private var sidePDF = false
-    @State private var cropImage: UIImage?
-    @State private var insertingImage = false
+    @State private var photoCrop: PhotoCropPresentation?
     @Environment(\.openWindow) private var openWindow
     @SceneStorage("editor.focus") private var focus = false
 
@@ -196,13 +204,6 @@ struct EditorView: View {
                 case .workspace: WorkspacePanel(model: model)
                 case .paper: PageTemplatePanel(model: model)
                 case .storage: StoragePanel(workspace: model.workspace, editor: model, metadata: notebook)
-                case .photoCrop:
-                    if let cropImage {
-                        PhotoCropPanel(image: cropImage, initial: insertingImage ? .full : selectedCrop) { crop in
-                            if insertingImage { Task { await insertPhoto(crop) } }
-                            else { model.cropSelectedImage(crop) }
-                        }
-                    }
                 case .pages: PageBrowser(model: model)
                 case .practice: PracticePanel(model: model, notebook: notebook)
                 case .elements: ElementEditor(model: model)
@@ -217,6 +218,13 @@ struct EditorView: View {
                             model.page?.recognizedText += "\n" + text; model.drawingChanged()
                         }
                     }
+                }
+            }
+            .sheet(item: $photoCrop) { request in
+                PhotoCropPanel(image: request.image, initial: request.crop) { crop in
+                    guard model.page?.id == request.pageID else { model.error = "La pagina di destinazione è cambiata. Riprova l’inserimento."; return }
+                    if let imageID = request.imageID { model.selectedObjectID = imageID; model.cropSelectedImage(crop) }
+                    else if let data = request.data { Task { await insertPhoto(data: data, crop: crop, pageID: request.pageID) } }
                 }
             }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
@@ -277,7 +285,7 @@ struct EditorView: View {
 
     private var pageStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            LazyHStack(spacing: 10) {
                 ForEach(Array(model.pages.enumerated()), id: \.element.id) { row in
                     Button { Task { await model.select(row.element) } } label: {
                         Text("\(row.offset + 1)").font(.headline.monospacedDigit())
@@ -373,24 +381,26 @@ struct EditorView: View {
         } catch { model.error = error.localizedDescription }
     }
 
-    private var selectedCrop: NormalizedCrop { model.page?.images.first(where: { $0.id == model.selectedObjectID })?.crop ?? .full }
 
     private func preparePhoto(_ data: Data) {
         guard let image = try? DocumentServices.photoPreview(data) else { model.error = "Immagine non leggibile o troppo grande."; return }
-        cropImage = image; insertingImage = true; panel = .photoCrop
+        guard let pageID = model.page?.id else { return }
+        photoCrop = PhotoCropPresentation(image: image, pageID: pageID, imageID: nil, data: data, crop: .full)
     }
     private func openImageCrop() {
         guard model.selectedIDs.count == 1, let item = model.page?.images.first(where: { $0.id == model.selectedObjectID }),
               let image = UIImage(contentsOfFile: model.workspace.package.appendingPathComponent(item.file).path) else {
             model.error = "Seleziona una sola immagine da ritagliare."; return
         }
-        cropImage = image; insertingImage = false; panel = .photoCrop
+        guard let pageID = model.page?.id else { return }
+        photoCrop = PhotoCropPresentation(image: image, pageID: pageID, imageID: item.id, data: nil, crop: item.crop ?? .full)
     }
-    private func insertPhoto(_ crop: NormalizedCrop) async {
-        guard let image = cropImage, let data = image.jpegData(compressionQuality: 0.92) else { return }
+    private func insertPhoto(data: Data, crop: NormalizedCrop, pageID: UUID) async {
+        guard model.page?.id == pageID, model.hasLease, !model.hasActiveStroke else { return }
         working = true; defer { working = false }
         do {
             var element = try await DocumentServices.importImage(data: data, into: model.workspace)
+            guard model.page?.id == pageID, model.hasLease, !model.hasActiveStroke else { model.error = "La pagina di destinazione è cambiata: la foto non è stata inserita su un altro foglio."; return }
             let ratio = element.height / element.width * crop.height / crop.width
             element.width = min(element.width, max(40, ((model.page?.height ?? 1024) - 160) / ratio))
             element.height = element.width * ratio; element.crop = crop
@@ -399,7 +409,7 @@ struct EditorView: View {
     }
     private func openCamera() async { await openMedia(.camera) }
     private func openMedia(_ source: EditorMedia) async {
-        guard media == nil, panel == nil, !working else { return }
+        guard media == nil, panel == nil, photoCrop == nil, !working else { return }
         do { try await CameraAccess.request(scanner: source == .scanner); media = source }
         catch { model.error = error.localizedDescription }
     }

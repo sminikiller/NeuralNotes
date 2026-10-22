@@ -413,7 +413,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 NotebookCoverView(notebook: notebook, compact: true)
                 Text(notebook.title).font(.headline)
-                Label("Ripristina quaderno", systemImage: "arrow.uturn.backward")
+                Label("Ripristina quaderno", systemImage: "arrow.uturn.backward").labelStyle(.titleAndIcon)
             }.padding().frame(maxWidth: .infinity, alignment: .leading)
                 .background(Brand.surface, in: RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(.plain)

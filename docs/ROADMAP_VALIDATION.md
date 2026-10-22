@@ -1,6 +1,14 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.15.2
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.17.0
 
 Branch: `codex/editor-reliability-and-roadmap`. Non è una dichiarazione di completamento di tutta la roadmap o di pubblicazione su App Store.
+
+## Lotto 0.17.0 — editor e backend gestito, 22 ottobre 2026
+
+**185 XCTest Core: 183 passati, due skip Darwin preesistenti, zero fallimenti; 98 FSRS passati.** Backend: **39 test Node passati**, trasporti provider/Auth/PostgREST simulati; verifiche reali PostgreSQL 16 di isolamento RLS, quote atomiche giornaliere/mensili, caricamenti prenotati e dimensioni, moderazione, inviti, conflitti di revisione e valori nulli. Auth e Storage sono schemi di supporto nel test SQL, non un servizio Supabase live. Due nuovi test Apple per layout/testo e un test UI per elimina/ripristina predisposti ma non eseguiti. Grafo 410 oggetti / 259 Swift / 321 metodi XCTest presenti. Grammatica e parsing Swift non equivalgono alla compilazione SDK. Nessuna build Apple o prova fisica della prima foto/Pencil; blocco CI invariato. [Report](DELIVERY_0_17_0.md).
+
+## Lotto 0.16.0 — tempi di apertura, 22 ottobre 2026
+
+**184 XCTest Core: 182 passati, due skip Darwin, zero errori; 98 FSRS passati**, Swift 6.1.2 Linux. IO sintetico per 6/12/300 pagine: JSON 3,90/6,31/158,16 ms; pagina scelta e payload 1,01/0,76/1,14 ms. Sono IO del Core con media fittizi/sparsi, non tempi di rendering o avvio iPad. Backup annullato conserva le due copie e rimuove il temporaneo. Due nuovi metodi Apple predisposti (cambio pagina isolato e manutenzione differita/cancellata), **non eseguiti**. Grafo 408 / 258 Swift / 317 metodi XCTest; grammatica e parsing Swift 5 riusciti. Nessuna nuova build Apple o prova backend/live. [Analisi delle cause, correzioni e limiti](PERFORMANCE_0_16_0.md).
 
 ## Patch 0.15.2 — secondo riscontro iPad del 22 ottobre 2026
 

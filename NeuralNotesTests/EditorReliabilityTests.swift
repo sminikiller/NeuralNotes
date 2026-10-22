@@ -8,6 +8,68 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testKeyboardHeightChangePreservesManualZoomAndViewport() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 1000, height: 800); host.layoutIfNeeded()
+            model.canvas.zoomScale = 1.5; model.canvas.contentOffset = CGPoint(x: 90, y: 120)
+            host.frame.size.height = 500; host.setNeedsLayout(); host.layoutIfNeeded()
+            XCTAssertEqual(model.canvas.zoomScale, 1.5, accuracy: 0.001)
+            XCTAssertEqual(model.canvas.contentOffset.y, 120, accuracy: 1)
+        }
+    }
+    @MainActor func testOnPageTextDoesNotForceKeyboardOrAddASecondKeyboardToolbar() async throws {
+        try await fixture { model in
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1000, height: 800)), root = UIViewController()
+            window.rootViewController = root; window.makeKeyAndVisible(); defer { window.isHidden = true }
+            let host = CanvasHost(canvas: model.canvas); host.model = model; host.frame = root.view.bounds; root.view.addSubview(host)
+            host.surface.page = try XCTUnwrap(model.page); host.layoutIfNeeded()
+            let input = CanvasTextInput(host: host, model: model); host.textInput = input
+            model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 40, y: 100)); input.refresh()
+            XCTAssertFalse(input.view.isFirstResponder); XCTAssertNil(input.view.inputAccessoryView)
+            XCTAssertTrue(input.view.inputAssistantItem.leadingBarButtonGroups.isEmpty)
+            XCTAssertFalse(input.view.isHidden); XCTAssertEqual(input.view.backgroundColor, .clear)
+            input.finishEditing()
+        }
+    }
+
+    @MainActor func testSelectingAPageDoesNotReloadAnUnrelatedBrokenHeader() async throws {
+        try await fixture { model in
+            let first = try XCTUnwrap(model.page)
+            await model.addPage(); let second = try XCTUnwrap(model.page)
+            await model.addPage()
+            let file = try await model.workspace.url("pages/\(first.id).json")
+            try Data("broken offscreen header".utf8).write(to: file)
+            await model.select(second)
+            XCTAssertEqual(model.page?.id, second.id); XCTAssertNil(model.error)
+            XCTAssertNotNil(model.openingTimings["Foglio pronto"])
+        }
+    }
+
+    @MainActor func testMaintenanceWaitsForIdleAndDoesNotStartFromCleanFlushOrClose() async throws {
+        let key = "backup.automatic", previous = UserDefaults.standard.object(forKey: "backup.automatic")
+        UserDefaults.standard.set(true, forKey: key)
+        defer { if let previous { UserDefaults.standard.set(previous, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) } }
+        try await fixture { model in
+            let manifest = try await model.workspace.manifest()
+            model.backupMetadata = Notebook(id: manifest.notebookID, documentID: manifest.documentID, title: "Idle", createdAt: Date(), updatedAt: Date(), folderID: nil, cover: .lagoon, isFavorite: false)
+            model.maintenanceDelay = .milliseconds(50)
+            let clean = await model.flush(); XCTAssertTrue(clean)
+            try await Task.sleep(for: .milliseconds(100))
+            let initially = try await model.workspace.automaticBackups(); XCTAssertTrue(initially.isEmpty)
+            model.addText(); let saved = await model.flush(); XCTAssertTrue(saved)
+            var copied = false
+            for _ in 0..<100 {
+                if !(try await model.workspace.automaticBackups()).isEmpty { copied = true; break }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            XCTAssertTrue(copied, "A dirty save still gets its idle backup")
+            model.addText(); let closed = await model.close(); XCTAssertTrue(closed)
+            try await Task.sleep(for: .milliseconds(100))
+            let after = try await model.workspace.automaticBackups(); XCTAssertEqual(after.count, 1)
+        }
+    }
+
     @MainActor func testGuidedRulerKeepsAllSamplesOnOneEdgeAndSupportsUndo() async throws {
         try await fixture { model in
             let host = CanvasHost(canvas: model.canvas); host.model = model; host.surface.page = try XCTUnwrap(model.page)

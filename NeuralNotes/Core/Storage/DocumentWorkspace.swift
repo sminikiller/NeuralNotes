@@ -62,6 +62,7 @@ public actor DocumentWorkspace {
         let ids = try manifest().pageIDs
         let paths = ["manifest.json", "catalog.json"] + ids.map { "pages/\($0).json" }
         let generation = try (paths.map { path -> String in
+            try Task.checkCancellation()
             let file = try url(path)
             let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
             return "\(path):\(values?.contentModificationDate?.timeIntervalSince1970 ?? 0):\(values?.fileSize ?? 0)"
@@ -413,6 +414,7 @@ public actor DocumentWorkspace {
     }
 
     private func readPage(_ id: UUID) throws -> PageSnapshot {
+        try Task.checkCancellation()
         try settlePageBatch()
         let page: PageSnapshot = try read("pages/\(id).json")
         try PageValidation.validate(page)

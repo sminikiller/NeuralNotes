@@ -303,8 +303,8 @@ export class UsageLimiter {
   }
 }
 
-export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeoutMs = 65_000 }) {
-  if (!secret || secret.length < 32) throw new Error('NN_AUTH_SECRET must contain at least 32 characters');
+export function createApp({ secret, authenticate, adapter, limiter = new UsageLimiter(), timeoutMs = 65_000 }) {
+  if (typeof authenticate !== 'function' && (!secret || secret.length < 32)) throw new Error('NN_AUTH_SECRET must contain at least 32 characters');
   let active = 0;
   return http.createServer(async (req, res) => {
     const reply = (status, data) => {
@@ -318,9 +318,9 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
       if (req.method === 'GET' && req.url === '/health') { reply(200, { status: 'ok' }); return; }
       const lookup = req.url === '/v1/lookup', quiz = req.url === '/v1/quiz', research = req.url === '/v1/research';
       if (req.method !== 'POST' || (!lookup && !quiz && !research && req.url !== '/v1/study')) throw new RequestFailure(404, 'not_found');
-      const subject = verifyToken(secret, String(req.headers.authorization ?? '').replace(/^Bearer /, ''));
+      const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
+      const subject = authenticate ? await authenticate(token) : verifyToken(secret, token);
       if (!subject) throw new RequestFailure(401, 'unauthorized');
-      if (!limiter.take(subject)) throw new RequestFailure(429, 'request_limit');
       if (active >= 4) throw new RequestFailure(503, 'busy');
       if (req.headers['content-type']?.split(';')[0] !== 'application/json' || req.headers['transfer-encoding']) throw new RequestFailure(400, 'invalid_content_type');
       const length = Number(req.headers['content-length']);
@@ -338,6 +338,8 @@ export function createApp({ secret, adapter, limiter = new UsageLimiter(), timeo
       try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { throw new RequestFailure(400, 'invalid_json'); }
       const request = research ? validateResearchRequest(data) : lookup ? validateLookupRequest(data) : quiz ? validateQuizRequest(data) : validateRequest(data);
+      const credits = research ? 8 : Math.max(1, Math.ceil(request.sources.reduce((sum, source) => sum + source.text.length, 0) / 4000));
+      if (!(await limiter.take(subject, Date.now(), token, credits))) throw new RequestFailure(429, 'request_limit');
       const cancelled = new AbortController();
       res.on('close', () => { if (!res.writableEnded) cancelled.abort(); });
       const signal = AbortSignal.any([cancelled.signal, AbortSignal.timeout(timeoutMs)]);

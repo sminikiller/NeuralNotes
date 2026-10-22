@@ -4,9 +4,17 @@ Fonte: documento dell’utente «NeuralNotes — stato del progetto (0.7.1) e ro
 
 Il documento viene usato come specifica di prodotto. Le dichiarazioni sulle API, sui servizi e sulle versioni future richiedono conferma nelle fonti ufficiali; non diventano automaticamente API disponibili sull’iPad 10 con iPadOS 18.
 
-Aggiornato alla **0.15.2/build 29**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
+Aggiornato alla **0.17.0/build 31**, 22 ottobre 2026. «Aggiunto» significa implementato nei sorgenti; non implica che la schermata sia stata compilata o provata sull’iPad. [Consegna e comandi](DELIVERY_0_12_0.md), [patch di compilazione](FIXES_0_12_2.md), [evidenze delle verifiche](ROADMAP_VALIDATION.md).
 
 La foto successiva documenta due errori SDK reali nella 0.14.0 (delegato ereditato di PDFView). [Patch 0.14.1](FIXES_0_14_1.md): nessuna conformità o metodo delegato ridichiarati; filtro sul riconoscitore Pencil dedicato. Non ancora compilata con Apple.
+
+## Editor e piattaforma 0.17
+
+Corrette le quattro cause identificate nel cestino, nella guida del righello, nella prima presentazione del ritaglio foto e nel layout del testo. Aggiunto backend DeepSeek con streaming, autenticazione Supabase verificata, quote SQL atomiche, hub/materiali/inviti/report/blocchi e salvataggi cloud versionati con controllo dei conflitti. Non significa account, community o sincronizzazione già disponibili nell’app: mancano integrazione nativa e attivazione del servizio. Non è completata l’intera roadmap. [Piano e stato per componente](AI_COMMUNITY_PLAN_0_17.md), [test e consegna](DELIVERY_0_17_0.md).
+
+## Apertura e fluidità 0.16
+
+Eliminate due scansioni ridondanti dei JSON all’apertura e la scansione completa al cambio pagina. Manutenzione dopo inattività e cancellabile, nessuna nuova scansione/backup dal flush pulito o chiusura; lettura durate di recupero audio senza player sul MainActor; massimo tre anteprime vicine da 800 pixel, barra numeri lazy e tempi delle fasi visibili. **L’elenco iniziale conserva ancora tutti gli oggetti dei JSON: l’indice interamente su richiesta resta da sviluppare.** Benchmark Core 6/12/300 pagine, backup cancellato e suite 184 (due skip) + 98 passati; due nuovi test Apple non eseguiti. Nessuna garanzia di un secondo sul dispositivo. [Analisi e limiti](PERFORMANCE_0_16_0.md).
 
 La seconda foto prova un errore rimasto nella 0.15.1: override mancante di gestureRecognizerShouldBegin in RulerGuideView. [Patch 0.15.2](FIXES_0_15_2.md), sintassi ricontrollata ma compilazione Apple non eseguita.
 

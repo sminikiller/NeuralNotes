@@ -68,11 +68,15 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
             }
     }
 
-    func load() async {
+    func load(catalog initial: DocumentCatalog? = nil) async {
         guard !recording else { return }
         do {
-            sessions = try await workspace.catalog().sessions
+            if let initial { sessions = initial.sessions }
+            else { sessions = try await workspace.catalog().sessions }
             for index in sessions.indices where sessions[index].state != "finished" {
+                // A normally paused session already has committed durations.
+                // Probe media only after an interrupted recording or unknown duration.
+                guard sessions[index].state == "recording" || sessions[index].segments.contains(where: { $0.duration <= 0 }) else { continue }
                 var repaired = sessions[index]
                 var start: Double = 0
                 var segments: [AudioTimelineSegment] = []
@@ -80,9 +84,8 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
                     var segment = original
                     let url = try await workspace.url(segment.file)
                     if !FileManager.default.fileExists(atPath: url.path), segment.duration == 0 { continue }
-                    if let audio = try? AVAudioPlayer(contentsOf: url), audio.duration.isFinite {
-                        segment.duration = max(segment.duration, audio.duration)
-                    }
+                    let duration = await Task.detached(priority: .utility) { try? AudioWindowReader.duration(of: url) }.value
+                    if let duration, duration.isFinite { segment.duration = max(segment.duration, duration) }
                     segment.start = start; start += segment.duration; segments.append(segment)
                 }
                 repaired.segments = segments; repaired.state = "paused"

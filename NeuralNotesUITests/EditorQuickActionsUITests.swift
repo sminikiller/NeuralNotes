@@ -1,6 +1,20 @@
 import XCTest
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testPageDeleteConfirmationKeepsItsTargetAndTrashRestoresIt() {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["editorAddPage"].tap()
+        app.buttons["Pagine"].firstMatch.tap()
+        let remove = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "deletePage-")).firstMatch
+        XCTAssertTrue(remove.waitForExistence(timeout: 5)); remove.tap()
+        let confirm = app.buttons["Sposta nel cestino"]; XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
+        app.buttons["Pagine eliminate"].tap()
+        let removed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "trashedPage-")).firstMatch
+        XCTAssertTrue(removed.waitForExistence(timeout: 5)); removed.tap()
+        app.buttons["restoreTrashedPages"].tap()
+        XCTAssertTrue(app.staticTexts["Cestino vuoto"].waitForExistence(timeout: 5))
+    }
+
     @MainActor func testLongPressShowsOptionsAnchoredToPenAndEraser() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["tool-Penna"].press(forDuration: 0.6)

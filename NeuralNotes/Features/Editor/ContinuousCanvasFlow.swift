@@ -199,12 +199,12 @@ final class ContinuousCanvasFlow {
         let visibleHeight = Double(host.bounds.height / z)
         let candidates = layout.frames.filter { $0.id != active.id && $0.maxY >= top - visibleHeight && $0.y <= top + visibleHeight * 2 }
             .sorted { abs(($0.y + $0.height / 2) - (top + visibleHeight / 2)) < abs(($1.y + $1.height / 2) - (top + visibleHeight / 2)) }
-        let wanted = Set(candidates.prefix(6).map(\.id))
+        let wanted = Set(candidates.prefix(PreviewBudget.maximumPrefetchedPages).map(\.id))
         for id in Array(previews.keys) where !wanted.contains(id) { previews.removeValue(forKey: id)?.removeFromSuperview() }
         for id in Array(cache.keys) where !wanted.contains(id) && id != active.id { cache.removeValue(forKey: id) }
         for id in Array(failures.keys) where !wanted.contains(id) { failures.removeValue(forKey: id) }
         for id in Array(tasks.keys) where !wanted.contains(id) { tasks.removeValue(forKey: id)?.cancel(); tokens.removeValue(forKey: id) }
-        for frame in candidates.prefix(6) {
+        for frame in candidates.prefix(PreviewBudget.maximumPrefetchedPages) {
             let view: UIImageView
             if let existing = previews[frame.id] { view = existing }
             else {
@@ -234,8 +234,7 @@ final class ContinuousCanvasFlow {
         let token = UUID(); tokens[page.id] = token
         let previous = previewTail
         tasks[page.id] = Task { [weak self, workspace = model.workspace] in
-            // Decode/rasterize only one neighbour at a time. Six queued reads
-            // must not retain six large PKDrawing payloads during Pencil input.
+            // Decode/rasterize one neighbour at a time, with bounded prefetch.
             await previous?.value
             guard let self else { return }
             defer { if self.tokens[page.id] == token { self.tokens.removeValue(forKey: page.id); self.tasks.removeValue(forKey: page.id) } }
@@ -244,7 +243,7 @@ final class ContinuousCanvasFlow {
                 let bytes = try await workspace.drawing(page)
                 try Task.checkCancellation()
                 let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
-                let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: 1200)
+                let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: CGFloat(PreviewBudget.previewDimension))
                 try Task.checkCancellation()
                 guard self.tokens[page.id] == token else { return }
                 let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)

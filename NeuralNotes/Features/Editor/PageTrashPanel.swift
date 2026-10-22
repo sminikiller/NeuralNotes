@@ -13,7 +13,7 @@ struct PageTrashPanel: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Le pagine restano qui finché non le elimini definitivamente da Spazio e recupero. Le pagine selezionate verranno aggiunte in fondo al quaderno.").font(.caption).foregroundStyle(.secondary)
+                    Text("Il pulsante Ripristina riporta le pagine nel quaderno. Le pagine restano qui finché non le elimini definitivamente da Spazio e recupero. Le pagine selezionate verranno aggiunte in fondo al quaderno.").font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(pages) { page in
                     Button {
@@ -32,7 +32,7 @@ struct PageTrashPanel: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } }
                     ToolbarItem(placement: .primaryAction) { Button("Tutte") { selection = Set(pages.map(\.id)) }.disabled(pages.isEmpty) }
-                    ToolbarItem(placement: .bottomBar) { Button("Ripristina \(selection.count)", systemImage: "arrow.uturn.backward") { restore() }.disabled(selection.isEmpty) }
+                    ToolbarItem(placement: .bottomBar) { Button("Ripristina \(selection.count) pagine nel quaderno", systemImage: "arrow.uturn.backward") { restore() }.labelStyle(.titleAndIcon).accessibilityIdentifier("restoreTrashedPages").disabled(selection.isEmpty) }
                 }
                 .task { await refresh() }
         }
