@@ -17,6 +17,16 @@ on:
         description: Install and launch the app built from the actual ZIP on an iPad simulator
         type: boolean
         default: false
+      playground_xcode:
+        description: Compiler/SDK for the App Playground package
+        type: choice
+        options: ['16.4', '15.4']
+        default: '16.4'
+      playground_configuration:
+        description: Build configuration for the App Playground package
+        type: choice
+        options: [Debug, Release]
+        default: Debug
 permissions:
   contents: read
 concurrency:
@@ -127,7 +137,9 @@ jobs:
             .verification/**/*.xcresult
   playground:
     if: inputs.scope != 'ui'
-    runs-on: macos-15
+    runs-on: ${{ inputs.playground_xcode == '15.4' && 'macos-14' || 'macos-15' }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.playground_xcode || '16.4' }}.app/Contents/Developer
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -137,6 +149,7 @@ jobs:
       - name: Build the delivered App Playground package
         env:
           NEURALNOTES_PLAYGROUND_SMOKE: ${{ inputs.playground_launch && '1' || '0' }}
+          NEURALNOTES_PLAYGROUND_CONFIGURATION: ${{ inputs.playground_configuration || 'Debug' }}
         shell: bash
         run: |
           set -o pipefail

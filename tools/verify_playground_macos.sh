@@ -4,6 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 task_root="$PWD"
+configuration="${NEURALNOTES_PLAYGROUND_CONFIGURATION:-Debug}"
+case "$configuration" in Debug|Release) ;; *) echo "Unsupported configuration: $configuration"; exit 1;; esac
 command -v xcodebuild >/dev/null
 xcodebuild -version
 xcrun swift --version
@@ -36,14 +38,14 @@ else:
     sys.exit(f'App Playground scheme missing: {schemes}')
 PY
 )"
-echo "Building App Playground scheme: $scheme"
-xcodebuild build -scheme "$scheme" -configuration Debug \
+echo "Building App Playground scheme: $scheme ($configuration)"
+xcodebuild build -scheme "$scheme" -configuration "$configuration" \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath "$task_root/.verification/playground-derived-data" \
   CODE_SIGNING_ALLOWED=NO \
   'OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-expression-type-checking=500 -Xfrontend -warn-long-function-bodies=1000'
 echo "Building the same extracted App Playground for an iOS device (unsigned)."
-xcodebuild build -scheme "$scheme" -configuration Debug \
+xcodebuild build -scheme "$scheme" -configuration "$configuration" \
   -destination 'generic/platform=iOS' \
   -derivedDataPath "$task_root/.verification/playground-derived-data" \
   CODE_SIGNING_ALLOWED=NO \

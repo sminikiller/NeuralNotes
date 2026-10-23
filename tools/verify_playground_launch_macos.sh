@@ -4,7 +4,9 @@ set -euo pipefail
 task_root="${1:?Pass the repository root}"
 evidence="$task_root/.verification/playground-launch"
 mkdir -p "$evidence"
-products="$task_root/.verification/playground-derived-data/Build/Products/Debug-iphonesimulator"
+configuration="${NEURALNOTES_PLAYGROUND_CONFIGURATION:-Debug}"
+case "$configuration" in Debug|Release) ;; *) echo "Unsupported configuration: $configuration"; exit 1;; esac
+products="$task_root/.verification/playground-derived-data/Build/Products/$configuration-iphonesimulator"
 app="$(python3 - "$products" <<'PY'
 from pathlib import Path
 import sys
