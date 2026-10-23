@@ -40,3 +40,13 @@ Il log nativo contiene anche diagnostici CoreGraphics su valori NaN ignorati e u
 L'archivio consegnato è quello compilato dalla CI, verificato tramite CRC e confronto dei contenuti con i sorgenti locali; per i soli file di testo vengono normalizzati i fine riga Windows/macOS. La versione precedente non viene sovrascritta.
 
 Non è disponibile una Apple Pencil fisica collegata a questo ambiente: le prove native e UI sul simulatore non sostituiscono la verifica del gesto sull'iPad dell'utente.
+
+## Segnalazione successiva: «Build failed» su iPad
+
+Il 23 ottobre è stato segnalato un blocco della compilazione direttamente in Playgrounds, senza il dettaglio del compilatore. Il difetto non è stato riprodotto: non viene dichiarato risolto.
+
+Esteso `tools/verify_playground_macos.sh` per compilare il pacchetto estratto anche con destinazione `generic/platform=iOS`, senza firma, oltre al simulatore. La [run 40012111732](https://github.com/sminikiller/NeuralNotes/actions/runs/40012111732), revisione `32c486f`, ha completato entrambe le compilazioni con `BUILD SUCCEEDED`. I contenuti di tutti i 226 file dello ZIP coincidono byte per byte con l'archivio già consegnato; app, manifest e risorse non sono cambiati. Il vecchio ZIP resta conservato con la stessa impronta.
+
+Questa verifica aggiuntiva controlla il codice per il dispositivo e il pacchetto reale. Non verifica firma, cache, risorse disponibili o compilazione interna di Playgrounds sull'iPad. Non è disponibile un collegamento al registro del dispositivo. La sola dicitura «Build failed» non identifica il file o la causa.
+
+Passi diagnostici reversibili: conservare il progetto attuale; chiudere e riaprire Playgrounds; estrarre lo ZIP in una nuova cartella locale di File → Sul mio iPad e aprire il pacchetto completo `NeuralNotes.swiftpm`. In caso di nuovo blocco, l'icona rossa degli errori in Playgrounds mostra il dettaglio utile, invece del solo titolo generico. Non è necessaria la cancellazione dei dati dell'app per queste prove.
