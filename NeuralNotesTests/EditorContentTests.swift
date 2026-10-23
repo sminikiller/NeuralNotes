@@ -85,4 +85,24 @@ final class EditorContentTests: XCTestCase {
             XCTFail("HTTP endpoint accepted")
         } catch AIConnectionFailure.configuration { }
     }
+
+    func testLocalStudyTaskModesPreserveSourcesAfterCompilerCompatibilityFix() async throws {
+        let first = SourceReference(documentID: UUID(), pageID: UUID(), pageRevision: 1)
+        let second = SourceReference(documentID: UUID(), pageID: UUID(), pageRevision: 2)
+        let sources = [
+            IndexedChunk(text: "La fotosintesi trasforma energia luminosa in energia chimica nelle cellule vegetali.", reference: first),
+            IndexedChunk(text: "La respirazione rende disponibile energia chimica per le attività delle cellule.", reference: second)
+        ]
+        for task in AITask.allCases {
+            let request = AIRequest(task: task, question: "energia cellule", sources: sources)
+            let artifact = try await ExtractiveStudyProvider().generate(request)
+            XCTAssertEqual(artifact.task, task)
+            XCTAssertFalse(artifact.references.isEmpty, task.rawValue)
+            XCTAssertTrue(artifact.references.allSatisfy { [first, second].contains($0) }, task.rawValue)
+            XCTAssertFalse(artifact.text.contains("Nessun passaggio"), task.rawValue)
+            let repeated = try await ExtractiveStudyProvider().generate(request)
+            XCTAssertEqual(artifact.text, repeated.text, task.rawValue)
+            XCTAssertEqual(artifact.references, repeated.references, task.rawValue)
+        }
+    }
 }
