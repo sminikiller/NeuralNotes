@@ -269,6 +269,7 @@ final class EditorViewModel {
     }
 
     func strokeBegan() {
+        guard hasLease, !loading, !navigating else { return }
         cancelMaintenance()
         searchFocus = nil
         finishInkGesture()
@@ -430,16 +431,36 @@ final class EditorViewModel {
         return true
     }
 
+    /// Replace the native editing session as well as its visible drawing. History
+    /// snapshots must not share PencilKit's pending gesture/undo state with the
+    /// drawing we just replaced, otherwise the next touch can revive old ink.
+    func replaceInkSession(with drawing: PKDrawing) {
+        let delegate = canvas.delegate
+        let acceptsDrawing = canvas.drawingGestureRecognizer.isEnabled
+        canvas.delegate = nil
+        canvas.drawingGestureRecognizer.isEnabled = false
+        drawingAssistant?.cancel()
+        pendingHeldShape = nil
+        gestureCommitTask?.cancel(); gestureCommitTask = nil
+        editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
+        signaturesBeforeStroke = []
+        let nativeHistory = canvas.undoManager
+        let registersUndo = nativeHistory?.isUndoRegistrationEnabled == true
+        if registersUndo { nativeHistory?.disableUndoRegistration() }
+        // Keep the original stroke objects (ink, masks and transforms), but use
+        // a fresh drawing container rather than the old native editing timeline.
+        canvas.drawing = PKDrawing()
+        canvas.drawing = PKDrawing(strokes: drawing.strokes)
+        nativeHistory?.removeAllActions()
+        if registersUndo { nativeHistory?.enableUndoRegistration() }
+        canvas.drawingGestureRecognizer.isEnabled = acceptsDrawing
+        canvas.delegate = delegate
+    }
+
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
         lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
-        pendingHeldShape = nil; drawingAssistant?.cancel()
-        gestureCommitTask?.cancel(); gestureCommitTask = nil; editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         endTextEdit()
-        let delegate = canvas.delegate
-        canvas.delegate = nil
-        defer { canvas.delegate = delegate }
-        canvas.drawing = drawing
-        canvas.undoManager?.removeAllActions()
+        replaceInkSession(with: drawing)
         page = current; selectedObjectID = nil; dirty = recovered; recoveredFromPrevious = recovered
         status = recovered ? "Revisione precedente recuperata — salva" : "Salvato sul dispositivo"
         configureTool()

@@ -52,7 +52,11 @@ extension EditorViewModel {
     private func applyHistory(undo: Bool) async {
         finishInkGesture(); endTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke, let entry = undo ? history.undo : history.redo else { return }
-        navigating = true; defer { navigating = false }
+        // No new Pencil gesture may start while flush/load suspends an undo.
+        let acceptsInput = canvas.isUserInteractionEnabled
+        canvas.isUserInteractionEnabled = false
+        navigating = true
+        defer { navigating = false; canvas.isUserInteractionEnabled = acceptsInput }
         guard await flush() else { return }
         applyingHistory = true; defer { applyingHistory = false }
         do {
@@ -66,7 +70,7 @@ extension EditorViewModel {
                 restored.revision = stored.revision; restored.drawingFile = stored.drawingFile
                 restored.previousDrawingFile = stored.previousDrawingFile
                 page = restored
-                if let bytes = target.drawing { canvas.drawing = try PKDrawing(data: bytes) }
+                if let bytes = target.drawing { replaceInkSession(with: try PKDrawing(data: bytes)) }
                 selectedObjectID = nil; drawingChanged()
                 guard await flush() else { return }
             case .order(let before, let after, let beforePage, let afterPage):

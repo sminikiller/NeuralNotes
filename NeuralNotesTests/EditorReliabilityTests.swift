@@ -8,6 +8,91 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testUndoThenNewInkDiscardsOnlyTheUndoneBranchAndSurvivesReload() async throws {
+        try await fixture { model in
+            for kind in [PKInkingTool.InkType.pen, .marker] {
+                let first = stroke(kind)
+                let removed = PKStroke(ink: first.ink, path: first.path, transform: CGAffineTransform(translationX: 0, y: 120), mask: nil)
+                let replacement = PKStroke(ink: first.ink, path: first.path, transform: CGAffineTransform(translationX: 0, y: 240), mask: nil)
+                model.replaceInkSession(with: PKDrawing()); model.history.clear()
+                func write(_ ink: PKStroke) {
+                    model.strokeBegan()
+                    model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [ink])
+                    model.drawingChanged(); model.strokeEnded(); model.finishInkGesture()
+                }
+                func check(_ expected: [PKStroke], file: StaticString = #filePath, line: UInt = #line) {
+                    XCTAssertEqual(EditorInkSignatures.make(model.canvas.drawing), EditorInkSignatures.make(PKDrawing(strokes: expected)), file: file, line: line)
+                }
+                write(first); write(removed)
+                await model.performUndo(); check([first]); XCTAssertTrue(model.canRedo)
+                XCTAssertNil(model.editBeforeGesture); XCTAssertNil(model.pendingHeldShape)
+                // Let native drawing callbacks and the old delayed commit run.
+                try await Task.sleep(for: .milliseconds(150))
+                write(replacement); check([first, replacement]); XCTAssertFalse(model.canRedo)
+                await model.performRedo(); check([first, replacement])
+                await model.performUndo(); check([first])
+                await model.performRedo(); check([first, replacement])
+                let saved = await model.flush(); XCTAssertTrue(saved)
+                let page = try XCTUnwrap(model.page)
+                try await model.load(page); check([first, replacement])
+                XCTAssertNil(model.error)
+            }
+        }
+    }
+
+    @MainActor func testUndoDropsNativeUndoActionsWithoutChangingSurvivingStrokeMasks() async throws {
+        try await fixture { model in
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1000, height: 800)), root = UIViewController()
+            window.rootViewController = root; window.makeKeyAndVisible(); defer { window.isHidden = true }
+            let host = CanvasHost(canvas: model.canvas); host.model = model; host.frame = root.view.bounds; root.view.addSubview(host)
+            host.surface.page = try XCTUnwrap(model.page); host.layoutIfNeeded()
+            let coordinator = PencilCanvas.Coordinator(model: model); model.canvas.delegate = coordinator
+            let original = stroke(.pen)
+            let mask = UIBezierPath(rect: CGRect(x: 10, y: 60, width: 140, height: 40))
+            let clipped = PKStroke(ink: original.ink, path: original.path, transform: .identity, mask: mask)
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [clipped]); model.strokeEnded(); model.finishInkGesture()
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [clipped, stroke(.marker)]); model.strokeEnded(); model.finishInkGesture()
+            let native = try XCTUnwrap(model.canvas.undoManager)
+            native.registerUndo(withTarget: host) { _ in }
+            XCTAssertTrue(native.canUndo)
+            await model.performUndo()
+            XCTAssertFalse(native.canUndo); XCTAssertFalse(native.canRedo)
+            XCTAssertTrue(model.canvas.delegate === coordinator)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertEqual(model.canvas.drawing.strokes.first?.mask?.cgPath, mask.cgPath)
+            XCTAssertTrue(model.canRedo)
+        }
+    }
+
+    @MainActor func testUndoPreventsNewInputDuringSuspendedSaveAndRestoresInputOnFailure() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var writing = false, release = false, fail = true
+        let model = EditorViewModel(workspace: workspace, pageWriter: { page, data, recovered in
+            writing = true
+            for _ in 0..<500 where !release { try await Task.sleep(for: .milliseconds(10)) }
+            if fail { throw NSError(domain: "UndoSaveFixture", code: 1) }
+            return try await workspace.save(page, drawing: data, recoveredFromPrevious: recovered)
+        })
+        await model.open()
+        model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.pen)]); model.strokeEnded(); model.finishInkGesture()
+        let undo = Task { await model.performUndo() }
+        for _ in 0..<100 where !writing { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(writing); XCTAssertFalse(model.canvas.isUserInteractionEnabled)
+        model.strokeBegan(); XCTAssertFalse(model.hasActiveStroke)
+        release = true; await undo.value
+        XCTAssertTrue(model.canvas.isUserInteractionEnabled); XCTAssertFalse(model.navigating)
+        XCTAssertTrue(model.canUndo); XCTAssertFalse(model.canRedo)
+        XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+        // The injected disk failure must leave the history retryable.
+        XCTAssertNotNil(model.error)
+        fail = false
+        _ = await model.close()
+    }
+
     @MainActor func testCloudActionsAndInterruptedUploadStayBoundToOriginalAccount() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-isolation-\(UUID())", isDirectory: true).standardizedFileURL.resolvingSymlinksInPath()
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

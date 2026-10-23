@@ -2,6 +2,59 @@ import XCTest
 import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke() throws {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["editorWorkspace"].tap()
+        let gestures = app.buttons["Gesti e automatismi"]
+        let list = app.collectionViews["workspaceList"]
+        for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
+        XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
+        let finger = app.switches["Scrittura con il dito"]
+        XCTAssertTrue(finger.waitForExistence(timeout: 5)); finger.tap()
+        app.buttons["Fine"].tap(); app.buttons["tool-Penna"].tap()
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        let frame = canvas.frame
+        let first = CGRect(x: frame.midX - 45, y: frame.minY + frame.height * 0.45 - 12, width: 90, height: 24)
+        let second = first.offsetBy(dx: 0, dy: 80)
+        func draw(in area: CGRect) {
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: area.minX, dy: area.midY)).press(forDuration: 0.05,
+                thenDragTo: origin.withOffset(CGVector(dx: area.maxX, dy: area.midY)), withVelocity: .slow, thenHoldForDuration: 0)
+        }
+        func darkPixels(in area: CGRect) throws -> Int {
+            let screen = XCUIScreen.main.screenshot().image
+            let image = try XCTUnwrap(screen.cgImage)
+            let scale = CGFloat(image.width) / screen.size.width
+            let crop = try XCTUnwrap(image.cropping(to: CGRect(x: area.minX * scale, y: area.minY * scale, width: area.width * scale, height: area.height * scale)))
+            var pixels = [UInt8](repeating: 255, count: crop.width * crop.height * 4)
+            try pixels.withUnsafeMutableBytes { bytes in
+                let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: crop.width, height: crop.height, bitsPerComponent: 8,
+                    bytesPerRow: crop.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+            }
+            return stride(from: 0, to: pixels.count, by: 4).filter { pixels[$0] < 100 && pixels[$0 + 1] < 100 && pixels[$0 + 2] < 100 }.count
+        }
+        let blank = try darkPixels(in: first)
+        draw(in: first)
+        let undo = app.buttons["editorUndo"], redo = app.buttons["editorRedo"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)
+        wait(for: [ready], timeout: 5)
+        XCTAssertGreaterThan(try darkPixels(in: first), blank + 30, "The test must really draw through PencilKit")
+        undo.tap()
+        let undone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
+        wait(for: [undone], timeout: 5)
+        XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10)
+        draw(in: second)
+        let branched = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == false"), object: redo)
+        wait(for: [branched], timeout: 5)
+        XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
+        XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10, "The undone line must remain absent after a new native stroke")
+        undo.tap(); redo.tap()
+        XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
+        XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10)
+    }
+
     @MainActor func testAccountCanBeOpenedFromLibraryWithoutCreatingANotebook() {
         continueAfterFailure = false
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()

@@ -27,7 +27,7 @@ result_dir=".verification/$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$result_dir"
 test_selection=()
 if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
-  test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesUITests/AudioActionsUITests)
+  test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
 fi
 xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -destination "platform=iOS Simulator,id=$simulator_id" \
