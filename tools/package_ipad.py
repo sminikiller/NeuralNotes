@@ -10,8 +10,8 @@ import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".verification/ipad-0.20.7/NeuralNotes.swiftpm"
-ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.20.7.zip"
+OUTPUT = ROOT / ".verification/ipad-0.20.8/NeuralNotes.swiftpm"
+ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.20.8.zip"
 MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
@@ -24,9 +24,9 @@ let package = Package(
         .iOSApplication(
             name: "NeuralNotes",
             targets: ["AppModule"],
-            displayVersion: "0.20.7",
-            bundleVersion: "43",
-            appIcon: .placeholder(icon: .openBook),
+            displayVersion: "0.20.8",
+            bundleVersion: "44",
+            appIcon: .asset("AppIcon"),
             supportedDeviceFamilies: [.pad],
             supportedInterfaceOrientations: [
                 .portrait,
@@ -97,11 +97,10 @@ def package():
     icon_contents = json.loads((icon_set / "Contents.json").read_text())
     assert all((icon_set / image["filename"]).is_file() for image in icon_contents["images"])
     assert (catalog / "AccentColor.colorset/Contents.json").is_file()
-    # The App Playground uses Apple's generated icon: no AppIcon lookup is required
-    # in the asset-compiler invocation for the app wrapper. The Xcode app retains
-    # the custom icon. Linux syntax checks cannot exercise that Apple build step.
-    assert 'appIcon: .placeholder(icon: .openBook)' in MANIFEST
-    assert 'appIcon: .asset(' not in MANIFEST
+    # Use the real icon in the root app catalog. Apple's placeholder generator
+    # failed to supply __PlaceholderAppIcon in the package build on Xcode 16.4.
+    assert 'appIcon: .asset("AppIcon")' in MANIFEST
+    assert 'appIcon: .placeholder(' not in MANIFEST
     assert '.process("Assets.xcassets")' in MANIFEST
     assert '.process("Resources")' not in MANIFEST
     # Root app target follows Apple's App Playground layout. Core stays independent.
@@ -128,7 +127,7 @@ def package():
             assert archive.read(name) == disk.read_bytes()
     print(f"PASS: self-contained iPad app playground ({len(pairs)} unchanged source/resource files + manifest)")
     print("PASS: archive checksums, exact file set, single entry point and resource lookup")
-    print("PASS: generated Playgrounds icon, explicit app catalog, referenced icon images and accent set")
+    print("PASS: custom app icon, explicit root catalog, referenced icon images and accent set")
     print(f"ZIP: {archive_path}")
     print(f"SHA256: {hashlib.sha256(archive_path.read_bytes()).hexdigest()}")
     print("NOT RUN: Swift compilation and execution on iPad")
