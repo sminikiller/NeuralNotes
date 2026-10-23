@@ -1,4 +1,4 @@
-# Attivazione account e AI — 0.5 / app 0.19
+# Attivazione account e AI — backend 0.6 / app 0.21
 
 ## Stato effettivo
 

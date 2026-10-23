@@ -1,5 +1,17 @@
 # Gate di accettazione 0.9.0
 
+## Aggiornamento 0.21.0 — verifiche automatiche e fisiche distinte
+
+- [x] Sei verifiche prima fallite risolte; suite completa e ripetizioni mirate documentate, Release e ZIP reale compilati. [Evidenze 0.21.0](DELIVERY_0_21_0.md).
+- [x] Auth email/refresh/logout, isolamento fra due account, quote, prenotazione/upload/download Storage privato, conflitti e cancellazione riprendibile: servizi reali **locali**, provider AI simulato.
+- [x] Aggiornamento 0.20.8 → binario 0.21 su simulatore: quaderno SwiftData, manifest/catalogo e trascrizione di controllo conservati. Non è una prova del contenitore Playgrounds dell’utente.
+- [x] File sintetico di sei ore: IO a finestre, ripresa, correzioni e timestamp verificati con riconoscimento simulato.
+- [ ] Registrazione reale prolungata, standby, fotocamera/scanner e aggiornamento conservando i quaderni reali sull’iPad.
+- [ ] Hosting/Auth/SMTP/provider pubblici, prova AI con chiave reale, iCloud firmato e due dispositivi.
+
+Le liste sotto sono storiche e conservano i gate fisici non ancora verificati.
+
+
 La build e le suite automatiche correnti sono riportate in [VALIDATION.md](VALIDATION.md). L’accettazione sul dispositivo resta aperta; seguire prima [STUDY_WORKSPACE_0_9.md](STUDY_WORKSPACE_0_9.md).
 
 - [x] CI Apple 0.9: core, unit/integrazione e 16 UI test, Debug e Release senza firma. Backend 12/12; esiti e limiti in VALIDATION.md.

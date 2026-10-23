@@ -1,5 +1,7 @@
 # Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.8
 
+**Aggiornamento 0.21.0, 23 ottobre 2026:** sei verifiche inizialmente fallite risolte e percorsi interessati riprovati; verifica finale Apple 39982456433 PASS (265 Core, 98 FSRS, 26 affidabilità, quattro UI audio, Release e App Playground). Aggiunti account/profilo/export/cancellazione riprendibile, code cloud isolate e prove locali Auth/Storage reali. La suite completa precedente e quella mirata sono distinte nel [report finale](DELIVERY_0_21_0.md); pubblicazione dei servizi, AI live e prove fisiche ancora aperte. Le sezioni precedenti sotto restano storiche.
+
 ## Build del vero pacchetto App Playground 0.20.8 — 23 ottobre 2026
 
 Nuovo job CI che estrae lo ZIP e compila il suo manifest e target, incluso anche nelle future verifiche complete. Run `39940980908` fallisce sul placeholder AppIcon della 0.20.7; `39941386458` passa con icona personalizzata nel catalogo alla radice; `39942124235` passa anche con tre espressioni lente semplificate. Consegnato lo ZIP esatto di quest'ultima run, SHA-256 `f00a3fb9d6216dad5febe233bdecf4d3fa0c64edcbc1a54b450d723b5afc8eba`. Compilazione SDK Xcode 16.4 per simulatore iOS arm64/x86_64, senza esecuzione fisica iPad o avvio sul simulatore. I sei test funzionali già falliti restano aperti. [Report](FIXES_0_20_8.md).

@@ -1,5 +1,7 @@
 # Piano di Claude — verifica e avanzamento
 
+**Aggiornamento 0.21.0, 23 ottobre 2026:** sei verifiche inizialmente fallite risolte e percorsi interessati riprovati; verifica finale Apple 39982456433 PASS (265 Core, 98 FSRS, 26 affidabilità, quattro UI audio, Release e App Playground). Aggiunti account/profilo/export/cancellazione riprendibile, code cloud isolate e prove locali Auth/Storage reali. La suite completa precedente e quella mirata sono distinte nel [report finale](DELIVERY_0_21_0.md); pubblicazione dei servizi, AI live e prove fisiche ancora aperte. Le sezioni precedenti sotto restano storiche.
+
 La 0.20.8 aggiunge la build del pacchetto App Playground estratto dallo ZIP. Riprodotto l'errore dell'icona placeholder delle 0.20.6/0.20.7 e corretto con AppIcon personalizzata nel catalogo alla radice; run `39942124235` PASS anche con tre espressioni lente semplificate. Questo non prova il compilatore fisico dell'iPad né chiude i sei test funzionali falliti. [Report aggiornato](FIXES_0_20_8.md).
 
 La nuova foto identifica un blocco reale negli asset: AppIcon non riconosciuto. La 0.20.6 usa l'icona libro generata per Playgrounds e risorse esplicite, senza modifiche Swift o dati. [Patch e verifiche](FIXES_0_20_6.md). L'ipotesi di timeout della 0.20.5 non è confermata da questa segnalazione.

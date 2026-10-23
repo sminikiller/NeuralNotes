@@ -1,26 +1,45 @@
 # NeuralNotes 0.21.0 / build 45
 
-## Cambiamenti
+## Cambiamenti consegnati
 
-- Cambio pagina: annullamento delle anteprime obsolete, rimozione sincronizzata di backing store, livelli di replay/ricerca/selezione e stato degli oggetti; test di regressione con ritorno alla pagina originale. La segnalazione fisica dell’utente non è riprodotta direttamente sul suo iPad.
-- Cloud dell’account: prove aggiunte su azioni rimaste aperte e cambi di account durante una prenotazione di upload. Operazioni multiple vincolate all’identità iniziale; code e archivi distinti per utente e servizio; controllo dell’identità dopo gli await, conservazione delle vecchie code non attribuibili, pubblicazione atomica di un nuovo archivio prima di togliere quello sostituito.
-- iCloud: checkpoint per account Apple, invalidazione della cache e dei conflitti a cambio utente, verifiche di identità prima di installare una copia scaricata o salvare i chunk. Richiede app firmata e contenitore CloudKit configurato.
-- Account accessibile dalla libreria; nome, esportazione JSON a pagine senza caricare tutto in memoria, cancellazione con codice email. La cancellazione rimuove fisicamente i file prima di Auth e riprende se interrotta. Quaderni locali conservati; materiale di altri autori protetto.
-- Corretto un timeout reale nella gestione dei conflitti: `40001` causava ritentativi automatici di PostgREST. I conflitti intenzionali ora usano `PT409`.
-- Readiness del contratto SQL e tutte le suite Node/SQL/servizi locali nella CI. Nuova prova di aggiornamento del binario con indice SwiftData, manifest e trascrizione della 0.20.8.
+- Cambio pagina: pulizia sincronizzata delle bitmap e dei livelli di disegno, replay, ricerca e selezione; rifiuto delle anteprime asincrone obsolete. Una prova verifica il passaggio a un foglio vuoto e il ritorno al contenuto originale. La segnalazione fisica sull’iPad dell’utente non è stata riprodotta direttamente.
+- Account nella libreria: accesso email, nome, consumi, esportazione JSON paginata e cancellazione con conferma email. La cancellazione online procede a gruppi di 100 file e riprende dopo interruzione; rimuove gli oggetti tramite Storage API prima di eliminare metadata/Auth. I materiali di altri autori sono protetti. Quaderni locali e copie del separato account Apple restano conservati.
+- Backup via account: code, archivi e revisioni isolati per utente e gateway, identità vincolata per tutta l’operazione, controlli dopo gli await. Azioni rimaste aperte dopo un cambio account si fermano. I file nuovi vengono pubblicati nella coda prima di rimuovere quelli sostituiti. Le vecchie code senza proprietario restano conservate e non vengono assegnate al successivo accesso.
+- iCloud: checkpoint distinti per account Apple, invalidazione di database/cache/conflitti al cambio utente e controlli prima di salvare o installare una copia scaricata. Configurazione e prova con un account Apple reale ancora aperte.
+- Conflitti server: sostituito l’errore SQL `40001`, che causava ritentativi di PostgREST fino al timeout, con un conflitto semantico `PT409` immediato. Aggiunti readiness del contratto SQL e migrazioni versionate.
+- Esportazione della trascrizione: sostituito `ShareLink`, che in una ripetizione tornava all’elenco senza aprire Condividi. Un pulsante prepara il file fuori dal thread UI e apre la condivisione tramite l’unico stato dei pannelli audio; cancellazione e chiusura rimuovono il temporaneo. Lettura, rinomina e condivisione restano azioni distinte.
 
-## Verifiche
+## Verifiche ed evidenze
 
-- Node: 53 test passati, inclusa la readiness.
-- PostgreSQL reale: quote, RLS, inviti, CAS, cancellazione riprendibile, blocco scritture, isolamento storage, token residui e trasferimento gruppi passati.
-- Servizi locali reali: GoTrue/SMTP Mailpit/PostgREST/PostgreSQL/Storage API su TLS locale. Login, refresh, logout, quote, streaming AI con provider simulato, prenotazione/upload/download byte per byte e cancellazione account passati. Nessuna email esterna o inferenza a pagamento.
-- Swift Linux 6.1.2: 7 test account/export passati, inclusi JSON multipagina e rimozione del file incompleto.
-- Checkpoint Apple 39967055884 / 7b2196d: Core macOS e FSRS passati, tutti i 384 test nativi (due esclusioni per piattaforma) passati, 22/23 UI passati e Release più App Playground compilati. Risolti cinque dei sei vecchi fallimenti; l’ultimo identifica un wrapper di accessibilità del menu audio con un pulsante nativo figlio. Aggiunta una selezione esplicita del figlio interattivo e area di tocco di 44 pt. Verifica della versione finale in corso: risultati e hash ZIP da registrare dopo il completamento.
+I risultati si riferiscono alle piattaforme e alle revisioni indicate; non sono una certificazione fisica dell’iPad.
 
-## Limiti esterni e lavoro ancora aperto
+| Verifica | Risultato |
+| --- | --- |
+| Core macOS | 265 XCTest e 98 FSRS passati nelle esecuzioni complete e mirate. |
+| Suite completa simulatore, `90d8e4b` | 389 test nativi: due esclusioni per piattaforma e un errore nella nuova fixture account, poi corretto. 24 UI: un’intermittenza nella condivisione, poi corretta nel prodotto. Gli altri test passati. Build Release riuscita. |
+| Verifica mirata `d637cad` | Tutti i 26 test EditorReliability passati, compresi cambio pagina e cambi di account durante un upload. Archiviazione/ripristino, modifica e lettura audio passati; la ripetizione dell’export ha fatto emergere l’intermittenza sopra descritta. |
+| Verifica finale `da50c43` | PASS: 265 Core, 98 FSRS, tutti i 26 test di affidabilità e i quattro UI audio, senza fallimenti; `TEST SUCCEEDED` e `BUILD SUCCEEDED` per Release. Le sei verifiche fallite inizialmente hanno ora esiti positivi; l’intermittenza dell’export è stata riprodotta prima della sostituzione di ShareLink. |
+| Pacchetto App Playground finale | Compilato realmente dallo ZIP, Xcode 16.4 / SDK simulatore iOS 18.5, architetture arm64/x86_64. |
+| Backend | 53 test Node; SQL reale per RLS/quote/CAS/cancellazione/trasferimento gruppi; integrazione locale GoTrue, SMTP Mailpit, PostgreSQL, PostgREST e Storage API reali: PASS. Il provider AI è una fixture esplicita. |
+| Aggiornamento del binario | 0.20.8 → `90d8e4b` sul simulatore senza disinstallazione/reset: indice SwiftData, manifest, catalogo e trascrizione di controllo conservati e identici. Le successive modifiche al prodotto riguardano solo l’esportazione audio. |
+| Audio di sei ore | File PCM sintetico realmente leggibile a finestre, checkpoint dopo interruzione, ripresa, correzioni ed export con timestamp: PASS sul simulatore. Riconoscimento simulato; non è una registrazione hardware di sei ore. |
 
-Non sono collegati account Supabase/Render né presenti credenziali del provider nel workspace o nei segreti del repository. Non è pubblicato un endpoint AI/Auth/Storage; la UI non finge un accesso disponibile. Il backend è predisposto e verificato localmente, non attivato in produzione. Le istruzioni ripetibili sono in `backend/ACTIVATION.md`.
+[Suite completa, servizi e aggiornamento](https://github.com/sminikiller/NeuralNotes/actions/runs/39973557986), [verifica delle fixture e dei flussi audio](https://github.com/sminikiller/NeuralNotes/actions/runs/39979979036), [pacchetto e correzione finale dell’export](https://github.com/sminikiller/NeuralNotes/actions/runs/39982456433). La verifica mirata ripete le classi interessate: non viene presentata come una nuova esecuzione di tutti i test UI dopo modifiche limitate a quei percorsi.
 
-Il cloud via account conserva copie e revisioni con conflitti espliciti; non è ancora una replica automatica bidirezionale completa della libreria. Limite per oggetto 100 MiB. iCloud usa chunk e una politica a tre vie, ma non sono verificati contenitore firmato, account Apple reale o modifiche su due dispositivi. Sincronizzazione dei cestini/folder e garbage collection completa delle vecchie copie restano lavori distinti.
+Archivio consegnato: `NeuralNotes-iPad-0.21.0.zip`, scaricato dalla CI, **505.668 byte / 226 file**. SHA-256:
 
-Le prove sintetiche di sei ore verificano lettura a finestre, checkpoint, ripresa e timestamp con riconoscitore simulato. Non sostituiscono registrazione di sei ore, Apple Speech reale, standby e fotocamera su iPad. La prova di sostituzione del binario è sul simulatore con una fixture, non prova tutti i quaderni reali dell’utente o il contenitore temporaneo di Swift Playgrounds. Non è stata eseguita cancellazione o migrazione dei dati dell’utente.
+```text
+4c3b78cf8d1c9c6f4d8faa7d3a8e4cb4660e9c78e2094d071791e5cd11401feb
+```
+
+Verificati CRC, elenco esatto dei file e corrispondenza con i sorgenti: normalizzazione LF/CRLF solo per i testi, confronto binario esatto delle risorse. Non rigenerare l’archivio e attribuirgli le evidenze di quello compilato.
+
+## Servizi pubblici e prove ancora aperte
+
+Supabase e Render non risultano collegati; non sono presenti endpoint operativi o chiavi del provider nella configurazione del progetto/segreti GitHub. Anche l’inventario delle eventuali sessioni web non è stato accessibile: lo strumento di controllo non inizializza il runtime. Nessun gateway o progetto cloud è stato pubblicato, nessuna chiave generata e nessuna inferenza a pagamento eseguita. Il pannello mostra esplicitamente il servizio non configurato. Le istruzioni pronte per la pubblicazione sono in [backend/ACTIVATION.md](../backend/ACTIVATION.md).
+
+Ricontrollate il 23 ottobre le API ufficiali per il modello [DeepSeek Flash](https://api-docs.deepseek.com/updates/) e la [ricerca `/v1/tools/search`](https://api-docs.deepseek.com/api/search/): la configurazione e il percorso implementati sono coerenti con i riferimenti attuali. Questo controllo documentale non sostituisce una chiamata con chiave reale o la validazione della qualità delle risposte italiane e delle citazioni.
+
+Il cloud via account conserva copie e revisioni con conflitti espliciti, fino a **100 MiB per oggetto**; non è ancora una replica automatica bidirezionale completa della libreria. iCloud usa chunk e una politica a tre vie, ma restano configurazione del contenitore firmato e prova su due dispositivi. Sincronizzazione di cartelle/cestini e garbage collection completa delle vecchie copie restano lavori distinti. I piani economici restano proposte, senza abbonamenti attivati.
+
+Registrazione hardware prolungata, standby, fotocamera/scanner, Keychain fisico e aggiornamento del contenitore Swift Playgrounds non sono stati provati sul suo iPad. La prova di aggiornamento usa un quaderno di controllo con trascrizione; non certifica tutti i documenti reali dell’utente. Nessun documento dell’utente è stato eliminato o migrato in questa sessione. Conservare progetto precedente e backup durante le prove della nuova versione.
