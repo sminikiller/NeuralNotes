@@ -352,7 +352,18 @@ final class EditorIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testHorizontalCurlCompletesBothWaysAndKeepsNativeInk() async throws {
+    func testHorizontalCurlCompletesBothWaysAndKeepsNativeInk() {
+        let completed = expectation(description: "Native ink across both page turns")
+        let job = Task { @MainActor in
+            do { try await verifyHorizontalCurlAndInk() }
+            catch { XCTFail(error.localizedDescription) }
+            completed.fulfill()
+        }
+        defer { job.cancel() }
+        wait(for: [completed], timeout: 30)
+    }
+
+    @MainActor private func verifyHorizontalCurlAndInk() async throws {
         try await withEditor { model in
             let key = "editor.navigation.\(model.workspace.documentID)"
             defer { UserDefaults.standard.removeObject(forKey: key) }

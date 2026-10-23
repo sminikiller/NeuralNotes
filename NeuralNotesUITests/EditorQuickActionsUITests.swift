@@ -10,8 +10,14 @@ final class EditorQuickActionsUITests: XCTestCase {
         for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
         XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
         let finger = app.switches["Scrittura con il dito"]
-        XCTAssertTrue(finger.waitForExistence(timeout: 5)); finger.tap()
-        app.buttons["Fine"].tap(); app.buttons["tool-Penna"].tap()
+        XCTAssertTrue(finger.waitForExistence(timeout: 5))
+        // The Switch AX node covers its full row; tap the actual trailing knob.
+        finger.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.5)).tap()
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: finger)
+        wait(for: [enabled], timeout: 5)
+        app.navigationBars["Gesti e automatismi"].buttons["Workspace"].tap()
+        let done = app.buttons["Fine"]; XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
+        app.buttons["tool-Penna"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
         let frame = canvas.frame
