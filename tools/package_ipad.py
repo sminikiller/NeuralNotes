@@ -11,6 +11,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / ".verification/ipad-0.20.7/NeuralNotes.swiftpm"
+ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.20.7.zip"
 MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
@@ -114,7 +115,7 @@ def package():
     assert len(core_sources | app_sources) == sum(1 for _ in source_root.rglob("*.swift"))
     assert 'path: ".",\n            exclude: ["Core", "AppInfo.plist"]' in MANIFEST
 
-    archive_path = ROOT / ".verification/NeuralNotes-iPad-0.20.7.zip"
+    archive_path = ARCHIVE
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(OUTPUT.rglob("*")):
             if path.is_file():

@@ -3,6 +3,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Verification to run
+        type: choice
+        options: [full, playground]
+        default: full
 permissions:
   contents: read
 concurrency:
@@ -10,6 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   portable:
+    if: inputs.scope != 'playground'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -29,6 +36,7 @@ jobs:
       - name: Verify iPad package
         run: python tools/package_ipad.py
   apple:
+    if: inputs.scope != 'playground'
     needs: portable
     runs-on: macos-15
     timeout-minutes: 40
@@ -54,3 +62,30 @@ jobs:
           path: |
             .verification/apple-validation.log
             .verification/**/*.xcresult
+  playground:
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'playground'
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Build the delivered App Playground package
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .verification
+          bash tools/verify_playground_macos.sh 2>&1 | tee .verification/playground-validation.log
+      - name: Preserve App Playground evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playground-validation-${{ github.run_id }}
+          retention-days: 3
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            .verification/playground-validation.log
+            .verification/playground-schemes.json
+            .verification/NeuralNotes-iPad-*.zip
