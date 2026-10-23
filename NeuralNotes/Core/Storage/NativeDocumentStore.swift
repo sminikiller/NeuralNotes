@@ -6,23 +6,26 @@ public struct NativeDocumentStore: Sendable {
     public let root: URL
 
     public init(root: URL) throws {
-        self.root = root
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        // Foundation on Darwin may reject createDirectory on an existing symlink
+        // even when its destination is a directory. Use one canonical root for IO.
+        let directory = root.standardizedFileURL.resolvingSymlinksInPath()
+        self.root = directory
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         // Recover an interrupted directory replacement before opening the library.
-        for previous in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) where previous.pathExtension == "cloudPrevious" {
+        for previous in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) where previous.pathExtension == "cloudPrevious" {
             guard let id = UUID(uuidString: previous.deletingPathExtension().lastPathComponent) else { continue }
-            let destination = root.appendingPathComponent("\(id).nnbook", isDirectory: true)
+            let destination = directory.appendingPathComponent("\(id).nnbook", isDirectory: true)
             guard let inspected = try? NativePackageInspector.inspect(previous), inspected.manifest.documentID == id else { continue }
             if FileManager.default.fileExists(atPath: destination.path) {
                 if let current = try? NativePackageInspector.inspect(destination), current.manifest.documentID == id { continue }
                 // Retain a partially installed destination instead of allowing
                 // it to hide the last complete snapshot after a crash.
-                let retained = root.appendingPathComponent("\(id)-\(UUID()).cloudInterrupted", isDirectory: true)
+                let retained = directory.appendingPathComponent("\(id)-\(UUID()).cloudInterrupted", isDirectory: true)
                 try FileManager.default.moveItem(at: destination, to: retained)
             }
             try FileManager.default.moveItem(at: previous, to: destination)
         }
-        for package in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) where package.pathExtension == "nnbook" {
+        for package in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) where package.pathExtension == "nnbook" {
             // A damaged journal belongs to one notebook. Keep it for diagnosis;
             // opening that notebook reports the error without hiding the library.
             try? PageBatchRecovery.recover(in: package)

@@ -8,7 +8,8 @@ xcodebuild -version
 xcrun swift --version
 xcodebuild -showsdks
 python3 tools/check_project.py
-swift test
+verification_status=0
+swift test || verification_status=1
 
 simulator_id="${NEURALNOTES_SIMULATOR_ID:-}"
 if [ -z "$simulator_id" ]; then
@@ -28,8 +29,12 @@ xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -destination "platform=iOS Simulator,id=$simulator_id" \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_dir/NeuralNotes.xcresult" \
-  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_ALLOWED=NO || verification_status=1
 xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -configuration Release -destination 'generic/platform=iOS' \
-  -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO
+  -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1
+if [ "$verification_status" -ne 0 ]; then
+  echo "Apple verification failed; inspect the logs for each phase."
+  exit "$verification_status"
+fi
 echo "Mac build and tests passed. Device acceptance still required: docs/ACCEPTANCE.md"

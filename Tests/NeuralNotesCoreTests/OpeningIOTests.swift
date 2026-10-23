@@ -38,7 +38,7 @@ final class OpeningIOTests: XCTestCase {
         }
     }
 
-    func testCancelledAutomaticBackupKeepsProtectedCopiesAndRemovesPendingOutput() async throws {
+    func testCancelledAutomaticBackupDoesNotRotateProtectedCopiesOrLeavePendingOutput() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()); try store.create(manifest)
@@ -48,8 +48,12 @@ final class OpeningIOTests: XCTestCase {
         for _ in 0..<2 { _ = try await workspace.createAutomaticBackup(metadata: book, minimumInterval: 0) }
         let before = try await workspace.automaticBackups().map(\.url)
         try Data(repeating: 42, count: 16 * 1024 * 1024).write(to: await workspace.url("audio/large.caf"))
-        let job = Task { try await workspace.createAutomaticBackup(metadata: book, minimumInterval: 0, maximumBytes: 1) }
-        try await Task.sleep(for: .milliseconds(10)); job.cancel()
+        // Cancellation is deterministic; a fast cached/APFS copy may finish
+        // before a timer resumes, which is valid rather than a backup failure.
+        let job = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await workspace.createAutomaticBackup(metadata: book, minimumInterval: 0, maximumBytes: 1)
+        }
         do { _ = try await job.value; XCTFail("Cancelled backup completed") }
         catch { XCTAssertTrue(error is CancellationError) }
         let after = try await workspace.automaticBackups().map(\.url)

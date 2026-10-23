@@ -67,6 +67,7 @@ public extension DocumentWorkspace {
     /// Serialized with all document writes. Rotate only after the new archive commits.
     @discardableResult
     func createAutomaticBackup(metadata: Notebook, minimumInterval: TimeInterval = 600, keep: Int = 5, maximumBytes: Int64? = nil) throws -> URL? {
+        try Task.checkCancellation()
         guard metadata.documentID == documentID, minimumInterval.isFinite, minimumInterval >= 0, (1...20).contains(keep) else { throw WorkspaceFailure.invalidPath }
         guard try catalog().sessions.allSatisfy({ $0.state != "recording" }) else { return nil }
         guard try pendingAudioCompression() == nil else { return nil }
@@ -79,6 +80,9 @@ public extension DocumentWorkspace {
         let temporary = directory.appendingPathComponent("pending-\(UUID()).tmp")
         defer { try? FileManager.default.removeItem(at: temporary) }
         try NativeArchive.write(package: package, metadata: metadata, to: temporary)
+        // Do not publish or rotate copies if cancellation arrived during the last
+        // write/synchronize step, after the archive's last streaming checkpoint.
+        try Task.checkCancellation()
         // File providers may round mtimes. Persist a monotonic order in the
         // filename, rather than ordering new copies by a random UUID on ties.
         let now = max(0, Date().timeIntervalSince1970 * 1_000_000)
