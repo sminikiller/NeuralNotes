@@ -52,11 +52,9 @@ extension EditorViewModel {
     private func applyHistory(undo: Bool) async {
         finishInkGesture(); endTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke else { return }
-        // No new Pencil gesture may start while flush/load suspends an undo.
-        let acceptsInput = canvas.isUserInteractionEnabled
-        canvas.isUserInteractionEnabled = false
-        navigating = true
-        defer { navigating = false; canvas.isUserInteractionEnabled = acceptsInput }
+        // CanvasHost shields new touches while navigating. Keep the native
+        // responder alive so PencilKit can finish its pending drawing callbacks.
+        navigating = true; defer { navigating = false }
         guard await settleInkBeforeHistory(), await flush(),
               let entry = undo ? history.undo : history.redo else { return }
         applyingHistory = true; defer { applyingHistory = false }

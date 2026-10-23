@@ -443,29 +443,20 @@ final class EditorViewModel {
         return true
     }
 
-    /// Replace the native editing session as well as its visible drawing. History
-    /// snapshots must not share PencilKit's pending gesture/undo state with the
-    /// drawing we just replaced, otherwise the next touch can revive old ink.
+    /// Drop pending editor work and install a fresh drawing container. The caller
+    /// has already finished the native stroke and locked input for history/load.
     func replaceInkSession(with drawing: PKDrawing) {
         let delegate = canvas.delegate
-        let acceptsDrawing = canvas.drawingGestureRecognizer.isEnabled
         canvas.delegate = nil
-        canvas.drawingGestureRecognizer.isEnabled = false
         drawingAssistant?.cancel()
         pendingHeldShape = nil
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         signaturesBeforeStroke = []
-        let nativeHistory = canvas.undoManager
-        let registersUndo = nativeHistory?.isUndoRegistrationEnabled == true
-        if registersUndo { nativeHistory?.disableUndoRegistration() }
         // Keep the original stroke objects (ink, masks and transforms), but use
         // a fresh drawing container rather than the old native editing timeline.
-        canvas.drawing = PKDrawing()
         canvas.drawing = PKDrawing(strokes: drawing.strokes)
-        nativeHistory?.removeAllActions()
-        if registersUndo { nativeHistory?.enableUndoRegistration() }
-        canvas.drawingGestureRecognizer.isEnabled = acceptsDrawing
+        canvas.undoManager?.removeAllActions()
         canvas.delegate = delegate
     }
 

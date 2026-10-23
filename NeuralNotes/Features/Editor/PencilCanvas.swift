@@ -88,6 +88,7 @@ final class CanvasHost: UIView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let model, bounds.contains(point), model.loading || model.navigating { return inputShield }
         if let model, !model.laserActive, let flow, flow.enabled, let touch = event?.allTouches?.first(where: { touch in
             let at = touch.location(in: self)
             return touch.phase == .began && hypot(at.x - point.x, at.y - point.y) < 2

@@ -73,20 +73,7 @@ final class EditorReliabilityTests: XCTestCase {
         }
     }
 
-    @MainActor func testUndoDropsNativeUndoActionsWithoutChangingSurvivingStrokeMasks() {
-        // UIKit's responder/undo run-loop work must not run inside XCTest's
-        // asynchronous error-observation task on the Xcode 16.4 runtime.
-        let completed = expectation(description: "Native undo and masked ink")
-        let job = Task { @MainActor in
-            do { try await verifyNativeUndoAndMasks() }
-            catch { XCTFail(error.localizedDescription) }
-            completed.fulfill()
-        }
-        defer { job.cancel() }
-        wait(for: [completed], timeout: 30)
-    }
-
-    @MainActor private func verifyNativeUndoAndMasks() async throws {
+    @MainActor func testUndoDropsNativeUndoActionsWithoutChangingSurvivingStrokeMasks() async throws {
         try await fixture { model in
             let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1000, height: 800)), root = UIViewController()
             window.rootViewController = root; window.makeKeyAndVisible(); defer { window.isHidden = true }
@@ -124,13 +111,21 @@ final class EditorReliabilityTests: XCTestCase {
             return try await workspace.save(page, drawing: data, recoveredFromPrevious: recovered)
         })
         await model.open()
+        let host = CanvasHost(canvas: model.canvas); host.model = model
+        host.surface.page = try XCTUnwrap(model.page); host.frame = CGRect(x: 0, y: 0, width: 1000, height: 800); host.layoutIfNeeded()
+        let point = CGPoint(x: 500, y: 400)
+        XCTAssertTrue(host.hitTest(point, with: nil)?.isDescendant(of: model.canvas) == true)
         model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.pen)]); model.strokeEnded(); model.finishInkGesture()
         let undo = Task { await model.performUndo() }
         for _ in 0..<100 where !writing { try await Task.sleep(for: .milliseconds(10)) }
-        XCTAssertTrue(writing); XCTAssertFalse(model.canvas.isUserInteractionEnabled)
+        XCTAssertTrue(writing)
+        XCTAssertTrue(model.canvas.isUserInteractionEnabled, "Pending native callbacks must keep their live responder")
+        let shield = try XCTUnwrap(host.hitTest(point, with: nil))
+        XCTAssertFalse(shield.isDescendant(of: model.canvas), "New input must go to the shield while history is suspended")
         model.strokeBegan(); XCTAssertFalse(model.hasActiveStroke)
         release = true; await undo.value
         XCTAssertTrue(model.canvas.isUserInteractionEnabled); XCTAssertFalse(model.navigating)
+        XCTAssertTrue(host.hitTest(point, with: nil)?.isDescendant(of: model.canvas) == true)
         XCTAssertTrue(model.canUndo); XCTAssertFalse(model.canRedo)
         XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
         // The injected disk failure must leave the history retryable.
