@@ -293,6 +293,18 @@ final class EditorViewModel {
         }
     }
 
+    /// didEndUsingTool can precede the final drawing notification. An undo
+    /// command must settle that stroke before choosing its history entry.
+    func settleInkBeforeHistory() async -> Bool {
+        for _ in 0..<20 {
+            finishInkGesture()
+            guard editBeforeGesture != nil else { return true }
+            do { try await Task.sleep(for: .milliseconds(10)) } catch { return false }
+        }
+        finishInkGesture()
+        return !Task.isCancelled
+    }
+
     /// PencilKit can deliver the final drawing after didEndUsingTool.
     /// Retain the before-state until there is an actual committed change.
     func finishInkGesture() {

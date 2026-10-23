@@ -8,6 +8,34 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testUndoWaitsForDrawingDeliveredAfterToolEndAndDoesNotReviveItOnNextStroke() async throws {
+        try await fixture { model in
+            let first = stroke(.pen)
+            let late = PKStroke(ink: first.ink, path: first.path, transform: CGAffineTransform(translationX: 0, y: 120), mask: nil)
+            let replacement = PKStroke(ink: first.ink, path: first.path, transform: CGAffineTransform(translationX: 0, y: 240), mask: nil)
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [first]); model.strokeEnded(); model.finishInkGesture()
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            // The next Pencil touch ends while PKCanvasView still exposes the old drawing.
+            model.strokeBegan(); model.strokeEnded()
+            let delivery = Task { @MainActor in
+                try await Task.sleep(for: .milliseconds(30))
+                model.canvas.drawing = PKDrawing(strokes: [first, late]); model.drawingChanged()
+            }
+            await model.performUndo(); try await delivery.value
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1, "Undo must target the late stroke, not the preceding committed action")
+            XCTAssertEqual(model.canvas.drawing.strokes.first?.renderBounds, first.renderBounds)
+            XCTAssertTrue(model.canRedo)
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [replacement])
+            model.strokeEnded(); model.finishInkGesture()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 2); XCTAssertFalse(model.canRedo)
+            XCTAssertEqual(model.canvas.drawing.strokes.last?.renderBounds, replacement.renderBounds)
+            let flushed = await model.flush(); XCTAssertTrue(flushed)
+            try await model.load(try XCTUnwrap(model.page))
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+            XCTAssertEqual(model.canvas.drawing.strokes.last?.renderBounds, replacement.renderBounds)
+        }
+    }
+
     @MainActor func testUndoThenNewInkDiscardsOnlyTheUndoneBranchAndSurvivesReload() async throws {
         try await fixture { model in
             for kind in [PKInkingTool.InkType.pen, .marker] {

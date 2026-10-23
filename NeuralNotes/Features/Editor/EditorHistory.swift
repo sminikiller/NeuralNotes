@@ -51,13 +51,14 @@ extension EditorViewModel {
 
     private func applyHistory(undo: Bool) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, !navigating, !loading, !hasActiveStroke, let entry = undo ? history.undo : history.redo else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke else { return }
         // No new Pencil gesture may start while flush/load suspends an undo.
         let acceptsInput = canvas.isUserInteractionEnabled
         canvas.isUserInteractionEnabled = false
         navigating = true
         defer { navigating = false; canvas.isUserInteractionEnabled = acceptsInput }
-        guard await flush() else { return }
+        guard await settleInkBeforeHistory(), await flush(),
+              let entry = undo ? history.undo : history.redo else { return }
         applyingHistory = true; defer { applyingHistory = false }
         do {
             switch entry.event {
