@@ -1,27 +1,14 @@
 import SwiftUI
-import CoreTransferable
 import UniformTypeIdentifiers
 import NeuralNotesCore
 
 private enum AudioPresentation: Identifiable {
-    case read(UUID), edit(AudioSession), export(AudioExportBundle)
+    case read(UUID), edit(AudioSession), export(AudioExportBundle), textExport(URL)
     var id: String {
         switch self { case .read(let id): return "read-\(id)"
         case .edit(let session): return "edit-\(session.id)"
-        case .export(let bundle): return bundle.directory.lastPathComponent }
-    }
-}
-
-private struct TranscriptFile: Transferable {
-    let session: AudioSession
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .plainText) { item in
-            let text = TranscriptText.export(title: item.session.title, segments: item.session.readableTranscript,
-                complete: item.session.hasCompletedTranscript)
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("Trascrizione-\(UUID()).txt")
-            try text.write(to: url, atomically: true, encoding: .utf8)
-            return SentTransferredFile(url)
-        }
+        case .export(let bundle): return bundle.directory.lastPathComponent
+        case .textExport(let url): return url.lastPathComponent }
     }
 }
 
@@ -42,6 +29,7 @@ struct AudioPanel: View {
     @State private var exporting = false
     @State private var exportJob: Task<Void, Never>?
     @State private var exported: AudioExportBundle?
+    @State private var exportedText: URL?
     @State private var pendingMutation: PendingAudioMutation?
 
     var body: some View {
@@ -80,7 +68,7 @@ struct AudioPanel: View {
                         Text("Archivio").tag(AudioLibraryScope.archived)
                         Text("Cestino").tag(AudioLibraryScope.trash)
                     }.pickerStyle(.segmented).accessibilityIdentifier("audioLibraryScope")
-                    if exporting { ProgressView("Preparazione dei file originali…"); Button("Annulla esportazione") { exportJob?.cancel() } }
+                    if exporting { ProgressView("Preparazione dell’esportazione…"); Button("Annulla esportazione") { exportJob?.cancel() } }
                     if scope == .trash { Text("Il cestino conserva audio, testo e collegamenti e occupa ancora spazio. Puoi ripristinare le lezioni.").font(.caption).foregroundStyle(.secondary) }
                 }
                 ForEach(AudioLibraryQuery.sessions(audio.sessions, scope: scope, query: query)) { session in sessionSection(session) }
@@ -117,6 +105,7 @@ struct AudioPanel: View {
                 case .read(let id): TranscriptReader(audio: audio, sessionID: id)
                 case .edit(let session): TranscriptEditor(audio: audio, session: session)
                 case .export(let bundle): AudioFileShare(files: bundle.files)
+                case .textExport(let url): AudioFileShare(files: [url])
                 }
             }
             .fileImporter(isPresented: $importingAudio, allowedContentTypes: [.audio]) { result in
@@ -158,7 +147,7 @@ struct AudioPanel: View {
     @ViewBuilder private func transcriptControls(_ session: AudioSession) -> some View {
                 if session.hasTranscriptText {
                     Button("Visualizza trascrizione", systemImage: "doc.text.magnifyingglass") {
-                        guard presentation == nil else { return }; presentation = .read(session.id)
+                        guard presentation == nil, !exporting else { return }; presentation = .read(session.id)
                     }.buttonStyle(.borderless).accessibilityIdentifier("transcriptRead-\(session.id)")
                     Text(TranscriptText.firstMinuteText(session.readableTranscript))
                         .lineLimit(3).foregroundStyle(.secondary)
@@ -168,17 +157,15 @@ struct AudioPanel: View {
                         .accessibilityIdentifier("transcriptEmpty")
                 }
                 Button("Rinomina / correggi", systemImage: "pencil") {
-                    guard presentation == nil else { return }; presentation = .edit(session)
+                    guard presentation == nil, !exporting else { return }; presentation = .edit(session)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("transcriptEdit-\(session.id)")
                 .disabled(!audio.canTranscribe || audio.transcribingSessionID != nil || session.state != "finished")
-                ShareLink(item: TranscriptFile(session: session), preview: SharePreview(session.title)) {
-                    Label("Esporta testo", systemImage: "square.and.arrow.up")
-                }
+                Button("Esporta testo", systemImage: "square.and.arrow.up") { exportTranscript(session) }
                     .buttonStyle(.borderless)
                     .accessibilityIdentifier("transcriptExport-\(session.id)")
-                    .disabled(!session.hasTranscriptText)
+                    .disabled(!session.hasTranscriptText || exporting)
     }
     @ViewBuilder private func bookmarkControls(_ session: AudioSession) -> some View {
                 Button("Segnalibro qui", systemImage: "bookmark.badge.plus") { Task { await audio.addBookmark(sessionID: session.id) } }.buttonStyle(.borderless)
@@ -277,7 +264,27 @@ struct AudioPanel: View {
             catch { audio.error = "Esportazione interrotta: \(error.localizedDescription). Gli originali sono conservati." }
         }
     }
-    private func finishPresentation() { if let exported { try? exported.removeTemporaryFiles() }; exported = nil }
+    private func exportTranscript(_ session: AudioSession) {
+        guard session.hasTranscriptText, presentation == nil, !exporting else { return }; exporting = true
+        exportJob = Task {
+            defer { exporting = false }
+            do {
+                let file = try await Task.detached(priority: .userInitiated) {
+                    let text = TranscriptText.export(title: session.title, segments: session.readableTranscript,
+                        complete: session.hasCompletedTranscript)
+                    let file = FileManager.default.temporaryDirectory.appendingPathComponent("Trascrizione-\(UUID()).txt")
+                    try text.write(to: file, atomically: true, encoding: .utf8); return file
+                }.value
+                guard !Task.isCancelled, presentation == nil else { try? FileManager.default.removeItem(at: file); return }
+                exportedText = file; presentation = .textExport(file)
+            } catch is CancellationError { }
+            catch { audio.error = "Esportazione interrotta: \(error.localizedDescription). Il testo originale è conservato." }
+        }
+    }
+    private func finishPresentation() {
+        if let exported { try? exported.removeTemporaryFiles() }; exported = nil
+        if let exportedText { try? FileManager.default.removeItem(at: exportedText) }; exportedText = nil
+    }
 
     private func isComplete(_ session: AudioSession) -> Bool {
         session.hasCompletedTranscript

@@ -34,11 +34,9 @@ xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_dir/NeuralNotes.xcresult" \
   "${test_selection[@]}" CODE_SIGNING_ALLOWED=NO || verification_status=1
-if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" != 1 ]; then
 xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -configuration Release -destination 'generic/platform=iOS' \
   -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1
-fi
 if [ "$verification_status" -ne 0 ]; then
   echo "Apple verification failed; inspect the logs for each phase."
   exit "$verification_status"
