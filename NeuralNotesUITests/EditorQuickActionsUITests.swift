@@ -151,7 +151,7 @@ final class EditorQuickActionsUITests: XCTestCase {
             let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
             let hierarchy = XCTAttachment(string: app.debugDescription); hierarchy.lifetime = .keepAlways; add(hierarchy)
         }
-        XCTAssertTrue(appeared); input.typeText("Testo sul foglio")
+        XCTAssertTrue(appeared); input.tap(); input.typeText("Testo sul foglio")
         app.buttons["pageTextDone"].tap()
         XCTAssertFalse(app.textViews["pageTextInput"].exists)
         app.buttons["editorFitPage"].tap()

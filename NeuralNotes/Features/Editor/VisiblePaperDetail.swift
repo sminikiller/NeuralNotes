@@ -10,6 +10,9 @@ final class VisiblePaperDetail: UIView {
     private var zoom: CGFloat = 1
     private var origin = CGPoint.zero
     private var hiddenTextID: UUID?
+    func resetForPageChange() {
+        page = nil; hiddenTextID = nil; layer.contents = nil; isHidden = true
+    }
     func update(from host: CanvasHost) {
         let z = host.canvas.zoomScale, rect = host.surface.frame.intersection(host.bounds)
         isHidden = z <= 1 || rect.isNull || rect.isEmpty

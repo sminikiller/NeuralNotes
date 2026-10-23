@@ -245,7 +245,8 @@ final class ContinuousCanvasFlow {
                 let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
                 let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: CGFloat(PreviewBudget.previewDimension))
                 try Task.checkCancellation()
-                guard self.tokens[page.id] == token else { return }
+                guard self.tokens[page.id] == token,
+                      self.model?.pages.first(where: { $0.id == page.id }) == page else { return }
                 let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)
                 let points = drawing.strokes.reduce(0) { $0 + $1.path.count }
                 let keep = PreviewBudget.canRetainDrawing(encodedBytes: bytes?.count ?? 0, controlPoints: points, imageBytes: imageCost)

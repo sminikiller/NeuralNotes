@@ -99,6 +99,21 @@ final class CanvasHost: UIView {
 
     func synchronizePage() {
         guard let model, let page = model.page else { return }
+        if surface.page.id != page.id {
+            // UIKit may keep the previous backing bitmap until the next draw.
+            // Drop page-scoped presentation before exposing another document page.
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            interaction?.resetForPageChange()
+            surface.layer.contents = nil
+            surface.hiddenTextID = nil; surface.hiddenObjectID = nil
+            paperDetail.resetForPageChange()
+            foregroundObjects.layer.contents = nil
+            inkReplay.resetForPageChange(self)
+            searchHighlight.resetForPageChange()
+            lensNotes.layer.contents = nil
+            zoomNavigator.resetForPageChange()
+            CATransaction.commit()
+        }
         let changed = surface.page.id != page.id || surface.page.width != page.width || surface.page.height != page.height
         if surface.page != page { surface.page = page }
         let changedMode = flow?.updateSource() ?? false

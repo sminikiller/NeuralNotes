@@ -124,6 +124,7 @@ final class PageSurfaceView: UIView {
     var hiddenObjectID: UUID? { didSet { if oldValue != hiddenObjectID { setNeedsDisplay() } } }
     var page = PageSnapshot() {
         didSet {
+            if oldValue.id != page.id { layer.contents = nil }
             if oldValue.id != page.id || oldValue.paper != page.paper || oldValue.texts != page.texts
                 || oldValue.images != page.images || oldValue.shapes != page.shapes || oldValue.pdfFile != page.pdfFile
                 || oldValue.pdfMarkups != page.pdfMarkups || oldValue.appearance != page.appearance || oldValue.width != page.width || oldValue.height != page.height {

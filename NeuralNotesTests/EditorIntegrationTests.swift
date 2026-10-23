@@ -202,7 +202,24 @@ final class EditorIntegrationTests: XCTestCase {
                 assistant.end(cancelled: false); model.strokeEnded(); model.finishInkGesture()
                 XCTAssertNil(model.pendingHeldShape); XCTAssertEqual(model.canvas.layer.opacity, 1)
                 let corrected = try XCTUnwrap(model.canvas.drawing.strokes.first)
-                XCTAssertEqual(corrected.path.count, kind == .line ? 2 : 121)
+                if kind == .line {
+                    // Lines are sampled for PencilKit, just like the other
+                    // corrected shapes. Verify the geometry, not two-point storage.
+                    XCTAssertGreaterThan(corrected.path.count, 2)
+                    let start = try XCTUnwrap(corrected.path.first?.location)
+                    let end = try XCTUnwrap(corrected.path.last?.location)
+                    let dx = end.x - start.x, dy = end.y - start.y
+                    let length = hypot(dx, dy)
+                    XCTAssertGreaterThan(length, 200)
+                    XCTAssertEqual(start.x, locations[0].x, accuracy: 2)
+                    XCTAssertEqual(end.x, locations.last!.x, accuracy: 2)
+                    for point in corrected.path {
+                        let offsetX = point.location.x - start.x
+                        let offsetY = point.location.y - start.y
+                        let distance = abs(dx * offsetY - dy * offsetX) / length
+                        XCTAssertLessThan(distance, 0.01)
+                    }
+                } else { XCTAssertEqual(corrected.path.count, 121) }
                 await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
                 await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
                 let saved = await model.flush(); XCTAssertTrue(saved)

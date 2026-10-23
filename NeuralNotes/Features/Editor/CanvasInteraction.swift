@@ -78,6 +78,15 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         host.addInteraction(UIContextMenuInteraction(delegate: self))
     }
 
+    func resetForPageChange() {
+        dragPreview?.removeFromSuperlayer(); dragPreview = nil
+        for layer in [outline, handle, marquee, wordHighlight] {
+            layer.path = nil; layer.setAffineTransform(.identity)
+        }
+        before = nil; original = [:]; originalDrawing = nil
+        movingLensNote = nil; selectionTrace = []
+    }
+
     func refresh() {
         let touches = model?.fingerDrawing == true ? 2 : 1
         if fitTap.numberOfTouchesRequired != touches { fitTap.numberOfTouchesRequired = touches }

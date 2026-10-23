@@ -8,6 +8,9 @@ final class ZoomNavigator: UIView {
     private let thumbnail = UIImageView(), viewport = CAShapeLayer(), close = UIButton(type: .system)
     private weak var host: CanvasHost?
     private var generation = ""
+    func resetForPageChange() {
+        generation = ""; thumbnail.image = nil; viewport.path = nil
+    }
     init() {
         super.init(frame: .zero)
         backgroundColor = .secondarySystemBackground; layer.cornerRadius = 14; layer.shadowOpacity = 0.2; layer.shadowRadius = 8

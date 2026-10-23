@@ -13,6 +13,11 @@ final class InkReplayOverlay: UIImageView {
     private var active = false
     init() { super.init(frame: .zero); isHidden = true; isUserInteractionEnabled = false; contentMode = .scaleToFill }
     required init?(coder: NSCoder) { nil }
+    func resetForPageChange(_ host: CanvasHost) {
+        host.canvas.layer.opacity = 1
+        active = false; image = nil; isHidden = true; key = ""
+        drawing = PKDrawing(); signatures = []; previousVisible = []
+    }
     func update(_ host: CanvasHost) {
         guard let model = host.model, let page = model.page, let audio = model.audio,
               audio.replayInk, let sessionID = audio.playingSessionID else {

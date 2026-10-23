@@ -8,6 +8,43 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testChangingToBlankPageDropsOldPresentationLayersAndKeepsSourceData() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            model.pagePresenter = host
+            host.frame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+            host.surface.page = try XCTUnwrap(model.page); host.layoutIfNeeded()
+            model.addText(); model.updateLiveText("Contenuto della pagina precedente")
+            model.endTextEdit()
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            let source = try XCTUnwrap(model.page)
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 20))
+            let oldBitmap = renderer.image { context in
+                UIColor.magenta.setFill(); context.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+            }
+            // Model a retained UIKit backing store at high zoom, including replay.
+            host.surface.layer.contents = oldBitmap.cgImage
+            host.paperDetail.layer.contents = oldBitmap.cgImage
+            host.foregroundObjects.layer.contents = oldBitmap.cgImage
+            host.lensNotes.layer.contents = oldBitmap.cgImage
+            host.inkReplay.image = oldBitmap; host.inkReplay.isHidden = false
+            let blank = try await model.workspace.addPage()
+            await model.select(blank)
+            XCTAssertEqual(model.page?.id, blank.id)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertTrue(try XCTUnwrap(model.page).texts.isEmpty)
+            XCTAssertNil(host.surface.layer.contents)
+            XCTAssertNil(host.paperDetail.layer.contents)
+            XCTAssertNil(host.foregroundObjects.layer.contents)
+            XCTAssertNil(host.lensNotes.layer.contents)
+            XCTAssertNil(host.inkReplay.image); XCTAssertTrue(host.inkReplay.isHidden)
+            let original = try await model.workspace.pageSnapshot(source.id)
+            XCTAssertEqual(original.texts, source.texts)
+            await model.select(source)
+            XCTAssertEqual(model.page?.texts, source.texts)
+        }
+    }
+
     @MainActor func testNewlyCommittedPagesCanLoadBeforeTheUIListHasTheirIDs() async throws {
         try await fixture { model in
             let first = try XCTUnwrap(model.page)

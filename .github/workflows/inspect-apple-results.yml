@@ -26,10 +26,9 @@ jobs:
           test -n "$bundle"
           mkdir -p evidence
           xcrun xcresulttool get test-results summary --path "$bundle" > evidence/summary.json
-          xcrun xcresulttool export attachments --path "$bundle" --output-path evidence/attachments --only-failures
-          xcrun xcresulttool export diagnostics --path "$bundle" --output-path evidence/diagnostics
-          xcrun xcresulttool help get log
-          xcrun xcresulttool get log --path "$bundle" --type console > evidence/console.json || true
+          # Explicit screenshots/hierarchies added just before an assertion are
+          # not always flagged isAssociatedWithFailure. Preserve them as well.
+          xcrun xcresulttool export attachments --path "$bundle" --output-path evidence/attachments
           cat evidence/summary.json
       - name: Preserve readable test evidence
         if: always()

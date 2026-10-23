@@ -40,6 +40,10 @@ final class SearchHighlightOverlay: UIView {
         layer.addSublayer(highlights); accessibilityIdentifier = "searchPageHighlight"
     }
     required init?(coder: NSCoder) { nil }
+    func resetForPageChange() {
+        job?.cancel(); job = nil; generation = ""
+        highlights.path = nil; isHidden = true
+    }
     func update(_ host: CanvasHost) {
         guard let model = host.model, let request = model.searchFocus, let page = model.page, page.id == request.pageID else {
             job?.cancel(); generation = ""; highlights.path = nil; isHidden = true; return
