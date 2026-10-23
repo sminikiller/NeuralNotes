@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.5
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.6
+
+## Errore asset AppIcon 0.20.6 — 23 ottobre 2026
+
+La foto successiva identifica il blocco: `None of the input catalogs contained ... AppIcon`. Non è evidenza di timeout del type checker. Prodotto Playgrounds con icona libro generata, senza lookup AppIcon; catalogo esplicito alla radice e regole distinte per le risorse. Nessuna modifica Swift/dati, icona Xcode personalizzata conservata. Controlli struttura e ZIP aggiornati; nessun actool, build Apple o esecuzione iPad disponibile. Core/backend invariati. [Dettagli](FIXES_0_20_6.md).
 
 ## Segnalazione di build bloccata 0.20.5 — 23 ottobre 2026
 

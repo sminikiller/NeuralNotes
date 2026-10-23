@@ -1,5 +1,7 @@
 # Piano di Claude — verifica e avanzamento
 
+La nuova foto identifica un blocco reale negli asset: AppIcon non riconosciuto. La 0.20.6 usa l'icona libro generata per Playgrounds e risorse esplicite, senza modifiche Swift o dati. [Patch e verifiche](FIXES_0_20_6.md). L'ipotesi di timeout della 0.20.5 non è confermata da questa segnalazione.
+
 La 0.20.5 divide il corpo SwiftUI del pannello della Lente e delle azioni per contenere il rischio di timeout. Il nuovo blocco segnalato non ha un log Apple disponibile e la causa resta non confermata. [Evidenze e intervento](BUILD_0_20_5.md).
 
 La 0.20.4 sostituisce l'automatismo della Lente con selezione temporanea e risposta da conservare o scartare. Ripristino del tool, icone compatte e test delle aree di tocco; prove native predisposte ma non eseguite. [Flusso aggiornato](WORKFLOW_0_20_4.md).

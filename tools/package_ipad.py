@@ -5,11 +5,12 @@ This script verifies package structure and file equality; it does NOT compile Sw
 """
 from pathlib import Path
 import hashlib
+import json
 import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".verification/ipad-0.20.5/NeuralNotes.swiftpm"
+OUTPUT = ROOT / ".verification/ipad-0.20.6/NeuralNotes.swiftpm"
 MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
@@ -22,9 +23,9 @@ let package = Package(
         .iOSApplication(
             name: "NeuralNotes",
             targets: ["AppModule"],
-            displayVersion: "0.20.5",
-            bundleVersion: "41",
-            appIcon: .asset("AppIcon"),
+            displayVersion: "0.20.6",
+            bundleVersion: "42",
+            appIcon: .placeholder(icon: .openBook),
             supportedDeviceFamilies: [.pad],
             supportedInterfaceOrientations: [
                 .portrait,
@@ -47,7 +48,12 @@ let package = Package(
             dependencies: ["NeuralNotesCore"],
             path: ".",
             exclude: ["Core", "AppInfo.plist"],
-            resources: [.process("Resources")]
+            resources: [
+                .process("Assets.xcassets"),
+                .process("Resources/PrivacyInfo.xcprivacy"),
+                .process("Resources/ThirdPartyNotices.txt"),
+                .process("Resources/NeuralNotes.entitlements")
+            ]
         )
     ],
     swiftLanguageVersions: [.v5]
@@ -71,7 +77,10 @@ def package():
     resources = source_root / "Resources"
     for source in resources.rglob("*"):
         if source.is_file() and source.name != "Info.plist":
-            pairs.append((source, OUTPUT / "Resources" / source.relative_to(resources)))
+            relative = source.relative_to(resources)
+            # Keep catalogs visible at the app target root, independently of loose files.
+            destination = OUTPUT / relative if relative.parts[0].endswith(".xcassets") else OUTPUT / "Resources" / relative
+            pairs.append((source, destination))
     for source, destination in pairs:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, destination)
@@ -82,7 +91,18 @@ def package():
     assert actual == expected, "Unexpected stale files in generated app playground; inspect output before rebuilding."
     assert sum("@main" in p.read_text(encoding="utf-8") for p in OUTPUT.rglob("*.swift")) == 1
     assert (OUTPUT / "Core/Domain/LibraryModels.swift").is_file()
-    assert (OUTPUT / "Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png").is_file()
+    catalog = OUTPUT / "Assets.xcassets"
+    icon_set = catalog / "AppIcon.appiconset"
+    icon_contents = json.loads((icon_set / "Contents.json").read_text())
+    assert all((icon_set / image["filename"]).is_file() for image in icon_contents["images"])
+    assert (catalog / "AccentColor.colorset/Contents.json").is_file()
+    # The App Playground uses Apple's generated icon: no AppIcon lookup is required
+    # in the asset-compiler invocation for the app wrapper. The Xcode app retains
+    # the custom icon. Linux syntax checks cannot exercise that Apple build step.
+    assert 'appIcon: .placeholder(icon: .openBook)' in MANIFEST
+    assert 'appIcon: .asset(' not in MANIFEST
+    assert '.process("Assets.xcassets")' in MANIFEST
+    assert '.process("Resources")' not in MANIFEST
     # Root app target follows Apple's App Playground layout. Core stays independent.
     assert 'bundle: .module' in (OUTPUT / "DesignSystem/Brand.swift").read_text()
     core_sources = {p.relative_to(OUTPUT).as_posix() for p in (OUTPUT / "Core").rglob("*.swift")}
@@ -94,7 +114,7 @@ def package():
     assert len(core_sources | app_sources) == sum(1 for _ in source_root.rglob("*.swift"))
     assert 'path: ".",\n            exclude: ["Core", "AppInfo.plist"]' in MANIFEST
 
-    archive_path = ROOT / ".verification/NeuralNotes-iPad-0.20.5.zip"
+    archive_path = ROOT / ".verification/NeuralNotes-iPad-0.20.6.zip"
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(OUTPUT.rglob("*")):
             if path.is_file():
@@ -107,6 +127,7 @@ def package():
             assert archive.read(name) == disk.read_bytes()
     print(f"PASS: self-contained iPad app playground ({len(pairs)} unchanged source/resource files + manifest)")
     print("PASS: archive checksums, exact file set, single entry point and resource lookup")
+    print("PASS: generated Playgrounds icon, explicit app catalog, referenced icon images and accent set")
     print(f"ZIP: {archive_path}")
     print(f"SHA256: {hashlib.sha256(archive_path.read_bytes()).hexdigest()}")
     print("NOT RUN: Swift compilation and execution on iPad")

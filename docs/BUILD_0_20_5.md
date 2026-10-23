@@ -1,5 +1,7 @@
 # NeuralNotes 0.20.5 / build 41 — riduzione delle espressioni SwiftUI della Lente
 
+**Aggiornamento successivo:** la nuova foto identifica un errore del compilatore degli asset, che non trova AppIcon nei cataloghi in input. L'ipotesi di timeout qui sotto non è confermata. [Correzione 0.20.6](FIXES_0_20_6.md).
+
 23 ottobre 2026. L'utente segnala che la build si blocca, senza un nuovo messaggio del compilatore o log di Playgrounds. **La causa del blocco sull'iPad non è accertata.** Non viene attribuita con certezza a memoria, prestazioni del dispositivo, cache o timeout del compilatore.
 
 ## Cosa risulta verificato
