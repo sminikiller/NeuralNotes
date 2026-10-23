@@ -3,7 +3,7 @@
 ## Cambiamenti
 
 - Cambio pagina: annullamento delle anteprime obsolete, rimozione sincronizzata di backing store, livelli di replay/ricerca/selezione e stato degli oggetti; test di regressione con ritorno alla pagina originale. La segnalazione fisica dell’utente non è riprodotta direttamente sul suo iPad.
-- Cloud dell’account: code e archivi distinti per utente e servizio; controllo dell’identità dopo gli await, conservazione delle vecchie code non attribuibili, pubblicazione atomica di un nuovo archivio prima di togliere quello sostituito.
+- Cloud dell’account: prove aggiunte su azioni rimaste aperte e cambi di account durante una prenotazione di upload. Operazioni multiple vincolate all’identità iniziale; code e archivi distinti per utente e servizio; controllo dell’identità dopo gli await, conservazione delle vecchie code non attribuibili, pubblicazione atomica di un nuovo archivio prima di togliere quello sostituito.
 - iCloud: checkpoint per account Apple, invalidazione della cache e dei conflitti a cambio utente, verifiche di identità prima di installare una copia scaricata o salvare i chunk. Richiede app firmata e contenitore CloudKit configurato.
 - Account accessibile dalla libreria; nome, esportazione JSON a pagine senza caricare tutto in memoria, cancellazione con codice email. La cancellazione rimuove fisicamente i file prima di Auth e riprende se interrotta. Quaderni locali conservati; materiale di altri autori protetto.
 - Corretto un timeout reale nella gestione dei conflitti: `40001` causava ritentativi automatici di PostgREST. I conflitti intenzionali ora usano `PT409`.

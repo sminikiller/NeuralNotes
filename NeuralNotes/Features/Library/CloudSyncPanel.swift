@@ -65,7 +65,7 @@ struct CloudSyncPanel: View {
                             Button("Scarica la versione del cloud come copia") { Task { await cloud.downloadCopy(remote, library: library) } }
                         }
                     }
-                    Button("Annulla questo backup", role: .destructive) { cloud.discard(job.documentID) }
+                    Button("Annulla questo backup", role: .destructive) { Task { await cloud.discard(job.documentID) } }
                 }
             }
             Button("Riprova adesso", systemImage: "arrow.triangle.2.circlepath") { Task { await cloud.retry() } }

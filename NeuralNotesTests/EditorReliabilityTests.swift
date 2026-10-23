@@ -8,6 +8,59 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class EditorReliabilityTests: XCTestCase {
+    @MainActor func testCloudActionsAndInterruptedUploadStayBoundToOriginalAccount() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-isolation-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let study = URL(string: "https://gateway.example/v1/study")!, first = UUID(), second = UUID(), document = UUID()
+        let config = Data(#"{"version":1,"managed":true,"auth":{"url":"https://project.example","publicKey":"sb_publishable_fixture_only"}}"#.utf8)
+        let service = try ManagedAIService.decode(config, studyURL: study)
+        func tokens(_ id: UUID, email: String) throws -> Data {
+            try JSONSerialization.data(withJSONObject: ["access_token": "fixture-access", "refresh_token": "fixture-refresh", "expires_in": 3600,
+                "user": ["id": id.uuidString, "email": email, "is_anonymous": false]])
+        }
+        let firstData = try tokens(first, email: "a@example.invalid"), secondData = try tokens(second, email: "b@example.invalid")
+        let firstOwner = CloudBackupOwner(studyURL: study, userID: first), secondOwner = CloudBackupOwner(studyURL: study, userID: second)
+        let store = CloudIsolationSessionStorage(try ManagedAISession.decode(firstData, service: service, now: Date()))
+        let auth = ManagedAIClient(transport: CloudIsolationAuthTransport(first: firstData, second: secondData), storage: store)
+        let firstFolder = CloudBackupService.storageFolder(for: firstOwner, under: root)
+        let secondFolder = CloudBackupService.storageFolder(for: secondOwner, under: root)
+        XCTAssertNotEqual(firstFolder, secondFolder)
+        var firstQueue = CloudBackupQueue(owner: firstOwner), secondQueue = CloudBackupQueue(owner: secondOwner)
+        let firstJob = CloudBackupJob(documentID: document, title: "Originale A", archiveFile: "first.nnbackup", checksum: String(repeating: "a", count: 64), bytes: 1, expectedRevision: 0)
+        var secondJob = CloudBackupJob(documentID: document, title: "Originale B", archiveFile: "second.nnbackup", checksum: String(repeating: "b", count: 64), bytes: 1, expectedRevision: 7)
+        secondJob.conflict = true
+        try firstQueue.enqueue(firstJob); try secondQueue.enqueue(secondJob)
+        for (folder, queue, job, byte) in [(firstFolder, firstQueue, firstJob, UInt8(1)), (secondFolder, secondQueue, secondJob, UInt8(2))] {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try JSONEncoder().encode(queue).write(to: folder.appendingPathComponent("queue.json"))
+            try Data([byte]).write(to: folder.appendingPathComponent(job.archiveFile))
+        }
+        let unchangedB = try Data(contentsOf: secondFolder.appendingPathComponent("queue.json"))
+        let path = "\(first.uuidString.lowercased())/cloud/\(document.uuidString.lowercased())/\(UUID().uuidString.lowercased()).nnbackup"
+        let reservation: [String: Any] = ["objectPath": path, "method": "POST", "uploadURL": "https://project.example/storage/v1/object/neuralnotes-private/" + path,
+            "publicKey": "sb_publishable_fixture_only", "expectedBytes": 1, "requiresUserBearer": true, "upsert": false]
+        let reservationData = try JSONSerialization.data(withJSONObject: reservation)
+        let cloud = CloudBackupService(folder: root, client: auth, transport: { request in
+            XCTAssertTrue(request.url?.path.hasSuffix("/uploads") == true, "No upload/commit must follow an account change")
+            _ = try await auth.verify(email: "b@example.invalid", code: "123456")
+            return ManagedAIHTTPResponse(data: reservationData, status: 201)
+        })
+        await cloud.prepareAccount(); XCTAssertEqual(cloud.queue.owner, firstOwner)
+        _ = try await auth.verify(email: "b@example.invalid", code: "123456")
+        await cloud.replaceCloudVersion(document) // action from an old A screen, now B is signed in
+        XCTAssertEqual(cloud.queue.owner, secondOwner); XCTAssertEqual(cloud.queue.jobs, [secondJob])
+        _ = try await auth.verify(email: "a@example.invalid", code: "123456")
+        await cloud.discard(document) // old B screen must not remove A's archive
+        XCTAssertEqual(cloud.queue.owner, firstOwner); XCTAssertEqual(cloud.queue.jobs, [firstJob])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstFolder.appendingPathComponent(firstJob.archiveFile).path))
+        await cloud.retry() // switches A→B while the reservation request is suspended
+        XCTAssertEqual(cloud.queue.owner, firstOwner); XCTAssertEqual(cloud.queue.jobs.first?.stage, .prepared)
+        XCTAssertNil(cloud.queue.jobs.first?.objectPath); XCTAssertEqual(cloud.queue.jobs.first?.attempts, 1)
+        XCTAssertEqual(try Data(contentsOf: secondFolder.appendingPathComponent("queue.json")), unchangedB)
+        XCTAssertEqual(try Data(contentsOf: firstFolder.appendingPathComponent(firstJob.archiveFile)), Data([1]))
+        await cloud.prepareAccount(); XCTAssertEqual(cloud.queue.owner, secondOwner); XCTAssertEqual(cloud.queue.jobs, [secondJob])
+    }
+
     @MainActor func testChangingToBlankPageDropsOldPresentationLayersAndKeepsSourceData() async throws {
         try await fixture { model in
             let host = CanvasHost(canvas: model.canvas); host.model = model
@@ -427,5 +480,21 @@ final class EditorReliabilityTests: XCTestCase {
         let coordinator = picker.makeCoordinator()
         coordinator.picker(PHPickerViewController(configuration: PHPickerConfiguration()), didFinishPicking: [])
         XCTAssertTrue(finished)
+    }
+}
+
+
+private final class CloudIsolationSessionStorage: ManagedAISessionStorage, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: ManagedAISession?
+    init(_ value: ManagedAISession) { self.value = value }
+    func load() throws -> ManagedAISession? { lock.lock(); defer { lock.unlock() }; return value }
+    func save(_ session: ManagedAISession?) throws { lock.lock(); defer { lock.unlock() }; value = session }
+}
+private struct CloudIsolationAuthTransport: ManagedAITransport {
+    let first: Data; let second: Data
+    func send(_ request: URLRequest) async throws -> ManagedAIHTTPResponse {
+        let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
+        return ManagedAIHTTPResponse(data: body?["email"] as? String == "a@example.invalid" ? first : second, status: 200)
     }
 }

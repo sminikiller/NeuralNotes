@@ -64,7 +64,13 @@ async function signIn(email) {
   const session = verified.json(); assert.ok(session.access_token && session.refresh_token && session.user.id); return session;
 }
 try {
-  assert.equal(await store.platformVersion(),2,'All account/cloud migrations are installed');
+  let ready=false;
+  for(let attempt=0;attempt<100;attempt++) {
+    try { ready=(await store.platformVersion())===2; } catch { }
+    if(ready)break;
+    await new Promise(resolve=>setTimeout(resolve,150));
+  }
+  assert.ok(ready,'PostgREST schema cache sees all account/cloud migrations');
   const publicConfig = await call('/v1/config'); assert.equal(publicConfig.json().managed, true); assert.ok(!publicConfig.text.includes(config.jwtSecret));
   const a = await signIn('student-a@example.invalid'), b = await signIn('student-b@example.invalid');
   assert.notEqual(a.user.id, b.user.id);

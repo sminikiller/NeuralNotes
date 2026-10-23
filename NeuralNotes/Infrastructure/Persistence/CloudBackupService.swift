@@ -17,8 +17,13 @@ final class CloudBackupService {
     private var folder: URL
     private var owner: CloudBackupOwner?
     private var resetAfterOperation = false
+    private var operationOwner: CloudBackupOwner?
+    @ObservationIgnored private let client: ManagedAIClient
+    @ObservationIgnored private let transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)?
 
-    init(folder: URL? = nil) {
+    init(folder: URL? = nil, client: ManagedAIClient? = nil,
+         transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)? = nil) {
+        self.client = client ?? ManagedAIAccount.client; self.transport = transport
         let base = folder ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("CloudBackupQueue", isDirectory: true)
         baseFolder = base; self.folder = base
@@ -27,7 +32,7 @@ final class CloudBackupService {
     }
 
     private func finishOperation() {
-        busy = false
+        busy = false; operationOwner = nil
         if resetAfterOperation { resetAfterOperation = false; accountDidChange() }
     }
     func accountDidChange() {
@@ -35,62 +40,74 @@ final class CloudBackupService {
         owner = nil; queue = CloudBackupQueue(); documents = []; status = ""
     }
     func prepareAccount() async {
-        guard !busy else { return }; busy = true; defer { finishOperation() }
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do { try await selectAccount() } catch { status = message(error, title: "") }
     }
 
     func backup(_ book: Notebook, library: LibraryViewModel) async {
-        guard !busy else { return }; busy = true; defer { finishOperation() }
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do { try await selectAccount(); try await prepare(book, library: library) } catch { status = message(error, title: book.title); return }
         await drain()
     }
 
     func backupAll(_ library: LibraryViewModel) async {
-        guard !busy else { return }; busy = true; defer { finishOperation() }
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do { try await selectAccount() } catch { status = message(error, title: ""); return }
         var skipped: [String] = []
         for book in library.notebooks {
             if Task.isCancelled { break }
-            do { try await selectAccount(); try await prepare(book, library: library) } catch { skipped.append("«\(book.title)»: \(message(error, title: book.title))") }
+            do { try await prepare(book, library: library) } catch { skipped.append("«\(book.title)»: \(message(error, title: book.title))"); if error as? CloudBackupFailure == .signedOut { break } }
         }
         await drain()
         if !skipped.isEmpty { status = "Non salvati: " + skipped.prefix(3).joined(separator: " · ") + (skipped.count > 3 ? "…" : "") }
     }
 
     func retry() async {
-        guard !busy else { return }; busy = true; defer { finishOperation() }
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do { try await selectAccount() } catch { status = message(error, title: ""); return }
         await drain()
     }
 
     /// The student keeps the local version: the waiting copy becomes the next cloud revision.
     func replaceCloudVersion(_ documentID: UUID) async {
-        guard !busy, var job = queue.jobs.first(where: { $0.documentID == documentID }) else { return }
-        busy = true; defer { finishOperation() }
+        guard !busy else { return }
+        let expectedOwner = owner
+        busy = true; operationOwner = nil; defer { finishOperation() }
         do {
             try await selectAccount()
+            guard expectedOwner == owner else { throw CloudBackupFailure.signedOut }
+            guard var job = queue.jobs.first(where: { $0.documentID == documentID }) else { return }
             try await refreshDocuments()
             job.expectedRevision = documents.first(where: { $0.id == documentID })?.revision ?? job.expectedRevision
             job.replaceNewer = true; job.conflict = false; job.lastError = nil
             queue.update(job); try persist()
-        } catch { status = message(error, title: job.title); return }
+        } catch { status = message(error, title: ""); return }
         await drain()
     }
 
-    func discard(_ documentID: UUID) {
-        guard !busy, let job = queue.jobs.first(where: { $0.documentID == documentID }) else { return }
-        queue.drop(documentID); try? FileManager.default.removeItem(at: folder.appendingPathComponent(job.archiveFile)); try? persist()
+    func discard(_ documentID: UUID) async {
+        guard !busy else { return }
+        let expectedOwner = owner
+        busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount()
+            guard expectedOwner == owner else { throw CloudBackupFailure.signedOut }
+            guard let job = queue.jobs.first(where: { $0.documentID == documentID }) else { return }
+            let previous = queue; queue.drop(documentID)
+            do { try persist() } catch { queue = previous; throw error }
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(job.archiveFile))
+        } catch { status = message(error, title: "") }
     }
 
     func refresh() async {
-        guard !busy else { return }; busy = true; defer { finishOperation() }
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do { try await selectAccount(); try await refreshDocuments(); status = documents.isEmpty ? "Nessuna copia nel cloud." : "\(documents.count) copie nel cloud." }
         catch { status = message(error, title: "") }
     }
 
     /// Downloads a cloud copy and imports it as a new notebook: local notes are never replaced.
     func downloadCopy(_ document: CloudDocument, library: LibraryViewModel) async {
-        guard !busy else { return }; busy = true; defer { finishOperation() }
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do {
             try await selectAccount()
             let (service, token) = try await account()
@@ -202,10 +219,12 @@ final class CloudBackupService {
     }
 
     private func selectAccount() async throws {
-        guard let current = await ManagedAIAccount.client.snapshot() else {
+        guard let current = await client.snapshot() else {
             owner = nil; queue = CloudBackupQueue(); documents = []; throw CloudBackupFailure.signedOut
         }
         let next = CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID)
+        if let operationOwner, operationOwner != next { throw CloudBackupFailure.signedOut }
+        operationOwner = next
         guard next != owner else { return }
         let target = Self.storageFolder(for: next, under: baseFolder)
         let file = target.appendingPathComponent("queue.json")
@@ -219,10 +238,10 @@ final class CloudBackupService {
     }
 
     private func account() async throws -> (service: ManagedAIService, token: String) {
-        guard let current = await ManagedAIAccount.client.snapshot(),
+        guard let current = await client.snapshot(),
               owner == CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID) else { throw CloudBackupFailure.signedOut }
         do {
-            let authorization = try await ManagedAIAccount.client.authorization(for: current.service.studyURL)
+            let authorization = try await client.authorization(for: current.service.studyURL)
             guard authorization.userID == current.userID else { throw CloudBackupFailure.signedOut }
             return (current.service, authorization.token)
         } catch { throw CloudBackupFailure.signedOut }
@@ -236,6 +255,7 @@ final class CloudBackupService {
     }
 
     private func exchange(_ request: URLRequest) async throws -> (Data, Int) {
+        if let transport { let response = try await transport(request); return (response.data, response.status) }
         let session = session(timeout: 60); defer { session.finishTasksAndInvalidate() }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw CloudBackupFailure.unavailable }
