@@ -15,6 +15,18 @@ final class CloudBackupTests: XCTestCase {
     private var objectPath: String { "\(owner.uuidString.lowercased())/cloud/\(document.uuidString.lowercased())/\(object.uuidString.lowercased()).nnbackup" }
     private func data(_ value: Any) throws -> Data { try JSONSerialization.data(withJSONObject: value) }
 
+    func testQueuesNeverResumeForAnotherAccountGatewayOrUnidentifiedLegacyArchive() throws {
+        let first = CloudBackupOwner(studyURL: study, userID: owner)
+        var queue = CloudBackupQueue(owner: first); try queue.enqueue(job())
+        let restored = try JSONDecoder().decode(CloudBackupQueue.self, from: JSONEncoder().encode(queue))
+        XCTAssertTrue(restored.canResume(for: first))
+        XCTAssertFalse(restored.canResume(for: CloudBackupOwner(studyURL: study, userID: UUID())))
+        XCTAssertFalse(restored.canResume(for: CloudBackupOwner(studyURL: URL(string: "https://another.example/v1/study")!, userID: owner)))
+        var legacy = CloudBackupQueue(); try legacy.enqueue(job())
+        let old = try JSONDecoder().decode(CloudBackupQueue.self, from: JSONEncoder().encode(legacy))
+        XCTAssertFalse(old.canResume(for: first)); XCTAssertEqual(old.jobs.count, 1)
+    }
+
     func testQueueReplacesOlderCopiesAndRejectsOversizedArchives() throws {
         var queue = CloudBackupQueue()
         XCTAssertNil(try queue.enqueue(job()))

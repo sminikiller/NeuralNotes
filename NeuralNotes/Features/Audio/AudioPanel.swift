@@ -106,6 +106,7 @@ struct AudioPanel: View {
                 }
                 if let error = audio.error { Section { Text(error).foregroundStyle(.red) } }
             }
+            .accessibilityIdentifier("audioLibraryList")
             .navigationTitle("Audio e trascrizioni")
             .searchable(text: $query, prompt: "Nome della registrazione")
             .interactiveDismissDisabled(exporting)

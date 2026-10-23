@@ -13,26 +13,31 @@ final class CloudBackupService {
     var status = ""
     var documents: [CloudDocument] = []
     private(set) var queue = CloudBackupQueue()
-    private let folder: URL
+    private let baseFolder: URL
+    private var folder: URL
+    private var owner: CloudBackupOwner?
 
     init(folder: URL? = nil) {
-        self.folder = folder ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let base = folder ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("CloudBackupQueue", isDirectory: true)
-        queue = (try? loadQueue()) ?? CloudBackupQueue()
+        baseFolder = base; self.folder = base
+        // Old queues had no owner. Keep their files for recovery, never guess an account.
+        queue = CloudBackupQueue()
     }
 
     func backup(_ book: Notebook, library: LibraryViewModel) async {
         guard !busy else { return }; busy = true; defer { busy = false }
-        do { try await prepare(book, library: library) } catch { status = message(error, title: book.title); return }
+        do { try await selectAccount(); try await prepare(book, library: library) } catch { status = message(error, title: book.title); return }
         await drain()
     }
 
     func backupAll(_ library: LibraryViewModel) async {
         guard !busy else { return }; busy = true; defer { busy = false }
+        do { try await selectAccount() } catch { status = message(error, title: ""); return }
         var skipped: [String] = []
         for book in library.notebooks {
             if Task.isCancelled { break }
-            do { try await prepare(book, library: library) } catch { skipped.append("«\(book.title)»: \(message(error, title: book.title))") }
+            do { try await selectAccount(); try await prepare(book, library: library) } catch { skipped.append("«\(book.title)»: \(message(error, title: book.title))") }
         }
         await drain()
         if !skipped.isEmpty { status = "Non salvati: " + skipped.prefix(3).joined(separator: " · ") + (skipped.count > 3 ? "…" : "") }
@@ -40,6 +45,7 @@ final class CloudBackupService {
 
     func retry() async {
         guard !busy else { return }; busy = true; defer { busy = false }
+        do { try await selectAccount() } catch { status = message(error, title: ""); return }
         await drain()
     }
 
@@ -48,6 +54,7 @@ final class CloudBackupService {
         guard !busy, var job = queue.jobs.first(where: { $0.documentID == documentID }) else { return }
         busy = true; defer { busy = false }
         do {
+            try await selectAccount()
             try await refreshDocuments()
             job.expectedRevision = documents.first(where: { $0.id == documentID })?.revision ?? job.expectedRevision
             job.replaceNewer = true; job.conflict = false; job.lastError = nil
@@ -63,7 +70,7 @@ final class CloudBackupService {
 
     func refresh() async {
         guard !busy else { return }; busy = true; defer { busy = false }
-        do { try await refreshDocuments(); status = documents.isEmpty ? "Nessuna copia nel cloud." : "\(documents.count) copie nel cloud." }
+        do { try await selectAccount(); try await refreshDocuments(); status = documents.isEmpty ? "Nessuna copia nel cloud." : "\(documents.count) copie nel cloud." }
         catch { status = message(error, title: "") }
     }
 
@@ -71,12 +78,14 @@ final class CloudBackupService {
     func downloadCopy(_ document: CloudDocument, library: LibraryViewModel) async {
         guard !busy else { return }; busy = true; defer { busy = false }
         do {
+            try await selectAccount()
             let (service, token) = try await account()
             let (data, code) = try await exchange(CloudBackupWire.download(studyURL: service.studyURL, token: token, documentID: document.id))
             guard code == 200 else { throw CloudBackupWire.failure(status: code) }
             let file = try await downloadFile(CloudBackupWire.downloadURL(data, service: service), expectedBytes: document.bytes)
             defer { try? FileManager.default.removeItem(at: file) }
             if let checksum = document.checksum { guard try Self.sha256(file) == checksum else { throw CloudBackupFailure.invalidResponse } }
+            _ = try await account()
             await library.importNotebook(from: file)
             status = library.errorMessage == nil ? "Copia di «\(document.title)» importata come nuovo quaderno." : (library.errorMessage ?? "")
         } catch { status = message(error, title: document.title) }
@@ -116,6 +125,7 @@ final class CloudBackupService {
                 if job.stage == .prepared {
                     status = "Prenotazione di «\(job.title)»…"
                     let (data, code) = try await exchange(CloudBackupWire.reserve(studyURL: service.studyURL, token: token, job: job))
+                    _ = try await account()
                     guard code == 201 || code == 200 else { throw CloudBackupWire.failure(status: code) }
                     job.objectPath = try CloudBackupWire.reservation(data, service: service, job: job).objectPath
                     job.stage = .reserved; queue.update(job); try persist()
@@ -124,6 +134,7 @@ final class CloudBackupService {
                     status = "Caricamento di «\(job.title)» · \(ByteCountFormatter.string(fromByteCount: job.bytes, countStyle: .file))…"
                     let request = try CloudBackupWire.upload(CloudBackupWire.uploadURL(service: service, objectPath: path, documentID: job.documentID), token: token, service: service)
                     let code = try await uploadFile(request, file: folder.appendingPathComponent(job.archiveFile))
+                    _ = try await account()
                     switch code {
                     case 200, 201, 409: job.stage = .uploaded // 409: an earlier attempt already stored this exact object
                     case 400...499: job.stage = .prepared; job.objectPath = nil // expired or rejected reservation: reserve again
@@ -134,6 +145,7 @@ final class CloudBackupService {
                 }
                 if job.stage == .uploaded {
                     let (data, code) = try await exchange(CloudBackupWire.commit(studyURL: service.studyURL, token: token, job: job))
+                    _ = try await account()
                     if code == 409 {
                         job.conflict = true; job.lastError = CloudBackupFailure.conflict.localizedDescription
                         queue.update(job); try persist(); waiting += 1; continue
@@ -159,15 +171,43 @@ final class CloudBackupService {
         let (service, token) = try await account()
         let (data, code) = try await exchange(CloudBackupWire.list(studyURL: service.studyURL, token: token))
         guard code == 200 else { throw CloudBackupWire.failure(status: code) }
+        _ = try await account()
         documents = try CloudBackupWire.documents(data).filter { !$0.deleted }
     }
 
     // MARK: Account, files and transport
 
+    static func storageFolder(for owner: CloudBackupOwner, under base: URL) -> URL {
+        let identity = owner.studyURL.absoluteString + "\n" + owner.userID.uuidString.lowercased()
+        let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        return base.appendingPathComponent(key, isDirectory: true)
+    }
+
+    private func selectAccount() async throws {
+        guard let current = await ManagedAIAccount.client.snapshot() else {
+            owner = nil; queue = CloudBackupQueue(); documents = []; throw CloudBackupFailure.signedOut
+        }
+        let next = CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID)
+        guard next != owner else { return }
+        let target = Self.storageFolder(for: next, under: baseFolder)
+        let file = target.appendingPathComponent("queue.json")
+        var restored = CloudBackupQueue(owner: next)
+        if FileManager.default.fileExists(atPath: file.path) {
+            restored = try JSONDecoder().decode(CloudBackupQueue.self, from: Data(contentsOf: file))
+            guard restored.canResume(for: next) else { throw CloudBackupFailure.invalidResponse }
+        }
+        restored.jobs.removeAll { !FileManager.default.fileExists(atPath: target.appendingPathComponent($0.archiveFile).path) }
+        folder = target; owner = next; queue = restored; documents = []
+    }
+
     private func account() async throws -> (service: ManagedAIService, token: String) {
-        guard let current = await ManagedAIAccount.client.snapshot() else { throw CloudBackupFailure.signedOut }
-        do { return (current.service, try await ManagedAIAccount.client.authorization(for: current.service.studyURL).token) }
-        catch { throw CloudBackupFailure.signedOut }
+        guard let current = await ManagedAIAccount.client.snapshot(),
+              owner == CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID) else { throw CloudBackupFailure.signedOut }
+        do {
+            let authorization = try await ManagedAIAccount.client.authorization(for: current.service.studyURL)
+            guard authorization.userID == current.userID else { throw CloudBackupFailure.signedOut }
+            return (current.service, authorization.token)
+        } catch { throw CloudBackupFailure.signedOut }
     }
 
     private func session(timeout: TimeInterval) -> URLSession {
@@ -209,13 +249,6 @@ final class CloudBackupService {
         var hash = SHA256()
         while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty { hash.update(data: chunk) }
         return hash.finalize().map { String(format: "%02x", $0) }.joined()
-    }
-
-    private func loadQueue() throws -> CloudBackupQueue {
-        var value = try JSONDecoder().decode(CloudBackupQueue.self, from: Data(contentsOf: folder.appendingPathComponent("queue.json")))
-        // A job whose archive is missing cannot resume: drop it instead of failing forever.
-        value.jobs.removeAll { !FileManager.default.fileExists(atPath: folder.appendingPathComponent($0.archiveFile).path) || !$0.isValid }
-        return value
     }
 
     private func persist() throws {

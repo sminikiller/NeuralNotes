@@ -83,12 +83,23 @@ public struct CloudBackupJob: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+/// A cloud queue belongs to both a user and a gateway; neither is interchangeable.
+public struct CloudBackupOwner: Codable, Equatable, Sendable {
+    public let studyURL: URL
+    public let userID: UUID
+    public init(studyURL: URL, userID: UUID) { self.studyURL = studyURL; self.userID = userID }
+}
+
 public struct CloudBackupQueue: Codable, Equatable, Sendable {
     public static let maximumBytes: Int64 = 104_857_600
+    public var owner: CloudBackupOwner?
     public var jobs: [CloudBackupJob] = []
     /// Last cloud revision this device committed or downloaded, per document.
     public var revisions: [UUID: Int] = [:]
-    public init() {}
+    public init(owner: CloudBackupOwner? = nil) { self.owner = owner }
+    public func canResume(for account: CloudBackupOwner) -> Bool {
+        owner == account && jobs.allSatisfy(\.isValid)
+    }
     /// A newer copy of the same notebook replaces the waiting one; its archive can be removed.
     @discardableResult
     public mutating func enqueue(_ job: CloudBackupJob) throws -> CloudBackupJob? {

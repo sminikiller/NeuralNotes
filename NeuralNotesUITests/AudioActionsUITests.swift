@@ -65,9 +65,18 @@ final class AudioActionsUITests: XCTestCase {
     @MainActor
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, upwards: Bool = true,
                         file: StaticString = #filePath, line: UInt = #line) {
-        for _ in 0..<6 {
-            if element.exists && element.isHittable { break }
-            if upwards { app.swipeUp() } else { app.swipeDown() }
+        let list = app.collectionViews["audioLibraryList"]
+        XCTAssertTrue(list.waitForExistence(timeout: 5), file: file, line: line)
+        // A row can be reported hittable while clipped by a popover/navigation bar.
+        // Scroll only this list, with short drags and direction correction after overshoot.
+        for _ in 0..<18 {
+            let visible = list.frame.insetBy(dx: 12, dy: 0)
+            let top = visible.minY + 120, bottom = visible.maxY - 24
+            if element.exists && element.isHittable && element.frame.midY > top && element.frame.midY < bottom { break }
+            let down = element.exists && element.frame.height > 0 ? element.frame.midY < top : !upwards
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.5 : 0.76))
+            let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.76 : 0.5))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
         if !element.exists || !element.isHittable {
             let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)

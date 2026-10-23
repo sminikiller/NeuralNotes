@@ -90,6 +90,7 @@ struct WorkspacePanel: View {
                 }
                 Section { Text("Le configurazioni e i recenti restano in questo quaderno e nel suo backup. Le preferenze personali dell’app non vengono cambiate.").font(.caption).foregroundStyle(.secondary) }
             }
+            .accessibilityIdentifier("workspaceList")
             .navigationTitle("Workspace")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { dismiss() } } }
         }

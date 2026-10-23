@@ -1,5 +1,6 @@
 import Foundation
 import CloudKit
+import CryptoKit
 import Observation
 import NeuralNotesCore
 
@@ -21,16 +22,37 @@ final class CloudNotebookSync {
     var status = "iCloud non connesso"
     var conflicts: [UUID: CKRecord] = [:]
     @ObservationIgnored private var database: CKDatabase?
+    @ObservationIgnored private var accountScope: String?
+    @ObservationIgnored private var accountGeneration = UUID()
+    @ObservationIgnored private var accountObserver: Task<Void, Never>?
+    init() {
+        accountObserver = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .CKAccountChanged) {
+                guard !Task.isCancelled else { return }
+                self?.database = nil; self?.accountScope = nil; self?.conflicts = [:]
+                self?.accountGeneration = UUID(); self?.status = "Account iCloud cambiato. Ricollega la sincronizzazione."
+            }
+        }
+    }
+    deinit { accountObserver?.cancel() }
+    private func requireAccount(_ generation: UUID) throws {
+        guard generation == accountGeneration, accountScope != nil else { throw CloudNotebookFailure.account }
+    }
+
     @ObservationIgnored private let indexID = CKRecord.ID(recordName: "library.v1")
     private func connect() async throws -> CKDatabase {
-        if let database { return database }
         #if targetEnvironment(simulator)
         throw CloudNotebookFailure.configuration
         #else
         guard Bundle.main.object(forInfoDictionaryKey: "NNCloudSigned") as? Bool == true else { throw CloudNotebookFailure.configuration }
         let container = CKContainer(identifier: "iCloud.com.neuralnotes.NeuralNotes")
         guard try await container.accountStatus() == .available else { throw CloudNotebookFailure.account }
-        let value = container.privateCloudDatabase; database = value; return value
+        let generation = accountGeneration
+        let user = try await container.userRecordID().recordName
+        guard generation == accountGeneration else { throw CloudNotebookFailure.account }
+        let scope = SHA256.hash(data: Data(user.utf8)).map { String(format: "%02x", $0) }.joined()
+        if accountScope != scope { conflicts = [:]; accountScope = scope; database = nil }
+        let value = database ?? container.privateCloudDatabase; database = value; return value
         #endif
     }
     private func record(_ id: CKRecord.ID, database: CKDatabase) async throws -> CKRecord? {
@@ -38,23 +60,26 @@ final class CloudNotebookSync {
         catch let error as CKError where error.code == .unknownItem { return nil }
     }
     private func save(_ record: CKRecord, database: CKDatabase) async throws -> CKRecord {
+        let generation = accountGeneration; try requireAccount(generation)
         let result = try await database.modifyRecords(saving: [record], deleting: [], savePolicy: .ifServerRecordUnchanged, atomically: false)
+        try requireAccount(generation)
         guard let value = result.saveResults[record.recordID] else { throw CloudNotebookFailure.invalidSnapshot }
         return try value.get()
     }
     private func checkpoint(_ id: UUID) -> CloudSyncCheckpoint? {
-        UserDefaults.standard.data(forKey: "cloud.checkpoint.\(id)").flatMap { try? JSONDecoder().decode(CloudSyncCheckpoint.self, from: $0) }
+        UserDefaults.standard.data(forKey: "cloud.checkpoint.v2.\(accountScope ?? "unconnected").\(id)").flatMap { try? JSONDecoder().decode(CloudSyncCheckpoint.self, from: $0) }
     }
     private func remember(_ id: UUID, digest: String) {
-        if let bytes = try? JSONEncoder().encode(CloudSyncCheckpoint(local: digest, remote: digest)) { UserDefaults.standard.set(bytes, forKey: "cloud.checkpoint.\(id)") }
+        guard accountScope != nil else { return }
+        if let bytes = try? JSONEncoder().encode(CloudSyncCheckpoint(local: digest, remote: digest)) { UserDefaults.standard.set(bytes, forKey: "cloud.checkpoint.v2.\(accountScope ?? "unconnected").\(id)") }
     }
     func synchronize(_ library: LibraryViewModel) async {
         guard !busy else { return }; busy = true; defer { busy = false }
         do {
-            let database = try await connect(); status = "Sincronizzazione in corso…"
+            let database = try await connect(); let generation = accountGeneration; status = "Sincronizzazione in corso…"
             var registered: [String] = []
             for book in library.notebooks {
-                try Task.checkCancellation()
+                try Task.checkCancellation(); try requireAccount(generation)
                 guard EditorLeases.shared.reserveCloud(book.documentID) else { continue }
                 defer { EditorLeases.shared.releaseCloud(book.documentID) }
                 let workspace = try library.workspace(book)
@@ -71,7 +96,8 @@ final class CloudNotebookSync {
                 case .download:
                     guard let remote, let digest = remoteDigest else { throw CloudNotebookFailure.invalidSnapshot }
                     let archive = try await download(remote, database: database); defer { try? FileManager.default.removeItem(at: archive) }
-                    _ = try await library.installCloudArchive(archive, expectedLocal: localDigest, expectedRemote: digest)
+                    try requireAccount(generation)
+                _ = try await library.installCloudArchive(archive, expectedLocal: localDigest, expectedRemote: digest)
                     remember(book.documentID, digest: digest)
                 case .conflict: if let remote { conflicts[book.documentID] = remote }; continue
                 }
@@ -79,14 +105,17 @@ final class CloudNotebookSync {
             }
             let index = try await record(indexID, database: database)
             let ids = index?["books"] as? [String] ?? []
+            try requireAccount(generation)
             let known = Set((library.notebooks + library.trash).map { $0.documentID.uuidString })
             for name in ids where !known.contains(name) {
                 guard let id = UUID(uuidString: name), EditorLeases.shared.reserveCloud(id) else { continue }
                 defer { EditorLeases.shared.releaseCloud(id) }
                 guard let remote = try await record(CKRecord.ID(recordName: name), database: database), let digest = remote["digest"] as? String else { continue }
                 let archive = try await download(remote, database: database); defer { try? FileManager.default.removeItem(at: archive) }
+                try requireAccount(generation)
                 _ = try await library.installCloudArchive(archive, expectedLocal: nil, expectedRemote: digest); remember(id, digest: digest)
             }
+            try requireAccount(generation)
             try await register(registered, database: database)
             status = conflicts.isEmpty ? "Quaderni sincronizzati. Quelli aperti vengono riprovati dopo la chiusura." : "\(conflicts.count) conflitti: entrambe le versioni sono conservate."
         } catch is CancellationError { status = "Sincronizzazione sospesa; copie locali conservate." }
@@ -95,8 +124,10 @@ final class CloudNotebookSync {
     func importConflictCopy(_ id: UUID, library: LibraryViewModel) async {
         guard !busy, let remote = conflicts[id] else { return }; busy = true; defer { busy = false }
         do {
-            let database = try await connect(), archive = try await download(remote, database: database)
+            let database = try await connect(); let generation = accountGeneration
+            let archive = try await download(remote, database: database)
             defer { try? FileManager.default.removeItem(at: archive) }
+            try requireAccount(generation)
             await library.importNotebook(from: archive)
             if library.errorMessage == nil { conflicts.removeValue(forKey: id); status = "Copia remota importata come quaderno indipendente. Il conflitto originale resta protetto finché scegli quale versione mantenere." }
         } catch { status = error.localizedDescription }
@@ -106,7 +137,7 @@ final class CloudNotebookSync {
               EditorLeases.shared.reserveCloud(id) else { return }
         busy = true; defer { busy = false; EditorLeases.shared.releaseCloud(id) }
         do {
-            let database = try await connect()
+            let database = try await connect(); let generation = accountGeneration
             guard let latest = try await record(conflict.recordID, database: database) else { throw CloudNotebookFailure.invalidSnapshot }
             guard latest.recordChangeTag == conflict.recordChangeTag else { conflicts[id] = latest; status = "iCloud è cambiato di nuovo. Controlla entrambe le versioni prima di scegliere."; return }
             let workspace = try library.workspace(book), snapshot = try await workspace.cloudSnapshot(metadata: book)
@@ -116,24 +147,27 @@ final class CloudNotebookSync {
             } else {
                 guard let digest = latest["digest"] as? String else { throw CloudNotebookFailure.invalidSnapshot }
                 let archive = try await download(latest, database: database); defer { try? FileManager.default.removeItem(at: archive) }
+                try requireAccount(generation)
                 _ = try await library.installCloudArchive(archive, expectedLocal: snapshot.digest, expectedRemote: digest); remember(id, digest: digest)
             }
             conflicts.removeValue(forKey: id); status = "Conflitto risolto. Le copie di sicurezza restano disponibili."
         } catch { status = error.localizedDescription }
     }
     private func upload(_ archive: URL, digest: String, book: Notebook, previous: CKRecord?, database: CKDatabase) async throws -> CKRecord {
+        let generation = accountGeneration; try requireAccount(generation)
         let input = try FileHandle(forReadingFrom: archive); defer { try? input.close() }
         var chunks: [String] = [], committed = false
         defer {
-            if !committed { Task { _ = try? await database.modifyRecords(saving: [], deleting: chunks.map { CKRecord.ID(recordName: $0) }, atomically: false) } }
+            if !committed && generation == accountGeneration { Task { _ = try? await database.modifyRecords(saving: [], deleting: chunks.map { CKRecord.ID(recordName: $0) }, atomically: false) } }
         }
         while let bytes = try input.read(upToCount: 8 * 1024 * 1024), !bytes.isEmpty {
-            try Task.checkCancellation()
+            try Task.checkCancellation(); try requireAccount(generation)
             let name = "chunk.\(UUID())", file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             try bytes.write(to: file); defer { try? FileManager.default.removeItem(at: file) }
             let part = CKRecord(recordType: "NNChunk", recordID: CKRecord.ID(recordName: name)); part["asset"] = CKAsset(fileURL: file)
             _ = try await save(part, database: database); chunks.append(name)
         }
+        try requireAccount(generation)
         let expired = previous?["previousChunks"] as? [String] ?? []
         let value = previous ?? CKRecord(recordType: "NNNotebook", recordID: CKRecord.ID(recordName: book.documentID.uuidString))
         value["previousChunks"] = (previous?["chunks"] as? [String] ?? []) as CKRecordValue

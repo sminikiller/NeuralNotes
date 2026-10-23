@@ -260,7 +260,14 @@ final class EditorQuickActionsUITests: XCTestCase {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorWorkspace"].tap()
         let options = app.buttons["Penne, preset e gomma"]
-        XCTAssertTrue(options.waitForExistence(timeout: 5)); options.tap()
+        let list = app.collectionViews["workspaceList"]
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        for _ in 0..<12 {
+            if options.exists && options.isHittable && list.frame.insetBy(dx: 12, dy: 110).contains(options.frame) { break }
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)).press(forDuration: 0.05,
+                thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.52)))
+        }
+        XCTAssertTrue(options.waitForExistence(timeout: 5)); XCTAssertTrue(options.isHittable); options.tap()
         let kind = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Tipo")).firstMatch
         XCTAssertTrue(kind.waitForExistence(timeout: 5)); kind.tap()
         let fountain = app.buttons["Stilografica"]
