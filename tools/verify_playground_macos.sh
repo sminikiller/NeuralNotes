@@ -42,4 +42,10 @@ xcodebuild build -scheme "$scheme" -configuration Debug \
   -derivedDataPath "$task_root/.verification/playground-derived-data" \
   CODE_SIGNING_ALLOWED=NO \
   'OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-expression-type-checking=500 -Xfrontend -warn-long-function-bodies=1000'
-echo "App Playground package built with Xcode. Physical iPad compilation still requires verification."
+echo "Building the same extracted App Playground for an iOS device (unsigned)."
+xcodebuild build -scheme "$scheme" -configuration Debug \
+  -destination 'generic/platform=iOS' \
+  -derivedDataPath "$task_root/.verification/playground-derived-data" \
+  CODE_SIGNING_ALLOWED=NO \
+  'OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-expression-type-checking=500 -Xfrontend -warn-long-function-bodies=1000'
+echo "App Playground package built with Xcode for simulator and iOS device. Compilation inside iPad Playgrounds still requires verification."
