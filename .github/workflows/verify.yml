@@ -13,6 +13,10 @@ on:
         description: Full commit already validated for Core/native/Release/package (required for ui scope)
         type: string
         required: false
+      playground_launch:
+        description: Install and launch the app built from the actual ZIP on an iPad simulator
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -131,6 +135,8 @@ jobs:
         with:
           python-version: '3.13'
       - name: Build the delivered App Playground package
+        env:
+          NEURALNOTES_PLAYGROUND_SMOKE: ${{ inputs.playground_launch && '1' || '0' }}
         shell: bash
         run: |
           set -o pipefail
@@ -147,4 +153,5 @@ jobs:
           path: |
             .verification/playground-validation.log
             .verification/playground-schemes.json
+            .verification/playground-launch/
             .verification/NeuralNotes-iPad-*.zip

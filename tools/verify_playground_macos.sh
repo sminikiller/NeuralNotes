@@ -49,3 +49,6 @@ xcodebuild build -scheme "$scheme" -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
   'OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-expression-type-checking=500 -Xfrontend -warn-long-function-bodies=1000'
 echo "App Playground package built with Xcode for simulator and iOS device. Compilation inside iPad Playgrounds still requires verification."
+if [ "${NEURALNOTES_PLAYGROUND_SMOKE:-0}" = 1 ]; then
+  bash "$task_root/tools/verify_playground_launch_macos.sh" "$task_root"
+fi
