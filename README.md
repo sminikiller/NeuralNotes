@@ -1,4 +1,6 @@
-# NeuralNotes 0.21.1 — anteprima iPad
+# NeuralNotes 0.21.2 — anteprima iPad
+
+**0.21.2/build 47 — scarabocchio per tratti:** elimina per intero tutti i tratti attraversati, rispettando il percorso effettivo dello scarabocchio e le zone già cancellate. Conservati gomma parziale e Annulla/Ripristina. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/40004819461) PASS: 265 Core, 98 FSRS, 76 test dell'editor, cinque UI, Release e ZIP App Playground. [Consegna e limiti](docs/DELIVERY_0_21_2.md).
 
 **0.21.1/build 46 — Annulla e nuova scrittura:** chiusura del tratto PencilKit in arrivo prima di scegliere la voce della cronologia, sostituzione del disegno senza disattivare il responder nativo e protezione dai nuovi tocchi durante il ripristino. Aggiunte quattro regressioni native e una prova UI che confronta i pixel dei tratti annullati e nuovi. Verificati 265 Core, 98 FSRS e tutti i 73 test nativi dell’editor; [seguito UI](https://github.com/sminikiller/NeuralNotes/actions/runs/40001794761) PASS per tutte le cinque prove, con identità dei sorgenti dell’app imposta dalla CI. Release e ZIP App Playground compilati realmente nella verifica precedente sugli stessi sorgenti. [Dettagli e limiti](docs/DELIVERY_0_21_1.md).
 
