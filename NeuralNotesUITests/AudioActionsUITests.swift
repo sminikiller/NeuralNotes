@@ -50,11 +50,11 @@ final class AudioActionsUITests: XCTestCase {
     func testArchivedTranscriptCanBeFoundAndMovedBackToRecent() {
         let app = XCUIApplication(); openAudio(app)
         let organize = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "audioOrganize-")).firstMatch
-        reveal(organize, in: app).tap()
+        openOrganization(organize, in: app)
         let archive = app.buttons["Archivia"]; XCTAssertTrue(archive.waitForExistence(timeout: 3)); archive.tap()
         let scope = app.segmentedControls["audioLibraryScope"]
         reveal(scope, in: app, upwards: false); scope.buttons["Archivio"].tap()
-        reveal(organize, in: app).tap()
+        openOrganization(organize, in: app)
         let restore = app.buttons["Sposta nei recenti"]; XCTAssertTrue(restore.waitForExistence(timeout: 3)); restore.tap()
         reveal(scope, in: app, upwards: false); scope.buttons["Recenti"].tap()
         let read = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptRead-")).firstMatch
@@ -62,6 +62,28 @@ final class AudioActionsUITests: XCTestCase {
         XCTAssertTrue(app.scrollViews["transcriptReader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Testo da esportare"].exists)
     }
+    @MainActor
+    private func openOrganization(_ menu: XCUIElement, in app: XCUIApplication,
+                                  file: StaticString = #filePath, line: UInt = #line) {
+        let list = app.collectionViews["audioLibraryList"]
+        XCTAssertTrue(list.waitForExistence(timeout: 5), file: file, line: line)
+        for _ in 0..<14 {
+            let top = list.frame.minY + 120, bottom = list.frame.maxY - 24
+            if menu.exists && menu.frame.midY > top && menu.frame.midY < bottom {
+                XCTAssertTrue(menu.isEnabled, file: file, line: line)
+                // UIKit exposes this SwiftUI Menu through two nested AX buttons;
+                // both report non-hittable. Use the observed visible control's
+                // centre and assert the actual Archive/Restore menu afterwards.
+                menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                return
+            }
+            let down = menu.exists && menu.frame.height > 0 && menu.frame.midY < top
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.5 : 0.76)).press(forDuration: 0.05,
+                thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.76 : 0.5)))
+        }
+        XCTFail("Organizzazione audio non visibile nella lista", file: file, line: line)
+    }
+
     @MainActor @discardableResult
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, upwards: Bool = true,
                         file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {

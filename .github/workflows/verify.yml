@@ -7,7 +7,7 @@ on:
       scope:
         description: Verification to run
         type: choice
-        options: [full, playground]
+        options: [full, playground, focused]
         default: full
 permissions:
   contents: read
@@ -36,7 +36,7 @@ jobs:
       - name: Verify iPad package
         run: python tools/package_ipad.py
   backend-services:
-    if: inputs.scope != 'playground'
+    if: inputs.scope != 'playground' && inputs.scope != 'focused'
     needs: portable
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -51,7 +51,7 @@ jobs:
       - name: Real local email Auth, private Storage and gateway integration (AI provider simulated)
         run: node backend/integration/run.mjs
   upgrade:
-    if: inputs.scope != 'playground'
+    if: inputs.scope != 'playground' && inputs.scope != 'focused'
     needs: portable
     runs-on: macos-15
     timeout-minutes: 25
@@ -88,6 +88,8 @@ jobs:
         with:
           python-version: '3.13'
       - name: Build, run Swift tests and iPad UI tests
+        env:
+          NEURALNOTES_FOCUSED_TESTS: ${{ inputs.scope == 'focused' && '1' || '0' }}
         shell: bash
         run: |
           set -o pipefail
@@ -105,6 +107,7 @@ jobs:
             .verification/apple-validation.log
             .verification/**/*.xcresult
   playground:
+    if: inputs.scope != 'focused'
     runs-on: macos-15
     timeout-minutes: 25
     steps:

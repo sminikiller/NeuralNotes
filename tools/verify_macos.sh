@@ -25,14 +25,20 @@ print(devices[0]["udid"])
 fi
 result_dir=".verification/$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$result_dir"
+test_selection=()
+if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
+  test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesUITests/AudioActionsUITests)
+fi
 xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -destination "platform=iOS Simulator,id=$simulator_id" \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_dir/NeuralNotes.xcresult" \
-  CODE_SIGNING_ALLOWED=NO || verification_status=1
+  "${test_selection[@]}" CODE_SIGNING_ALLOWED=NO || verification_status=1
+if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" != 1 ]; then
 xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -configuration Release -destination 'generic/platform=iOS' \
   -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1
+fi
 if [ "$verification_status" -ne 0 ]; then
   echo "Apple verification failed; inspect the logs for each phase."
   exit "$verification_status"

@@ -9,7 +9,8 @@ import NeuralNotesCore
 
 final class EditorReliabilityTests: XCTestCase {
     @MainActor func testCloudActionsAndInterruptedUploadStayBoundToOriginalAccount() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-isolation-\(UUID())")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-isolation-\(UUID())", isDirectory: true).standardizedFileURL.resolvingSymlinksInPath()
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let study = URL(string: "https://gateway.example/v1/study")!, first = UUID(), second = UUID(), document = UUID()
         let config = Data(#"{"version":1,"managed":true,"auth":{"url":"https://project.example","publicKey":"sb_publishable_fixture_only"}}"#.utf8)
