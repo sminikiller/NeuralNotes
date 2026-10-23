@@ -207,8 +207,13 @@ enum PreciseStrokeGeometry {
     static func path(kind: ShapeKind, points: [StrokeSample]) -> UIBezierPath {
         let path = UIBezierPath()
         guard let a = points.first, let b = points.last else { return path }
-        let xs = points.map(\.x), ys = points.map(\.y)
-        let rect = CGRect(x: xs.min() ?? a.x, y: ys.min() ?? a.y, width: max(1, (xs.max() ?? b.x) - (xs.min() ?? a.x)), height: max(1, (ys.max() ?? b.y) - (ys.min() ?? a.y)))
+        let xs: [Double] = points.map(\.x)
+        let ys: [Double] = points.map(\.y)
+        let minX: Double = xs.min() ?? a.x
+        let minY: Double = ys.min() ?? a.y
+        let width: Double = max(1.0, (xs.max() ?? b.x) - minX)
+        let height: Double = max(1.0, (ys.max() ?? b.y) - minY)
+        let rect = CGRect(x: minX, y: minY, width: width, height: height)
         switch kind {
         case .line, .arrow:
             let endpoints = kind == .arrow ? HeldShapeRecognition.arrowEndpoints(points) : HeldShapeRecognition.lineEndpoints(points)

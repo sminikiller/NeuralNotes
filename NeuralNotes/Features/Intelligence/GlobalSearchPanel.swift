@@ -23,41 +23,70 @@ struct GlobalSearchPanel: View {
     var body: some View {
         NavigationStack {
             List {
-                Toggle("Indicizza la grafia nelle pause di scrittura", isOn: $automaticOCR)
-                Toggle("Quaderni in Spotlight", isOn: $spotlight)
-                Text("Spotlight usa soltanto titoli e tag dei quaderni. Il testo degli appunti resta nella ricerca interna.").font(.caption).foregroundStyle(.secondary)
-                if !SpotlightIndexer.shared.message.isEmpty { Text(SpotlightIndexer.shared.message).font(.caption).foregroundStyle(.secondary) }
-                DisclosureGroup("Testo PDF e grafia dei quaderni") {
-                    Button(indexer.running ? "Sospendi indicizzazione" : "Indicizza i quaderni esistenti", systemImage: indexer.running ? "pause.circle" : "text.viewfinder") { if indexer.running { indexer.stop() } else { indexer.start(library) } }
-                    if !indexer.status.isEmpty { Text(indexer.status).font(.caption).foregroundStyle(.secondary) }
-                    Text("Una pagina per volta: testo digitale dei PDF, poi OCR quando serve. Riprende dalle revisioni completate; i quaderni aperti vengono saltati.").font(.caption)
-                }
-                Picker("Contenuto", selection: $kind) {
-                    Text("Tutto").tag(nil as SearchContentKind?)
-                    ForEach(SearchContentKind.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
-                }
-                if library.currentFolderID != nil { Toggle("Solo questa cartella e sottocartelle", isOn: $onlyFolder) }
-                if busy { ProgressView("Ricerca nei quaderni…") }
-                if let error { Text(error).foregroundStyle(.orange) }
-                ForEach(hits) { hit in
-                    Button {
-                        dismiss(); open(hit.notebook, hit.chunk.reference, query)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(hit.notebook.title).font(.headline)
-                            SearchResultText(text: hit.chunk.text, query: query)
-                            if let time = hit.chunk.reference.seconds { Text("Audio · \(TranscriptText.clock(time))").font(.caption) }
-                            else { Text("Pagina del quaderno").font(.caption).foregroundStyle(.secondary) }
-                        }
-                    }
-                }
-                if !busy && hits.isEmpty { Text(query.count < 2 ? "Cerca almeno due caratteri in testi, PDF, OCR e trascrizioni di tutti i quaderni." : "Nessun risultato.").foregroundStyle(.secondary) }
+                indexingPreferences
+                indexControls
+                filters
+                results
             }.navigationTitle("Cerca negli appunti")
                 .searchable(text: $query, prompt: "Tutti i quaderni")
                 .task(id: spotlight) { await SpotlightIndexer.shared.update(library) }
-                .task(id: query + "|" + (kind?.rawValue ?? "all") + "|\(onlyFolder)") { await search() }
+                .task(id: searchKey) { await search() }
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
                 .onDisappear { indexer.stop() }
+        }
+    }
+
+    private var searchKey: String { query + "|" + (kind?.rawValue ?? "all") + "|\(onlyFolder)" }
+
+    @ViewBuilder private var indexingPreferences: some View {
+        Toggle("Indicizza la grafia nelle pause di scrittura", isOn: $automaticOCR)
+        Toggle("Quaderni in Spotlight", isOn: $spotlight)
+        Text("Spotlight usa soltanto titoli e tag dei quaderni. Il testo degli appunti resta nella ricerca interna.")
+            .font(.caption).foregroundStyle(.secondary)
+        if !SpotlightIndexer.shared.message.isEmpty {
+            Text(SpotlightIndexer.shared.message).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var indexControls: some View {
+        DisclosureGroup("Testo PDF e grafia dei quaderni") {
+            Button(indexer.running ? "Sospendi indicizzazione" : "Indicizza i quaderni esistenti",
+                   systemImage: indexer.running ? "pause.circle" : "text.viewfinder") {
+                if indexer.running { indexer.stop() } else { indexer.start(library) }
+            }
+            if !indexer.status.isEmpty { Text(indexer.status).font(.caption).foregroundStyle(.secondary) }
+            Text("Una pagina per volta: testo digitale dei PDF, poi OCR quando serve. Riprende dalle revisioni completate; i quaderni aperti vengono saltati.").font(.caption)
+        }
+    }
+
+    @ViewBuilder private var filters: some View {
+        Picker("Contenuto", selection: $kind) {
+            Text("Tutto").tag(nil as SearchContentKind?)
+            ForEach(SearchContentKind.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
+        }
+        if library.currentFolderID != nil { Toggle("Solo questa cartella e sottocartelle", isOn: $onlyFolder) }
+    }
+
+    @ViewBuilder private var results: some View {
+        if busy { ProgressView("Ricerca nei quaderni…") }
+        if let error { Text(error).foregroundStyle(.orange) }
+        ForEach(hits) { hit in resultButton(hit) }
+        if !busy && hits.isEmpty {
+            Text(query.count < 2 ? "Cerca almeno due caratteri in testi, PDF, OCR e trascrizioni di tutti i quaderni." : "Nessun risultato.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func resultButton(_ hit: Hit) -> some View {
+        Button {
+            dismiss(); open(hit.notebook, hit.chunk.reference, query)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(hit.notebook.title).font(.headline)
+                SearchResultText(text: hit.chunk.text, query: query)
+                if let time = hit.chunk.reference.seconds { Text("Audio · \(TranscriptText.clock(time))").font(.caption) }
+                else { Text("Pagina del quaderno").font(.caption).foregroundStyle(.secondary) }
+            }
         }
     }
     private func search() async {

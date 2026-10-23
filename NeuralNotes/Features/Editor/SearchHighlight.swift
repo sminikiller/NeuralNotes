@@ -66,8 +66,16 @@ final class SearchHighlightOverlay: UIView {
                 let words = try await VisionOCRService().words(image: bytes)
                 try Task.checkCancellation()
                 guard self.generation == key, model.page?.id == page.id, model.searchFocus == request else { return }
-                let marks = PageWords.matches(request.query, in: words).prefix(80).flatMap { PageWords.lineRects($0, in: words) }.map {
-                    CGRect(x: $0.minX * page.width, y: $0.minY * page.height, width: $0.width * page.width, height: $0.height * page.height)
+                let matches = PageWords.matches(request.query, in: words).prefix(80)
+                var marks: [CGRect] = []
+                for match in matches {
+                    for box in PageWords.lineRects(match, in: words) {
+                        let x = Double(box.minX) * page.width
+                        let y = Double(box.minY) * page.height
+                        let width = Double(box.width) * page.width
+                        let height = Double(box.height) * page.height
+                        marks.append(CGRect(x: x, y: y, width: width, height: height))
+                    }
                 }
                 self.show(boxes + marks, host: host)
             } catch { /* Highlighting is derived: never mutate or fail a saved note. */ }
