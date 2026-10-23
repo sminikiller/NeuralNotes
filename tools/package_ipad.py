@@ -10,11 +10,17 @@ import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".verification/ipad-0.21.2/NeuralNotes.swiftpm"
-ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.21.2.zip"
+OUTPUT = ROOT / ".verification/ipad-0.21.3/NeuralNotes.swiftpm"
+ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.21.3.zip"
 MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
+
+// Keep device compilation in small groups, including an optimized Play build.
+// This changes compilation scheduling, not the app's data or functionality.
+let ipadCompilerSettings: [SwiftSetting] = [
+    .unsafeFlags(["-j1", "-driver-batch-size-limit", "8", "-no-whole-module-optimization"])
+]
 
 let package = Package(
     name: "NeuralNotes",
@@ -24,8 +30,8 @@ let package = Package(
         .iOSApplication(
             name: "NeuralNotes",
             targets: ["AppModule"],
-            displayVersion: "0.21.2",
-            bundleVersion: "47",
+            displayVersion: "0.21.3",
+            bundleVersion: "48",
             appIcon: .asset("AppIcon"),
             supportedDeviceFamilies: [.pad],
             supportedInterfaceOrientations: [
@@ -43,7 +49,7 @@ let package = Package(
         )
     ],
     targets: [
-        .target(name: "NeuralNotesCore", path: "Core"),
+        .target(name: "NeuralNotesCore", path: "Core", swiftSettings: ipadCompilerSettings),
         .executableTarget(
             name: "AppModule",
             dependencies: ["NeuralNotesCore"],
@@ -54,7 +60,8 @@ let package = Package(
                 .process("Resources/PrivacyInfo.xcprivacy"),
                 .process("Resources/ThirdPartyNotices.txt"),
                 .process("Resources/NeuralNotes.entitlements")
-            ]
+            ],
+            swiftSettings: ipadCompilerSettings
         )
     ],
     swiftLanguageVersions: [.v5]
