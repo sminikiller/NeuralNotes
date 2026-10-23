@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.7
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.8
+
+## Build del vero pacchetto App Playground 0.20.8 — 23 ottobre 2026
+
+Nuovo job CI che estrae lo ZIP e compila il suo manifest e target, incluso anche nelle future verifiche complete. Run `39940980908` fallisce sul placeholder AppIcon della 0.20.7; `39941386458` passa con icona personalizzata nel catalogo alla radice; `39942124235` passa anche con tre espressioni lente semplificate. Consegnato lo ZIP esatto di quest'ultima run, SHA-256 `f00a3fb9d6216dad5febe233bdecf4d3fa0c64edcbc1a54b450d723b5afc8eba`. Compilazione SDK Xcode 16.4 per simulatore iOS arm64/x86_64, senza esecuzione fisica iPad o avvio sul simulatore. I sei test funzionali già falliti restano aperti. [Report](FIXES_0_20_8.md).
 
 ## Prima verifica Apple e consegna 0.20.7 — 23 ottobre 2026
 

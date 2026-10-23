@@ -1,5 +1,7 @@
 # NeuralNotes 0.20.7 / build 43 — ZIP successivo alla prima CI Apple
 
+**Riscontro successivo:** la verifica dedicata [39940980908](https://github.com/sminikiller/NeuralNotes/actions/runs/39940980908) estrae questo ZIP e costruisce il suo manifest AppleProductTypes: il compilatore degli asset non trova `__PlaceholderAppIcon`. La build del progetto Xcode riportata sotto resta riuscita, ma non certificava il pacchetto App Playground. Correzione e nuova verifica avviate nella 0.20.8.
+
 23 ottobre 2026. Il repository è pubblico per autorizzazione esplicita dell'utente; i job GitHub ora partono. Questa consegna impacchetta i sorgenti applicativi del commit `5efb2b3`, compilati realmente con Xcode. Dopo quel commit cambiano soltanto versione/build, documentazione e nomi degli archivi. Non vengono dichiarate corrette le sei prove ancora fallite.
 
 ## Modifiche applicative rispetto allo ZIP 0.20.6

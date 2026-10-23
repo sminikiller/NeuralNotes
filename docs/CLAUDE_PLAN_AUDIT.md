@@ -1,5 +1,7 @@
 # Piano di Claude — verifica e avanzamento
 
+La 0.20.8 aggiunge la build del pacchetto App Playground estratto dallo ZIP. Riprodotto l'errore dell'icona placeholder delle 0.20.6/0.20.7 e corretto con AppIcon personalizzata nel catalogo alla radice; run `39942124235` PASS anche con tre espressioni lente semplificate. Questo non prova il compilatore fisico dell'iPad né chiude i sei test funzionali falliti. [Report aggiornato](FIXES_0_20_8.md).
+
 La nuova foto identifica un blocco reale negli asset: AppIcon non riconosciuto. La 0.20.6 usa l'icona libro generata per Playgrounds e risorse esplicite, senza modifiche Swift o dati. [Patch e verifiche](FIXES_0_20_6.md). L'ipotesi di timeout della 0.20.5 non è confermata da questa segnalazione.
 
 La 0.20.5 divide il corpo SwiftUI del pannello della Lente e delle azioni per contenere il rischio di timeout. Il nuovo blocco segnalato non ha un log Apple disponibile e la causa resta non confermata. [Evidenze e intervento](BUILD_0_20_5.md).

@@ -63,7 +63,6 @@ jobs:
             .verification/apple-validation.log
             .verification/**/*.xcresult
   playground:
-    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'playground'
     runs-on: macos-15
     timeout-minutes: 25
     steps:

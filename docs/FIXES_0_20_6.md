@@ -1,5 +1,7 @@
 # NeuralNotes 0.20.6 / build 42 — errore AppIcon nel pacchetto iPad
 
+**Riscontro successivo 23 ottobre:** la compilazione reale dello ZIP con il suo manifest in [run 39940980908](https://github.com/sminikiller/NeuralNotes/actions/runs/39940980908) fallisce: manca `__PlaceholderAppIcon`. Il generatore dell'icona libro non ha quindi risolto il problema. I controlli locali qui sotto verificavano la configurazione, non il funzionamento di actool. La 0.20.8 ripristina l'icona personalizzata nel catalogo alla radice e viene verificata con il nuovo job dedicato, anziché affidarsi alla build del progetto Xcode separato.
+
 23 ottobre 2026. La schermata mostra `None of the input catalogs contained a matching stickers icon set, app icon set, or icon stack named "AppIcon"`. È un errore del compilatore degli asset. La riduzione delle espressioni SwiftUI della 0.20.5 non interviene su questo errore; il timeout era soltanto un'ipotesi.
 
 ## Diagnosi e correzione
