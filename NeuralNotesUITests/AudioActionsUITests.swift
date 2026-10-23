@@ -5,7 +5,7 @@ final class AudioActionsUITests: XCTestCase {
     func testSavedTranscriptHasAReadableFullTextPanel() {
         let app = XCUIApplication(); openAudio(app)
         let read = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptRead-")).firstMatch
-        reveal(read, in: app); read.tap()
+        reveal(read, in: app).tap()
         XCTAssertTrue(app.scrollViews["transcriptReader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Testo da esportare"].exists)
         XCTAssertFalse(app.textFields["transcriptTitle"].exists)
@@ -26,7 +26,7 @@ final class AudioActionsUITests: XCTestCase {
     func testEditOpensOnlyTheTranscriptEditor() {
         let app = XCUIApplication(); openAudio(app)
         let edit = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptEdit-")).firstMatch
-        reveal(edit, in: app); edit.tap()
+        reveal(edit, in: app).tap()
         XCTAssertTrue(app.textFields["transcriptTitle"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["transcriptShare"].exists)
     }
@@ -34,7 +34,7 @@ final class AudioActionsUITests: XCTestCase {
     func testExportOpensOnlyTheShareSheet() {
         let app = XCUIApplication(); openAudio(app)
         let export = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptExport-")).firstMatch
-        reveal(export, in: app); export.tap()
+        reveal(export, in: app).tap()
         // The system share UI can be in-process or a remote extension. Both
         // variants are visible in the exported AX evidence from iPadOS 18.5.
         let activity = app.otherElements.matching(NSPredicate(format: "identifier IN %@", ["ActivityListView", "ShareSheet.RemoteContainerView"])).firstMatch
@@ -52,15 +52,21 @@ final class AudioActionsUITests: XCTestCase {
         let organize = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "audioOrganize-")).firstMatch
         openOrganization(organize, in: app)
         let archive = app.buttons["Archivia"]; XCTAssertTrue(archive.waitForExistence(timeout: 3)); archive.tap()
-        let scope = app.segmentedControls["audioLibraryScope"]
-        reveal(scope, in: app, upwards: false); scope.buttons["Archivio"].tap()
+        selectScope("Archivio", index: 1, in: app)
         openOrganization(organize, in: app)
         let restore = app.buttons["Sposta nei recenti"]; XCTAssertTrue(restore.waitForExistence(timeout: 3)); restore.tap()
-        reveal(scope, in: app, upwards: false); scope.buttons["Recenti"].tap()
+        selectScope("Recenti", index: 0, in: app)
         let read = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptRead-")).firstMatch
-        reveal(read, in: app); read.tap()
+        reveal(read, in: app).tap()
         XCTAssertTrue(app.scrollViews["transcriptReader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Testo da esportare"].exists)
+    }
+    @MainActor private func selectScope(_ title: String, index: Int, in app: XCUIApplication) {
+        let scope = app.segmentedControls["audioLibraryScope"]
+        reveal(scope, in: app, upwards: false)
+        scope.coordinate(withNormalizedOffset: CGVector(dx: (Double(index) + 0.5) / 3, dy: 0.5)).tap()
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: scope.buttons[title])
+        wait(for: [selected], timeout: 5)
     }
     @MainActor
     private func openOrganization(_ menu: XCUIElement, in app: XCUIApplication,
@@ -117,6 +123,8 @@ final class AudioActionsUITests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), file: file, line: line)
         let actual = target()
         XCTAssertTrue(actual.isHittable, file: file, line: line)
+        XCTAssertGreaterThan(actual.frame.midY, list.frame.minY + 120, file: file, line: line)
+        XCTAssertLessThan(actual.frame.midY, list.frame.maxY - 24, file: file, line: line)
         return actual
     }
 }

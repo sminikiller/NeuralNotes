@@ -9,7 +9,9 @@ xcrun swift --version
 xcodebuild -showsdks
 python3 tools/check_project.py
 verification_status=0
-swift test || verification_status=1
+if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ]; then
+  swift test || verification_status=1
+fi
 
 simulator_id="${NEURALNOTES_SIMULATOR_ID:-}"
 if [ -z "$simulator_id" ]; then
@@ -29,14 +31,20 @@ test_selection=()
 if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
   test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
 fi
+if [ "${NEURALNOTES_UI_ONLY:-0}" = 1 ]; then
+  test_selection=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
+  echo "UI-only follow-up: Core/native/Release/package evidence must come from the same application sources."
+fi
 xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -destination "platform=iOS Simulator,id=$simulator_id" \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_dir/NeuralNotes.xcresult" \
   "${test_selection[@]}" CODE_SIGNING_ALLOWED=NO || verification_status=1
-xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
-  -configuration Release -destination 'generic/platform=iOS' \
-  -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1
+if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ]; then
+  xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
+    -configuration Release -destination 'generic/platform=iOS' \
+    -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1
+fi
 if [ "$verification_status" -ne 0 ]; then
   echo "Apple verification failed; inspect the logs for each phase."
   exit "$verification_status"

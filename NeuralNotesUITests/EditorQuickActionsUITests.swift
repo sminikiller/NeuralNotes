@@ -2,7 +2,9 @@ import XCTest
 import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
-    @MainActor func testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke() throws {
+    @MainActor func testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke() async throws {
+        let device = XCUIDevice.shared, orientation = device.orientation
+        device.orientation = .portrait; defer { device.orientation = orientation }
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorWorkspace"].tap()
         let gestures = app.buttons["Gesti e automatismi"]
@@ -14,7 +16,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         // The Switch AX node covers its full row; tap the actual trailing knob.
         finger.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.5)).tap()
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: finger)
-        wait(for: [enabled], timeout: 5)
+        await fulfillment(of: [enabled], timeout: 5)
         app.navigationBars["Gesti e automatismi"].buttons["Workspace"].tap()
         let done = app.buttons["Fine"]; XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
         app.buttons["tool-Penna"].tap()
@@ -31,7 +33,9 @@ final class EditorQuickActionsUITests: XCTestCase {
         @MainActor func darkPixels(in area: CGRect) throws -> Int {
             let screen = XCUIScreen.main.screenshot().image
             let image = try XCTUnwrap(screen.cgImage)
-            let scale = CGFloat(image.width) / screen.size.width
+            // Screenshot UIImage.scale can differ between simulator captures;
+            // automation coordinates are always in the application's logical points.
+            let scale = CGFloat(image.width) / app.frame.width
             let crop = try XCTUnwrap(image.cropping(to: CGRect(x: area.minX * scale, y: area.minY * scale, width: area.width * scale, height: area.height * scale)))
             var pixels = [UInt8](repeating: 255, count: crop.width * crop.height * 4)
             try pixels.withUnsafeMutableBytes { bytes in
@@ -41,27 +45,41 @@ final class EditorQuickActionsUITests: XCTestCase {
             }
             return stride(from: 0, to: pixels.count, by: 4).filter { pixels[$0] < 100 && pixels[$0 + 1] < 100 && pixels[$0 + 2] < 100 }.count
         }
+        @MainActor func renderedPixels(in area: CGRect, ink: Bool, baseline: Int) async throws -> Int {
+            let deadline = Date().addingTimeInterval(5)
+            var pixels = try darkPixels(in: area)
+            while Date() < deadline {
+                if ink ? pixels > baseline + 30 : pixels <= baseline + 10 { return pixels }
+                try await Task.sleep(for: .milliseconds(100))
+                pixels = try darkPixels(in: area)
+            }
+            return pixels
+        }
         let blank = try darkPixels(in: first)
         draw(in: first)
         let undo = app.buttons["editorUndo"], redo = app.buttons["editorRedo"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)
-        wait(for: [ready], timeout: 5)
-        XCTAssertGreaterThan(try darkPixels(in: first), blank + 30, "The test must really draw through PencilKit")
+        await fulfillment(of: [ready], timeout: 5)
+        let initialInk = try await renderedPixels(in: first, ink: true, baseline: blank)
+        XCTAssertGreaterThan(initialInk, blank + 30, "The test must really draw through PencilKit")
         undo.tap()
         let undone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
-        wait(for: [undone], timeout: 5)
-        XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10)
+        await fulfillment(of: [undone], timeout: 5)
+        let erasedInk = try await renderedPixels(in: first, ink: false, baseline: blank)
+        XCTAssertLessThanOrEqual(erasedInk, blank + 10)
         draw(in: second)
         let branched = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == false"), object: redo)
-        wait(for: [branched], timeout: 5)
-        XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
+        await fulfillment(of: [branched], timeout: 5)
+        let newInk = try await renderedPixels(in: second, ink: true, baseline: blank)
+        XCTAssertGreaterThan(newInk, blank + 30)
         XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10, "The undone line must remain absent after a new native stroke")
         undo.tap()
         let redoReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
-        wait(for: [redoReady], timeout: 5); redo.tap()
+        await fulfillment(of: [redoReady], timeout: 5); redo.tap()
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)
-        wait(for: [restored], timeout: 5)
-        XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
+        await fulfillment(of: [restored], timeout: 5)
+        let restoredInk = try await renderedPixels(in: second, ink: true, baseline: blank)
+        XCTAssertGreaterThan(restoredInk, blank + 30)
         XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10)
     }
 
