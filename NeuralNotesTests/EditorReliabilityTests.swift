@@ -15,13 +15,18 @@ final class EditorReliabilityTests: XCTestCase {
                 let removed = PKStroke(ink: first.ink, path: first.path, transform: CGAffineTransform(translationX: 0, y: 120), mask: nil)
                 let replacement = PKStroke(ink: first.ink, path: first.path, transform: CGAffineTransform(translationX: 0, y: 240), mask: nil)
                 model.replaceInkSession(with: PKDrawing()); model.history.clear()
-                func write(_ ink: PKStroke) {
+                @MainActor func write(_ ink: PKStroke) {
                     model.strokeBegan()
                     model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [ink])
                     model.drawingChanged(); model.strokeEnded(); model.finishInkGesture()
                 }
-                func check(_ expected: [PKStroke], file: StaticString = #filePath, line: UInt = #line) {
+                @MainActor func check(_ expected: [PKStroke], file: StaticString = #filePath, line: UInt = #line) {
                     XCTAssertEqual(EditorInkSignatures.make(model.canvas.drawing), EditorInkSignatures.make(PKDrawing(strokes: expected)), file: file, line: line)
+                    for (actual, wanted) in zip(model.canvas.drawing.strokes, expected) {
+                        XCTAssertEqual(actual.renderBounds.minY, wanted.renderBounds.minY, accuracy: 0.01, file: file, line: line)
+                        XCTAssertEqual(actual.renderBounds.minX, wanted.renderBounds.minX, accuracy: 0.01, file: file, line: line)
+                        XCTAssertEqual(actual.ink.inkType, wanted.ink.inkType, file: file, line: line)
+                    }
                 }
                 write(first); write(removed)
                 await model.performUndo(); check([first]); XCTAssertTrue(model.canRedo)

@@ -17,12 +17,12 @@ final class EditorQuickActionsUITests: XCTestCase {
         let frame = canvas.frame
         let first = CGRect(x: frame.midX - 45, y: frame.minY + frame.height * 0.45 - 12, width: 90, height: 24)
         let second = first.offsetBy(dx: 0, dy: 80)
-        func draw(in area: CGRect) {
+        @MainActor func draw(in area: CGRect) {
             let origin = app.coordinate(withNormalizedOffset: .zero)
             origin.withOffset(CGVector(dx: area.minX, dy: area.midY)).press(forDuration: 0.05,
                 thenDragTo: origin.withOffset(CGVector(dx: area.maxX, dy: area.midY)), withVelocity: .slow, thenHoldForDuration: 0)
         }
-        func darkPixels(in area: CGRect) throws -> Int {
+        @MainActor func darkPixels(in area: CGRect) throws -> Int {
             let screen = XCUIScreen.main.screenshot().image
             let image = try XCTUnwrap(screen.cgImage)
             let scale = CGFloat(image.width) / screen.size.width
@@ -50,7 +50,9 @@ final class EditorQuickActionsUITests: XCTestCase {
         wait(for: [branched], timeout: 5)
         XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
         XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10, "The undone line must remain absent after a new native stroke")
-        undo.tap(); redo.tap()
+        undo.tap()
+        let redoReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
+        wait(for: [redoReady], timeout: 5); redo.tap()
         XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
         XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10)
     }
