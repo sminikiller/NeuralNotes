@@ -32,7 +32,7 @@ extension EditorViewModel {
             let corrected = TextScratchEraser.eraseFormattedWords(texts[index], in: area, pageHeight: page.height)
             if corrected.text != texts[index].text { texts[index] = corrected; textChanged = true }
         }
-        let erased = InkScratchEraser.erase(previous, in: area)
+        let erased = InkScratchEraser.erase(previous, in: area, wholeStroke: true)
         guard textChanged || erased.erased else { return false }
         self.page?.texts = texts.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         self.page?.pruneObjectReferences()

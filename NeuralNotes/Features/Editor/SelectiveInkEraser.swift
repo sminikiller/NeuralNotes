@@ -18,7 +18,7 @@ enum SelectiveInkEraser {
         for stroke in drawing.strokes {
             guard stroke.ink.inkType == .marker, stroke.renderBounds.intersects(area.boundingBoxOfPath) else { result.append(stroke); continue }
             if wholeStroke {
-                if InkScratchEraser.erase(PKDrawing(strokes: [stroke]), in: area).erased { changed = true }
+                if InkScratchEraser.erase(PKDrawing(strokes: [stroke]), in: area, wholeStroke: true).erased { changed = true }
                 else { result.append(stroke) }
                 continue
             }

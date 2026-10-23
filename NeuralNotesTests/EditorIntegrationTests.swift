@@ -479,8 +479,7 @@ final class EditorIntegrationTests: XCTestCase {
             model.drawingChanged()
             try await Task.sleep(for: .milliseconds(250))
             XCTAssertNil(model.editBeforeGesture)
-            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
-            XCTAssertNotNil(model.canvas.drawing.strokes.first?.mask)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
             await model.performUndo(); XCTAssertNil(model.canvas.drawing.strokes.first?.mask)
             XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
         }
@@ -571,34 +570,95 @@ final class EditorIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testLoopedScratchCutsOnlyItsActualTraceAndLeavesInteriorAndNearbyInkAfterUndoAndReload() async throws {
+    func testLoopedScratchRemovesCrossedStrokesAndLeavesInteriorAndNearbyInkAfterUndoAndReload() async throws {
         try await withEditor { model in
             model.editWorkspace { $0.scratchErase = true }
             let crossing = inkStroke([CGPoint(x: 20, y: 200), CGPoint(x: 320, y: 200)])
             let interior = inkStroke([CGPoint(x: 185, y: 210), CGPoint(x: 215, y: 210)])
-            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [crossing, interior])
+            let nearby = inkStroke([CGPoint(x: 270, y: 200), CGPoint(x: 320, y: 200)])
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [crossing, interior, nearby])
             model.strokeEnded(); model.finishInkGesture()
             var loop: [CGPoint] = []
             for i in 0...240 {
                 let angle = Double(i) * 6 * Double.pi / 240
                 loop.append(CGPoint(x: 200 + cos(angle) * 60, y: 200 + sin(angle) * 40))
             }
-            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [crossing, interior, inkStroke(loop)])
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [crossing, interior, nearby, inkStroke(loop)])
             model.strokeEnded(); model.finishInkGesture()
             XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
-            let mask = try XCTUnwrap(model.canvas.drawing.strokes.first?.mask)
-            XCTAssertFalse(mask.contains(CGPoint(x: 260, y: 200)))
-            XCTAssertFalse(mask.contains(CGPoint(x: 140, y: 200)))
-            XCTAssertTrue(mask.contains(CGPoint(x: 200, y: 200)))
-            XCTAssertTrue(mask.contains(CGPoint(x: 300, y: 200)))
-            XCTAssertNil(model.canvas.drawing.strokes[1].mask)
-            await model.performUndo(); XCTAssertNil(model.canvas.drawing.strokes.first?.mask)
-            await model.performRedo(); XCTAssertNotNil(model.canvas.drawing.strokes.first?.mask)
+            XCTAssertEqual(model.canvas.drawing.strokes.map { $0.path.creationDate }, [interior, nearby].map { $0.path.creationDate })
+            XCTAssertTrue(model.canvas.drawing.strokes.allSatisfy { $0.mask == nil })
+            await model.performUndo()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 3)
+            XCTAssertEqual(model.canvas.drawing.strokes.first?.renderBounds, crossing.renderBounds)
+            await model.performRedo()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
             let saved = await model.flush(); XCTAssertTrue(saved)
             try await model.load(try XCTUnwrap(model.page))
-            XCTAssertTrue(try XCTUnwrap(model.canvas.drawing.strokes.first?.mask).contains(CGPoint(x: 200, y: 200)))
-            XCTAssertNil(model.canvas.drawing.strokes[1].mask)
+            XCTAssertEqual(model.canvas.drawing.strokes.map { $0.path.creationDate }, [interior, nearby].map { $0.path.creationDate })
+            XCTAssertTrue(model.canvas.drawing.strokes.allSatisfy { $0.mask == nil })
         }
+    }
+
+    @MainActor
+    func testScratchRemovesEveryCrossedStrokeAsOneUndoableEdit() async throws {
+        try await withEditor { model in
+            model.editWorkspace { $0.scratchErase = true }
+            let crossed = [110, 130, 150].map { x in
+                inkStroke([CGPoint(x: x, y: 60), CGPoint(x: x, y: 160)])
+            }
+            let nearby = inkStroke([CGPoint(x: 180, y: 60), CGPoint(x: 180, y: 160)])
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: crossed + [nearby])
+            model.strokeEnded(); model.finishInkGesture()
+            let points = (0..<12).map { i in
+                CGPoint(x: i % 2 == 0 ? 100 : 160, y: 80 + i * 3)
+            }
+            model.strokeBegan()
+            model.canvas.drawing = PKDrawing(strokes: crossed + [nearby, inkStroke(points)])
+            model.strokeEnded(); model.finishInkGesture()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertEqual(model.canvas.drawing.strokes.first?.renderBounds, nearby.renderBounds)
+            XCTAssertNil(model.canvas.drawing.strokes.first?.mask)
+            await model.performUndo()
+            XCTAssertEqual(model.canvas.drawing.strokes.map { $0.renderBounds }, (crossed + [nearby]).map { $0.renderBounds })
+            await model.performRedo()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            try await model.load(try XCTUnwrap(model.page))
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertEqual(model.canvas.drawing.strokes.first?.renderBounds, nearby.renderBounds)
+        }
+    }
+
+    @MainActor
+    func testWholeStrokeErasureIgnoresAnAlreadyErasedGapAndRemovesAllRemainingPiecesOnContact() throws {
+        let original = inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 300, y: 80)])
+        let partial = InkScratchEraser.erase(PKDrawing(strokes: [original]), in: CGRect(x: 100, y: 65, width: 80, height: 30))
+        let drawing = try PKDrawing(data: partial.drawing.dataRepresentation())
+        XCTAssertNotNil(drawing.strokes.first?.mask)
+        let gap = CGPath(rect: CGRect(x: 125, y: 70, width: 20, height: 20), transform: nil)
+        let untouched = InkScratchEraser.erase(drawing, in: gap, wholeStroke: true)
+        XCTAssertFalse(untouched.erased)
+        XCTAssertEqual(untouched.drawing.strokes.count, 1)
+        let contact = CGPath(rect: CGRect(x: 210, y: 70, width: 20, height: 20), transform: nil)
+        let erased = InkScratchEraser.erase(drawing, in: contact, wholeStroke: true)
+        XCTAssertTrue(erased.erased)
+        XCTAssertTrue(try PKDrawing(data: erased.drawing.dataRepresentation()).strokes.isEmpty)
+    }
+
+    @MainActor
+    func testWholeStrokeErasureFindsTransformedInkAndDotsWithoutErasingTheirBoundingBox() throws {
+        let original = inkStroke([CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)])
+        let transform = CGAffineTransform(a: 0, b: 2, c: -2, d: 0, tx: 200, ty: 100)
+        let moved = PKStroke(ink: original.ink, path: original.path, transform: transform)
+        let dot = inkStroke([CGPoint(x: 205, y: 200)])
+        let nearby = inkStroke([CGPoint(x: 240, y: 200), CGPoint(x: 240, y: 250)])
+        let area = CGPath(rect: CGRect(x: 190, y: 190, width: 25, height: 20), transform: nil)
+        let erased = InkScratchEraser.erase(PKDrawing(strokes: [moved, dot, nearby]), in: area, wholeStroke: true)
+        XCTAssertTrue(erased.erased)
+        XCTAssertEqual(erased.drawing.strokes.count, 1)
+        XCTAssertEqual(erased.drawing.strokes.first?.renderBounds, nearby.renderBounds)
+        XCTAssertNil(erased.drawing.strokes.first?.mask)
     }
 
     @MainActor
@@ -715,9 +775,9 @@ final class EditorIntegrationTests: XCTestCase {
             var scratch: [CGPoint] = []
             for i in 0..<12 { scratch.append(CGPoint(x: i % 2 == 0 ? 100 : 160, y: CGFloat(76 + i))) }
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [inkStroke(scratch)]); model.strokeEnded(); model.finishInkGesture()
-            XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertNotNil(model.canvas.drawing.strokes.first?.mask)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
             await model.performUndo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertNil(model.canvas.drawing.strokes.first?.mask)
-            await model.performRedo(); XCTAssertNotNil(model.canvas.drawing.strokes.first?.mask)
+            await model.performRedo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
         }
     }
 

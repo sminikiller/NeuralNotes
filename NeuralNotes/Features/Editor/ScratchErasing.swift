@@ -24,7 +24,7 @@ enum InkScratchEraser {
             .normalized(using: .winding)
     }
 
-    static func erase(_ drawing: PKDrawing, in area: CGPath) -> (drawing: PKDrawing, erased: Bool) {
+    static func erase(_ drawing: PKDrawing, in area: CGPath, wholeStroke: Bool = false) -> (drawing: PKDrawing, erased: Bool) {
         var result: [PKStroke] = [], erased = false
         for stroke in drawing.strokes {
             guard stroke.renderBounds.intersects(area.boundingBoxOfPath) else { result.append(stroke); continue }
@@ -53,6 +53,11 @@ enum InkScratchEraser {
                 }
             }
             guard !visible.intersection(area, using: .winding).isEmpty else { result.append(stroke); continue }
+            // Scribbling uses stroke erasure: remove the entire crossed stroke,
+            // including disconnected visible pieces left by an earlier pixel erasure.
+            // Test the visible outline first so an erased gap or enclosed empty area
+            // cannot delete ink that the scribble never actually touched.
+            if wholeStroke { erased = true; continue }
             var inverse = transform.inverted()
             let localBounds = stroke.renderBounds.applying(inverse).insetBy(dx: -2, dy: -2)
             let base: CGPath
