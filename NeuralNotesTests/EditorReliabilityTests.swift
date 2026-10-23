@@ -16,7 +16,7 @@ final class EditorReliabilityTests: XCTestCase {
         let config = Data(#"{"version":1,"managed":true,"auth":{"url":"https://project.example","publicKey":"sb_publishable_fixture_only"}}"#.utf8)
         let service = try ManagedAIService.decode(config, studyURL: study)
         func tokens(_ id: UUID, email: String) throws -> Data {
-            try JSONSerialization.data(withJSONObject: ["access_token": "fixture-access", "refresh_token": "fixture-refresh", "expires_in": 3600,
+            try JSONSerialization.data(withJSONObject: ["access_token": "fixture-access", "refresh_token": "fixture-refresh", "token_type": "bearer", "expires_in": 3600,
                 "user": ["id": id.uuidString, "email": email, "is_anonymous": false]])
         }
         let firstData = try tokens(first, email: "a@example.invalid"), secondData = try tokens(second, email: "b@example.invalid")
