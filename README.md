@@ -1,4 +1,6 @@
-# NeuralNotes 0.21.0 — anteprima iPad
+# NeuralNotes 0.21.1 — anteprima iPad
+
+**0.21.1/build 46 — Annulla e nuova scrittura:** chiusura del tratto PencilKit in arrivo prima di scegliere la voce della cronologia, sostituzione del disegno senza disattivare il responder nativo e protezione dai nuovi tocchi durante il ripristino. Aggiunte quattro regressioni native e una prova UI che confronta i pixel dei tratti annullati e nuovi. Verificati 265 Core, 98 FSRS e tutti i 73 test nativi dell’editor; [seguito UI](https://github.com/sminikiller/NeuralNotes/actions/runs/40001794761) PASS per tutte le cinque prove, con identità dei sorgenti dell’app imposta dalla CI. Release e ZIP App Playground compilati realmente nella verifica precedente sugli stessi sorgenti. [Dettagli e limiti](docs/DELIVERY_0_21_1.md).
 
 **0.21.0/build 45 — account, affidabilità e test:** reset dei livelli al cambio pagina, code cloud isolate per account, profilo/esportazione/cancellazione account e condivisione esplicita delle trascrizioni. [Verifica finale Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/39982456433) PASS: 265 Core, 98 FSRS, 26 test di affidabilità, quattro UI audio, Release e ZIP App Playground compilato. Le altre classi native/UI sono state eseguite nella suite completa precedente; i percorsi corretti sono stati riprovati. Auth email/database/Storage reali locali e aggiornamento del binario conservando il quaderno di controllo passati. Servizi pubblici e prove fisiche iPad ancora aperti. [Stato, hash e limiti](docs/DELIVERY_0_21_0.md).
 
