@@ -59,6 +59,8 @@ final class EditorQuickActionsUITests: XCTestCase {
         undo.tap()
         let redoReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
         wait(for: [redoReady], timeout: 5); redo.tap()
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)
+        wait(for: [restored], timeout: 5)
         XCTAssertGreaterThan(try darkPixels(in: second), blank + 30)
         XCTAssertLessThanOrEqual(try darkPixels(in: first), blank + 10)
     }

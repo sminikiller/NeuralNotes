@@ -92,7 +92,16 @@ final class EditorReliabilityTests: XCTestCase {
             XCTAssertFalse(native.canUndo); XCTAssertFalse(native.canRedo)
             XCTAssertTrue(model.canvas.delegate === coordinator)
             XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
-            XCTAssertEqual(model.canvas.drawing.strokes.first?.mask?.cgPath, mask.cgPath)
+            let restoredMask = try XCTUnwrap(model.canvas.drawing.strokes.first?.mask)
+            XCTAssertEqual(restoredMask.cgPath.boundingBoxOfPath, mask.cgPath.boundingBoxOfPath)
+            // PencilKit canonicalizes the starting corner/order on serialization.
+            // Verify the erased and retained regions, not the command ordering.
+            for x in stride(from: CGFloat(0), through: 310, by: 5) {
+                for y in stride(from: CGFloat(40), through: 120, by: 5) {
+                    let point = CGPoint(x: x + 0.5, y: y + 0.5)
+                    XCTAssertEqual(restoredMask.contains(point), mask.contains(point))
+                }
+            }
             XCTAssertTrue(model.canRedo)
         }
     }
