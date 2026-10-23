@@ -50,3 +50,17 @@ Esteso `tools/verify_playground_macos.sh` per compilare il pacchetto estratto an
 Questa verifica aggiuntiva controlla il codice per il dispositivo e il pacchetto reale. Non verifica firma, cache, risorse disponibili o compilazione interna di Playgrounds sull'iPad. Non è disponibile un collegamento al registro del dispositivo. La sola dicitura «Build failed» non identifica il file o la causa.
 
 Passi diagnostici reversibili: conservare il progetto attuale; chiudere e riaprire Playgrounds; estrarre lo ZIP in una nuova cartella locale di File → Sul mio iPad e aprire il pacchetto completo `NeuralNotes.swiftpm`. In caso di nuovo blocco, l'icona rossa degli errori in Playgrounds mostra il dettaglio utile, invece del solo titolo generico. Non è necessaria la cancellazione dei dati dell'app per queste prove.
+
+## Anteprima funzionante, pulsante Play bloccato: verifica dell'app dello ZIP
+
+L'utente ha poi confermato che l'app nell'anteprima funziona ed è fluida, mentre il pulsante Play continua a fallire. Questo distingue i due percorsi di esecuzione ma non dimostra una causa specifica: firma, compilazione/collegamento, installazione e primo avvio nell'ambiente del dispositivo restano da discriminare.
+
+La CI ora offre `playground_launch`: installa sul simulatore l'app generata dal pacchetto reale e avvia `neuralnotes.swiftpm.NeuralNotes`. Non avvia il diverso binario del progetto Xcode usato dai test UI precedenti. Conserva stdout/stderr, registro di sistema, schermate, esito JSON e un campione delle attività del processo.
+
+- [Run 40022602434](https://github.com/sminikiller/NeuralNotes/actions/runs/40022602434): compilazioni e sopravvivenza del processo passate. La prima schermata mostrava ancora «Apertura libreria». Questa prova da sola **non** confermava che la libreria fosse pronta.
+- [Run 40023821079](https://github.com/sminikiller/NeuralNotes/actions/runs/40023821079), revisione `19957bf`: compilazioni, processo in esecuzione durante le 60 iterazioni d'attesa e libreria/guida visibili passati. Il controllo Vision OCR è passato e la schermata finale è stata anche ispezionata visivamente. Le iterazioni non sono un limite preciso del tempo totale di avvio: si aggiungono lancio, campionamento e acquisizione delle immagini.
+- I 226 file del pacchetto verificato coincidono byte per byte con lo ZIP 0.21.2 già consegnato. App, editor, manifest e dati non sono stati modificati in questa indagine.
+
+È una verifica dell'avvio del pacchetto reale su simulatore, non una prova di interazione completa né dell'anteprima o del pulsante Play di Playgrounds sull'iPad fisico. Il blocco specifico del pulsante Play resta non riprodotto e non viene dichiarato risolto. Il controllo con un compilatore precedente non è stato eseguito: il primo tentativo di dispatch della nuova workflow dedicata era stato rifiutato perché assente dal ramo predefinito; nessun risultato di quella prova viene rivendicato.
+
+Per l'uso attuale vale la verifica fisica comunicata dall'utente sull'anteprima. Prima di cambiare copia del progetto è utile conservare backup nativi dei quaderni, perché copie diverse del Playground possono usare librerie separate.
