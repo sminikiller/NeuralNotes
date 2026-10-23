@@ -1,4 +1,6 @@
-# NeuralNotes 0.20.6 — anteprima iPad
+# NeuralNotes 0.20.7 — anteprima iPad
+
+**0.20.7/build 43 — pacchetto dopo la prima verifica Apple:** include la correzione dei percorsi della libreria su Darwin e i controlli di annullamento dei backup del commit `5efb2b3`. Su GitHub la build Xcode Release è riuscita e i 260 test Core macOS più 98 FSRS sono passati. Restano un fallimento nei test nativi delle forme e cinque nei test UI; Playgrounds su iPad non è ancora verificato. Da quel commit questa consegna cambia soltanto versione, documentazione e nomi degli archivi. [Risultati e limiti](docs/DELIVERY_0_20_7.md).
 
 **0.20.6/build 42 — errore AppIcon in Playgrounds:** la foto identifica un errore del compilatore degli asset, non dimostra un timeout SwiftUI. Nel pacchetto iPad l'icona è ora il libro generato da Playgrounds, senza richiedere l'asset `AppIcon`. Catalogo alla radice del target e risorse dichiarate singolarmente; il progetto Xcode conserva l'icona personalizzata. Verifiche locali del pacchetto passate, compilazione Apple ancora da confermare. [Correzione e limiti](docs/FIXES_0_20_6.md).
 
@@ -56,7 +58,7 @@ Editor SwiftUI/UIKit e PencilKit, libreria SwiftData, PDFKit/Core Graphics, AVFo
 ## Aprire sul solo iPad
 
 1. Conserva il progetto precedente e i suoi dati.
-2. In File decomprimi **NeuralNotes-iPad-0.20.6.zip** in una cartella separata.
+2. In File decomprimi **NeuralNotes-iPad-0.20.7.zip** in una cartella separata.
 3. Apri **NeuralNotes.swiftpm** in Swift Playground e premi Esegui app.
 4. Sidebar → **Verifica sul dispositivo** → **Esegui controlli sul mio iPad**: controlli temporanei incorporati, distinti dalla suite XCTest.
 5. I comandi recenti e il recupero sono nella [consegna 0.15.0](docs/DELIVERY_0_15_0.md). Restano le prove di [trascrizione lunga](docs/TESTING_0_9_1.md), [studio](docs/STUDY_WORKSPACE_0_9.md), [workspace e forme](docs/TESTING_0_8.md) e [scorrimento](docs/TESTING_0_7.md).

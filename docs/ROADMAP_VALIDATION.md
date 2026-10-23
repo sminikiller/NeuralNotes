@@ -1,4 +1,8 @@
-# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.6
+# Verifiche della lavorazione successiva alla 0.9.1 — aggiornato alla 0.20.7
+
+## Prima verifica Apple e consegna 0.20.7 — 23 ottobre 2026
+
+Repository reso pubblico su richiesta esplicita, Actions sbloccata. La run `39879092836` del commit `5efb2b3` compila la build Xcode Release; Core macOS 260 XCTest e 98 FSRS passati. Nativi simulatore 382 test, due skip e un fallimento; UI 23 test, cinque fallimenti. Run complessiva fallita: non significa che tutte le funzioni siano verificate. Nessuna prova Playgrounds/hardware o inferenza AI live. La 0.20.7 impacchetta gli stessi sorgenti applicativi con nuove versioni e documentazione. [Report e problemi aperti](DELIVERY_0_20_7.md).
 
 ## Errore asset AppIcon 0.20.6 — 23 ottobre 2026
 

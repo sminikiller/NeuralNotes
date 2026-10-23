@@ -10,7 +10,7 @@ import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".verification/ipad-0.20.6/NeuralNotes.swiftpm"
+OUTPUT = ROOT / ".verification/ipad-0.20.7/NeuralNotes.swiftpm"
 MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
@@ -23,8 +23,8 @@ let package = Package(
         .iOSApplication(
             name: "NeuralNotes",
             targets: ["AppModule"],
-            displayVersion: "0.20.6",
-            bundleVersion: "42",
+            displayVersion: "0.20.7",
+            bundleVersion: "43",
             appIcon: .placeholder(icon: .openBook),
             supportedDeviceFamilies: [.pad],
             supportedInterfaceOrientations: [
@@ -114,7 +114,7 @@ def package():
     assert len(core_sources | app_sources) == sum(1 for _ in source_root.rglob("*.swift"))
     assert 'path: ".",\n            exclude: ["Core", "AppInfo.plist"]' in MANIFEST
 
-    archive_path = ROOT / ".verification/NeuralNotes-iPad-0.20.6.zip"
+    archive_path = ROOT / ".verification/NeuralNotes-iPad-0.20.7.zip"
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(OUTPUT.rglob("*")):
             if path.is_file():
