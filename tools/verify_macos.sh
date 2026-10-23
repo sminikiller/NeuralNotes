@@ -29,7 +29,7 @@ result_dir=".verification/$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$result_dir"
 test_selection=()
 if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
-  test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
+  test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
 fi
 if [ "${NEURALNOTES_UI_ONLY:-0}" = 1 ]; then
   test_selection=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)

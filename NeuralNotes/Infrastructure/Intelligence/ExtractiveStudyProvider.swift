@@ -12,7 +12,7 @@ struct ExtractiveStudyProvider: AIProvider {
     }
 
     func generate(_ request: AIRequest) async throws -> AIArtifact {
-        let operation = Task.detached(priority: .utility) {
+        let operation = Task<AIArtifact, Error>.detached(priority: .utility) { () async throws -> AIArtifact in
             try Task.checkCancellation()
             var frequency: [String: Int] = [:]
             var candidates: [(text: String, reference: SourceReference, order: Int)] = []
@@ -31,7 +31,10 @@ struct ExtractiveStudyProvider: AIProvider {
             func score(_ value: (text: String, reference: SourceReference, order: Int)) -> Double {
                 let terms = Set(Self.words(value.text))
                 let matching = terms.intersection(query).count
-                return Double(matching * 100) + terms.reduce(0) { $0 + Double(frequency[$1, default: 0]) } / sqrt(Double(max(terms.count, 1)))
+                var weight: Double = 0
+                for term in terms { weight += Double(frequency[term, default: 0]) }
+                let length: Double = sqrt(Double(max(terms.count, 1)))
+                return Double(matching * 100) + weight / length
             }
             var seen = Set<String>()
             let ranked = candidates.sorted {

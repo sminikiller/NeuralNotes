@@ -62,7 +62,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
             object: nil, queue: .main) { [weak self] notification in
                 guard let kind = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                       kind == AVAudioSession.InterruptionType.began.rawValue else { return }
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     guard let self, self.recording else { return }
                     await self.pause(reason: "Interruzione di sistema")
                     self.error = "Registrazione messa in pausa dal sistema. Premi Riprendi quando vuoi continuare."
@@ -72,7 +72,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
             object: nil, queue: .main) { [weak self] notification in
                 guard let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
                       reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else { return }
-                Task { @MainActor in await self?.pause(reason: "Dispositivo audio scollegato") }
+                Task { @MainActor [weak self] in await self?.pause(reason: "Dispositivo audio scollegato") }
             }
     }
 

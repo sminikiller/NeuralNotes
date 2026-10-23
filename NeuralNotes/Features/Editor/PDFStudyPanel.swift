@@ -28,7 +28,9 @@ final class PDFStudyController: NSObject {
         detach()
         self.view = view
         observer = NotificationCenter.default.addObserver(forName: .PDFViewSelectionChanged, object: view, queue: .main) { [weak self, weak view] _ in
-            Task { @MainActor in self?.hasSelection = view?.currentSelection != nil }
+            Task { @MainActor [weak self, weak view] in
+                self?.hasSelection = view?.currentSelection != nil
+            }
         }
     }
     func syncMarkups(_ pages: [PageSnapshot]) {
