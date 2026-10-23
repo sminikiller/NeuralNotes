@@ -37,28 +37,47 @@ launch="$(xcrun simctl launch --terminate-running-process \
   "$simulator_id" "$bundle_id" 2>&1)" || status=$?
 printf '%s\n' "$launch" | tee "$evidence/launch.log"
 pid="${launch##*: }"
+process_survived=0
+scene_ready=0
 if [ "$status" = 0 ]; then
   if [[ "$pid" =~ ^[0-9]+$ ]]; then
-    for second in {1..20}; do
+    for second in {1..60}; do
       if ! kill -0 "$pid" 2>/dev/null; then
         echo "App Playground exited during the launch check at second $second."
         status=1
         break
       fi
+      if [ "$second" = 5 ]; then
+        /usr/bin/sample "$pid" 3 -file "$evidence/startup-sample.txt" > "$evidence/sample.log" 2>&1 || true
+      fi
+      if [ "$second" = 20 ]; then
+        xcrun simctl io "$simulator_id" screenshot "$evidence/initial-screen.png" || true
+      fi
       sleep 1
     done
+    if [ "$status" = 0 ]; then process_survived=1; fi
   else
     echo "Could not identify the App Playground process."
     status=1
   fi
 fi
 xcrun simctl io "$simulator_id" screenshot "$evidence/screen.png" || status=1
+if [ "$status" = 0 ]; then
+  if swift "$task_root/tools/check_playground_screen.swift" "$evidence/screen.png" > "$evidence/screen-text.log" 2>&1; then
+    scene_ready=1
+  else
+    cat "$evidence/screen-text.log"
+    echo "App Playground is alive but the library or first-run guide is not visible."
+    status=1
+  fi
+fi
 xcrun simctl spawn "$simulator_id" log show --last 2m --style compact \
   --predicate 'process == "NeuralNotes"' > "$evidence/system.log" 2>&1 || true
-python3 - "$evidence" "$bundle_id" "$simulator_id" "$pid" "$status" <<'PY'
+python3 - "$evidence" "$bundle_id" "$simulator_id" "$pid" "$status" "$process_survived" "$scene_ready" <<'PY'
 import json, pathlib, sys
-path, bundle, simulator, pid, status = sys.argv[1:]
-proof = dict(bundle=bundle, simulator=simulator, pid=pid, survived_20_seconds=status == '0',
+path, bundle, simulator, pid, status, alive, ready = sys.argv[1:]
+proof = dict(bundle=bundle, simulator=simulator, pid=pid, process_survived=alive == '1',
+             observation_iterations=60, library_or_guide_visible=ready == '1', passed=status == '0',
              application_source='App Playground ZIP', physical_iPad=False)
 (pathlib.Path(path) / 'result.json').write_text(json.dumps(proof, indent=2) + '\n')
 PY
@@ -66,4 +85,4 @@ if [ "$status" != 0 ]; then
   echo "App Playground launch failed; inspect the preserved logs and screenshot."
   exit "$status"
 fi
-echo "App Playground launch PASS: process survived 20 seconds; inspect screen.png for the actual scene."
+echo "App Playground launch PASS: process survived and the library or first-run guide is visible."
