@@ -159,7 +159,7 @@ begin
  insert into public.nn_documents(id,owner_id) values(target,who) on conflict(id) do nothing;
  select * into entry from public.nn_documents where id=target for update;
  if entry.owner_id<>who then raise exception 'forbidden' using errcode='42501'; end if;
- if entry.revision<>expected_revision then raise exception 'revision_conflict' using errcode='40001'; end if;
+ if entry.revision<>expected_revision then raise exception 'revision_conflict' using errcode='PT409'; end if;
  select storage_limit into cap from public.nn_entitlements where user_id=who; cap:=coalesce(cap,268435456);
  select coalesce(sum(byte_size),0) into used_bytes from public.nn_snapshots where owner_id=who;
  if used_bytes+next_bytes>cap then raise exception 'storage_quota' using errcode='P0001'; end if;

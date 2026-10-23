@@ -54,17 +54,61 @@ enum ManagedAIAccount {
     }
     /// Plan, limits and credits of the signed-in account; nil without a connected service.
     static func overview() async throws -> ManagedAccountOverview? {
-        guard let session = await client.snapshot(), let url = ManagedAccountOverview.accountURL(studyURL: session.service.studyURL) else { return nil }
-        let account = try await client.authorization(for: session.service.studyURL)
-        var request = URLRequest(url: url); request.timeoutInterval = 20
-        request.setValue("Bearer \(account.token)", forHTTPHeaderField: "Authorization")
-        let response = try await ManagedNativeTransport().send(request)
-        guard response.status == 200 else { throw response.status == 401 ? ManagedAIFailure.signedOut : ManagedAIFailure.unavailable }
+        guard await client.snapshot() != nil else { return nil }
+        let response = try await request(path: "account")
         return try ManagedAccountOverview.decode(response.data)
+    }
+    /// All account operations pin the identity across refresh and network awaits.
+    private static func request(path: String, body: [String: String]? = nil, query: [URLQueryItem] = [], owner: ManagedAISession? = nil) async throws -> ManagedAIHTTPResponse {
+        guard let original = await client.snapshot(),
+              let url = ManagedAccountOverview.operationURL(studyURL: original.service.studyURL, path: path, query: query) else { throw ManagedAIFailure.signedOut }
+        if let owner { guard original.userID == owner.userID, original.service == owner.service else { throw ManagedAIFailure.signedOut } }
+        let auth = try await client.authorization(for: original.service.studyURL)
+        guard auth.userID == original.userID else { throw ManagedAIFailure.signedOut }
+        var request = URLRequest(url: url); request.timeoutInterval = 60
+        request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.httpMethod = "POST"; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        let response = try await ManagedNativeTransport().send(request)
+        guard let current = await client.snapshot(), current.userID == original.userID, current.service == original.service else { throw ManagedAIFailure.signedOut }
+        if response.status == 401 { throw ManagedAIFailure.signedOut }
+        if response.status == 409 { throw ManagedAccountFailure.sharedHub }
+        guard (200...299).contains(response.status) else { throw ManagedAIFailure.unavailable }
+        return response
+    }
+    static func updateProfile(_ name: String, owner: ManagedAISession) async throws {
+        let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (1...80).contains(value.count) else { throw ManagedAIFailure.response }
+        _ = try await request(path: "profile", body: ["displayName": value], owner: owner)
+    }
+    /// One resumable batch: true only after physical storage, metadata and Auth are removed.
+    static func deleteAccount(owner: ManagedAISession) async throws -> Bool {
+        let response = try await request(path: "account/delete", body: ["confirmation": "ELIMINA"], owner: owner)
+        let result = try JSONSerialization.jsonObject(with: response.data) as? [String: Any]
+        if response.status == 202, result?["pending"] as? Bool == true { return false }
+        guard response.status == 200, result?["deleted"] as? Bool == true else { throw ManagedAIFailure.response }
+        try await client.signOut(); CloudBackupService.shared.accountDidChange(); return true
+    }
+    static func exportMetadata() async throws -> URL {
+        guard let original = await client.snapshot() else { throw ManagedAIFailure.signedOut }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("NeuralNotes-account-\(UUID()).json")
+        try await ManagedAccountExport.write(userID: original.userID, email: original.email, to: file) { section, offset in
+            let response = try await request(path: "account/export", query: [URLQueryItem(name: "section", value: section), URLQueryItem(name: "offset", value: String(offset))], owner: original)
+            return response.data
+        }
+        return file
     }
     static func isManaged(_ configuration: AIEngineConfiguration) async -> Bool {
         guard configuration.engine == .backend, let url = configuration.url else { return false }
         let current = await client.snapshot()
         return current?.service.studyURL == url || UserDefaults.standard.string(forKey: "ai.managed.endpoint") == url.absoluteString
     }
+}
+
+
+enum ManagedAccountFailure: LocalizedError {
+    case sharedHub
+    var errorDescription: String? { "Un gruppo di cui sei proprietario contiene materiale di altri utenti. Trasferisci prima la proprietà; nessun materiale altrui è stato cancellato." }
 }

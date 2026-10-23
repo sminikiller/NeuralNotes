@@ -72,3 +72,45 @@ test('Persistent quotas send bounded credit units to atomic RPC', async () => {
   });
   assert.equal(await store.take(user, Date.now(), 'fixture-user', 8), false);
 });
+
+
+test('Account export uses a fixed self-scoped table and bounded stable pages', async () => {
+  const queries = [];
+  await withAPI({ async list(token, table, params) { queries.push({token,table,params}); return Array.from({length:10},(_,i)=>({id:i})); } }, async request => {
+    const result = await request('/account/export?section=resources&offset=20&owner_id=' + other);
+    assert.equal(result.status,200); assert.equal(result.body.nextOffset,30);
+    assert.equal(queries[0].params.owner_id,'eq.'+user); assert.equal(queries[0].params.limit,'10'); assert.equal(queries[0].params.order,'id.asc');
+    assert.equal((await request('/account/export?section=auth.users')).status,400);
+    assert.equal((await request('/account/export?section=__proto__')).status,400);
+  });
+});
+test('Account deletion removes physical own objects before finalizing, never just database metadata', async () => {
+  const calls = []; let reads=0;
+  await withAPI({ async rpc(token,name) { calls.push(name); assert.equal(token,'fixture-user'); if(name==='nn_account_deletion_objects') return reads++===0 ? [user+'/cloud/a/file.nnbackup'] : []; },
+    async call(token,path,method,body) { calls.push(method); assert.equal(path,'/storage/v1/object/neuralnotes-private'); assert.equal(method,'DELETE'); assert.deepEqual(body.prefixes,[user+'/cloud/a/file.nnbackup']); } }, async request => {
+    assert.equal((await request('/account/delete',{confirmation:'no'})).status,400); assert.equal(calls.length,0);
+    const result=await request('/account/delete',{confirmation:'ELIMINA',userID:other}); assert.equal(result.status,200); assert.equal(result.body.deleted,true);
+    assert.deepEqual(calls,['nn_begin_account_deletion','nn_account_deletion_objects','DELETE','nn_account_deletion_objects','nn_finish_account_deletion']);
+  });
+});
+test('Account deletion is resumable and rejects cross-account storage paths', async () => {
+  let finished=false;
+  const store={async rpc(_token,name) { if(name==='nn_account_deletion_objects') return [user+'/cloud/a/file.nnbackup']; if(name==='nn_finish_account_deletion') finished=true; }, async call() {} };
+  await withAPI(store,async request=>{assert.equal((await request('/account/delete',{confirmation:'ELIMINA'})).status,202); assert.equal(finished,false);});
+  store.rpc=async(_token,name)=> name==='nn_account_deletion_objects' ? [other+'/cloud/a/file.nnbackup'] : null;
+  store.call=async()=>assert.fail('must not delete another owner object');
+  await withAPI(store,async request=>{assert.equal((await request('/account/delete',{confirmation:'ELIMINA'})).status,502); assert.equal(finished,false);});
+});
+test('Storage cleanup failure leaves identity and pending operation for retry', async()=>{
+  let finished=false;
+  await withAPI({async rpc(_token,name){if(name==='nn_account_deletion_objects')return [user+'/cloud/a/file.nnbackup']; if(name==='nn_finish_account_deletion')finished=true;}, async call(){throw Error('network');}},async request=>{
+    assert.equal((await request('/account/delete',{confirmation:'ELIMINA'})).status,502); assert.equal(finished,false);
+  });
+});
+
+test('Readiness probes only the public schema version, with no user or service-role credential', async()=>{
+  const config={url:'https://fixture.supabase.co',publicKey:'sb_publishable_fixture'};
+  const ready=new SupabaseStore(config,async(url,options)=>{assert.equal(url.pathname,'/rest/v1/rpc/nn_platform_version'); assert.equal(options.headers.Authorization,undefined); return Response.json(2);});
+  assert.equal(await ready.platformVersion(),2);
+  for (const value of [1,{},'2']) await assert.rejects(new SupabaseStore(config,async()=>Response.json(value)).platformVersion(),{code:'platform_not_ready'});
+});

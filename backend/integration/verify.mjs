@@ -36,6 +36,7 @@ function proxy(req, res, port, prefix) {
 }
 const server = https.createServer({ key: readFileSync(path.join(config.directory, 'key.pem')), cert: readFileSync(path.join(config.directory, 'cert.pem')) }, (req, res) => {
   if (req.url.startsWith('/auth/v1/')) return proxy(req, res, config.authPort, '/auth/v1');
+  if (req.url.startsWith('/storage/v1/')) return proxy(req, res, config.storagePort, '/storage/v1');
   if (req.url.startsWith('/rest/v1/')) return proxy(req, res, config.restPort, '/rest/v1');
   if (req.url === '/v1/config') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ version: 1, managed: true, auth: { url: origin, publicKey }, subscriptionsActive: false })); return; }
   if (req.url.startsWith('/v1/platform/')) platform.emit('request', req, res); else ai.emit('request', req, res);
@@ -63,6 +64,7 @@ async function signIn(email) {
   const session = verified.json(); assert.ok(session.access_token && session.refresh_token && session.user.id); return session;
 }
 try {
+  assert.equal(await store.platformVersion(),2,'All account/cloud migrations are installed');
   const publicConfig = await call('/v1/config'); assert.equal(publicConfig.json().managed, true); assert.ok(!publicConfig.text.includes(config.jwtSecret));
   const a = await signIn('student-a@example.invalid'), b = await signIn('student-b@example.invalid');
   assert.notEqual(a.user.id, b.user.id);
@@ -88,6 +90,32 @@ try {
   const refreshed = await call('/auth/v1/token?grant_type=refresh_token', { refresh_token: a.refresh_token }); assert.equal(refreshed.status, 200);
   const rotated = refreshed.json(); assert.ok(rotated.refresh_token); assert.equal(rotated.user.id, a.user.id);
   assert.equal((await call('/v1/platform/account', undefined, rotated.access_token)).status, 200);
+  // Real Storage HTTP, immutable snapshots and revision conflicts with two accounts.
+  const document = randomUUID(), bytes = Buffer.from('Native archive fixture: byte preservation and isolation'), checksum = 'a'.repeat(64);
+  const reservation = await call('/v1/platform/uploads',{kind:'cloud',entityID:document,extension:'nnbackup',bytes:bytes.length}, b.access_token);
+  assert.equal(reservation.status,201); const upload = reservation.json();
+  const uploadFile = token => fetch(upload.uploadURL,{method:'POST', headers:{apikey:publicKey,Authorization:'Bearer '+token,'Content-Type':'application/octet-stream','x-upsert':'false'},body:bytes});
+  assert.ok(!(await uploadFile(rotated.access_token)).ok,'Other account cannot upload in reserved namespace');
+  const uploaded = await uploadFile(b.access_token); assert.equal(uploaded.status,200,await uploaded.text());
+  const snapshot = {documentID:document,expectedRevision:0,title:'Backup reale',objectPath:upload.objectPath,checksum,bytes:bytes.length,deleted:false};
+  const committed = await call('/v1/platform/commit',snapshot,b.access_token); assert.equal(committed.status,200,committed.text);
+  const conflict = await call('/v1/platform/commit',snapshot,b.access_token);
+  assert.equal(conflict.status,409,'CAS rejects stale revisions: '+conflict.text);
+  assert.equal((await call('/v1/platform/download?document='+document,undefined,rotated.access_token)).status,404);
+  const link = await call('/v1/platform/download?document='+document,undefined,b.access_token); assert.equal(link.status,200,link.text);
+  const downloaded = await fetch(link.json().url); assert.equal(downloaded.status,200); assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),bytes);
+  console.log('PASS real Storage: reservation, cross-account denial, immutable upload, revision CAS, private signed download, byte equality');
+  const unstarted = (await call('/v1/platform/uploads',{kind:'cloud',entityID:randomUUID(),extension:'nnbackup',bytes:bytes.length}, b.access_token)).json();
+  const exported = await call('/v1/platform/account/export?section=usage', undefined, b.access_token);
+  assert.equal(exported.status, 200); assert.equal(exported.json().userID, b.user.id); assert.equal(exported.json().rows[0].used, 1);
+  assert.equal((await call('/v1/platform/account/delete', { confirmation: 'ELIMINA' }, b.access_token)).status, 200);
+  assert.notEqual((await fetch(link.json().url)).status,200,'Physical object removed, even previous signed URL no longer downloads');
+  const staleUpload = await fetch(unstarted.uploadURL,{method:'POST',headers:{apikey:publicKey,Authorization:'Bearer '+b.access_token,'Content-Type':'application/octet-stream','x-upsert':'false'},body:bytes});
+  assert.ok(!staleUpload.ok,'Still-issued Storage JWT cannot finish a reserved upload after account deletion');
+  assert.notEqual((await call('/auth/v1/user', undefined, b.access_token)).status, 200);
+  assert.notEqual((await call('/auth/v1/token?grant_type=refresh_token', {refresh_token: b.refresh_token})).status, 200);
+  assert.equal((await call('/v1/platform/account', undefined, rotated.access_token)).status, 200);
+  console.log('PASS real Auth account deletion, refresh/access rejected, metadata export and other account preserved including physical Storage objects');
   assert.ok([200, 204].includes((await call('/auth/v1/logout?scope=local', {}, rotated.access_token)).status));
   const revoked = await call('/auth/v1/token?grant_type=refresh_token', { refresh_token: rotated.refresh_token }); assert.notEqual(revoked.status, 200);
   console.log('PASS refresh rotation and logout revocation on real Auth');

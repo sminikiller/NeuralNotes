@@ -50,11 +50,11 @@ final class AudioActionsUITests: XCTestCase {
     func testArchivedTranscriptCanBeFoundAndMovedBackToRecent() {
         let app = XCUIApplication(); openAudio(app)
         let organize = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "audioOrganize-")).firstMatch
-        reveal(organize, in: app); organize.tap()
+        reveal(organize, in: app).tap()
         let archive = app.buttons["Archivia"]; XCTAssertTrue(archive.waitForExistence(timeout: 3)); archive.tap()
         let scope = app.segmentedControls["audioLibraryScope"]
         reveal(scope, in: app, upwards: false); scope.buttons["Archivio"].tap()
-        reveal(organize, in: app); organize.tap()
+        reveal(organize, in: app).tap()
         let restore = app.buttons["Sposta nei recenti"]; XCTAssertTrue(restore.waitForExistence(timeout: 3)); restore.tap()
         reveal(scope, in: app, upwards: false); scope.buttons["Recenti"].tap()
         let read = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "transcriptRead-")).firstMatch
@@ -62,17 +62,27 @@ final class AudioActionsUITests: XCTestCase {
         XCTAssertTrue(app.scrollViews["transcriptReader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Testo da esportare"].exists)
     }
-    @MainActor
+    @MainActor @discardableResult
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, upwards: Bool = true,
-                        file: StaticString = #filePath, line: UInt = #line) {
+                        file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        func target() -> XCUIElement {
+            // SwiftUI Menu exposes a non-interactive AX wrapper containing the
+            // actual native button. Tap that child, not the wrapper's identifier.
+            if element.exists && !element.isHittable {
+                let native = element.buttons.firstMatch
+                if native.exists { return native }
+            }
+            return element
+        }
         let list = app.collectionViews["audioLibraryList"]
         XCTAssertTrue(list.waitForExistence(timeout: 5), file: file, line: line)
         // A row can be reported hittable while clipped by a popover/navigation bar.
         // Scroll only this list, with short drags and direction correction after overshoot.
         for _ in 0..<18 {
+            let actual = target()
             let visible = list.frame.insetBy(dx: 12, dy: 0)
             let top = visible.minY + 120, bottom = visible.maxY - 24
-            if element.exists && element.isHittable && element.frame.midY > top && element.frame.midY < bottom { break }
+            if actual.exists && actual.isHittable && actual.frame.midY > top && actual.frame.midY < bottom { return actual }
             let down = element.exists && element.frame.height > 0 ? element.frame.midY < top : !upwards
             let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.5 : 0.76))
             let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.76 : 0.5))
@@ -83,6 +93,8 @@ final class AudioActionsUITests: XCTestCase {
             let hierarchy = XCTAttachment(string: app.debugDescription); hierarchy.lifetime = .keepAlways; add(hierarchy)
         }
         XCTAssertTrue(element.waitForExistence(timeout: 5), file: file, line: line)
-        XCTAssertTrue(element.isHittable, file: file, line: line)
+        let actual = target()
+        XCTAssertTrue(actual.isHittable, file: file, line: line)
+        return actual
     }
 }

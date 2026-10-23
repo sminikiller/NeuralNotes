@@ -2,6 +2,20 @@ import XCTest
 import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testAccountCanBeOpenedFromLibraryWithoutCreatingANotebook() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()
+        let account = app.buttons["libraryAccount"]
+        if !account.waitForExistence(timeout: 3) || !account.isHittable {
+            let sidebar = app.buttons["ToggleSidebar"].firstMatch
+            XCTAssertTrue(sidebar.waitForExistence(timeout: 5)); sidebar.tap()
+        }
+        XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
+        XCTAssertTrue(app.textFields["managedAIEmail"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["managedAINotConfigured"].exists)
+        XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
+    }
+
     @MainActor func testManagedAIAccountExplainsMissingServiceWithoutEnablingLogin() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorLens"].tap()

@@ -254,7 +254,8 @@ struct AudioPanel: View {
                 Button("Sposta nel cestino", systemImage: "trash", role: .destructive) {
                     pendingMutation = PendingAudioMutation(sessionID: session.id, action: .trash, title: "Sposta nel cestino", detail: "La lezione verrà nascosta dai recenti e dalla ricerca. I file e i collegamenti restano conservati e ripristinabili.")
                 }
-            } label: { Label("Organizza registrazione", systemImage: "ellipsis.circle").labelStyle(.iconOnly) }
+            } label: { Label("Organizza registrazione", systemImage: "ellipsis.circle").labelStyle(.iconOnly)
+                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle()) }
             .disabled(!canOrganize(session)).accessibilityIdentifier("audioOrganize-\(session.id)")
         }.buttonStyle(.borderless)
         .confirmationDialog(pendingMutation?.title ?? "Organizza registrazione", isPresented: Binding(get: { pendingMutation?.sessionID == session.id }, set: { if !$0 { pendingMutation = nil } }), titleVisibility: .visible) {

@@ -16,6 +16,7 @@ final class CloudBackupService {
     private let baseFolder: URL
     private var folder: URL
     private var owner: CloudBackupOwner?
+    private var resetAfterOperation = false
 
     init(folder: URL? = nil) {
         let base = folder ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -25,14 +26,27 @@ final class CloudBackupService {
         queue = CloudBackupQueue()
     }
 
+    private func finishOperation() {
+        busy = false
+        if resetAfterOperation { resetAfterOperation = false; accountDidChange() }
+    }
+    func accountDidChange() {
+        guard !busy else { resetAfterOperation = true; return }
+        owner = nil; queue = CloudBackupQueue(); documents = []; status = ""
+    }
+    func prepareAccount() async {
+        guard !busy else { return }; busy = true; defer { finishOperation() }
+        do { try await selectAccount() } catch { status = message(error, title: "") }
+    }
+
     func backup(_ book: Notebook, library: LibraryViewModel) async {
-        guard !busy else { return }; busy = true; defer { busy = false }
+        guard !busy else { return }; busy = true; defer { finishOperation() }
         do { try await selectAccount(); try await prepare(book, library: library) } catch { status = message(error, title: book.title); return }
         await drain()
     }
 
     func backupAll(_ library: LibraryViewModel) async {
-        guard !busy else { return }; busy = true; defer { busy = false }
+        guard !busy else { return }; busy = true; defer { finishOperation() }
         do { try await selectAccount() } catch { status = message(error, title: ""); return }
         var skipped: [String] = []
         for book in library.notebooks {
@@ -44,7 +58,7 @@ final class CloudBackupService {
     }
 
     func retry() async {
-        guard !busy else { return }; busy = true; defer { busy = false }
+        guard !busy else { return }; busy = true; defer { finishOperation() }
         do { try await selectAccount() } catch { status = message(error, title: ""); return }
         await drain()
     }
@@ -52,7 +66,7 @@ final class CloudBackupService {
     /// The student keeps the local version: the waiting copy becomes the next cloud revision.
     func replaceCloudVersion(_ documentID: UUID) async {
         guard !busy, var job = queue.jobs.first(where: { $0.documentID == documentID }) else { return }
-        busy = true; defer { busy = false }
+        busy = true; defer { finishOperation() }
         do {
             try await selectAccount()
             try await refreshDocuments()
@@ -69,14 +83,14 @@ final class CloudBackupService {
     }
 
     func refresh() async {
-        guard !busy else { return }; busy = true; defer { busy = false }
+        guard !busy else { return }; busy = true; defer { finishOperation() }
         do { try await selectAccount(); try await refreshDocuments(); status = documents.isEmpty ? "Nessuna copia nel cloud." : "\(documents.count) copie nel cloud." }
         catch { status = message(error, title: "") }
     }
 
     /// Downloads a cloud copy and imports it as a new notebook: local notes are never replaced.
     func downloadCopy(_ document: CloudDocument, library: LibraryViewModel) async {
-        guard !busy else { return }; busy = true; defer { busy = false }
+        guard !busy else { return }; busy = true; defer { finishOperation() }
         do {
             try await selectAccount()
             let (service, token) = try await account()
@@ -106,12 +120,16 @@ final class CloudBackupService {
         guard size > 0, size <= CloudBackupQueue.maximumBytes else { throw CloudBackupFailure.tooLarge }
         let checksum = try Self.sha256(archive)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let name = "\(book.documentID.uuidString).nnbackup", destination = folder.appendingPathComponent(name)
+        let name = "\(book.documentID.uuidString)-\(UUID()).nnbackup", destination = folder.appendingPathComponent(name)
         if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
         try FileManager.default.moveItem(at: archive, to: destination)
         let job = CloudBackupJob(documentID: book.documentID, title: book.title, archiveFile: name, checksum: checksum, bytes: size,
                                  expectedRevision: queue.revisions[book.documentID] ?? 0)
-        try queue.enqueue(job); try persist()
+        let previous = queue
+        let replaced = try queue.enqueue(job)
+        do { try persist() }
+        catch { queue = previous; try? FileManager.default.removeItem(at: destination); throw error }
+        if let replaced { try? FileManager.default.removeItem(at: folder.appendingPathComponent(replaced.archiveFile)) }
         status = "«\(book.title)» pronto per il cloud…"
     }
 

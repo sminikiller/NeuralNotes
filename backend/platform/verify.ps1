@@ -11,7 +11,7 @@ try {
         Start-Sleep -Milliseconds 250
     }
     if (-not $ready) { throw 'Postgres not ready' }
-    foreach ($script in @('test-bootstrap.sql', 'schema.sql', 'security.test.sql')) {
+    foreach ($script in @('test-bootstrap.sql', 'schema.sql', 'migrations/001_account_lifecycle.sql', 'migrations/002_revision_conflict.sql', 'migrations/003_readiness.sql', 'security.test.sql', 'account-lifecycle.test.sql')) {
         Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot $script) | docker exec -i $testContainer psql -U postgres -v ON_ERROR_STOP=1
         if ($LASTEXITCODE -ne 0) { throw "SQL verification failed: $script" }
     }

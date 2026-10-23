@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
-insert into auth.users values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222'),('33333333-3333-4333-8333-333333333333');
+insert into auth.users(id) values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222'),('33333333-3333-4333-8333-333333333333');
 insert into public.nn_entitlements(user_id,daily_ai_limit,storage_limit) values('11111111-1111-4111-8111-111111111111',2,1000),('22222222-2222-4222-8222-222222222222',1,20);
 set role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
@@ -16,7 +16,7 @@ select public.nn_reserve_upload('cloud','cccccccc-cccc-4ccc-8ccc-cccccccccccc','
 insert into storage.objects(bucket_id,name,metadata) values('neuralnotes-private',:'next_path','{"size":10}');
 select set_config('nn.test.next_path',:'next_path',false);
 do $$begin
- begin perform public.nn_commit_document('cccccccc-cccc-4ccc-8ccc-cccccccccccc',0,'Vecchio',current_setting('nn.test.next_path'),repeat('a',64),10,false); raise exception 'lost update'; exception when serialization_failure then null; end;
+ begin perform public.nn_commit_document('cccccccc-cccc-4ccc-8ccc-cccccccccccc',0,'Vecchio',current_setting('nn.test.next_path'),repeat('a',64),10,false); raise exception 'lost update'; exception when sqlstate 'PT409' then null; end;
  begin perform public.nn_commit_document('cccccccc-cccc-4ccc-8ccc-cccccccccccc',null,'Bypass',current_setting('nn.test.next_path'),repeat('a',64),10,false); raise exception 'null revision accepted'; exception when invalid_parameter_value then null; end;
  if (select count(*) from public.nn_snapshots)<>1 then raise exception 'unexpected snapshot count'; end if;
 end$$;

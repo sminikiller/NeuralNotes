@@ -1,4 +1,4 @@
-# Avvio del backend gestito 0.5
+# Avvio del backend gestito 0.6
 
 Richiede Node 22 o successivo, un progetto Supabase e un reverse proxy HTTPS con buffering disabilitato per NDJSON. Il server non è distribuito da questa consegna. Non inserire segreti nei sorgenti, nel Playground o in `/v1/config`.
 
@@ -20,7 +20,7 @@ Blueprint, verifica delle variabili, collegamento dell’app e test account real
 
 Non serve fornire la service role all’API: le operazioni inoltrano il token utente a PostgREST/Storage e rispettano RLS. Il segreto HMAC non sostituisce gli account nella modalità gestita. `npm start` usa `start.mjs`; il vecchio `server.mjs` conserva il percorso personale precedente. L’app dalla 0.18 supporta accesso email con codice e rinnovo della sessione, dopo il collegamento a un gateway pubblico verificato. Non esiste un account autenticato automaticamente nel pacchetto.
 
-Applicare `platform/schema.sql` una volta in un progetto Supabase nuovo, con privilegi di amministrazione database. È una migrazione iniziale, non uno script idempotente per database già popolati. Non applicare `test-bootstrap.sql` sul servizio: serve esclusivamente alle fixture locali. Configurare Apple/email nell’Auth del servizio separatamente. Installazioni e migrazioni remote non sono state eseguite.
+Applicare `platform/schema.sql` una volta in un progetto Supabase nuovo, con privilegi di amministrazione database. È una migrazione iniziale, non uno script idempotente per database già popolati. Non applicare `test-bootstrap.sql` sul servizio: serve esclusivamente alle fixture locali. Configurare Apple/email nell’Auth del servizio separatamente. Dopo lo schema applicare in ordine i file `platform/migrations/*.sql`. Installazioni e migrazioni remote non sono state eseguite.
 
 Avvio locale: impostare le variabili nell’ambiente del processo e lanciare `npm start` dalla cartella backend. In produzione mettere TLS davanti al server, limiti di traffico e di connessioni a livello proxy, monitoraggio senza contenuti privati e budget provider. `Dockerfile` include il gateway senza dipendenze npm esterne e gira come utente node. Nessuna password viene richiesta o memorizzata dal gateway.
 

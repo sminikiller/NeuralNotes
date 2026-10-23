@@ -72,3 +72,32 @@ services:
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${NN_TEST_JWT_SECRET}
+
+  storage:
+    image: supabase/storage-api:v1.81.0
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    ports:
+      - 127.0.0.1:${NN_TEST_STORAGE_PORT}:5000
+    environment:
+      ANON_KEY: ${NN_TEST_ANON_KEY}
+      SERVICE_KEY: ${NN_TEST_SERVICE_KEY}
+      AUTH_JWT_SECRET: ${NN_TEST_JWT_SECRET}
+      POSTGREST_URL: http://rest:3000
+      DATABASE_URL: postgres://supabase_storage_admin:nn-integration-storage-only@db:5432/postgres
+      STORAGE_PUBLIC_URL: ${NN_TEST_ORIGIN}/storage/v1
+      FILE_SIZE_LIMIT: 104857600
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: neuralnotes-integration
+      REGION: local
+      GLOBAL_S3_BUCKET: neuralnotes-integration
+      ENABLE_IMAGE_TRANSFORMATION: 'false'
+    healthcheck:
+      test: [CMD, wget, --quiet, --spider, http://127.0.0.1:5000/status]
+      interval: 1s
+      timeout: 2s
+      retries: 60

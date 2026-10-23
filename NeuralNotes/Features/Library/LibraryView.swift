@@ -5,7 +5,7 @@ import NeuralNotesCore
 import CoreSpotlight
 
 private enum LibrarySheet: Identifiable {
-    case createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook), help
+    case account, createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook), help
     var id: String {
         switch self {
         case .createNotebook: return "new-notebook"
@@ -18,6 +18,7 @@ private enum LibrarySheet: Identifiable {
         case .recovery: return "recovery"
         case .search: return "search"
         case .cloud: return "cloud"
+        case .account: return "account"
         case .organization(let book): return "organization-\(book.id)"
         case .help: return "help"
         }
@@ -128,6 +129,11 @@ struct LibraryView: View {
                 if let workspace = try? model.workspace(notebook) { StoragePanel(workspace: workspace, metadata: notebook) }
             case .recovery: RecoveryPanel(library: model)
             case .cloud: CloudSyncPanel(library: model)
+            case .account:
+                NavigationStack {
+                    ManagedAIAccountPanel(initial: AIEngineConfiguration(), connected: { _ in }, offersAIConfiguration: false)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { sheet = nil } } }
+                }
             case .organization(let book): NotebookOrganizationPanel(library: model, notebook: book)
             case .help: QuickGuidePanel()
             case .search:
@@ -228,7 +234,8 @@ struct LibraryView: View {
                 Label("Sul tuo iPad", systemImage: "internaldrive")
                     .font(.footnote).foregroundStyle(.secondary)
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
-                Button { sheet = .cloud } label: { Label("Sincronizzazione iCloud", systemImage: "icloud") }
+                Button { sheet = .account } label: { Label("Account NeuralNotes", systemImage: "person.crop.circle") }.accessibilityIdentifier("libraryAccount")
+                Button { sheet = .cloud } label: { Label("Cloud e sincronizzazione", systemImage: "icloud") }
                 Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }

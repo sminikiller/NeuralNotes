@@ -32,9 +32,51 @@ jobs:
       - name: Check project and Swift grammar
         run: python tools/check_project.py --swift-syntax
       - name: Backend unit tests (no provider calls)
-        run: node --test backend/server.test.mjs
+        run: node --test backend/*.test.mjs
       - name: Verify iPad package
         run: python tools/package_ipad.py
+  backend-services:
+    if: inputs.scope != 'playground'
+    needs: portable
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: PostgreSQL security and account lifecycle
+        shell: pwsh
+        run: ./backend/platform/verify.ps1
+      - name: Real local email Auth, private Storage and gateway integration (AI provider simulated)
+        run: node backend/integration/run.mjs
+  upgrade:
+    if: inputs.scope != 'playground'
+    needs: portable
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Replace previous binary and verify persisted notebook
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .verification
+          bash tools/verify_upgrade_macos.sh 2>&1 | tee .verification/upgrade-validation.log
+      - name: Preserve upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upgrade-validation-${{ github.run_id }}
+          retention-days: 3
+          include-hidden-files: true
+          path: |
+            .verification/upgrade-validation.log
+            .verification/upgrade/before.json
+            .verification/upgrade/after.json
   apple:
     if: inputs.scope != 'playground'
     needs: portable

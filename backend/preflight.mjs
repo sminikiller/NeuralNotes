@@ -2,6 +2,7 @@
 import { pathToFileURL } from 'node:url';
 import { DeepSeekAdapter } from './deepseek.mjs';
 import { requirePublicKey } from './auth.mjs';
+import { SupabaseStore } from './platform.mjs';
 export function configurationChecks(env) {
   const required = ['NN_SUPABASE_URL', 'NN_SUPABASE_PUBLIC_KEY', 'NN_PROVIDER_KEY'];
   const missing = required.filter(key => !env[key]);
@@ -20,7 +21,9 @@ async function main() {
     headers: { apikey: process.env.NN_SUPABASE_PUBLIC_KEY }, redirect: 'error', signal: AbortSignal.timeout(15000)
   });
   if (!auth.ok) throw new Error('Hosted Auth settings check failed');
-  const settings = await auth.json(); console.log(JSON.stringify({ authReachable: true, emailEnabled: settings.external?.email === true }));
+  const settings = await auth.json(); if (settings.external?.email !== true) throw Error("Email Auth is disabled"); console.log(JSON.stringify({ authReachable: true, emailEnabled: settings.external?.email === true }));
+  const platformVersion = await new SupabaseStore({url:process.env.NN_SUPABASE_URL,publicKey:process.env.NN_SUPABASE_PUBLIC_KEY}).platformVersion();
+  console.log(JSON.stringify({platformVersion, migrationsReady: true}));
   if (process.argv.includes('--live-model')) {
     if ((process.env.NN_PROVIDER ?? 'deepseek') !== 'deepseek') throw new Error('This bounded probe only supports a DeepSeek-configured key');
     // Explicit bounded live probe with synthetic text, never notebook content.

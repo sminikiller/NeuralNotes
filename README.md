@@ -1,4 +1,6 @@
-# NeuralNotes 0.20.8 — anteprima iPad
+# NeuralNotes 0.21.0 — anteprima iPad
+
+**0.21.0/build 45 — account, affidabilità e test:** pulizia dei livelli grafici al cambio pagina, code cloud isolate per account, profilo/esportazione/cancellazione account. Test locali con Auth email, database e Storage reali; provider AI simulato. Verifica Apple in corso: non è ancora una beta online attivata. [Stato e limiti](docs/DELIVERY_0_21_0.md).
 
 **0.20.8/build 44 — ZIP App Playground compilato:** riprodotto il mancato AppIcon generato delle 0.20.6/0.20.7; ripristinata l'icona personalizzata nel catalogo alla radice. Semplificate tre espressioni misurate come lente dal compilatore. La [run 39942124235](https://github.com/sminikiller/NeuralNotes/actions/runs/39942124235) estrae e compila lo ZIP con il suo manifest AppleProductTypes: PASS per simulatore iOS arm64/x86_64. Consegnato l'archivio esatto della CI. Restano prova fisica su iPad e sei fallimenti della suite funzionale separata. [Evidenze e limiti](docs/FIXES_0_20_8.md).
 

@@ -15,11 +15,12 @@ $$;
 alter function auth.uid() owner to supabase_auth_admin;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
--- Storage HTTP is not tested by this environment. These tables only let the
--- production platform migration install; tests exercise Auth/RLS/AI routes.
-create schema storage;
-create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
-create table storage.objects(id uuid default gen_random_uuid(), bucket_id text, name text, metadata jsonb);
-alter table storage.objects enable row level security;
-grant usage on schema storage to authenticated;
-grant select, insert on storage.objects to authenticated;
+-- Storage API migrates its real schema before application migrations run.
+create role supabase_storage_admin login noinherit createrole password 'nn-integration-storage-only';
+create schema storage authorization supabase_storage_admin;
+grant authenticated, anon, service_role to supabase_storage_admin;
+grant usage on schema public to supabase_storage_admin;
+alter role supabase_storage_admin set search_path = storage, public;
+grant usage on schema storage to authenticated, anon, service_role;
+alter default privileges for role supabase_storage_admin in schema storage grant select,insert,update,delete on tables to authenticated;
+alter default privileges for role supabase_storage_admin in schema storage grant all on tables to service_role;

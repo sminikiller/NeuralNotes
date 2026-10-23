@@ -23,10 +23,20 @@ export class SupabaseStore {
     if (!response.body) { if (response.ok) return null; throw new RequestFailure(502, 'storage_unavailable'); }
     const data = await readJSON(response.body, 2 * 1024 * 1024);
     if (!response.ok) {
+      if (data?.code === 'PT401') throw new RequestFailure(401, 'reauthentication_required');
+      if (data?.code === 'PT409') throw new RequestFailure(409, data.message === 'transfer_shared_hubs_first' ? 'transfer_shared_hubs_first' : data.message === 'revision_conflict' ? 'revision_or_identity_conflict' : 'cleanup_incomplete');
       const status = data?.code === '40001' || data?.code === '23505' ? 409 : data?.code === '42501' || response.status === 403 ? 403 : data?.code === 'P0001' ? 429 : response.status === 401 ? 401 : 400;
       throw new RequestFailure(status, status === 409 ? 'revision_or_identity_conflict' : status === 429 ? 'storage_quota' : status === 403 ? 'forbidden' : 'platform_request_failed');
     }
     return data;
+  }
+  async platformVersion() {
+    const response = await this.transport(new URL('/rest/v1/rpc/nn_platform_version', this.base), { method: 'POST',
+      headers: { apikey: this.publicKey, 'Content-Type': 'application/json' }, body: '{}', redirect: 'error', signal: AbortSignal.timeout(5000) });
+    if (!response.ok || !response.body) throw new RequestFailure(503, 'platform_not_ready');
+    const version = await readJSON(response.body, 1024);
+    if (version !== 2) throw new RequestFailure(503, 'platform_not_ready');
+    return version;
   }
   rpc(token, name, body = {}) { return this.call(token, '/rest/v1/rpc/' + name, 'POST', body); }
   list(token, table, parameters) { return this.call(token, '/rest/v1/' + table + '?' + new URLSearchParams(parameters)); }
@@ -59,6 +69,33 @@ export function createPlatformApp({ authenticate, store }) {
       }
       if (req.method === 'POST' && path === '/profile') {
         const response = await store.call(token, '/rest/v1/nn_profiles?on_conflict=user_id', 'POST', { user_id: subject, display_name: text(body.displayName, 80) }); reply(200, response); return;
+      }
+      if (req.method === 'GET' && path === '/account/export') {
+        const tables = { profile: ['nn_profiles', 'user_id'], entitlements: ['nn_entitlements', 'user_id'], usage: ['nn_ai_usage', 'user_id'],
+          documents: ['nn_documents', 'owner_id'], snapshots: ['nn_snapshots', 'owner_id'],
+          resources: ['nn_resources', 'owner_id'], hubs: ['nn_hubs', 'owner_id'],
+          memberships: ['nn_hub_members', 'user_id'], reports: ['nn_reports', 'reporter_id'], blocks: ['nn_blocks', 'user_id'] };
+        const section = url.searchParams.get('section'), table = Object.hasOwn(tables, section) ? tables[section] : null;
+        if (!table) throw new RequestFailure(400, 'invalid_export_section');
+        const orders = { usage: 'day.asc', snapshots: 'document_id.asc,revision.asc', memberships: 'hub_id.asc', blocks: 'blocked_user_id.asc' };
+        const rows = await store.list(token, table[0], { [table[1]]: 'eq.' + subject, select: '*', limit: '10', offset: String(offset), order: orders[section] ?? (['profile', 'entitlements'].includes(section) ? 'user_id.asc' : 'id.asc') });
+        if (!Array.isArray(rows) || rows.length > 10) throw new RequestFailure(502, 'invalid_export');
+        reply(200, { version: 1, userID: subject, section, rows, nextOffset: rows.length === 10 ? offset + 10 : null }); return;
+      }
+      if (req.method === 'POST' && path === '/account/delete') {
+        if (body.confirmation !== 'ELIMINA') throw new RequestFailure(400, 'confirmation_required');
+        await store.rpc(token, 'nn_begin_account_deletion');
+        const objects = await store.rpc(token, 'nn_account_deletion_objects');
+        if (!Array.isArray(objects) || objects.length > 100 || objects.some(p => typeof p !== 'string' || !p.startsWith(subject + '/') || p.includes('..') || p.includes('\\') || p.length > 511)) throw new RequestFailure(502, 'invalid_object');
+        if (objects.length) await store.call(token, '/storage/v1/object/neuralnotes-private', 'DELETE', { prefixes: objects });
+        const remaining = await store.rpc(token, 'nn_account_deletion_objects');
+        if (!Array.isArray(remaining)) throw new RequestFailure(502, 'invalid_object');
+        if (remaining.length) { reply(202, { pending: true, removed: objects.length }); return; }
+        await store.rpc(token, 'nn_finish_account_deletion');
+        reply(200, { deleted: true }); return;
+      }
+      if (req.method === 'POST' && path === '/hubs/transfer') {
+        await store.rpc(token, 'nn_transfer_hub', { target: validID(body.hubID), next_owner: validID(body.userID) }); reply(200, { transferred: true }); return;
       }
       if (req.method === 'GET' && path === '/hubs') { reply(200, await store.list(token, 'nn_hubs', { select: '*', order: 'created_at.desc', limit: '50', offset: String(offset) })); return; }
       if (req.method === 'POST' && path === '/hubs') {
