@@ -16,12 +16,6 @@ MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
 
-// Keep device compilation in small groups, including an optimized Play build.
-// This changes compilation scheduling, not the app's data or functionality.
-let ipadCompilerSettings: [SwiftSetting] = [
-    .unsafeFlags(["-j1", "-driver-batch-size-limit", "8", "-no-whole-module-optimization"])
-]
-
 let package = Package(
     name: "NeuralNotes",
     defaultLocalization: "it",
@@ -49,7 +43,7 @@ let package = Package(
         )
     ],
     targets: [
-        .target(name: "NeuralNotesCore", path: "Core", swiftSettings: ipadCompilerSettings),
+        .target(name: "NeuralNotesCore", path: "Core"),
         .executableTarget(
             name: "AppModule",
             dependencies: ["NeuralNotesCore"],
@@ -60,8 +54,7 @@ let package = Package(
                 .process("Resources/PrivacyInfo.xcprivacy"),
                 .process("Resources/ThirdPartyNotices.txt"),
                 .process("Resources/NeuralNotes.entitlements")
-            ],
-            swiftSettings: ipadCompilerSettings
+            ]
         )
     ],
     swiftLanguageVersions: [.v5]
