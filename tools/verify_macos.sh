@@ -27,12 +27,15 @@ print(devices[0]["udid"])
 fi
 result_dir=".verification/$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$result_dir"
-test_selection=()
+# macOS ships Bash 3.2: an empty array expanded under `set -u` aborts the
+# full suite before xcodebuild. Keep the command array nonempty in every scope.
+# UI tests also share simulator preferences, so run them serially.
+test_selection=(-parallel-testing-enabled NO)
 if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
-  test_selection=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
+  test_selection+=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
 fi
 if [ "${NEURALNOTES_UI_ONLY:-0}" = 1 ]; then
-  test_selection=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests/testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke)
+  test_selection+=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
   echo "UI-only follow-up: Core/native/Release/package evidence must come from the same application sources."
 fi
 xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
