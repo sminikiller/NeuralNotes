@@ -64,3 +64,7 @@ La CI ora offre `playground_launch`: installa sul simulatore l'app generata dal 
 È una verifica dell'avvio del pacchetto reale su simulatore, non una prova di interazione completa né dell'anteprima o del pulsante Play di Playgrounds sull'iPad fisico. Il blocco specifico del pulsante Play resta non riprodotto e non viene dichiarato risolto. Il controllo con un compilatore precedente non è stato eseguito: il primo tentativo di dispatch della nuova workflow dedicata era stato rifiutato perché assente dal ramo predefinito; nessun risultato di quella prova viene rivendicato.
 
 Per l'uso attuale vale la verifica fisica comunicata dall'utente sull'anteprima. Prima di cambiare copia del progetto è utile conservare backup nativi dei quaderni, perché copie diverse del Playground possono usare librerie separate.
+
+## Conferma successiva dell'utente — 24 ottobre 2026
+
+L'utente ha confermato che la 0.21.2 ora compila direttamente e ha chiesto di fermare l'indagine sulla 0.21.3. Le verifiche in corso sono state annullate; la 0.21.3 non è stata consegnata. Per il successivo restyling 0.22.0 la copia fornita dall'utente è stata confrontata tramite SHA-256: coincide esattamente con lo ZIP 0.21.2 descritto sopra. Le segnalazioni di blocco nei paragrafi precedenti restano lo storico delle prove, non lo stato finale comunicato dall'utente.

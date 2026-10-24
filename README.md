@@ -1,4 +1,6 @@
-# NeuralNotes 0.21.2 — anteprima iPad
+# NeuralNotes 0.22.0 — delivery iPad
+
+**0.22.0/build 49 — navigazione compatta:** cursore delle pagine con numero ingrandito durante il trascinamento, salto numerico, messaggi temporanei e stato raccolto in un'icona. I quaderni aperti si scelgono dal titolo, senza una riga dedicata alle schede. [Verifica finale Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/40047775770) PASS: 268 Core, 98 FSRS, 93 test nativi, cinque UI, Release e ZIP reale compilato e avviato. Anche [Swift 5.10 / Xcode 15.4](https://github.com/sminikiller/NeuralNotes/actions/runs/40047781343) PASS sulla revisione finale. [Consegna, schermate, esiti completi e limiti](docs/DELIVERY_0_22_0.md).
 
 **0.21.2/build 47 — scarabocchio per tratti:** elimina per intero tutti i tratti attraversati, rispettando il percorso effettivo dello scarabocchio e le zone già cancellate. Conservati gomma parziale e Annulla/Ripristina. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/40004819461) PASS: 265 Core, 98 FSRS, 76 test dell'editor, cinque UI, Release e ZIP App Playground. [Consegna e limiti](docs/DELIVERY_0_21_2.md).
 
