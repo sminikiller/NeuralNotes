@@ -108,10 +108,10 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Dalla gestione pagine assegna un titolo e un segnalibro ai punti importanti.",
             "Apri Sezioni per creare raggruppamenti e assegnare le pagine selezionate.",
             "Usa l’elenco per navigare. Alla riapertura il quaderno riprende la pagina ricordata." ]),
-        .init("photo", .pages, "Foto, fotocamera e ritaglio", "camera", "Inserisci e sistema immagini.", [
+        .init("photo", .pages, "Foto, ritaglio e raddrizzamento", "camera", "Correggi la prospettiva senza modificare l’originale.", [
             "Usa Inserisci immagine per scegliere da Foto oppure Scatta foto; al primo utilizzo consenti l’accesso richiesto da iPadOS.",
-            "Conferma l’immagine e selezionala con Oggetti per spostarla e ridimensionarla.",
-            "Apri Ritaglia dal menu dell’immagine, regola il riquadro e conferma. Annulla recupera la modifica precedente." ]),
+            "Nel pannello foto scegli Rettangolo per ritagliare o Raddrizza per rilevare i bordi: trascina i quattro angoli aiutandoti con la lente. Puoi ruotare di 90 gradi e attivare Migliora.",
+            "Conferma e seleziona l’immagine con Oggetti per spostarla. Raddrizza nella barra o nel menu riapre le correzioni; Annulla recupera lo stato precedente. Anche Foto e chiedi usa la foto corretta." ]),
         .init("scanner", .pages, "Scanner e trascinamento", "doc.viewfinder", "Acquisisci documenti e materiale da altre app.", [
             "Apri Scansiona documento dal menu di inserimento e inquadra il foglio.",
             "Correggi i bordi e conferma. Scanner e fotocamera richiedono un dispositivo fisico e il relativo permesso.",
@@ -173,13 +173,13 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Scegli un titolo che descriva il contenuto e verifica la destinazione prima di salvare.",
             "Tocca il collegamento per tornare alla fonte. Controlla anche i link dei risultati AI come qualsiasi altra fonte esterna." ]),
         .init("account", .protection, "Account, accesso email e privacy", "person.crop.circle", "Codice di accesso, profilo, dati ed eliminazione.", [
-            "Dalla libreria apri Account. Serve un backend NeuralNotes HTTPS configurato con servizio email attivo.",
+            "Dalla barra della libreria apri Account e servizi → Account NeuralNotes. Nella stessa scheda trovi centro sincronizzazione, iCloud e motore AI. Serve un backend NeuralNotes HTTPS configurato con servizio email attivo.",
             "Inserisci l’email, richiedi il codice e confermalo. La sessione è nel portachiavi; dal profilo gestisci nome, crediti e uscita.",
             "Esporta i dati o richiedi l’eliminazione con nuova verifica. Uscire non elimina i quaderni locali: su dispositivi condivisi gestiscili separatamente." ]),
         .init("account-sync", .protection, "Sincronizza con l’account NeuralNotes", "arrow.triangle.2.circlepath.icloud", "Invio, ricezione e conflitti fra dispositivi.", [
-            "Accedi allo stesso account sui dispositivi e apri Cloud e sincronizzazione. Chiudi i quaderni e scegli Sincronizza adesso.",
-            "Attiva se vuoi il controllo automatico dei quaderni già sincronizzati con quell’account mentre l’app è aperta. Per aggiungerne di nuovi usa Sincronizza adesso. Il limite è 100 MB per quaderno; cartelle e cestino rimangono locali.",
-            "Se entrambe le copie sono cambiate scegli una versione o scarica una copia aggiuntiva. Prima di sostituire un quaderno locale viene conservato un backup." ]),
+            "Accedi allo stesso account sui dispositivi e apri Account e servizi → Centro sincronizzazione. Chiudi i quaderni e scegli Sincronizza adesso per collegarli a questo account.",
+            "Attiva il backup alla chiusura e, se vuoi, Solo Wi-Fi: sui quaderni già collegati prepara una copia e la mantiene in coda fino a una rete adatta. Il limite è 100 MB per quaderno; cartelle e cestino restano locali.",
+            "I badge mostrano cloud, coda o conflitto. Da Versioni precedenti puoi scaricare una revisione come quaderno indipendente. Risolvi i conflitti conservando entrambe le copie o scegliendo una versione: prima della sostituzione locale viene conservato un backup." ]),
         .init("icloud", .protection, "iCloud privato", "icloud", "Sincronizzazione separata dall’account NeuralNotes.", [
             "Serve una build firmata configurata con CloudKit e un account iCloud attivo. Nel Playground o senza abilitazione la funzione può non essere disponibile.",
             "Apri Cloud e sincronizzazione e avvia iCloud privato per i quaderni chiusi.",

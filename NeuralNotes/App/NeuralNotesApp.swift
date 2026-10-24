@@ -19,6 +19,26 @@ private struct LibraryScene: View {
     @State private var sceneError: String?
     var body: some View {
             Group {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing"), ProcessInfo.processInfo.arguments.contains("--ui-photo-panel") {
+                    PhotoCropUITestHost()
+                } else {
+                    libraryContent
+                }
+                #else
+                libraryContent
+                #endif
+            }
+            .tint(Brand.accent)
+            .task {
+                if controller.library == nil && controller.startupError == nil { controller.start() }
+                if session == nil {
+                    do { session = try controller.makeLibrarySession() }
+                    catch { sceneError = error.localizedDescription }
+                }
+            }
+    }
+    @ViewBuilder private var libraryContent: some View {
                 if let library = session {
                     LibraryView(model: library)
                 } else if let error = sceneError ?? controller.startupError {
@@ -36,14 +56,5 @@ private struct LibraryScene: View {
                 } else {
                     ProgressView("Apertura libreria…")
                 }
-            }
-            .tint(Brand.accent)
-            .task {
-                if controller.library == nil && controller.startupError == nil { controller.start() }
-                if session == nil {
-                    do { session = try controller.makeLibrarySession() }
-                    catch { sceneError = error.localizedDescription }
-                }
-            }
     }
 }

@@ -170,13 +170,13 @@ Organizza un quaderno lungo.
 2. Apri Sezioni per creare raggruppamenti e assegnare le pagine selezionate.
 3. Usa l’elenco per navigare. Alla riapertura il quaderno riprende la pagina ricordata.
 
-### Foto, fotocamera e ritaglio
+### Foto, ritaglio e raddrizzamento
 
-Inserisci e sistema immagini.
+Correggi la prospettiva senza modificare l’originale.
 
 1. Usa Inserisci immagine per scegliere da Foto oppure Scatta foto; al primo utilizzo consenti l’accesso richiesto da iPadOS.
-2. Conferma l’immagine e selezionala con Oggetti per spostarla e ridimensionarla.
-3. Apri Ritaglia dal menu dell’immagine, regola il riquadro e conferma. Annulla recupera la modifica precedente.
+2. Nel pannello foto scegli Rettangolo per ritagliare o Raddrizza per rilevare i bordi: trascina i quattro angoli aiutandoti con la lente. Puoi ruotare di 90 gradi e attivare Migliora.
+3. Conferma e seleziona l’immagine con Oggetti per spostarla. Raddrizza nella barra o nel menu riapre le correzioni; Annulla recupera lo stato precedente. Anche Foto e chiedi usa la foto corretta.
 
 ### Scanner e trascinamento
 
@@ -308,7 +308,7 @@ Mantieni i riferimenti alle fonti.
 
 Codice di accesso, profilo, dati ed eliminazione.
 
-1. Dalla libreria apri Account. Serve un backend NeuralNotes HTTPS configurato con servizio email attivo.
+1. Dalla barra della libreria apri Account e servizi → Account NeuralNotes. Nella stessa scheda trovi centro sincronizzazione, iCloud e motore AI. Serve un backend NeuralNotes HTTPS configurato con servizio email attivo.
 2. Inserisci l’email, richiedi il codice e confermalo. La sessione è nel portachiavi; dal profilo gestisci nome, crediti e uscita.
 3. Esporta i dati o richiedi l’eliminazione con nuova verifica. Uscire non elimina i quaderni locali: su dispositivi condivisi gestiscili separatamente.
 
@@ -316,9 +316,9 @@ Codice di accesso, profilo, dati ed eliminazione.
 
 Invio, ricezione e conflitti fra dispositivi.
 
-1. Accedi allo stesso account sui dispositivi e apri Cloud e sincronizzazione. Chiudi i quaderni e scegli Sincronizza adesso.
-2. Attiva se vuoi il controllo automatico dei quaderni già sincronizzati con quell’account mentre l’app è aperta. Per aggiungerne di nuovi usa Sincronizza adesso. Il limite è 100 MB per quaderno; cartelle e cestino rimangono locali.
-3. Se entrambe le copie sono cambiate scegli una versione o scarica una copia aggiuntiva. Prima di sostituire un quaderno locale viene conservato un backup.
+1. Accedi allo stesso account sui dispositivi e apri Account e servizi → Centro sincronizzazione. Chiudi i quaderni e scegli Sincronizza adesso per collegarli a questo account.
+2. Attiva il backup alla chiusura e, se vuoi, Solo Wi-Fi: sui quaderni già collegati prepara una copia e la mantiene in coda fino a una rete adatta. Il limite è 100 MB per quaderno; cartelle e cestino restano locali.
+3. I badge mostrano cloud, coda o conflitto. Da Versioni precedenti puoi scaricare una revisione come quaderno indipendente. Risolvi i conflitti conservando entrambe le copie o scegliendo una versione: prima della sostituzione locale viene conservato un backup.
 
 ### iCloud privato
 

@@ -152,7 +152,7 @@ struct PhotoCropPanel: View {
                 guard mode == 0 else { return }
                 let crop = PhotoCropGeometry.dragged(start: value.startLocation, end: value.location, size: size)
                 if crop.width >= 0.01, crop.height >= 0.01 { edit.crop = crop }
-            })
+            }, including: mode == 0 ? .all : .subviews)
     }
 
     private func quadOutline(size: CGSize) -> some View {
@@ -169,6 +169,7 @@ struct PhotoCropPanel: View {
         return Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(.teal, lineWidth: 3))
             .frame(width: 44, height: 44).contentShape(Rectangle()).position(point)
             .accessibilityLabel("Angolo foto \(index + 1)")
+            .accessibilityIdentifier("photoCorner-\(index)")
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("photoQuad"))
                 .onChanged { value in
                     guard !rendering else { return }
@@ -229,3 +230,29 @@ struct PhotoCropPanel: View {
         else { notice = "Bordi non rilevati: trascina i quattro angoli." }
     }
 }
+
+#if DEBUG
+/// Isolated UI harness: the same crop editor, without camera permissions or personal notebooks.
+@MainActor
+struct PhotoCropUITestHost: View {
+    @State private var showing = true
+    @State private var edit = PhotoAdjustment(perspective: .full)
+    private var image: UIImage {
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: 800, height: 1000), format: format).image { context in
+            UIColor.white.setFill(); context.fill(CGRect(x: 0, y: 0, width: 800, height: 1000))
+            UIColor.systemTeal.setStroke(); context.cgContext.setLineWidth(8); context.cgContext.stroke(CGRect(x: 80, y: 100, width: 640, height: 800))
+            let text = "NEURALNOTES\nRaddrizza la foto\nOriginale conservato"
+            (text as NSString).draw(in: CGRect(x: 120, y: 200, width: 560, height: 400), withAttributes: [.font: UIFont.systemFont(ofSize: 38), .foregroundColor: UIColor.black])
+        }
+    }
+    var body: some View {
+        VStack {
+            Text("Rotazione \(edit.quarterTurns) · migliora \(edit.enhanced ? "sì" : "no")").accessibilityIdentifier("photoTestResult")
+            Button("Riapri foto") { showing = true }
+        }.fullScreenCover(isPresented: $showing) {
+            PhotoCropPanel(image: image, initial: edit.crop, adjustment: edit, straighten: true) { edit = $0 }
+        }
+    }
+}
+#endif

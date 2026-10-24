@@ -50,6 +50,10 @@ class OpenStepParser:
 
 
 def check_structure():
+    # Swift uses basenames for object/stringsdata outputs, even across folders.
+    # Check Core separately: it is a local package, absent from PBXSourcesBuildPhase.
+    core_names = [p.name.casefold() for p in (ROOT / "NeuralNotes/Core").rglob("*.swift")]
+    assert len(core_names) == len(set(core_names)), "Duplicate Swift basenames in NeuralNotesCore"
     parser = OpenStepParser((ROOT / "NeuralNotes.xcodeproj/project.pbxproj").read_text(encoding="utf-8"))
     project = parser.value()
     assert parser.index == len(parser.tokens)
