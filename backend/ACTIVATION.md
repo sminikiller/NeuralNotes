@@ -1,4 +1,4 @@
-# Attivazione account e AI — backend 0.6 / app 0.21
+# Attivazione account e AI — backend 0.6 / app 0.23
 
 ## Stato effettivo
 
@@ -43,7 +43,15 @@ La seconda prova crea container isolati, porte solo su loopback, segreti casuali
 
 ## Lavoro ancora aperto per il rilascio
 
-Prova live provider e SMTP, prova account/Keychain e popup sull’iPad, monitoraggio e budget, backup database, pulizia oggetti e retention, moderazione e controlli dei materiali condivisi. La community nativa, la coda durevole e l’interfaccia per i conflitti esistono; restano verifica pubblica, completa sincronizzazione bidirezionale tramite account e suddivisione dei grandi oggetti. Abbonamenti/pagamenti restano disabilitati; i piani esposti sono proposte. Il PDF locale da 1 GiB non alza il limite cloud di 100 MiB per oggetto.
+Prova live provider e SMTP, prova account/Keychain e popup sull’iPad, monitoraggio e budget, backup database, pulizia oggetti e retention, moderazione e controlli dei materiali condivisi. La coda durevole e le interfacce per i conflitti sono implementate; la sincronizzazione account invia e riceve quaderni chiusi entro 100 MiB, conservando l’identità. Restano pubblicazione e verifica dei servizi reali, suddivisione dei grandi oggetti e sincronizzazione di cartelle/cestino. Le API community non costituiscono una community pubblica già avviata. Abbonamenti/pagamenti restano disabilitati; i piani esposti sono proposte. Il PDF locale da 1 GiB non alza il limite cloud di 100 MiB per oggetto.
+
+## Aggiornamento 0.23: sincronizzazione account
+
+L’app distingue il backup manuale come copia dalla sincronizzazione con identità conservata. La sincronizzazione confronta un’impronta del pacchetto locale con il checkpoint dell’ultima revisione del server: gli hash di archivio e pacchetto sono distinti. Quando entrambi i lati cambiano mantiene il conflitto. Un’installazione da cloud verifica dimensione, SHA-256 e struttura del pacchetto, controlla nuovamente la versione locale sotto lease e crea prima un backup locale. Gli export in coda mantengono l’impronta della versione realmente caricata: modifiche successive non vengono marcate come trasferite.
+
+Il consenso alla sincronizzazione automatica è persistito per utente e origine del servizio; non passa a un altro account. Il controllo avviene ogni 120 secondi mentre l’app è attiva, solo per quaderni già associati tramite sincronizzazione esplicita: non adotta silenziosamente altri quaderni locali quando un utente torna sul dispositivo. Per includere nuovi quaderni scegliere **Sincronizza adesso**. Anche l’attivazione del toggle esegue soltanto il percorso automatico. I quaderni aperti sono saltati e la rete non mantiene il quaderno bloccato durante il download. Cartelle e cestino restano locali; nessuna eliminazione viene propagata. Il catalogo cloud viene letto con paginazione, prima di iniziare i trasferimenti. I grandi PDF possono quindi essere usati localmente ma richiedono export su File o la separata configurazione iCloud se il quaderno supera il limite dell’account.
+
+Questa implementazione e i test con server simulato non attivano un hosting. Il pacchetto continua a mostrare il servizio non configurato finché `tools/configure_service.py` non convalida un gateway pubblico reale. Non inserire indirizzi di esempio o chiavi private nell’app per aggirare questo requisito.
 
 
 ## Aggiornamento 0.21.0: account e controlli di pubblicazione

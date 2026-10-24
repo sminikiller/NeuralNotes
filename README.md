@@ -1,4 +1,6 @@
-# NeuralNotes 0.22.0 — delivery iPad
+# NeuralNotes 0.23.0 — candidato delivery iPad
+
+**0.23.0/build 50 — Annulla, account e guida:** ripristino della pagina corrente in memoria senza attendere il disco; sincronizzazione account dei quaderni chiusi con checkpoint, ripresa e conflitti; 45 tutorial ricercabili con progressi salvati. Il controllo automatico trasferisce solo quaderni già associati all’account; il comando esplicito aggiunge quelli nuovi. [Consegna, hash e verifiche](docs/DELIVERY_0_23_0.md), [guida completa](docs/GUIDA_FUNZIONI.md). Backend pubblico, SMTP/provider live e iCloud firmato restano da attivare: il codice predisposto e i test locali non sono un servizio online già pubblicato.
 
 **0.22.0/build 49 — navigazione compatta:** cursore delle pagine con numero ingrandito durante il trascinamento, salto numerico, messaggi temporanei e stato raccolto in un'icona. I quaderni aperti si scelgono dal titolo, senza una riga dedicata alle schede. [Verifica finale Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/40047775770) PASS: 268 Core, 98 FSRS, 93 test nativi, cinque UI, Release e ZIP reale compilato e avviato. Anche [Swift 5.10 / Xcode 15.4](https://github.com/sminikiller/NeuralNotes/actions/runs/40047781343) PASS sulla revisione finale. [Consegna, schermate, esiti completi e limiti](docs/DELIVERY_0_22_0.md).
 

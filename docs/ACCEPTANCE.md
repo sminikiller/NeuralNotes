@@ -1,5 +1,16 @@
 # Gate di accettazione 0.9.0
 
+## Aggiornamento 0.23.0 — candidato delivery
+
+- [x] Annulla della pagina corrente senza attesa del disco, budget sintetico di 150 ms, writer precedente bloccato/errore e nuova scrittura senza ricomparsa del tratto. Conferma UI sui pixel del canvas.
+- [x] Sincronizzazione account fra due librerie di prova, conflitti, ripresa dopo interruzione, download corrotto rifiutato, indice paginato e consenso automatico separato per account/quaderno. Trasporto del modello nativo simulato; servizi Auth/database/Storage provati separatamente con servizi reali locali.
+- [x] 45 tutorial ricercabili: copertura di tutti gli strumenti del workspace, passaggi e progressi persistenti verificati.
+- [x] ZIP effettivo compilato Release con Xcode 16.4 e 15.4, sorgenti dei due pacchetti confrontati; app dello ZIP avviata sul simulatore. Nuovo binario installato sopra 0.20.8 conservando il quaderno di controllo.
+- [ ] Servizio account/SMTP/AI pubblico, iCloud firmato e prova su due dispositivi reali.
+- [ ] Prove fisiche iPad di registrazione lunga/standby, fotocamera/scanner, grandi documenti e aggiornamento del contenitore Playgrounds conservando gli appunti reali.
+
+Esiti, ripetizioni e limiti in [DELIVERY_0_23_0.md](DELIVERY_0_23_0.md). Non è una pubblicazione App Store completata.
+
 ## Aggiornamento 0.21.0 — verifiche automatiche e fisiche distinte
 
 - [x] Sei verifiche prima fallite risolte; suite completa e ripetizioni mirate documentate, Release e ZIP reale compilati. [Evidenze 0.21.0](DELIVERY_0_21_0.md).
