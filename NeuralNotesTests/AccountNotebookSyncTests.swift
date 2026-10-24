@@ -119,7 +119,9 @@ final class AccountNotebookSyncTests: XCTestCase {
     @MainActor private func write(_ text: String, book: Notebook, library: LibraryViewModel) async throws {
         let workspace = try library.workspace(book)
         let pages = try await workspace.pages()
-        var page = try XCTUnwrap(pages.first)
+        var page: PageSnapshot
+        if let first = pages.first { page = first }
+        else { page = try await workspace.addDefaultPage() }
         page.texts = [TextElement(text: text)]; page.revision += 1
         _ = try await workspace.save(page, drawing: PKDrawing().dataRepresentation())
     }

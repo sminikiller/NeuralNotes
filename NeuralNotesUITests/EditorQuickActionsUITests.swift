@@ -12,7 +12,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         }
         for _ in 0..<4 where !guide.isHittable { app.swipeUp() }
         XCTAssertTrue(guide.waitForExistence(timeout: 5)); guide.tap()
-        let search = app.searchFields.firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Cerca una funzione o un gesto")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("cronologia")
         let tutorial = app.buttons["guide-undo"]
         XCTAssertTrue(tutorial.waitForExistence(timeout: 5)); tutorial.tap()
