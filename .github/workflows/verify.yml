@@ -13,6 +13,10 @@ on:
         description: Full commit already validated for Core/native/Release/package (required for ui scope)
         type: string
         required: false
+      ui_test:
+        description: Optional Class/testMethod for a UI-only follow-up on unchanged application sources
+        type: string
+        required: false
       playground_launch:
         description: Install and launch the app built from the actual ZIP on an iPad simulator
         type: boolean
@@ -119,6 +123,7 @@ jobs:
         env:
           NEURALNOTES_FOCUSED_TESTS: ${{ inputs.scope == 'focused' && '1' || '0' }}
           NEURALNOTES_UI_ONLY: ${{ inputs.scope == 'ui' && '1' || '0' }}
+          NEURALNOTES_UI_TEST: ${{ inputs.ui_test }}
         shell: bash
         run: |
           set -o pipefail

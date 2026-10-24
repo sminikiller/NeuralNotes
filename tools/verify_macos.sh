@@ -35,7 +35,12 @@ if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
   test_selection+=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
 fi
 if [ "${NEURALNOTES_UI_ONLY:-0}" = 1 ]; then
-  test_selection+=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
+  if [ -n "${NEURALNOTES_UI_TEST:-}" ]; then
+    [[ "$NEURALNOTES_UI_TEST" =~ ^[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+$ ]]
+    test_selection+=("-only-testing:NeuralNotesUITests/$NEURALNOTES_UI_TEST")
+  else
+    test_selection+=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
+  fi
   echo "UI-only follow-up: Core/native/Release/package evidence must come from the same application sources."
 fi
 xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \

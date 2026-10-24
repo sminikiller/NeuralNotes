@@ -303,6 +303,9 @@ final class EditorQuickActionsUITests: XCTestCase {
     @MainActor func testNotebookTitleSwitcherOpensChangesAndClosesTabs() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorReturnToLibrary"].tap()
+        // The desk dismisses onto the notebook overview, whose parent is the library.
+        let back = app.navigationBars.buttons["Libreria"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5)); back.tap()
         let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 5)); create.tap()
         let name = app.textFields["notebookNameField"]; XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap(); name.typeText("Secondo test"); app.buttons["saveNotebookButton"].tap()
