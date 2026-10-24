@@ -51,7 +51,7 @@ struct CloudSyncPanel: View {
             Button("Sincronizza adesso", systemImage: "arrow.triangle.2.circlepath.icloud") {
                 Task { await cloud.synchronize(library) }
             }.disabled(cloud.busy)
-            Text("Con lo stesso account puoi inviare e ricevere quaderni chiusi, fino a 100 MB per quaderno. Il controllo automatico avviene ogni due minuti mentre l’app è attiva. L’attivazione è separata per account. Cartelle e cestino restano locali; nessuna eliminazione viene propagata.")
+            Text("Con lo stesso account puoi inviare e ricevere quaderni chiusi, fino a 100 MB per quaderno. Il controllo automatico avviene ogni due minuti mentre l’app è attiva, solo per quaderni già sincronizzati con quell’account. Per aggiungere nuovi quaderni usa Sincronizza adesso. Cartelle e cestino restano locali; nessuna eliminazione viene propagata.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(cloud.conflicts.keys.sorted(by: { $0.uuidString < $1.uuidString }), id: \.self) { id in
                 if let remote = cloud.conflicts[id] {

@@ -178,7 +178,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Esporta i dati o richiedi l’eliminazione con nuova verifica. Uscire non elimina i quaderni locali: su dispositivi condivisi gestiscili separatamente." ]),
         .init("account-sync", .protection, "Sincronizza con l’account NeuralNotes", "arrow.triangle.2.circlepath.icloud", "Invio, ricezione e conflitti fra dispositivi.", [
             "Accedi allo stesso account sui dispositivi e apri Cloud e sincronizzazione. Chiudi i quaderni e scegli Sincronizza adesso.",
-            "Attiva se vuoi il controllo automatico per quell’account mentre l’app è aperta. Il limite è 100 MB per quaderno; cartelle e cestino rimangono locali.",
+            "Attiva se vuoi il controllo automatico dei quaderni già sincronizzati con quell’account mentre l’app è aperta. Per aggiungerne di nuovi usa Sincronizza adesso. Il limite è 100 MB per quaderno; cartelle e cestino rimangono locali.",
             "Se entrambe le copie sono cambiate scegli una versione o scarica una copia aggiuntiva. Prima di sostituire un quaderno locale viene conservato un backup." ]),
         .init("icloud", .protection, "iCloud privato", "icloud", "Sincronizzazione separata dall’account NeuralNotes.", [
             "Serve una build firmata configurata con CloudKit e un account iCloud attivo. Nel Playground o senza abilitazione la funzione può non essere disponibile.",

@@ -79,11 +79,17 @@ final class AccountNotebookSyncTests: XCTestCase {
         await cloud.synchronize(local.model)
         let skipped = await server.uploadCount; XCTAssertEqual(skipped, 0)
         let closed = await editor.close(); XCTAssertTrue(closed)
+        await cloud.synchronize(local.model) // explicit consent to associate the local notebook
         await cloud.setAutomatic(true)
+        _ = try local.repository.createNotebook(title: "Nuovo · non associato", folderID: nil, cover: .sand)
+        try local.model.reload()
         let restarted = service(folder, auth, server)
         await restarted.synchronizeIfEnabled(local.model)
         XCTAssertTrue(restarted.automatic)
         let uploaded = await server.uploadCount; XCTAssertEqual(uploaded, 1)
+        XCTAssertEqual(restarted.documents.count, 1, "Returning to an account must not silently upload other local notebooks")
+        await restarted.synchronize(local.model) // the explicit command can enroll the new notebook
+        let adopted = await server.uploadCount; XCTAssertEqual(adopted, 2)
     }
 
     @MainActor func testCloudIndexReadsBeyondTheFirstFiftyNotebooks() async throws {

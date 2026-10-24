@@ -145,12 +145,12 @@ final class CloudBackupService {
         guard !busy else { return }
         await prepareAccount()
         guard automatic else { return }
-        await synchronize(library)
+        await synchronize(library, automaticOnly: true)
     }
 
     /// Closed notebooks only. Server CAS protects uploads; downloads recheck the
     /// local fingerprint under a cloud lease and retain a mandatory local backup.
-    func synchronize(_ library: LibraryViewModel) async {
+    func synchronize(_ library: LibraryViewModel, automaticOnly: Bool = false) async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do {
             try await selectAccount(); await drain(); try await refreshDocuments()
@@ -159,6 +159,10 @@ final class CloudBackupService {
             let localIDs = Set((library.notebooks + library.trash).map(\.documentID))
             for book in library.notebooks {
                 try Task.checkCancellation()
+                // The device library is shared across logins. Never silently
+                // enroll unknown local notebooks when a previous user returns.
+                // The explicit Sync command is the consent to add new ones.
+                if automaticOnly, syncState?.checkpoints[book.documentID] == nil { skipped += 1; continue }
                 if queue.jobs.contains(where: { $0.documentID == book.documentID }) { skipped += 1; continue }
                 guard EditorLeases.shared.reserveCloud(book.documentID) else { skipped += 1; continue }
                 let digest: String
