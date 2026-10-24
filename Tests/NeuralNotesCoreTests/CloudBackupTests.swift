@@ -5,6 +5,11 @@ import FoundationNetworking
 @testable import NeuralNotesCore
 
 final class CloudBackupTests: XCTestCase {
+    func testCloudIndexSupportsValidatedPagination() throws {
+        let url = try CloudBackupWire.list(studyURL: study, token: "fixture", offset: 50).url
+        XCTAssertEqual(URLComponents(url: try XCTUnwrap(url), resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "50")
+        for offset in [-1, 1, 10_050] { XCTAssertThrowsError(try CloudBackupWire.list(studyURL: study, token: "fixture", offset: offset)) }
+    }
     private let study = URL(string: "https://gateway.example/api/v1/study")!
     private let service = ManagedAIService(studyURL: URL(string: "https://gateway.example/api/v1/study")!, authURL: URL(string: "https://project.supabase.example")!, publicKey: "sb_publishable_fixture-key")
     private let document = UUID(), owner = UUID(), object = UUID()

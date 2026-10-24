@@ -176,8 +176,9 @@ public enum CloudBackupWire {
               value.id == job.documentID, value.revision == job.expectedRevision + 1, value.checksum == job.checksum, value.bytes == job.bytes else { throw CloudBackupFailure.invalidResponse }
         return value
     }
-    public static func list(studyURL: URL, token: String) throws -> URLRequest {
-        try json(platformURL(studyURL: studyURL, path: "documents"), token: token, body: nil)
+    public static func list(studyURL: URL, token: String, offset: Int = 0) throws -> URLRequest {
+        guard (0...10_000).contains(offset), offset.isMultiple(of: 50) else { throw CloudBackupFailure.invalidResponse }
+        return try json(platformURL(studyURL: studyURL, path: "documents", query: offset == 0 ? [] : [URLQueryItem(name: "offset", value: String(offset))]), token: token, body: nil)
     }
     public static func documents(_ data: Data) throws -> [CloudDocument] {
         guard data.count <= 2 * 1024 * 1024, let values = try? JSONDecoder().decode([CloudDocument].self, from: data),

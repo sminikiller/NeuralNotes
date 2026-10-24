@@ -23,6 +23,8 @@ final class AccountNotebookSyncTests: XCTestCase {
         let received = try XCTUnwrap(second.model.notebooks.first, b.status)
         XCTAssertEqual(received.id, book.id); XCTAssertEqual(received.documentID, book.documentID)
         let receivedText = try await text(received, library: second.model); XCTAssertEqual(receivedText, "Prima versione")
+        await b.backup(received, library: second.model)
+        XCTAssertTrue(b.queue.jobs.isEmpty, "Manual backup must use the revision received by synchronization: \(b.status)")
         try await write("Aggiornamento da B", book: received, library: second.model)
         await b.synchronize(second.model); await a.synchronize(first.model)
         let updated = try await text(book, library: first.model); XCTAssertEqual(updated, "Aggiornamento da B", a.status)
@@ -84,6 +86,17 @@ final class AccountNotebookSyncTests: XCTestCase {
         let uploaded = await server.uploadCount; XCTAssertEqual(uploaded, 1)
     }
 
+    @MainActor func testCloudIndexReadsBeyondTheFirstFiftyNotebooks() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let server = AccountCloudFixture(), auth = try await server.client()
+        await server.seedIndex(count: 75)
+        let cloud = service(root, auth, server)
+        await cloud.refresh()
+        XCTAssertEqual(cloud.documents.count, 75, cloud.status)
+        XCTAssertEqual(Set(cloud.documents.map(\.id)).count, 75)
+    }
+
     @MainActor private func library(_ root: URL) throws -> (repository: SwiftDataLibraryRepository, model: LibraryViewModel) {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let schema = Schema(versionedSchema: LibrarySchemaV1.self)
@@ -116,8 +129,15 @@ private actor AccountCloudFixture: ManagedAITransport {
     private var failUpload = false, corrupt = false
     func failNextUpload() { failUpload = true }
     func corruptDownloads() { corrupt = true }
+    func seedIndex(count: Int) {
+        for i in 0..<count {
+            let id = UUID()
+            rows[id] = CloudDocument(id: id, revision: 1, title: "Quaderno \(i)", checksum: String(repeating: "a", count: 64), bytes: 1, deleted: false, updatedAt: nil)
+        }
+    }
     func client() throws -> ManagedAIClient {
-        let service = ManagedAIService(studyURL: URL(string: "https://gateway.example/v1/study")!, authURL: URL(string: "https://project.example")!, publicKey: "sb_publishable_fixture_only")
+        let config = Data(#"{"version":1,"managed":true,"auth":{"url":"https://project.example","publicKey":"sb_publishable_fixture_only"}}"#.utf8)
+        let service = try ManagedAIService.decode(config, studyURL: URL(string: "https://gateway.example/v1/study")!)
         let bytes = try JSONSerialization.data(withJSONObject: ["access_token": "fixture-access", "refresh_token": "fixture-refresh", "token_type": "bearer", "expires_in": 3600,
             "user": ["id": user.uuidString, "email": "test@example.invalid", "is_anonymous": false]])
         return ManagedAIClient(transport: self, storage: AccountCloudSession(try ManagedAISession.decode(bytes, service: service, now: Date())))
@@ -129,7 +149,10 @@ private actor AccountCloudFixture: ManagedAITransport {
         }
         let url = try XCTUnwrap(request.url)
         switch url.lastPathComponent {
-        case "documents": return ManagedAIHTTPResponse(data: try JSONEncoder().encode(Array(rows.values)), status: 200)
+        case "documents":
+            let offset = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value.flatMap(Int.init) ?? 0
+            let batch = rows.values.sorted { $0.id.uuidString < $1.id.uuidString }.dropFirst(offset).prefix(50)
+            return ManagedAIHTTPResponse(data: try JSONEncoder().encode(Array(batch)), status: 200)
         case "uploads":
             let id = try XCTUnwrap(body["entityID"] as? String)
             let path = "\(user.uuidString.lowercased())/cloud/\(id)/\(UUID().uuidString.lowercased()).nnbackup"

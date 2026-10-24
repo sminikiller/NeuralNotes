@@ -239,6 +239,8 @@ final class CloudBackupService {
     private func remember(_ remote: CloudDocument, digest: String) throws {
         syncState?.checkpoints[remote.id] = AccountSyncCheckpoint(digest: digest, revision: remote.revision)
         try persistSyncState()
+        queue.revisions[remote.id] = remote.revision
+        try persist()
     }
 
     private func install(_ remote: CloudDocument, library: LibraryViewModel, expectedLocal: String?) async throws {
@@ -361,11 +363,26 @@ final class CloudBackupService {
     }
 
     private func refreshDocuments() async throws {
-        let (service, token) = try await account()
-        let (data, code) = try await exchange(CloudBackupWire.list(studyURL: service.studyURL, token: token))
-        guard code == 200 else { throw CloudBackupWire.failure(status: code) }
-        _ = try await account()
-        documents = try CloudBackupWire.documents(data).filter { !$0.deleted }
+        var collected: [UUID: CloudDocument] = [:]
+        // Fetch all pages before publishing an index. A partial index must not
+        // turn existing remote notebooks into apparently new local uploads.
+        for offset in stride(from: 0, through: 10_000, by: 50) {
+            try Task.checkCancellation()
+            let (service, token) = try await account()
+            let (data, code) = try await exchange(CloudBackupWire.list(studyURL: service.studyURL, token: token, offset: offset))
+            guard code == 200 else { throw CloudBackupWire.failure(status: code) }
+            _ = try await account()
+            let batch = try CloudBackupWire.documents(data)
+            for document in batch {
+                if let previous = collected[document.id], previous != document { throw CloudBackupFailure.conflict }
+                collected[document.id] = document
+            }
+            if batch.count < 50 {
+                documents = collected.values.filter { !$0.deleted }.sorted { $0.id.uuidString < $1.id.uuidString }
+                return
+            }
+        }
+        throw CloudBackupFailure.invalidResponse
     }
 
     // MARK: Account, files and transport

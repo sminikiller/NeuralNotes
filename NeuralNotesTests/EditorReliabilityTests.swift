@@ -155,6 +155,37 @@ final class EditorReliabilityTests: XCTestCase {
         _ = await model.close()
     }
 
+    @MainActor func testUndoDuringOlderInFlightWriteDoesNotRestoreThatWriteOverNewInk() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var writing = false, release = false, writes = 0
+        let model = EditorViewModel(workspace: workspace, pageWriter: { page, bytes, recovered in
+            writing = true; writes += 1
+            for _ in 0..<500 where !release { try await Task.sleep(for: .milliseconds(10)) }
+            return try await workspace.save(page, drawing: bytes, recoveredFromPrevious: recovered)
+        })
+        await model.open()
+        model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.pen)]); model.strokeEnded(); model.finishInkGesture()
+        let saving = Task { await model.flush() }
+        for _ in 0..<100 where !writing { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(writing)
+        let started = ContinuousClock.now; await model.performUndo()
+        XCTAssertLessThan(started.duration(to: .now), .milliseconds(150))
+        XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertEqual(writes, 1)
+        model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.marker)]); model.strokeEnded(); model.finishInkGesture()
+        release = true
+        let saved = await saving.value; XCTAssertTrue(saved)
+        XCTAssertGreaterThanOrEqual(writes, 2)
+        let page = try XCTUnwrap(model.page), stored = try await workspace.drawing(page)
+        let drawing = try PKDrawing(data: XCTUnwrap(stored))
+        XCTAssertEqual(drawing.strokes.count, 1); XCTAssertEqual(drawing.strokes.first?.ink.inkType, .marker)
+        XCTAssertFalse(model.canRedo)
+        _ = await model.close()
+    }
+
     @MainActor func testRapidSamePageUndoRedoKeepsChronologyWithoutWriting() async throws {
         try await fixture { model in
             for i in 0..<20 { model.editText([TextElement(text: "Versione \(i)")]); model.commitTextEdit() }
@@ -212,9 +243,11 @@ final class EditorReliabilityTests: XCTestCase {
             return ManagedAIHTTPResponse(data: reservationData, status: 201)
         })
         await cloud.prepareAccount(); XCTAssertEqual(cloud.queue.owner, firstOwner)
+        await cloud.setAutomatic(true); XCTAssertTrue(cloud.automatic)
         _ = try await auth.verify(email: "b@example.invalid", code: "123456")
         await cloud.replaceCloudVersion(document) // action from an old A screen, now B is signed in
         XCTAssertEqual(cloud.queue.owner, secondOwner); XCTAssertEqual(cloud.queue.jobs, [secondJob])
+        XCTAssertFalse(cloud.automatic, "Automatic sharing must never carry over to another account")
         _ = try await auth.verify(email: "a@example.invalid", code: "123456")
         await cloud.discard(document) // old B screen must not remove A's archive
         XCTAssertEqual(cloud.queue.owner, firstOwner); XCTAssertEqual(cloud.queue.jobs, [firstJob])

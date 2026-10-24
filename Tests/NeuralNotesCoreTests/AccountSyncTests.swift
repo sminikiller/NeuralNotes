@@ -12,6 +12,7 @@ final class AccountSyncTests: XCTestCase {
         XCTAssertEqual(AccountSyncPolicy.action(local: digest, remoteRevision: 7, checkpoint: nil), .conflict)
         XCTAssertEqual(AccountSyncPolicy.action(local: digest, remoteRevision: nil, checkpoint: nil), .upload)
         XCTAssertEqual(AccountSyncPolicy.action(local: digest, remoteRevision: nil, checkpoint: checkpoint), .conflict)
+        XCTAssertEqual(AccountSyncPolicy.action(local: digest, remoteRevision: 6, checkpoint: checkpoint), .conflict)
     }
     func testInterruptedUploadCheckpointsOnlyTheAcknowledgedSnapshotAndOwner() throws {
         let owner = CloudBackupOwner(studyURL: URL(string: "https://gateway.example/v1/study")!, userID: UUID())

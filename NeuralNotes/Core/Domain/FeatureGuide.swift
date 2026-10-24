@@ -195,7 +195,19 @@ public struct FeatureGuide: Identifiable, Sendable {
         .init("diagnostics", .protection, "Verifica sul dispositivo", "checkmark.seal", "Controlli isolati e collaudo fisico.", [
             "Dalla libreria apri Verifica sul dispositivo ed esegui i controlli integrati.",
             "I test usano documenti di prova e mostrano i risultati per area. Non sostituiscono il collaudo del tuo materiale reale.",
-            "Prima della delivery verifica audio lungo, standby, fotocamera, PDF grandi e un aggiornamento conservando il backup dei quaderni." ])
+            "Prima della delivery verifica audio lungo, standby, fotocamera, PDF grandi e un aggiornamento conservando il backup dei quaderni." ]),
+        .init("laser", .writing, "Puntatore laser", "scope", "Indica un punto senza aggiungere inchiostro permanente.", [
+            "Dal menu dell’editor attiva Puntatore laser per spiegare o mostrare una parte del foglio.",
+            "Muovi la punta sul contenuto da indicare. Il segno temporaneo aiuta a seguire la spiegazione e non diventa un appunto.",
+            "Disattiva il puntatore per riprendere la scrittura. Verifica lo strumento attivo prima di aggiungere nuovi tratti." ]),
+        .init("study-tape", .study, "Nastro per il ripasso", "rectangle.fill", "Nascondi una risposta e prova a ricordarla.", [
+            "Dal menu di inserimento scegli Nastro per il ripasso per aggiungere una copertura sul foglio.",
+            "Posiziona e ridimensiona il nastro sopra il testo da nascondere usando lo strumento Oggetti.",
+            "Usa il controllo del nastro per mostrare o nascondere il contenuto mentre ripassi. Puoi spostarlo o eliminarlo dal menu della selezione." ]),
+        .init("pdf-highlight", .pages, "Testo ed evidenziazioni del PDF", "highlighter", "Seleziona testo digitale e conserva i riferimenti.", [
+            "Apri lo studio PDF e un documento con testo selezionabile. I PDF composti soltanto da scansioni possono richiedere OCR.",
+            "Seleziona le righe da copiare o evidenziare con i controlli PDF disponibili; usa l’indice per raggiungere una sezione.",
+            "Riporta le parti utili negli appunti e controlla il risultato. Per un tratto libero sopra la pagina usa invece l’evidenziatore dell’editor." ])
     ]
 }
 

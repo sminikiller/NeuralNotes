@@ -41,7 +41,7 @@ public struct AccountSyncState: Codable, Equatable, Sendable {
 public enum AccountSyncPolicy {
     public static func action(local: String, remoteRevision: Int?, checkpoint: AccountSyncCheckpoint?) -> CloudSyncAction {
         guard let remoteRevision else { return checkpoint == nil ? .upload : .conflict }
-        guard remoteRevision > 0, let checkpoint, checkpoint.isValid else { return .conflict }
+        guard remoteRevision > 0, let checkpoint, checkpoint.isValid, remoteRevision >= checkpoint.revision else { return .conflict }
         let localChanged = local != checkpoint.digest, remoteChanged = remoteRevision != checkpoint.revision
         switch (localChanged, remoteChanged) {
         case (false, false): return .unchanged

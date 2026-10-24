@@ -13,7 +13,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         for _ in 0..<4 where !guide.isHittable { app.swipeUp() }
         XCTAssertTrue(guide.waitForExistence(timeout: 5)); guide.tap()
         let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("annulla")
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("cronologia")
         let tutorial = app.buttons["guide-undo"]
         XCTAssertTrue(tutorial.waitForExistence(timeout: 5)); tutorial.tap()
         XCTAssertTrue(app.staticTexts["guideStep"].waitForExistence(timeout: 5))
@@ -25,7 +25,8 @@ final class EditorQuickActionsUITests: XCTestCase {
         if !reopened.waitForExistence(timeout: 3) || !reopened.isHittable { app.buttons["ToggleSidebar"].firstMatch.tap() }
         for _ in 0..<4 where !reopened.isHittable { app.swipeUp() }
         reopened.tap()
-        XCTAssertTrue(app.staticTexts["1 di 42 tutorial completati"].waitForExistence(timeout: 5))
+        let progress = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '1 di ' AND label ENDSWITH ' tutorial completati'")).firstMatch
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "feature-guide-progress"; attachment.lifetime = .keepAlways; add(attachment)
     }
     @MainActor func testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke() async throws {
