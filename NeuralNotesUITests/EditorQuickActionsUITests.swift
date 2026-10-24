@@ -119,7 +119,7 @@ final class EditorQuickActionsUITests: XCTestCase {
             XCTAssertTrue(sidebar.waitForExistence(timeout: 5)); sidebar.tap()
         }
         XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
-        let access = app.buttons["Account NeuralNotes"].firstMatch
+        let access = app.buttons["services-account"].firstMatch
         XCTAssertTrue(access.waitForExistence(timeout: 5)); access.tap()
         XCTAssertTrue(app.textFields["managedAIEmail"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["managedAINotConfigured"].exists)

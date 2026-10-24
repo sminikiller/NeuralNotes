@@ -102,14 +102,17 @@ struct PhotoCropPanel: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(confirm) { completion(edit); dismiss() }
-                            .disabled(detecting || rendering || !quad.isConvex)
+                            .disabled(detecting || rendering || !quad.isConvex || quad.outputSize(for: .init(width: image.size.width, height: image.size.height)) == nil)
                             .accessibilityIdentifier("photoCropConfirm")
                     }
                 }
         }.onAppear { edit = adjustment; edit.crop = initial; mode = straighten ? 1 : 0 }
             .task(id: previewKey) { await updatePreview() }
             .task { if straighten, adjustment.perspective == nil { await detect() } }
-            .onChange(of: mode) { _, value in if value == 1, edit.perspective == nil { Task { await detect() } } }
+            .onChange(of: mode) { _, value in
+                editGeneration += 1
+                if value == 1, edit.perspective == nil { Task { await detect() } }
+            }
     }
 
     private var controls: some View {
@@ -130,7 +133,9 @@ struct PhotoCropPanel: View {
         }
         Button { rotate(-1) } label: { Image(systemName: "rotate.left") }.accessibilityLabel("Ruota di 90 gradi a sinistra")
         Button { rotate(1) } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota di 90 gradi a destra")
-        Toggle(isOn: $edit.enhanced) { Label("Migliora", systemImage: "wand.and.stars") }.toggleStyle(.button)
+        Button { edit.enhanced.toggle() } label: { Label("Migliora", systemImage: edit.enhanced ? "checkmark.circle.fill" : "wand.and.stars") }
+            .tint(edit.enhanced ? Color.teal : Color.accentColor)
+            .accessibilityIdentifier("photoEnhance").accessibilityValue(edit.enhanced ? "Attivo" : "Disattivo")
         if detecting || rendering { ProgressView() }
     }
 
@@ -167,7 +172,7 @@ struct PhotoCropPanel: View {
     private func corner(_ index: Int, size: CGSize) -> some View {
         let point = displayed(quad.points[index], size: size)
         return Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(.teal, lineWidth: 3))
-            .frame(width: 44, height: 44).contentShape(Rectangle()).position(point)
+            .frame(width: 44, height: 44).contentShape(Rectangle())
             .accessibilityLabel("Angolo foto \(index + 1)")
             .accessibilityIdentifier("photoCorner-\(index)")
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("photoQuad"))
@@ -187,7 +192,7 @@ struct PhotoCropPanel: View {
                     let candidate = PerspectiveQuad(topLeft: points[0], topRight: points[1], bottomRight: points[2], bottomLeft: points[3])
                     if candidate.isConvex { edit.perspective = candidate; edit.crop = .full }
                     dragPoint = CGPoint(x: x * size.width, y: y * size.height)
-                }.onEnded { _ in dragPoint = nil })
+                }.onEnded { _ in dragPoint = nil }).position(point)
     }
     private func displayed(_ p: PerspectivePoint, size: CGSize) -> CGPoint {
         let q: PerspectivePoint
@@ -248,7 +253,7 @@ struct PhotoCropUITestHost: View {
     }
     var body: some View {
         VStack {
-            Text("Rotazione \(edit.quarterTurns) · migliora \(edit.enhanced ? "sì" : "no")").accessibilityIdentifier("photoTestResult")
+            Text("Rotazione \(edit.quarterTurns) · migliora \(edit.enhanced ? "sì" : "no") · bordi \(edit.perspective == .full ? "no" : "sì")").accessibilityIdentifier("photoTestResult")
             Button("Riapri foto") { showing = true }
         }.fullScreenCover(isPresented: $showing) {
             PhotoCropPanel(image: image, initial: edit.crop, adjustment: edit, straighten: true) { edit = $0 }

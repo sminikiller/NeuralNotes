@@ -55,7 +55,7 @@ struct AccountServicesPanel: View {
                 VStack(alignment: .leading, spacing: 4) { Text(title).foregroundStyle(.primary); Text(detail).font(.caption).foregroundStyle(.secondary) }
                 Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
             }.padding(.vertical, 6)
-        }
+        }.accessibilityIdentifier("services-\(target.rawValue)")
     }
     private func refresh() async {
         account = await ManagedAIAccount.client.snapshot(); configuration = AIEngineStore.load()

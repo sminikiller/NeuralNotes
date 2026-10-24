@@ -110,6 +110,17 @@ try {
   assert.equal((await call('/v1/platform/download?document='+document,undefined,rotated.access_token)).status,404);
   const link = await call('/v1/platform/download?document='+document,undefined,b.access_token); assert.equal(link.status,200,link.text);
   const downloaded = await fetch(link.json().url); assert.equal(downloaded.status,200); assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),bytes);
+  const versions = await call('/v1/platform/snapshots?document='+document,undefined,b.access_token);
+  assert.equal(versions.status,200,versions.text); assert.deepEqual(versions.json().map(v=>v.revision),[1]);
+  const hiddenVersions = await call('/v1/platform/snapshots?document='+document,undefined,rotated.access_token);
+  assert.equal(hiddenVersions.status,200); assert.deepEqual(hiddenVersions.json(),[]);
+  const historical = await call(`/v1/platform/download?document=${document}&revision=1`,undefined,b.access_token);
+  assert.equal(historical.status,200,historical.text);
+  const historicalBytes = await fetch(historical.json().url); assert.equal(historicalBytes.status,200);
+  assert.deepEqual(Buffer.from(await historicalBytes.arrayBuffer()),bytes);
+  assert.equal((await call(`/v1/platform/download?document=${document}&revision=1`,undefined,rotated.access_token)).status,404);
+  assert.equal((await call(`/v1/platform/download?document=${document}&revision=2`,undefined,b.access_token)).status,404);
+  console.log('PASS real snapshot history: owner-scoped list, signed historical download, exact bytes and cross-account denial');
   console.log('PASS real Storage: reservation, cross-account denial, immutable upload, revision CAS, private signed download, byte equality');
   const unstarted = (await call('/v1/platform/uploads',{kind:'cloud',entityID:randomUUID(),extension:'nnbackup',bytes:bytes.length}, b.access_token)).json();
   const exported = await call('/v1/platform/account/export?section=usage', undefined, b.access_token);

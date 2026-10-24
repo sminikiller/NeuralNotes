@@ -42,6 +42,8 @@ final class AccountNotebookSyncTests: XCTestCase {
         let resumed = service(folder, auth, server, network: { true }); await resumed.synchronizeIfEnabled(local.model)
         XCTAssertTrue(resumed.queue.jobs.isEmpty, resumed.status); XCTAssertTrue(resumed.backupOnClose); XCTAssertTrue(resumed.wifiOnly)
         let after = await server.uploadCount; XCTAssertEqual(after, 2); XCTAssertNotNil(resumed.lastBackupAt)
+        await resumed.notebookClosed(book, library: local.model)
+        let unchanged = await server.uploadCount; XCTAssertEqual(unchanged, 2, "Closing an unchanged notebook must not consume another cloud version")
         let differentServer = AccountCloudFixture(), differentAuth = try await differentServer.client()
         let differentAccount = service(folder, differentAuth, differentServer); await differentAccount.prepareAccount()
         XCTAssertFalse(differentAccount.backupOnClose); XCTAssertFalse(differentAccount.wifiOnly); XCTAssertTrue(differentAccount.queue.jobs.isEmpty)

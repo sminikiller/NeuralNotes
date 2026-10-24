@@ -15,6 +15,7 @@ struct NotebookCloudBadge: View {
             let date = document.updatedAt.map { " · " + $0.formatted(date: .numeric, time: .omitted) } ?? ""
             return ("Nel cloud" + date, "checkmark.icloud", false)
         }
+        if cloud.accountConnected, !cloud.indexLoaded { return ("Stato cloud da verificare", "questionmark.circle", false) }
         return ("Solo sull’iPad", "internaldrive", false)
     }
     var body: some View {

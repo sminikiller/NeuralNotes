@@ -45,7 +45,7 @@ struct CloudSyncPanel: View {
             Label(cloud.accountConnected ? "Account collegato" : "Account non collegato", systemImage: "person.crop.circle")
             LabeledContent("Ultimo backup", value: cloud.lastBackupAt?.formatted(date: .abbreviated, time: .shortened) ?? "Nessun backup confermato")
             LabeledContent("In coda", value: String(cloud.queue.jobs.count))
-            LabeledContent("Conflitti", value: String(cloud.conflicts.count + sync.conflicts.count + cloud.queue.jobs.filter(\.conflict).count))
+            LabeledContent("Conflitti", value: String(Set(cloud.conflicts.keys).union(sync.conflicts.keys).union(cloud.queue.jobs.filter(\.conflict).map(\.documentID)).count))
             Toggle("Backup automatico alla chiusura del quaderno", isOn: Binding(get: { cloud.backupOnClose }, set: { enabled in
                 Task { await cloud.setBackupPreferences(onClose: enabled, wifiOnly: cloud.wifiOnly) }
             })).disabled(cloud.busy)
@@ -59,9 +59,6 @@ struct CloudSyncPanel: View {
 
     private var accountSync: some View {
         Section("Sincronizzazione account NeuralNotes") {
-            NavigationLink("Account e accesso email") {
-                ManagedAIAccountPanel(initial: AIEngineConfiguration(), connected: { _ in }, offersAIConfiguration: false)
-            }
             Toggle("Sincronizza automaticamente i quaderni chiusi", isOn: Binding(
                 get: { cloud.automatic }, set: { enabled in Task {
                     await cloud.setAutomatic(enabled)
@@ -99,7 +96,7 @@ struct CloudSyncPanel: View {
             Button("Mostra le copie nel cloud", systemImage: "arrow.clockwise.icloud") { Task { await cloud.refresh() } }.disabled(cloud.busy)
             if cloud.busy { ProgressView() }
             if !cloud.status.isEmpty { Text(cloud.status).font(.callout).textSelection(.enabled) }
-            Text("Serve un servizio NeuralNotes configurato e l’accesso email da Libreria → Account.").font(.caption).foregroundStyle(.secondary)
+            Text("Serve un servizio NeuralNotes configurato e l’accesso email da Account e servizi.").font(.caption).foregroundStyle(.secondary)
         }
     }
 

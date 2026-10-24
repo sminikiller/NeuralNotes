@@ -12,6 +12,7 @@ final class CloudBackupService {
     var busy = false
     var status = ""
     var documents: [CloudDocument] = []
+    private(set) var indexLoaded = false
     private(set) var queue = CloudBackupQueue()
     private(set) var conflicts: [UUID: CloudDocument] = [:]
     private var syncState: AccountSyncState?
@@ -20,6 +21,7 @@ final class CloudBackupService {
     private var owner: CloudBackupOwner?
     private var resetAfterOperation = false
     private var operationOwner: CloudBackupOwner?
+    private var automaticTransfer = false
     @ObservationIgnored private let client: ManagedAIClient
     @ObservationIgnored private let transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)?
     @ObservationIgnored private let fileUpload: (@Sendable (URLRequest, URL) async throws -> Int)?
@@ -43,7 +45,7 @@ final class CloudBackupService {
     }
 
     private func finishOperation() {
-        busy = false; operationOwner = nil
+        busy = false; operationOwner = nil; automaticTransfer = false
         if resetAfterOperation { resetAfterOperation = false; accountDidChange() }
         if !pendingClosures.isEmpty {
             let pending = pendingClosures.removeFirst()
@@ -53,6 +55,7 @@ final class CloudBackupService {
     func accountDidChange() {
         guard !busy else { resetAfterOperation = true; return }
         owner = nil; queue = CloudBackupQueue(); documents = []; conflicts = [:]; syncState = nil; status = ""
+        indexLoaded = false
         pendingClosures = []
     }
     func prepareAccount() async {
@@ -78,8 +81,9 @@ final class CloudBackupService {
         if !skipped.isEmpty { status = "Non salvati: " + skipped.prefix(3).joined(separator: " · ") + (skipped.count > 3 ? "…" : "") }
     }
 
-    func retry() async {
+    func retry(automatic: Bool = false) async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
+        automaticTransfer = automatic
         do { try await selectAccount() } catch { status = message(error, title: ""); return }
         await drain()
     }
@@ -165,9 +169,16 @@ final class CloudBackupService {
             pendingClosures.append((book, library, closingOwner)); return
         }
         busy = true; operationOwner = nil; defer { finishOperation() }
+        automaticTransfer = true
         do {
             try await selectAccount()
             guard owner == closingOwner, backupOnClose, syncState?.checkpoints[book.documentID] != nil else { return }
+            if !queue.jobs.contains(where: { $0.documentID == book.documentID }), let checkpoint = syncState?.checkpoints[book.documentID] {
+                guard EditorLeases.shared.reserveCloud(book.documentID) else { throw CloudBackupJobFailure.open }
+                let digest: String
+                do { defer { EditorLeases.shared.releaseCloud(book.documentID) }; digest = try await library.workspace(book).cloudDigest(metadata: book) }
+                if digest == checkpoint.digest { return }
+            }
             try await prepare(book, library: library)
             guard !wifiOnly || automaticNetwork() else { status = "Backup pronto: in attesa di Wi-Fi senza risparmio dati."; return }
             await drain()
@@ -210,7 +221,7 @@ final class CloudBackupService {
     func synchronizeIfEnabled(_ library: LibraryViewModel) async {
         guard !busy else { return }
         await prepareAccount()
-        if backupOnClose, (!wifiOnly || automaticNetwork()), !queue.jobs.isEmpty { await retry() }
+        if backupOnClose, (!wifiOnly || automaticNetwork()), !queue.jobs.isEmpty { await retry(automatic: true) }
         guard automatic else { return }
         guard !wifiOnly || automaticNetwork() else { return }
         await synchronize(library, automaticOnly: true)
@@ -220,6 +231,7 @@ final class CloudBackupService {
     /// local fingerprint under a cloud lease and retain a mandatory local backup.
     func synchronize(_ library: LibraryViewModel, automaticOnly: Bool = false) async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
+        automaticTransfer = automaticOnly
         do {
             try await selectAccount(); await drain(); try await refreshDocuments()
             var completed = 0, skipped = 0
@@ -384,6 +396,7 @@ final class CloudBackupService {
         var saved = 0, waiting = 0
         for original in queue.jobs where !original.conflict {
             if Task.isCancelled { break }
+            if automaticTransfer, wifiOnly, !automaticNetwork() { status = "Backup in coda: in attesa di Wi-Fi."; return }
             var job = original
             do {
                 let (service, token) = try await account()
@@ -452,6 +465,7 @@ final class CloudBackupService {
             }
             if batch.count < 50 {
                 documents = collected.values.filter { !$0.deleted }.sorted { $0.id.uuidString < $1.id.uuidString }
+                indexLoaded = true
                 return
             }
         }
@@ -468,6 +482,7 @@ final class CloudBackupService {
 
     private func selectAccount() async throws {
         guard let current = await client.snapshot() else {
+            indexLoaded = false
             owner = nil; queue = CloudBackupQueue(); documents = []; conflicts = [:]; syncState = nil; throw CloudBackupFailure.signedOut
         }
         let next = CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID)
@@ -489,6 +504,7 @@ final class CloudBackupService {
             guard restoredSync.canResume(for: next) else { throw CloudBackupFailure.invalidResponse }
         }
         folder = target; owner = next; queue = restored; documents = []; conflicts = [:]; syncState = restoredSync
+        indexLoaded = false
     }
 
     private func account() async throws -> (service: ManagedAIService, token: String) {
@@ -505,6 +521,9 @@ final class CloudBackupService {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil; config.httpShouldSetCookies = false; config.httpCookieStorage = nil
         config.timeoutIntervalForResource = timeout
+        if automaticTransfer, wifiOnly {
+            config.allowsCellularAccess = false; config.allowsExpensiveNetworkAccess = false; config.allowsConstrainedNetworkAccess = false
+        }
         return URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
     }
 

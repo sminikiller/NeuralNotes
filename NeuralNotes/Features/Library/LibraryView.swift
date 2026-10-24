@@ -422,6 +422,7 @@ struct LibraryView: View {
             }
             Text(notebook.updatedAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.caption).foregroundStyle(.secondary)
+            if !usesGrid { NotebookCloudBadge(documentID: notebook.documentID) }
         }
     }
 
