@@ -123,18 +123,20 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(strip.waitForExistence(timeout: 5)); XCTAssertTrue(canvas.exists)
         for number in 2...6 {
             app.buttons["editorAddPage"].tap()
-            XCTAssertTrue(app.buttons["pageSelect-\(number)"].waitForExistence(timeout: 5))
+            waitForPage(number, total: number, in: app)
         }
         let orientations: [UIDeviceOrientation] = [.landscapeLeft, .portrait]
         for orientation in orientations {
             device.orientation = orientation
             let compact = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                 let bar = strip.frame, page = canvas.frame
-                return abs(bar.height - 56) <= 2 && page.height > app.frame.height * 0.65
+                return abs(bar.height - 48) <= 2 && page.height > app.frame.height * 0.75
                     && abs(bar.minY - page.maxY) <= 2
             }, object: strip)
             wait(for: [compact], timeout: 5)
-            XCTAssertGreaterThanOrEqual(app.buttons["pageSelect-6"].frame.height, 44)
+            XCTAssertGreaterThanOrEqual(app.buttons["editorPageCounter"].frame.height, 44)
+            XCTAssertTrue(app.buttons["editorNotebookSwitcher"].exists)
+            let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.lifetime = .keepAlways; add(attachment)
         }
     }
 
@@ -210,22 +212,20 @@ final class EditorQuickActionsUITests: XCTestCase {
     func testHorizontalAndVerticalPageNavigationKeepTheSelectedPageInSync() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorAddPage"].tap()
-        XCTAssertTrue(app.buttons["pageSelect-2"].waitForExistence(timeout: 5))
+        waitForPage(2, total: 2, in: app)
         app.buttons["editorAddPage"].tap()
-        XCTAssertTrue(app.buttons["pageSelect-3"].waitForExistence(timeout: 5))
+        waitForPage(3, total: 3, in: app)
         app.buttons["editorPageNavigation"].tap(); app.buttons["Sfoglia orizzontalmente"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         canvas.swipeRight()
-        let previous = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina corrente"), object: app.buttons["pageSelect-2"])
-        wait(for: [previous], timeout: 5)
+        waitForPage(2, total: 3, in: app)
         canvas.swipeLeft()
-        let next = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina corrente"), object: app.buttons["pageSelect-3"])
-        wait(for: [next], timeout: 5)
+        waitForPage(3, total: 3, in: app)
         app.buttons["editorPageNavigation"].tap(); app.buttons["Scorrimento verticale"].tap()
         canvas.swipeDown()
         // Continuous deceleration may pass more than one sheet; never require
         // the artificial one-page quantization used by the previous swipe mode.
-        let scrolled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", "Pagina corrente"), object: app.buttons["pageSelect-3"])
+        let scrolled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", "Pagina 3 di 3"), object: app.buttons["editorPageCounter"])
         wait(for: [scrolled], timeout: 5)
     }
     @MainActor
@@ -264,6 +264,66 @@ final class EditorQuickActionsUITests: XCTestCase {
         let focus = app.buttons["editorFocus"]
         if focus.waitForExistence(timeout: 10), !app.buttons["editorAddText"].exists { focus.tap() }
         XCTAssertTrue(app.buttons["editorAddText"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor private func waitForPage(_ number: Int, total: Int, in app: XCUIApplication) {
+        let counter = app.buttons["editorPageCounter"]
+        XCTAssertTrue(counter.waitForExistence(timeout: 5))
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina \(number) di \(total)"), object: counter)
+        wait(for: [selected], timeout: 10)
+    }
+
+    @MainActor func testPageScrubberJumpAndStatusPopoverKeepTheCanvasVisible() {
+        let app = XCUIApplication(); openEditor(app)
+        XCTAssertFalse(app.buttons["editorPreviousPage"].isEnabled)
+        XCTAssertFalse(app.buttons["editorNextPage"].isEnabled)
+        for number in 2...6 { app.buttons["editorAddPage"].tap(); waitForPage(number, total: number, in: app) }
+        let scrubber = app.descendants(matching: .any)["editorPageScrubber"].firstMatch
+        XCTAssertTrue(scrubber.waitForExistence(timeout: 5))
+        scrubber.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: scrubber.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)))
+        waitForPage(1, total: 6, in: app)
+        app.buttons["editorNextPage"].tap(); waitForPage(2, total: 6, in: app)
+        app.buttons["editorPageCounter"].tap()
+        let field = app.textFields["editorPageNumber"]; XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap(); field.typeText(XCUIKeyboardKey.delete.rawValue + "99")
+        XCTAssertFalse(app.buttons["editorJumpConfirm"].isEnabled)
+        field.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "5")
+        app.buttons["editorJumpConfirm"].tap(); waitForPage(5, total: 6, in: app)
+        let status = app.buttons["editorSaveStatus"]; XCTAssertTrue(status.waitForExistence(timeout: 5)); status.tap()
+        XCTAssertTrue(app.buttons["Salva adesso"].waitForExistence(timeout: 5))
+        app.buttons["Chiudi"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["pencilCanvas"].firstMatch.exists)
+        app.buttons["editorFocus"].tap()
+        XCTAssertFalse(app.buttons["editorPageCounter"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["editorNotebookSwitcher"].exists)
+        app.buttons["editorFocus"].tap(); waitForPage(5, total: 6, in: app)
+    }
+
+    @MainActor func testNotebookTitleSwitcherOpensChangesAndClosesTabs() {
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["editorReturnToLibrary"].tap()
+        let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 5)); create.tap()
+        let name = app.textFields["notebookNameField"]; XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Secondo test"); app.buttons["saveNotebookButton"].tap()
+        let notebook = app.buttons.matching(NSPredicate(format: "label == %@", "Secondo test")).firstMatch
+        XCTAssertTrue(notebook.waitForExistence(timeout: 5)); notebook.tap()
+        let open = app.buttons["openEditorButton"]; XCTAssertTrue(open.waitForExistence(timeout: 5)); open.tap()
+        let switcher = app.buttons["editorNotebookSwitcher"]
+        XCTAssertTrue(switcher.waitForExistence(timeout: 10)); switcher.tap()
+        let add = app.buttons["editorOpenNotebook"]; XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
+        let first = app.buttons["Editor test"]; XCTAssertTrue(first.waitForExistence(timeout: 5)); first.tap()
+        let twoTabs = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "2 schede"), object: switcher)
+        wait(for: [twoTabs], timeout: 10)
+        XCTAssertTrue(switcher.label.contains("Editor test")); switcher.tap()
+        let second = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "deskSelect-", "Secondo test")).firstMatch
+        XCTAssertTrue(second.waitForExistence(timeout: 5)); second.tap()
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Secondo test"), object: switcher)
+        wait(for: [selected], timeout: 10)
+        switcher.tap(); app.buttons["Chiudi scheda Editor test"].tap()
+        let oneTab = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1 schede"), object: switcher)
+        wait(for: [oneTab], timeout: 10)
+        XCTAssertTrue(app.buttons["editorAddPage"].exists)
     }
     @MainActor
     func testFocusHidesToolbarAndFloatingButtonRestoresIt() {

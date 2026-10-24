@@ -22,7 +22,6 @@ struct NotebookDesk: View {
     @SceneStorage("desk.session") private var savedSession = ""
     @AppStorage("desk.lastSession") private var lastSession = ""
     @State private var restored = false
-    @SceneStorage("editor.focus") private var focus = false
 
     init(notebook: Notebook, model: EditorViewModel, library: LibraryViewModel) {
         self.library = library
@@ -33,35 +32,19 @@ struct NotebookDesk: View {
     private var active: NotebookTab? { tabs.first { $0.id == selected } }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if !focus { HStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(tabs) { tab in
-                            HStack(spacing: 10) {
-                                Button { Task { await select(tab.id) } } label: {
-                                    Label(tab.notebook.title, systemImage: "book.closed")
-                                        .lineLimit(1).frame(maxWidth: 200)
-                                }.buttonStyle(.plain)
-                                Button { Task { await close(tab.id) } } label: { Image(systemName: "xmark").font(.caption) }
-                                    .buttonStyle(.plain).accessibilityLabel("Chiudi \(tab.notebook.title)")
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(selected == tab.id ? Brand.accent.opacity(0.18) : Brand.surface,
-                                in: RoundedRectangle(cornerRadius: 10))
-                        }
-                    }.padding(.horizontal).padding(.vertical, 6)
-                }
-                Button { choosing = true } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
-                    .accessibilityLabel("Apri un altro quaderno in una scheda")
-            }.background(.bar).disabled(switching) }
+        Group {
             if let active {
                 EditorView(model: active.model, notebook: library.notebooks.first(where: { $0.id == active.id }) ?? active.notebook, library: library, returnToLibrary: {
                     await closeAll()
-                }).id(active.id).disabled(switching)
+                }, notebookSwitching: NotebookSwitching(
+                    notebooks: tabs.map { tab in library.notebooks.first(where: { $0.id == tab.id }) ?? tab.notebook },
+                    selected: selected,
+                    select: { id in Task { await select(id) } },
+                    close: { id in Task { await close(id) } },
+                    open: { choosing = true }
+                )).id(active.id).disabled(switching)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: focus)
         .interactiveDismissDisabled()
         .task {
             guard !restored else { return }; restored = true

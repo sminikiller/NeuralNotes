@@ -28,6 +28,7 @@ struct EditorView: View {
     let notebook: Notebook
     let library: LibraryViewModel
     var returnToLibrary: (() async -> Void)? = nil
+    var notebookSwitching: NotebookSwitching? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var panel: EditorPanel?
@@ -35,6 +36,7 @@ struct EditorView: View {
     @State private var importKind = "pdf"
     @State private var working = false
     @State private var confirmDelete = false
+    @State private var jumpingToPage = false
     @State private var shareURL: URL?
     @State private var sharing = false
     @State private var media: EditorMedia?
@@ -72,7 +74,9 @@ struct EditorView: View {
                 writingSurface
             } else { ProgressView("Apertura pagine…").frame(maxWidth: .infinity, maxHeight: .infinity) }
             if !focus && model.currentWorkspace.showPages { pageStrip }
-            if !focus && model.currentWorkspace.showStatus { statusLine }
+            else if !focus && model.currentWorkspace.showStatus {
+                saveStatus.frame(maxWidth: .infinity, alignment: .trailing).padding(.horizontal, 8)
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: focus)
         .overlay { FocusControl(model: model, focus: $focus).allowsHitTesting(!model.navigating && !working && model.hasLease) }
@@ -84,15 +88,10 @@ struct EditorView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var statusLine: some View {
-        HStack {
-            Image(systemName: model.dirty ? "circle.dotted" : "checkmark.circle")
-            Text(model.status)
-            Spacer()
-            if model.audio?.recording == true { Label("REC", systemImage: "record.circle.fill").foregroundStyle(.red) }
-            if working || model.saving { ProgressView().controlSize(.small) }
+    private var saveStatus: some View {
+        EditorSaveStatus(message: model.status, dirty: model.dirty, busy: working || model.saving || model.navigating) {
+            Task { _ = await model.flush() }
         }
-        .font(.caption).padding(.horizontal).padding(.vertical, 6).background(.bar)
     }
 
     @ViewBuilder private var recordingBadge: some View {
@@ -135,6 +134,9 @@ struct EditorView: View {
 
     @ToolbarContentBuilder private var editorToolbar: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) { libraryButton }
+        if let notebookSwitching {
+            ToolbarItem(placement: .principal) { NotebookSwitcher(title: notebook.title, switching: notebookSwitching) }
+        }
         ToolbarItemGroup(placement: .primaryAction) {
             Button { model.fitPageRequest += 1 } label: { Label("Pagina intera", systemImage: "arrow.up.left.and.arrow.down.right") }
                 .accessibilityIdentifier("editorFitPage")
@@ -378,6 +380,9 @@ struct EditorView: View {
             .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in dropped(providers, at: location) }
             .overlay(alignment: toolbarAlignment) { toolbarLayer }
             .overlay { floatingLens }
+            .overlay(alignment: .bottom) {
+                if model.currentWorkspace.showStatus { EditorActivityFeedback(message: model.status) }
+            }
     }
 
     private func dropped(_ providers: [NSItemProvider], at location: CGPoint) -> Bool {
@@ -461,37 +466,79 @@ struct EditorView: View {
         LensBarActions(photo: { lensPhoto(.camera) }, library: { lensPhoto(.photos) }, notes: { model.showLensPanel(.notes) }, chat: { openLensChat() })
     }
 
+    private var pageIndex: Int { model.pages.firstIndex(where: { $0.id == model.page?.id }) ?? 0 }
+    private var pageNavigationBusy: Bool {
+        working || model.loading || model.saving || model.navigating || !model.hasLease || model.hasActiveStroke
+    }
+
     private var pageStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 10) {
-                ForEach(Array(model.pages.enumerated()), id: \.element.id) { row in
-                    Button { Task { await model.select(row.element) } } label: {
-                        Text("\(row.offset + 1)").font(.headline.monospacedDigit())
-                            .frame(minWidth: 44, minHeight: 44)
-                            .background(model.page?.id == row.element.id ? Brand.accent.opacity(0.2) : Brand.background,
-                                        in: RoundedRectangle(cornerRadius: 8))
-                    }.accessibilityLabel("Pagina \(row.offset + 1)")
-                        .accessibilityIdentifier("pageSelect-\(row.offset + 1)")
-                        .accessibilityValue(model.page?.id == row.element.id ? "Pagina corrente" : "")
-                }
-                Button { Task { await model.addPage() } } label: { Label("Pagina", systemImage: "plus") }
-                    .accessibilityIdentifier("editorAddPage")
-                Menu {
-                    Button("Pagina bianca dopo questa") { Task { await model.insertBlankPageAfterCurrent() } }
-                    Button("Duplica pagina") { Task { await model.duplicatePage() } }
-                    Button("Sposta indietro") { Task { await movePage(-1) } }
-                    Button("Sposta avanti") { Task { await movePage(1) } }
-                    Button("Elimina pagina", role: .destructive) { confirmDelete = true }
-                } label: { Image(systemName: "doc.on.doc").frame(minWidth: 44, minHeight: 44) }
-            }.padding(.horizontal).padding(.vertical, 6)
+        GeometryReader { geometry in
+            pageControls(showSteps: geometry.size.width >= 500)
         }
-        // LazyHStack has no intrinsic cross-axis height. Bound the scroll view
-        // so it cannot compete with the writing canvas for vertical space.
-        .frame(height: 56)
+        .frame(maxWidth: 760).frame(height: 48)
+        .padding(.horizontal, 8).frame(maxWidth: .infinity)
         .background(.bar)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editorPageStrip")
-        .disabled(working || model.loading || model.saving || model.navigating || !model.hasLease)
+        .disabled(pageNavigationBusy || model.pages.isEmpty)
+    }
+
+    private func pageControls(showSteps: Bool) -> some View {
+        HStack(spacing: 0) {
+            if model.currentWorkspace.showStatus { saveStatus }
+            if showSteps { pageStep(-1) }
+            Button { jumpingToPage = true } label: {
+                Text("\(pageIndex + 1) / \(model.pages.count)").font(.caption.weight(.semibold).monospacedDigit())
+                    .frame(minWidth: 64, minHeight: 44)
+            }
+            .accessibilityLabel("Vai alla pagina")
+            .accessibilityValue("Pagina \(pageIndex + 1) di \(model.pages.count)")
+            .accessibilityIdentifier("editorPageCounter")
+            .popover(isPresented: $jumpingToPage) {
+                PageJumpPopover(count: model.pages.count, currentIndex: pageIndex, select: selectPage)
+            }
+            EditorPageScrubber(pageIDs: model.pages.map(\.id), currentIndex: pageIndex, select: selectPage)
+                .padding(.horizontal, 4)
+            if showSteps { pageStep(1) }
+            Button { Task { await model.addPage() } } label: {
+                Image(systemName: "plus").frame(width: 44, height: 44)
+            }.accessibilityLabel("Aggiungi pagina").accessibilityIdentifier("editorAddPage")
+            pageActions
+        }
+        .buttonStyle(.plain).foregroundStyle(Brand.accent)
+        .frame(height: 48)
+    }
+
+    private func pageStep(_ offset: Int) -> some View {
+        Button { selectPage(pageIndex + offset) } label: {
+            Image(systemName: offset < 0 ? "chevron.backward" : "chevron.forward")
+                .font(.system(size: 14, weight: .medium)).frame(width: 44, height: 44)
+        }
+        .accessibilityLabel(offset < 0 ? "Pagina precedente" : "Pagina successiva")
+        .accessibilityIdentifier(offset < 0 ? "editorPreviousPage" : "editorNextPage")
+        .disabled(offset < 0 ? pageIndex == 0 : pageIndex >= model.pages.count - 1)
+    }
+
+    private var pageActions: some View {
+        Menu {
+            Button("Tutte le pagine", systemImage: "square.grid.2x2") {
+                Task { if await model.flush() { panel = .pages } }
+            }
+            Divider()
+            Button("Pagina bianca dopo questa", systemImage: "doc.badge.plus") { Task { await model.insertBlankPageAfterCurrent() } }
+            Button("Duplica pagina", systemImage: "doc.on.doc") { Task { await model.duplicatePage() } }
+            Button("Sposta indietro", systemImage: "arrow.backward") { Task { await movePage(-1) } }.disabled(pageIndex == 0)
+            Button("Sposta avanti", systemImage: "arrow.forward") { Task { await movePage(1) } }.disabled(pageIndex >= model.pages.count - 1)
+            Divider()
+            Button("Elimina pagina", systemImage: "trash", role: .destructive) { confirmDelete = true }
+        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+            .accessibilityLabel("Azioni pagina").accessibilityIdentifier("editorPageActions")
+    }
+
+    private func selectPage(_ index: Int) {
+        guard !pageNavigationBusy, model.pages.indices.contains(index), index != pageIndex else { return }
+        let destination = model.pages[index]
+        Task { await model.select(destination) }
     }
 
     private var importTypes: [UTType] {
