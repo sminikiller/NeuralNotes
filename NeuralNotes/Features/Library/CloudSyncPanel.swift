@@ -45,7 +45,7 @@ struct CloudSyncPanel: View {
             Toggle("Sincronizza automaticamente i quaderni chiusi", isOn: Binding(
                 get: { cloud.automatic }, set: { enabled in Task {
                     await cloud.setAutomatic(enabled)
-                    if enabled { await cloud.synchronize(library) }
+                    if enabled { await cloud.synchronizeIfEnabled(library) }
                 } }))
                 .disabled(cloud.busy)
             Button("Sincronizza adesso", systemImage: "arrow.triangle.2.circlepath.icloud") {
