@@ -2,6 +2,32 @@ import XCTest
 import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testFeatureGuideSearchStepsAndCompletionPersist() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()
+        let guide = app.buttons["libraryGuide"]
+        if !guide.waitForExistence(timeout: 3) || !guide.isHittable {
+            let sidebar = app.buttons["ToggleSidebar"].firstMatch
+            XCTAssertTrue(sidebar.waitForExistence(timeout: 5)); sidebar.tap()
+        }
+        for _ in 0..<4 where !guide.isHittable { app.swipeUp() }
+        XCTAssertTrue(guide.waitForExistence(timeout: 5)); guide.tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("annulla")
+        let tutorial = app.buttons["guide-undo"]
+        XCTAssertTrue(tutorial.waitForExistence(timeout: 5)); tutorial.tap()
+        XCTAssertTrue(app.staticTexts["guideStep"].waitForExistence(timeout: 5))
+        app.buttons["Avanti"].tap(); app.buttons["Avanti"].tap()
+        let complete = app.buttons["guideComplete"]
+        XCTAssertTrue(complete.exists); complete.tap(); XCTAssertFalse(complete.isEnabled)
+        app.terminate(); app.launchArguments = ["--ui-testing"]; app.launch()
+        let reopened = app.buttons["libraryGuide"]
+        if !reopened.waitForExistence(timeout: 3) || !reopened.isHittable { app.buttons["ToggleSidebar"].firstMatch.tap() }
+        for _ in 0..<4 where !reopened.isHittable { app.swipeUp() }
+        reopened.tap()
+        XCTAssertTrue(app.staticTexts["1 di 42 tutorial completati"].waitForExistence(timeout: 5))
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "feature-guide-progress"; attachment.lifetime = .keepAlways; add(attachment)
+    }
     @MainActor func testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke() async throws {
         let device = XCUIDevice.shared, orientation = device.orientation
         device.orientation = .portrait; defer { device.orientation = orientation }

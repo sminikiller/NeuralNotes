@@ -104,6 +104,12 @@ struct LibraryView: View {
 
     private var importPresentation: some View {
         documentPresentation
+        .task {
+            while !Task.isCancelled {
+                if scenePhase == .active { await CloudBackupService.shared.synchronizeIfEnabled(model) }
+                do { try await Task.sleep(for: .seconds(120)) } catch { return }
+            }
+        }
         .task(id: cloudAutomatic) {
             guard cloudAutomatic else { return }
             while !Task.isCancelled {
@@ -236,7 +242,7 @@ struct LibraryView: View {
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
                 Button { sheet = .account } label: { Label("Account NeuralNotes", systemImage: "person.crop.circle") }.accessibilityIdentifier("libraryAccount")
                 Button { sheet = .cloud } label: { Label("Cloud e sincronizzazione", systemImage: "icloud") }
-                Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }
+                Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }

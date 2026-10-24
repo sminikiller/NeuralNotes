@@ -13,6 +13,8 @@ final class CloudBackupService {
     var status = ""
     var documents: [CloudDocument] = []
     private(set) var queue = CloudBackupQueue()
+    private(set) var conflicts: [UUID: CloudDocument] = [:]
+    private var syncState: AccountSyncState?
     private let baseFolder: URL
     private var folder: URL
     private var owner: CloudBackupOwner?
@@ -20,10 +22,15 @@ final class CloudBackupService {
     private var operationOwner: CloudBackupOwner?
     @ObservationIgnored private let client: ManagedAIClient
     @ObservationIgnored private let transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)?
+    @ObservationIgnored private let fileUpload: (@Sendable (URLRequest, URL) async throws -> Int)?
+    @ObservationIgnored private let fileDownload: (@Sendable (URL) async throws -> URL)?
 
     init(folder: URL? = nil, client: ManagedAIClient? = nil,
-         transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)? = nil) {
+         transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)? = nil,
+         fileUpload: (@Sendable (URLRequest, URL) async throws -> Int)? = nil,
+         fileDownload: (@Sendable (URL) async throws -> URL)? = nil) {
         self.client = client ?? ManagedAIAccount.client; self.transport = transport
+        self.fileUpload = fileUpload; self.fileDownload = fileDownload
         let base = folder ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("CloudBackupQueue", isDirectory: true)
         baseFolder = base; self.folder = base
@@ -37,7 +44,7 @@ final class CloudBackupService {
     }
     func accountDidChange() {
         guard !busy else { resetAfterOperation = true; return }
-        owner = nil; queue = CloudBackupQueue(); documents = []; status = ""
+        owner = nil; queue = CloudBackupQueue(); documents = []; conflicts = [:]; syncState = nil; status = ""
     }
     func prepareAccount() async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
@@ -115,37 +122,186 @@ final class CloudBackupService {
             guard code == 200 else { throw CloudBackupWire.failure(status: code) }
             let file = try await downloadFile(CloudBackupWire.downloadURL(data, service: service), expectedBytes: document.bytes)
             defer { try? FileManager.default.removeItem(at: file) }
-            if let checksum = document.checksum { guard try Self.sha256(file) == checksum else { throw CloudBackupFailure.invalidResponse } }
+            if let checksum = document.checksum {
+                let actual = try await Task.detached(priority: .utility) { try Self.sha256(file) }.value
+                guard actual == checksum else { throw CloudBackupFailure.invalidResponse }
+            }
             _ = try await account()
             await library.importNotebook(from: file)
             status = library.errorMessage == nil ? "Copia di «\(document.title)» importata come nuovo quaderno." : (library.errorMessage ?? "")
         } catch { status = message(error, title: document.title) }
     }
 
+    var automatic: Bool { syncState?.automatic ?? false }
+
+    func setAutomatic(_ enabled: Bool) async {
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount(); syncState?.automatic = enabled; try persistSyncState()
+        } catch { status = message(error, title: "") }
+    }
+
+    func synchronizeIfEnabled(_ library: LibraryViewModel) async {
+        guard !busy else { return }
+        await prepareAccount()
+        guard automatic else { return }
+        await synchronize(library)
+    }
+
+    /// Closed notebooks only. Server CAS protects uploads; downloads recheck the
+    /// local fingerprint under a cloud lease and retain a mandatory local backup.
+    func synchronize(_ library: LibraryViewModel) async {
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount(); await drain(); try await refreshDocuments()
+            var completed = 0, skipped = 0
+            var problems: [String] = []
+            let localIDs = Set((library.notebooks + library.trash).map(\.documentID))
+            for book in library.notebooks {
+                try Task.checkCancellation()
+                if queue.jobs.contains(where: { $0.documentID == book.documentID }) { skipped += 1; continue }
+                guard EditorLeases.shared.reserveCloud(book.documentID) else { skipped += 1; continue }
+                let digest: String
+                do {
+                    defer { EditorLeases.shared.releaseCloud(book.documentID) }
+                    digest = try await library.workspace(book).cloudDigest(metadata: book)
+                } catch { problems.append(book.title); continue }
+                let remote = documents.first { $0.id == book.documentID }
+                let checkpoint = syncState?.checkpoints[book.documentID]
+                do {
+                    switch AccountSyncPolicy.action(local: digest, remoteRevision: remote?.revision, checkpoint: checkpoint) {
+                    case .unchanged: conflicts[book.documentID] = nil
+                    case .upload:
+                        try await prepare(book, library: library, expectedRevision: remote?.revision ?? 0)
+                        await drain()
+                        if queue.jobs.contains(where: { $0.documentID == book.documentID }) { skipped += 1 }
+                        else { completed += 1; conflicts[book.documentID] = nil }
+                    case .download:
+                        if let remote { try await install(remote, library: library, expectedLocal: digest); completed += 1 }
+                    case .conflict:
+                        guard let remote else { problems.append("\(book.title): copia remota rimossa; originale locale conservato"); continue }
+                        // A new installation may already have the identical native
+                        // export. Verify its package digest before accepting a base.
+                        if checkpoint == nil {
+                            let verified = try await verifiedArchive(remote)
+                            defer { try? FileManager.default.removeItem(at: verified.file) }
+                            if verified.digest == digest {
+                                try remember(remote, digest: digest); conflicts[book.documentID] = nil; continue
+                            }
+                        }
+                        conflicts[book.documentID] = remote
+                    }
+                } catch {
+                    if error as? CloudBackupFailure == .signedOut { throw error }
+                    problems.append("\(book.title): \(error.localizedDescription)")
+                }
+            }
+            // A remote notebook absent on this device keeps its original identity.
+            // Local trash IDs are excluded so a deleted notebook never resurrects.
+            for remote in documents where !localIDs.contains(remote.id) {
+                do { try await install(remote, library: library, expectedLocal: nil); completed += 1 }
+                catch {
+                    if error as? CloudBackupFailure == .signedOut { throw error }
+                    problems.append("\(remote.title): \(error.localizedDescription)")
+                }
+            }
+            _ = try await account()
+            status = "\(completed) trasferimenti completati · \(skipped) aperti o in attesa · \(conflicts.count) conflitti."
+            if !problems.isEmpty { status += " Avvisi: " + problems.prefix(3).joined(separator: " · ") }
+        } catch { status = message(error, title: "") }
+    }
+
+    func resolve(_ id: UUID, keepingLocal: Bool, library: LibraryViewModel) async {
+        guard !busy, let conflict = conflicts[id] else { return }
+        let expectedOwner = owner
+        busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount(); guard expectedOwner == owner else { throw CloudBackupFailure.signedOut }
+            try await refreshDocuments()
+            guard let remote = documents.first(where: { $0.id == id }) else { throw CloudBackupFailure.conflict }
+            guard remote.revision == conflict.revision, remote.checksum == conflict.checksum else {
+                conflicts[id] = remote; throw CloudBackupFailure.conflict
+            }
+            guard let book = library.notebooks.first(where: { $0.documentID == id }) else { throw LibraryFailure.missingItem }
+            if keepingLocal {
+                try await prepare(book, library: library, expectedRevision: remote.revision); await drain()
+                guard !queue.jobs.contains(where: { $0.documentID == id }) else { return }
+            } else {
+                guard EditorLeases.shared.reserveCloud(id) else { throw CloudBackupJobFailure.open }
+                let digest: String
+                do { defer { EditorLeases.shared.releaseCloud(id) }; digest = try await library.workspace(book).cloudDigest(metadata: book) }
+                try await install(remote, library: library, expectedLocal: digest)
+            }
+            conflicts[id] = nil; status = "Conflitto risolto per «\(book.title)»."
+        } catch { status = message(error, title: "") }
+    }
+
+    private func remember(_ remote: CloudDocument, digest: String) throws {
+        syncState?.checkpoints[remote.id] = AccountSyncCheckpoint(digest: digest, revision: remote.revision)
+        try persistSyncState()
+    }
+
+    private func install(_ remote: CloudDocument, library: LibraryViewModel, expectedLocal: String?) async throws {
+        let verified = try await verifiedArchive(remote)
+        defer { try? FileManager.default.removeItem(at: verified.file) }
+        _ = try await account()
+        guard EditorLeases.shared.reserveCloud(remote.id) else { throw CloudBackupJobFailure.open }
+        defer { EditorLeases.shared.releaseCloud(remote.id) }
+        _ = try await library.installCloudArchive(verified.file, expectedLocal: expectedLocal, expectedRemote: verified.digest)
+        _ = try await account()
+        try remember(remote, digest: verified.digest)
+    }
+
+    private func verifiedArchive(_ remote: CloudDocument) async throws -> (file: URL, digest: String) {
+        guard let checksum = remote.checksum, AccountSyncCheckpoint.validDigest(checksum) else { throw CloudBackupFailure.invalidResponse }
+        let (service, token) = try await account()
+        let (data, code) = try await exchange(CloudBackupWire.download(studyURL: service.studyURL, token: token, documentID: remote.id))
+        guard code == 200 else { throw CloudBackupWire.failure(status: code) }
+        _ = try await account()
+        let file = try await downloadFile(CloudBackupWire.downloadURL(data, service: service), expectedBytes: remote.bytes)
+        do {
+            let digest = try await Task.detached(priority: .utility) {
+                guard try Self.sha256(file) == checksum else { throw CloudBackupFailure.invalidResponse }
+                let staged = FileManager.default.temporaryDirectory.appendingPathComponent("sync-\(UUID()).nnbook")
+                defer { try? FileManager.default.removeItem(at: staged) }
+                try NativeArchive.extract(from: file, to: staged)
+                let inspected = try NativePackageInspector.inspect(staged)
+                guard inspected.manifest.documentID == remote.id, let metadata = inspected.metadata else { throw CloudBackupFailure.invalidResponse }
+                return try SnapshotDigest.package(staged, metadata: metadata)
+            }.value
+            _ = try await account()
+            return (file, digest)
+        } catch { try? FileManager.default.removeItem(at: file); throw error }
+    }
+
     // MARK: Steps
 
-    private func prepare(_ book: Notebook, library: LibraryViewModel) async throws {
+    private func prepare(_ book: Notebook, library: LibraryViewModel, expectedRevision: Int? = nil) async throws {
         _ = try await account()
         guard EditorLeases.shared.reserveCloud(book.documentID) else { throw CloudBackupJobFailure.open }
-        let archive: URL
+        let snapshot: (archive: URL, digest: String)
         do {
             defer { EditorLeases.shared.releaseCloud(book.documentID) }
-            archive = try await library.workspace(book).exportNative(metadata: book)
+            snapshot = try await library.workspace(book).cloudSnapshot(metadata: book)
         }
+        let archive = snapshot.archive
         defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
         let size = Int64(try archive.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
         guard size > 0, size <= CloudBackupQueue.maximumBytes else { throw CloudBackupFailure.tooLarge }
-        let checksum = try Self.sha256(archive)
+        let checksum = try await Task.detached(priority: .utility) { try Self.sha256(archive) }.value
+        _ = try await account()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let name = "\(book.documentID.uuidString)-\(UUID()).nnbackup", destination = folder.appendingPathComponent(name)
         if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
         try FileManager.default.moveItem(at: archive, to: destination)
         let job = CloudBackupJob(documentID: book.documentID, title: book.title, archiveFile: name, checksum: checksum, bytes: size,
-                                 expectedRevision: queue.revisions[book.documentID] ?? 0)
+                                 expectedRevision: expectedRevision ?? queue.revisions[book.documentID] ?? 0)
         let previous = queue
         let replaced = try queue.enqueue(job)
         do { try persist() }
         catch { queue = previous; try? FileManager.default.removeItem(at: destination); throw error }
+        syncState?.uploads[book.documentID] = AccountSyncUpload(digest: snapshot.digest, archiveChecksum: checksum)
+        try persistSyncState()
         if let replaced { try? FileManager.default.removeItem(at: folder.appendingPathComponent(replaced.archiveFile)) }
         status = "«\(book.title)» pronto per il cloud…"
     }
@@ -187,6 +343,8 @@ final class CloudBackupService {
                     }
                     guard code == 200 else { throw CloudBackupWire.failure(status: code) }
                     let document = try CloudBackupWire.committed(data, job: job)
+                    syncState?.committed(job, revision: document.revision)
+                    try persistSyncState()
                     queue.complete(job.documentID, revision: document.revision); try persist()
                     try? FileManager.default.removeItem(at: folder.appendingPathComponent(job.archiveFile))
                     documents.removeAll { $0.id == document.id }; documents.insert(document, at: 0); saved += 1
@@ -220,7 +378,7 @@ final class CloudBackupService {
 
     private func selectAccount() async throws {
         guard let current = await client.snapshot() else {
-            owner = nil; queue = CloudBackupQueue(); documents = []; throw CloudBackupFailure.signedOut
+            owner = nil; queue = CloudBackupQueue(); documents = []; conflicts = [:]; syncState = nil; throw CloudBackupFailure.signedOut
         }
         let next = CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID)
         if let operationOwner, operationOwner != next { throw CloudBackupFailure.signedOut }
@@ -234,7 +392,13 @@ final class CloudBackupService {
             guard restored.canResume(for: next) else { throw CloudBackupFailure.invalidResponse }
         }
         restored.jobs.removeAll { !FileManager.default.fileExists(atPath: target.appendingPathComponent($0.archiveFile).path) }
-        folder = target; owner = next; queue = restored; documents = []
+        let syncFile = target.appendingPathComponent("sync.json")
+        var restoredSync = AccountSyncState(owner: next)
+        if FileManager.default.fileExists(atPath: syncFile.path) {
+            restoredSync = try JSONDecoder().decode(AccountSyncState.self, from: Data(contentsOf: syncFile))
+            guard restoredSync.canResume(for: next) else { throw CloudBackupFailure.invalidResponse }
+        }
+        folder = target; owner = next; queue = restored; documents = []; conflicts = [:]; syncState = restoredSync
     }
 
     private func account() async throws -> (service: ManagedAIService, token: String) {
@@ -264,6 +428,7 @@ final class CloudBackupService {
     }
 
     private func uploadFile(_ request: URLRequest, file: URL) async throws -> Int {
+        if let fileUpload { return try await fileUpload(request, file) }
         let session = session(timeout: 1800); defer { session.finishTasksAndInvalidate() }
         let (_, response) = try await session.upload(for: request, fromFile: file)
         guard let http = response as? HTTPURLResponse else { throw CloudBackupFailure.unavailable }
@@ -272,6 +437,14 @@ final class CloudBackupService {
 
     /// Signed links already authorize the download: no account token is sent with them.
     private func downloadFile(_ url: URL, expectedBytes: Int64) async throws -> URL {
+        if let fileDownload {
+            let file = try await fileDownload(url)
+            let size = Int64(try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+            guard size == expectedBytes, size > 0, size <= CloudBackupQueue.maximumBytes else {
+                try? FileManager.default.removeItem(at: file); throw CloudBackupFailure.invalidResponse
+            }
+            return file
+        }
         let session = session(timeout: 1800); defer { session.finishTasksAndInvalidate() }
         let (temporary, response) = try await session.download(for: URLRequest(url: url))
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { try? FileManager.default.removeItem(at: temporary); throw CloudBackupFailure.unavailable }
@@ -282,16 +455,22 @@ final class CloudBackupService {
         return destination
     }
 
-    static func sha256(_ file: URL) throws -> String {
+    nonisolated static func sha256(_ file: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: file); defer { try? handle.close() }
         var hash = SHA256()
-        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty { hash.update(data: chunk) }
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty { try Task.checkCancellation(); hash.update(data: chunk) }
         return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private func persist() throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try JSONEncoder().encode(queue).write(to: folder.appendingPathComponent("queue.json"), options: .atomic)
+    }
+
+    private func persistSyncState() throws {
+        guard let syncState else { return }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try JSONEncoder().encode(syncState).write(to: folder.appendingPathComponent("sync.json"), options: .atomic)
     }
 
     private func message(_ error: Error, title: String) -> String {

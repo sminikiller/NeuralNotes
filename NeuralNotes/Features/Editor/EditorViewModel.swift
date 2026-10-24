@@ -302,7 +302,9 @@ final class EditorViewModel {
             do { try await Task.sleep(for: .milliseconds(10)) } catch { return false }
         }
         finishInkGesture()
-        return !Task.isCancelled
+        // Never undo the preceding action when PencilKit has not delivered the
+        // current stroke yet. Keep it pending rather than reviving late ink.
+        return editBeforeGesture == nil && !Task.isCancelled
     }
 
     /// PencilKit can deliver the final drawing after didEndUsingTool.

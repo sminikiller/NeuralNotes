@@ -217,7 +217,8 @@ final class SwiftDataLibraryRepository: LibraryRepository {
             try NativeArchive.extract(from: archive, to: staged); return try NativePackageInspector.inspect(staged)
         }.value
         guard let metadata = inspected.metadata else { throw LibraryFailure.corruptDocument }
-        guard try SnapshotDigest.package(staged, metadata: metadata) == expectedRemote else { throw LibraryFailure.corruptDocument }
+        let digest = try await Task.detached(priority: .utility) { try SnapshotDigest.package(staged, metadata: metadata) }.value
+        guard digest == expectedRemote else { throw LibraryFailure.corruptDocument }
         let all = try allRecords()
         if let record = all.first(where: { $0.documentID == metadata.documentID }) {
             guard record.id == metadata.id, record.deletedAt == nil, let expectedLocal else { throw WorkspaceFailure.staleRevision }

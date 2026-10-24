@@ -55,8 +55,31 @@ extension EditorViewModel {
         // CanvasHost shields new touches while navigating. Keep the native
         // responder alive so PencilKit can finish its pending drawing callbacks.
         navigating = true; defer { navigating = false }
-        guard await settleInkBeforeHistory(), await flush(),
-              let entry = undo ? history.undo : history.redo else { return }
+        guard await settleInkBeforeHistory(),
+              let immediate = undo ? history.undo : history.redo else { return }
+        // Same-page edits already contain both complete states. Installing one
+        // must not wait for a writer, rescan page headers or write two revisions.
+        // An in-flight save rebases its revision/file pointers onto this live
+        // state; dirty stays set so the normal save loop drains the latest edit.
+        if case .content(let before, let after) = immediate.event,
+           let current = page, current.id == before.page.id, current.id == after.page.id {
+            do {
+                let target = undo ? before : after
+                let ink = try target.drawing.map { try PKDrawing(data: $0) }
+                applyingHistory = true; defer { applyingHistory = false }
+                var restored = target.page
+                restored.revision = current.revision; restored.drawingFile = current.drawingFile
+                restored.previousDrawingFile = current.previousDrawingFile
+                page = restored
+                if let ink { replaceInkSession(with: ink) }
+                selectedObjectID = nil
+                if undo { history.didUndo() } else { history.didRedo() }
+                drawingChanged()
+                status = "\(undo ? "Annullato" : "Ripristinato"): \(immediate.label)"
+            } catch { self.error = error.localizedDescription }
+            return
+        }
+        guard await flush(), let entry = undo ? history.undo : history.redo else { return }
         applyingHistory = true; defer { applyingHistory = false }
         do {
             switch entry.event {

@@ -11,6 +11,7 @@ struct CloudSyncPanel: View {
     var body: some View {
         NavigationStack {
             Form {
+                accountSync
                 accountBackup
                 if !cloud.queue.jobs.isEmpty { pendingBackups }
                 if !cloud.documents.isEmpty { cloudCopies }
@@ -33,6 +34,36 @@ struct CloudSyncPanel: View {
                 }.disabled(sync.busy)
             }.navigationTitle("Cloud e sincronizzazione")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
+        }.task { await cloud.prepareAccount() }
+    }
+
+    private var accountSync: some View {
+        Section("Sincronizzazione account NeuralNotes") {
+            NavigationLink("Account e accesso email") {
+                ManagedAIAccountPanel(initial: AIEngineConfiguration(), connected: { _ in }, offersAIConfiguration: false)
+            }
+            Toggle("Sincronizza automaticamente i quaderni chiusi", isOn: Binding(
+                get: { cloud.automatic }, set: { enabled in Task {
+                    await cloud.setAutomatic(enabled)
+                    if enabled { await cloud.synchronize(library) }
+                } }))
+                .disabled(cloud.busy)
+            Button("Sincronizza adesso", systemImage: "arrow.triangle.2.circlepath.icloud") {
+                Task { await cloud.synchronize(library) }
+            }.disabled(cloud.busy)
+            Text("Con lo stesso account puoi inviare e ricevere quaderni chiusi, fino a 100 MB per quaderno. Il controllo automatico avviene ogni due minuti mentre l’app è attiva. L’attivazione è separata per account. Cartelle e cestino restano locali; nessuna eliminazione viene propagata.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(cloud.conflicts.keys.sorted(by: { $0.uuidString < $1.uuidString }), id: \.self) { id in
+                if let remote = cloud.conflicts[id] {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(remote.title, systemImage: "exclamationmark.arrow.triangle.2.circlepath").font(.headline)
+                        Text("Entrambe le versioni sono cambiate. Scegli quale mantenere; scaricare una copia conserva entrambe.").font(.caption)
+                        Button("Scarica anche la copia remota") { Task { await cloud.downloadCopy(remote, library: library) } }
+                        Button("Mantieni la versione locale") { Task { await cloud.resolve(id, keepingLocal: true, library: library) } }
+                        Button("Usa il cloud · conserva prima un backup locale") { Task { await cloud.resolve(id, keepingLocal: false, library: library) } }
+                    }.disabled(cloud.busy)
+                }
+            }
         }
     }
 
@@ -48,7 +79,7 @@ struct CloudSyncPanel: View {
             Button("Mostra le copie nel cloud", systemImage: "arrow.clockwise.icloud") { Task { await cloud.refresh() } }.disabled(cloud.busy)
             if cloud.busy { ProgressView() }
             if !cloud.status.isEmpty { Text(cloud.status).font(.callout).textSelection(.enabled) }
-            Text("Serve l’accesso all’account NeuralNotes (Lente AI → Connessione AI → Account).").font(.caption).foregroundStyle(.secondary)
+            Text("Serve un servizio NeuralNotes configurato e l’accesso email da Libreria → Account.").font(.caption).foregroundStyle(.secondary)
         }
     }
 

@@ -106,7 +106,7 @@ final class EditorReliabilityTests: XCTestCase {
         }
     }
 
-    @MainActor func testUndoPreventsNewInputDuringSuspendedSaveAndRestoresInputOnFailure() async throws {
+    @MainActor func testUndoIsImmediateWithoutDiskAndNewInkSurvivesAnInterruptedSave() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
@@ -125,22 +125,52 @@ final class EditorReliabilityTests: XCTestCase {
         let point = CGPoint(x: 500, y: 400)
         XCTAssertTrue(host.hitTest(point, with: nil)?.isDescendant(of: model.canvas) == true)
         model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.pen)]); model.strokeEnded(); model.finishInkGesture()
-        let undo = Task { await model.performUndo() }
+        let started = ContinuousClock.now
+        await model.performUndo()
+        XCTAssertLessThan(started.duration(to: .now), .milliseconds(150), "Same-page history must never await disk I/O")
+        XCTAssertFalse(writing)
+        XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+        XCTAssertFalse(model.canUndo); XCTAssertTrue(model.canRedo)
+        let save = Task { await model.flush() }
         for _ in 0..<100 where !writing { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertTrue(writing)
         XCTAssertTrue(model.canvas.isUserInteractionEnabled, "Pending native callbacks must keep their live responder")
-        let shield = try XCTUnwrap(host.hitTest(point, with: nil))
-        XCTAssertFalse(shield.isDescendant(of: model.canvas), "New input must go to the shield while history is suspended")
-        model.strokeBegan(); XCTAssertFalse(model.hasActiveStroke)
-        release = true; await undo.value
+        XCTAssertTrue(host.hitTest(point, with: nil)?.isDescendant(of: model.canvas) == true)
+        model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke(.marker)]); model.strokeEnded(); model.finishInkGesture()
+        release = true
+        let saved = await save.value; XCTAssertFalse(saved)
         XCTAssertTrue(model.canvas.isUserInteractionEnabled); XCTAssertFalse(model.navigating)
         XCTAssertTrue(host.hitTest(point, with: nil)?.isDescendant(of: model.canvas) == true)
         XCTAssertTrue(model.canUndo); XCTAssertFalse(model.canRedo)
         XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
-        // The injected disk failure must leave the history retryable.
+        XCTAssertEqual(model.canvas.drawing.strokes.first?.ink.inkType, .marker)
+        XCTAssertTrue(model.dirty)
         XCTAssertNotNil(model.error)
         fail = false
+        let retried = await model.flush(); XCTAssertTrue(retried)
+        let page = try XCTUnwrap(model.page)
+        let storedBytes = try await workspace.drawing(page)
+        let bytes = try XCTUnwrap(storedBytes)
+        XCTAssertEqual(try PKDrawing(data: bytes).strokes.first?.ink.inkType, .marker)
         _ = await model.close()
+    }
+
+    @MainActor func testRapidSamePageUndoRedoKeepsChronologyWithoutWriting() async throws {
+        try await fixture { model in
+            for i in 0..<20 { model.editText([TextElement(text: "Versione \(i)")]); model.commitTextEdit() }
+            for i in (0..<19).reversed() {
+                await model.performUndo()
+                XCTAssertEqual(model.page?.texts.first?.text, "Versione \(i)")
+            }
+            for i in 1..<20 {
+                await model.performRedo()
+                XCTAssertEqual(model.page?.texts.first?.text, "Versione \(i)")
+            }
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            let page = try XCTUnwrap(model.page)
+            let stored = try await model.workspace.pageSnapshot(page.id)
+            XCTAssertEqual(stored.texts.first?.text, "Versione 19")
+        }
     }
 
     @MainActor func testCloudActionsAndInterruptedUploadStayBoundToOriginalAccount() async throws {
