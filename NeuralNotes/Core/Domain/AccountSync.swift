@@ -21,6 +21,9 @@ public struct AccountSyncUpload: Codable, Equatable, Sendable {
 public struct AccountSyncState: Codable, Equatable, Sendable {
     public let owner: CloudBackupOwner
     public var automatic = false
+    public var backupOnClose: Bool?
+    public var wifiOnly: Bool?
+    public var lastBackupAt: Date?
     public var checkpoints: [UUID: AccountSyncCheckpoint] = [:]
     public var uploads: [UUID: AccountSyncUpload] = [:]
     public init(owner: CloudBackupOwner) { self.owner = owner }

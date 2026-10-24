@@ -135,6 +135,8 @@ struct EditorQuickToolbar: View {
                     Button("Applica il colore corrente") { model.recolorSelection(InkColor(model.ink)) }
                 } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }.accessibilityLabel("Trasforma selezione").disabled(!hasSelection)
                 Button(action: crop) { Image(systemName: "crop") }.accessibilityLabel("Ritaglia immagine").disabled(!selectedImage)
+                Button { model.imageStraightenRequest += 1 } label: { Image(systemName: "viewfinder") }
+                    .accessibilityLabel("Raddrizza immagine").disabled(!selectedImage)
                 Button { model.rotateSelectedImage() } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota immagine").disabled(!selectedImage)
                 Button { model.copySelection() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copia selezione").keyboardShortcut("c", modifiers: .command).disabled(!hasSelection)
                 MoveSelectionMenu(model: model).labelStyle(.iconOnly)

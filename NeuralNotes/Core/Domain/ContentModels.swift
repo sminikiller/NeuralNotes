@@ -38,6 +38,12 @@ public struct ImageElement: Codable, Identifiable, Equatable, Sendable {
     public var width: Double
     public var height: Double
     public var crop: NormalizedCrop?
+    public var perspective: PerspectiveQuad?
+    public var photoQuarterTurns: Int?
+    public var photoEnhanced: Bool?
+    public var photoAdjustment: PhotoAdjustment {
+        PhotoAdjustment(crop: crop ?? .full, perspective: perspective, quarterTurns: photoQuarterTurns ?? 0, enhanced: photoEnhanced ?? false)
+    }
     public var rotation: Double?
     public init(file: String, width: Double, height: Double) {
         self.file = file; self.width = width; self.height = height

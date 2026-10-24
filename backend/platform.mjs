@@ -133,6 +133,11 @@ export function createPlatformApp({ authenticate, store }) {
         reply(201, { objectPath, method: 'POST', uploadURL: new URL('/storage/v1/object/neuralnotes-private/' + objectPath.split('/').map(encodeURIComponent).join('/'), store.base).href, publicKey: store.publicKey, expectedBytes: body.bytes, requiresUserBearer: true, upsert: false }); return;
       }
       if (req.method === 'GET' && path === '/documents') { reply(200, await store.list(token, 'nn_documents', { select: '*', order: 'updated_at.desc', limit: '50', offset: String(offset) })); return; }
+      if (req.method === 'GET' && path === '/snapshots') {
+        const document = validID(url.searchParams.get('document'));
+        reply(200, await store.list(token, 'nn_snapshots', { document_id: 'eq.' + document, owner_id: 'eq.' + subject,
+          select: 'document_id,revision,checksum,byte_size,created_at', order: 'revision.desc', limit: '50', offset: String(offset) })); return;
+      }
       if (req.method === 'POST' && path === '/commit') {
         if (!Number.isInteger(body.expectedRevision) || body.expectedRevision < 0 || !/^[a-f0-9]{64}$/.test(body.checksum ?? '') || !Number.isSafeInteger(body.bytes) || body.bytes < 1 || body.bytes > 104857600 || typeof body.deleted !== 'boolean') throw new RequestFailure(400, 'invalid_snapshot');
         reply(200, await store.rpc(token, 'nn_commit_document', { target: validID(body.documentID), expected_revision: body.expectedRevision, next_title: text(body.title, 160), next_object: text(body.objectPath, 511), next_checksum: body.checksum, next_bytes: body.bytes, tombstone: body.deleted })); return;
@@ -140,10 +145,17 @@ export function createPlatformApp({ authenticate, store }) {
       if (req.method === 'GET' && path === '/download') {
         const resource = url.searchParams.get('resource'), document = url.searchParams.get('document');
         if (!!resource === !!document) throw new RequestFailure(400, 'invalid_download');
-        const rows = await store.list(token, resource ? 'nn_resources' : 'nn_documents', { id: 'eq.' + validID(resource ?? document), select: 'object_path', limit: '1' });
+        const revisionText = url.searchParams.get('revision');
+        if (revisionText !== null && (!document || !/^[1-9][0-9]{0,9}$/.test(revisionText) || !Number.isSafeInteger(Number(revisionText)))) throw new RequestFailure(400, 'invalid_revision');
+        const identity = validID(resource ?? document);
+        const rows = revisionText === null
+          ? await store.list(token, resource ? 'nn_resources' : 'nn_documents', { id: 'eq.' + identity, select: 'object_path', limit: '1' })
+          : await store.list(token, 'nn_snapshots', { document_id: 'eq.' + identity, revision: 'eq.' + revisionText,
+            owner_id: 'eq.' + subject, select: 'object_path', limit: '1' });
         if (!rows.length) throw new RequestFailure(404, 'not_found');
         const object = rows[0].object_path;
         if (typeof object !== 'string' || object.includes('..') || !/^[a-f0-9-]{36}\/(cloud|community)\/[a-f0-9-]{36}\/[a-f0-9-]{36}\.(nnbackup|pdf|png|jpeg)$/.test(object)) throw new RequestFailure(502, 'invalid_object');
+        if (revisionText !== null && !object.startsWith(`${subject}/cloud/${identity}/`)) throw new RequestFailure(502, 'invalid_object');
         const data = await store.call(token, '/storage/v1/object/sign/neuralnotes-private/' + object, 'POST', { expiresIn: 60 });
         if (typeof data?.signedURL !== 'string' || !data.signedURL.startsWith('/object/sign/')) throw new RequestFailure(502, 'invalid_download_url');
         reply(200, { url: new URL('/storage/v1' + data.signedURL, store.base).href, expiresIn: 60 }); return;

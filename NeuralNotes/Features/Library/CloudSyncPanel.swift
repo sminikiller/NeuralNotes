@@ -8,9 +8,11 @@ struct CloudSyncPanel: View {
     @Bindable private var cloud = CloudBackupService.shared
     @AppStorage("cloud.automatic") private var automatic = false
     @Environment(\.dismiss) private var dismiss
+    @State private var versionDocument: CloudDocument?
     var body: some View {
         NavigationStack {
             Form {
+                overview
                 accountSync
                 accountBackup
                 if !cloud.queue.jobs.isEmpty { pendingBackups }
@@ -34,7 +36,25 @@ struct CloudSyncPanel: View {
                 }.disabled(sync.busy)
             }.navigationTitle("Cloud e sincronizzazione")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
-        }.task { await cloud.prepareAccount() }
+        }.task { await cloud.prepareAccount(); await cloud.refresh() }
+            .sheet(item: $versionDocument) { document in CloudVersionsPanel(document: document, library: library) }
+    }
+
+    private var overview: some View {
+        Section("Centro sincronizzazione") {
+            Label(cloud.accountConnected ? "Account collegato" : "Account non collegato", systemImage: "person.crop.circle")
+            LabeledContent("Ultimo backup", value: cloud.lastBackupAt?.formatted(date: .abbreviated, time: .shortened) ?? "Nessun backup confermato")
+            LabeledContent("In coda", value: String(cloud.queue.jobs.count))
+            LabeledContent("Conflitti", value: String(cloud.conflicts.count + sync.conflicts.count + cloud.queue.jobs.filter(\.conflict).count))
+            Toggle("Backup automatico alla chiusura del quaderno", isOn: Binding(get: { cloud.backupOnClose }, set: { enabled in
+                Task { await cloud.setBackupPreferences(onClose: enabled, wifiOnly: cloud.wifiOnly) }
+            })).disabled(cloud.busy)
+            Toggle("Solo Wi-Fi senza risparmio dati", isOn: Binding(get: { cloud.wifiOnly }, set: { enabled in
+                Task { await cloud.setBackupPreferences(onClose: cloud.backupOnClose, wifiOnly: enabled) }
+            })).disabled(cloud.busy)
+            Text("Il backup alla chiusura riguarda i quaderni già collegati a questo account con Sincronizza adesso. Senza Wi-Fi la copia resta in coda. I comandi manuali possono usare la connessione disponibile.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private var accountSync: some View {
@@ -111,6 +131,7 @@ struct CloudSyncPanel: View {
                     Text("Versione \(document.revision) · \(ByteCountFormatter.string(fromByteCount: document.bytes, countStyle: .file))"
                          + (document.updatedAt.map { " · " + $0.formatted(date: .abbreviated, time: .shortened) } ?? "")).font(.caption).foregroundStyle(.secondary)
                     Button("Scarica come nuovo quaderno", systemImage: "icloud.and.arrow.down") { Task { await cloud.downloadCopy(document, library: library) } }
+                    Button("Versioni precedenti", systemImage: "clock.arrow.circlepath") { versionDocument = document }
                 }
             }
         }.disabled(cloud.busy)

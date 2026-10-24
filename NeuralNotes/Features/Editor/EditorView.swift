@@ -18,6 +18,8 @@ private struct PhotoCropPresentation: Identifiable {
     let imageID: UUID?
     let data: Data?
     let crop: NormalizedCrop
+    var adjustment = PhotoAdjustment()
+    var straighten = false
     /// "Foto e chiedi": the chosen part goes to the Lens, not onto the page.
     var lens = false
 }
@@ -58,6 +60,7 @@ struct EditorView: View {
                 .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
                 .onChange(of: model.lensPanelRequest) { _, _ in lensPanelRequested() }
                 .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
+                .onChange(of: model.imageStraightenRequest) { _, _ in openImageCrop(straighten: true) }
                 .onChange(of: model.searchRequest) { _, _ in panel = .search }
                 .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
                 .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
@@ -344,26 +347,28 @@ struct EditorView: View {
         let title: String = request.lens ? "Cosa vuoi chiedere?" : "Ritaglia foto"
         let confirm: String = request.lens ? "Chiedi alla Lente" : "Usa ritaglio"
         let hint: String = request.lens ? Self.lensCropHint : Self.photoCropHint
-        return PhotoCropPanel(image: request.image, initial: request.crop, title: title, confirm: confirm, hint: hint) { crop in
-            finishPhotoCrop(request, crop)
+        return PhotoCropPanel(image: request.image, initial: request.crop, adjustment: request.adjustment,
+                              straighten: request.straighten, title: title, confirm: confirm, hint: hint) { edit in
+            finishPhotoCrop(request, edit)
         }
     }
 
     private static let lensCropHint = "Trascina un rettangolo sulla parte da chiedere (una formula, un grafico, un paragrafo). «Tutto» usa la foto intera."
     private static let photoCropHint = "Trascina per scegliere l’area. L’immagine originale rimane conservata."
 
-    private func finishPhotoCrop(_ request: PhotoCropPresentation, _ crop: NormalizedCrop) {
+    private func finishPhotoCrop(_ request: PhotoCropPresentation, _ edit: PhotoAdjustment) {
         if request.lens {
             // A tap without a drag selects almost nothing: then the whole photo is asked about.
-            let tiny = crop.width < 0.03 || crop.height < 0.03
-            let chosen: NormalizedCrop = tiny ? .full : crop
+            let tiny = edit.crop.width < 0.03 || edit.crop.height < 0.03
+            let chosen: NormalizedCrop = tiny ? .full : edit.crop
             model.lensAnchor = nil
-            model.openLens(LensCardRequest(photo: request.data, photoCrop: chosen))
+            model.openLens(LensCardRequest(photo: request.data, photoCrop: chosen, photoPerspective: edit.perspective,
+                photoQuarterTurns: edit.quarterTurns, photoEnhanced: edit.enhanced))
             return
         }
         guard model.page?.id == request.pageID else { model.error = "La pagina di destinazione è cambiata. Riprova l’inserimento."; return }
-        if let imageID = request.imageID { model.selectedObjectID = imageID; model.cropSelectedImage(crop) }
-        else if let data = request.data { Task { await insertPhoto(data: data, crop: crop, pageID: request.pageID) } }
+        if let imageID = request.imageID { model.selectedObjectID = imageID; model.straightenSelectedImage(edit) }
+        else if let data = request.data { Task { await insertPhoto(data: data, edit: edit, pageID: request.pageID) } }
     }
 
     private func lensPanelRequested() {
@@ -416,9 +421,9 @@ struct EditorView: View {
         // Without camera access nothing opens: the next ordinary photo must not go to the Lens.
         Task { await openCamera(); if media == nil { askAboutPhoto = false } }
     }
-    private func insertLensPhoto(_ data: Data, _ crop: NormalizedCrop) {
+    private func insertLensPhoto(_ data: Data, _ edit: PhotoAdjustment) {
         guard let pageID = model.page?.id else { return }
-        Task { await insertPhoto(data: data, crop: crop, pageID: pageID) }
+        Task { await insertPhoto(data: data, edit: edit, pageID: pageID) }
     }
     private var toolbarAlignment: Alignment {
         switch model.currentWorkspace.dock { case .top: return .top; case .bottom: return .bottom; case .leading: return .leading; case .trailing: return .trailing }
@@ -624,23 +629,27 @@ struct EditorView: View {
         guard let image = try? DocumentServices.photoPreview(data) else { model.error = "Immagine non leggibile o troppo grande."; return }
         photoCrop = PhotoCropPresentation(image: image, pageID: model.page?.id ?? UUID(), imageID: nil, data: data, crop: .full, lens: true)
     }
-    private func openImageCrop() {
+    private func openImageCrop(straighten: Bool = false) {
         guard model.selectedIDs.count == 1, let item = model.page?.images.first(where: { $0.id == model.selectedObjectID }),
               let image = UIImage(contentsOfFile: model.workspace.package.appendingPathComponent(item.file).path) else {
             model.error = "Seleziona una sola immagine da ritagliare."; return
         }
         guard let pageID = model.page?.id else { return }
-        photoCrop = PhotoCropPresentation(image: image, pageID: pageID, imageID: item.id, data: nil, crop: item.crop ?? .full)
+        photoCrop = PhotoCropPresentation(image: image, pageID: pageID, imageID: item.id, data: nil, crop: item.crop ?? .full,
+            adjustment: item.photoAdjustment, straighten: straighten)
     }
-    private func insertPhoto(data: Data, crop: NormalizedCrop, pageID: UUID) async {
+    private func insertPhoto(data: Data, edit: PhotoAdjustment, pageID: UUID) async {
         guard model.page?.id == pageID, model.hasLease, !model.hasActiveStroke else { return }
         working = true; defer { working = false }
         do {
             var element = try await DocumentServices.importImage(data: data, into: model.workspace)
             guard model.page?.id == pageID, model.hasLease, !model.hasActiveStroke else { model.error = "La pagina di destinazione è cambiata: la foto non è stata inserita su un altro foglio."; return }
-            let ratio = element.height / element.width * crop.height / crop.width
+            guard let preview = try? DocumentServices.photoPreview(data),
+                  let corrected = PhotoPerspective.render(preview, adjustment: edit, maxDimension: 800) else { throw CocoaError(.fileReadCorruptFile) }
+            let ratio = Double(corrected.size.height / max(1, corrected.size.width))
             element.width = min(element.width, max(40, ((model.page?.height ?? 1024) - 160) / ratio))
-            element.height = element.width * ratio; element.crop = crop
+            element.height = element.width * ratio; element.crop = edit.crop; element.perspective = edit.perspective
+            element.photoQuarterTurns = edit.quarterTurns; element.photoEnhanced = edit.enhanced
             model.addImage(element)
         } catch { model.error = error.localizedDescription }
     }

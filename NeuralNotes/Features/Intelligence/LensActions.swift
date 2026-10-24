@@ -52,6 +52,12 @@ struct LensCardRequest: Identifiable, Equatable {
     var photo: Data?
     /// The part of the photo chosen before asking.
     var photoCrop: NormalizedCrop?
+    var photoPerspective: PerspectiveQuad?
+    var photoQuarterTurns = 0
+    var photoEnhanced = false
+    var photoAdjustment: PhotoAdjustment {
+        PhotoAdjustment(crop: photoCrop ?? .full, perspective: photoPerspective, quarterTurns: photoQuarterTurns, enhanced: photoEnhanced)
+    }
     /// The selection comes from the PDF opened beside the notebook: notes go to a free spot.
     var fromSidePDF = false
     /// A tap on a word explains it right away instead of waiting for a button.

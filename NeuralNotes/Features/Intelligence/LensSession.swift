@@ -72,7 +72,8 @@ final class LensSession: Identifiable {
     func prepare(_ model: EditorViewModel) async {
         await refreshEngine()
         if let photo = request.photo, var image = try? DocumentServices.photoPreview(photo) {
-            if let crop = request.photoCrop { image = LensReader.cropped(image, to: crop) }
+            image = LensReader.cropped(image, to: request.photoCrop ?? .full, perspective: request.photoPerspective,
+                quarterTurns: request.photoQuarterTurns, enhanced: request.photoEnhanced)
             preview = image; picture = LensReader.jpegBase64(image)
             if text.isEmpty, let png = image.pngData() { text = await LensReader.ocr(png) }
         } else if let id = request.imageID, let image = await LensReader.picture(id, model: model) {

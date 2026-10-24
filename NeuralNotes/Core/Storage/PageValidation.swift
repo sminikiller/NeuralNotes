@@ -15,7 +15,8 @@ public enum PageValidation {
         }
         for image in page.images {
             guard [image.x, image.y, image.width, image.height].allSatisfy(\.isFinite), image.width > 0, image.height > 0,
-                  image.rotation?.isFinite != false else { throw LibraryFailure.corruptDocument }
+                  image.rotation?.isFinite != false, image.perspective?.isConvex != false,
+                  image.photoQuarterTurns.map({ (0...3).contains($0) }) != false else { throw LibraryFailure.corruptDocument }
             if let crop = image.crop {
                 guard [crop.x, crop.y, crop.width, crop.height].allSatisfy(\.isFinite), crop.x >= 0, crop.y >= 0, crop.width > 0, crop.height > 0,
                       crop.x + crop.width <= 1.000001, crop.y + crop.height <= 1.000001 else { throw LibraryFailure.corruptDocument }

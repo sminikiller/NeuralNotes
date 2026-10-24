@@ -3,6 +3,38 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { SupabaseStore, createPlatformApp } from './platform.mjs';
 const user = '11111111-1111-4111-8111-111111111111', other = '22222222-2222-4222-8222-222222222222', hub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+test('Snapshot history is paginated, self-scoped and ordered newest first', async () => {
+  const queries = [];
+  await withAPI({ async list(token, table, params) { queries.push({ token, table, params }); return []; } }, async request => {
+    assert.equal((await request(`/snapshots?document=${hub}&offset=50&owner_id=${other}`)).status, 200);
+    assert.equal(queries[0].table, 'nn_snapshots'); assert.equal(queries[0].params.owner_id, 'eq.' + user);
+    assert.equal(queries[0].params.document_id, 'eq.' + hub); assert.equal(queries[0].params.order, 'revision.desc');
+    assert.equal(queries[0].params.limit, '50'); assert.equal(queries[0].params.offset, '50');
+    assert.equal((await request('/snapshots?document=invalid')).status, 400);
+    assert.equal((await request(`/snapshots?document=${hub}&offset=-1`)).status, 400);
+  });
+});
+
+test('A historical download signs only the requested revision owned by the account', async () => {
+  let signed = 0, found = true, wrongOwner = false;
+  const store = { base: new URL('https://fixture.supabase.co'), async list(token, table, params) {
+    assert.equal(token, 'fixture-user'); assert.equal(table, 'nn_snapshots'); assert.equal(params.revision, 'eq.2');
+    assert.equal(params.document_id, 'eq.' + hub); assert.equal(params.owner_id, 'eq.' + user);
+    return found ? [{ object_path: `${wrongOwner ? other : user}/cloud/${hub}/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.nnbackup` }] : [];
+  }, async call(_token, path, method, body) {
+    signed++; assert.ok(path.includes(`/cloud/${hub}/`)); assert.equal(method, 'POST'); assert.equal(body.expiresIn, 60);
+    return { signedURL: '/object/sign/neuralnotes-private/fixture?token=signed' };
+  } };
+  await withAPI(store, async request => {
+    const response = await request(`/download?document=${hub}&revision=2`);
+    assert.equal(response.status, 200); assert.equal(response.body.expiresIn, 60); assert.equal(signed, 1);
+    found = false; assert.equal((await request(`/download?document=${hub}&revision=2`)).status, 404); assert.equal(signed, 1);
+    found = true; wrongOwner = true; assert.equal((await request(`/download?document=${hub}&revision=2`)).status, 502); assert.equal(signed, 1);
+    for (const revision of ['0', '-1', '1.5', '2x', '']) assert.equal((await request(`/download?document=${hub}&revision=${revision}`)).status, 400);
+    assert.equal((await request(`/download?resource=${hub}&revision=2`)).status, 400);
+  });
+});
 async function withAPI(store, run) {
   const server = createPlatformApp({ authenticate: async token => token === 'fixture-user' ? user : null, store });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');

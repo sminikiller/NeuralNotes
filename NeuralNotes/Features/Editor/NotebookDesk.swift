@@ -118,6 +118,7 @@ struct NotebookDesk: View {
         switching = true; defer { switching = false }
         guard await suspend(tab) else { return }
         guard await tab.model.close() else { return }
+        Task { await CloudBackupService.shared.notebookClosed(library.notebooks.first(where: { $0.id == id }) ?? tab.notebook, library: library) }
         tabs.removeAll { $0.id == id }
         if selected == id, let next = tabs.last { selected = next.id; next.model.audio?.resumeAfterTabChange() }
     }
@@ -130,6 +131,8 @@ struct NotebookDesk: View {
         }
         persist()
         for tab in tabs { guard await tab.model.close() else { return } }
+        let closed = tabs.map { tab in library.notebooks.first(where: { $0.id == tab.id }) ?? tab.notebook }
+        Task { for book in closed { await CloudBackupService.shared.notebookClosed(book, library: library) } }
         dismiss()
     }
 

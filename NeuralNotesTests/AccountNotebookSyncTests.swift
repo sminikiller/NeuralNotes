@@ -5,6 +5,47 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class AccountNotebookSyncTests: XCTestCase {
+    @MainActor func testHistoricalVersionDownloadsAsIndependentCopyAndPreservesLatestNotebook() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let server = AccountCloudFixture(), auth = try await server.client(), local = try library(root.appendingPathComponent("library"))
+        let book = try local.repository.createNotebook(title: "Versioni", folderID: nil, cover: .lagoon)
+        try local.model.reload(); try await write("Versione uno", book: book, library: local.model)
+        let cloud = service(root.appendingPathComponent("queue"), auth, server)
+        await cloud.synchronize(local.model)
+        try await write("Versione due", book: book, library: local.model); await cloud.synchronize(local.model)
+        let document = try XCTUnwrap(cloud.documents.first)
+        let versions = await cloud.versions(document); XCTAssertEqual(versions.map(\.revision), [2, 1], cloud.status)
+        await cloud.downloadVersion(try XCTUnwrap(versions.last), title: document.title, library: local.model)
+        XCTAssertEqual(local.model.notebooks.count, 2, cloud.status)
+        let copy = try XCTUnwrap(local.model.notebooks.first { $0.id != book.id })
+        XCTAssertNotEqual(copy.documentID, book.documentID)
+        let originalText = try await text(book, library: local.model), copyText = try await text(copy, library: local.model)
+        XCTAssertEqual(originalText, "Versione due"); XCTAssertEqual(copyText, "Versione uno")
+        await server.corruptDownloads(); await cloud.downloadVersion(try XCTUnwrap(versions.last), title: document.title, library: local.model)
+        XCTAssertEqual(local.model.notebooks.count, 2, "A corrupt historical archive cannot be imported")
+    }
+
+    @MainActor func testCloseBackupWaitsForWifiAndResumesDurableQueueWithoutEnrollingOtherNotebooks() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let server = AccountCloudFixture(), auth = try await server.client(), local = try library(root.appendingPathComponent("library"))
+        let book = try local.repository.createNotebook(title: "WiFi", folderID: nil, cover: .lagoon)
+        try local.model.reload(); try await write("Prima", book: book, library: local.model)
+        let folder = root.appendingPathComponent("queue"), cloud = service(folder, auth, server, network: { false })
+        await cloud.synchronize(local.model); await cloud.setBackupPreferences(onClose: true, wifiOnly: true)
+        try await write("Seconda", book: book, library: local.model); await cloud.notebookClosed(book, library: local.model)
+        XCTAssertEqual(cloud.queue.jobs.count, 1); let uploads = await server.uploadCount; XCTAssertEqual(uploads, 1)
+        let otherBook = try local.repository.createNotebook(title: "Non collegato", folderID: nil, cover: .lagoon)
+        try local.model.reload(); await cloud.notebookClosed(otherBook, library: local.model)
+        XCTAssertEqual(cloud.queue.jobs.count, 1, "Automatic close never enrolls an unrelated local notebook")
+        let resumed = service(folder, auth, server, network: { true }); await resumed.synchronizeIfEnabled(local.model)
+        XCTAssertTrue(resumed.queue.jobs.isEmpty, resumed.status); XCTAssertTrue(resumed.backupOnClose); XCTAssertTrue(resumed.wifiOnly)
+        let after = await server.uploadCount; XCTAssertEqual(after, 2); XCTAssertNotNil(resumed.lastBackupAt)
+        let differentServer = AccountCloudFixture(), differentAuth = try await differentServer.client()
+        let differentAccount = service(folder, differentAuth, differentServer); await differentAccount.prepareAccount()
+        XCTAssertFalse(differentAccount.backupOnClose); XCTAssertFalse(differentAccount.wifiOnly); XCTAssertTrue(differentAccount.queue.jobs.isEmpty)
+    }
     @MainActor func testTwoDevicesUploadDownloadAndDetectConcurrentEditsWithoutReplacingThem() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -112,9 +153,9 @@ final class AccountNotebookSyncTests: XCTestCase {
         let model = LibraryViewModel(repository: repository); try model.reload()
         return (repository, model)
     }
-    @MainActor private func service(_ folder: URL, _ auth: ManagedAIClient, _ server: AccountCloudFixture) -> CloudBackupService {
+    @MainActor private func service(_ folder: URL, _ auth: ManagedAIClient, _ server: AccountCloudFixture, network: (@MainActor () -> Bool)? = nil) -> CloudBackupService {
         CloudBackupService(folder: folder, client: auth, transport: { try await server.send($0) },
-            fileUpload: { try await server.upload($0, file: $1) }, fileDownload: { try await server.download($0) })
+            fileUpload: { try await server.upload($0, file: $1) }, fileDownload: { try await server.download($0) }, automaticNetwork: network)
     }
     @MainActor private func write(_ text: String, book: Notebook, library: LibraryViewModel) async throws {
         let workspace = try library.workspace(book)
@@ -133,6 +174,7 @@ final class AccountNotebookSyncTests: XCTestCase {
 private actor AccountCloudFixture: ManagedAITransport {
     let user = UUID()
     var rows: [UUID: CloudDocument] = [:], objects: [String: Data] = [:], paths: [UUID: String] = [:]
+    private var history: [UUID: [Int: CloudDocument]] = [:], historyPaths: [UUID: [Int: String]] = [:]
     var uploadCount = 0
     private var failUpload = false, corrupt = false
     func failNextUpload() { failUpload = true }
@@ -157,6 +199,12 @@ private actor AccountCloudFixture: ManagedAITransport {
         }
         let url = try XCTUnwrap(request.url)
         switch url.lastPathComponent {
+        case "snapshots":
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let id = try XCTUnwrap(query.first(where: { $0.name == "document" })?.value.flatMap(UUID.init(uuidString:)))
+            let offset = query.first(where: { $0.name == "offset" })?.value.flatMap(Int.init) ?? 0
+            let values = (history[id] ?? [:]).values.sorted { $0.revision > $1.revision }.dropFirst(offset).prefix(50)
+            return try reply(values.map { row in ["document_id": row.id.uuidString, "revision": row.revision, "checksum": row.checksum ?? "", "byte_size": row.bytes] as [String: Any] })
         case "documents":
             let offset = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value.flatMap(Int.init) ?? 0
             let batch = rows.values.sorted { $0.id.uuidString < $1.id.uuidString }.dropFirst(offset).prefix(50)
@@ -175,10 +223,13 @@ private actor AccountCloudFixture: ManagedAITransport {
             let row = CloudDocument(id: id, revision: revision + 1, title: body["title"] as? String ?? "", checksum: body["checksum"] as? String,
                 bytes: Int64(body["bytes"] as? Int ?? 0), deleted: false, updatedAt: nil)
             rows[id] = row; paths[id] = path
+            history[id, default: [:]][row.revision] = row; historyPaths[id, default: [:]][row.revision] = path
             return ManagedAIHTTPResponse(data: try JSONEncoder().encode(row), status: 200)
         case "download":
-            let id = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value.flatMap(UUID.init(uuidString:)))
-            let path = try XCTUnwrap(paths[id])
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let id = try XCTUnwrap(query.first(where: { $0.name == "document" })?.value.flatMap(UUID.init(uuidString:)))
+            let revision = query.first(where: { $0.name == "revision" })?.value.flatMap(Int.init)
+            let path = try XCTUnwrap(revision.flatMap { historyPaths[id]?[$0] } ?? paths[id])
             return try reply(["url": "https://project.example/storage/v1/object/sign/neuralnotes-private/" + path + "?token=fixture", "expiresIn": 60])
         default: return try reply([:], 404)
         }

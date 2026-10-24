@@ -48,17 +48,15 @@ enum LensReader {
     static func picture(_ id: UUID, model: EditorViewModel) async -> UIImage? {
         guard let element = model.page?.images.first(where: { $0.id == id }), let url = try? await model.workspace.url(element.file),
               let data = try? Data(contentsOf: url) else { return nil }
-        return try? DocumentServices.photoPreview(data)
+        guard let image = try? DocumentServices.photoPreview(data) else { return nil }
+        return PhotoPerspective.render(image, adjustment: element.photoAdjustment, maxDimension: 2400)
     }
 
     /// The part of a photo chosen in the crop panel; the whole photo when the part is tiny.
-    static func cropped(_ image: UIImage, to crop: NormalizedCrop) -> UIImage {
-        let size = image.size
-        let rect = CGRect(x: size.width * CGFloat(crop.x), y: size.height * CGFloat(crop.y),
-                          width: size.width * CGFloat(crop.width), height: size.height * CGFloat(crop.height))
-        guard rect.width >= 8, rect.height >= 8, rect.width < size.width - 1 || rect.height < size.height - 1 else { return image }
-        let format = UIGraphicsImageRendererFormat(); format.scale = image.scale; format.opaque = true
-        return UIGraphicsImageRenderer(size: rect.size, format: format).image { _ in image.draw(at: CGPoint(x: -rect.minX, y: -rect.minY)) }
+    static func cropped(_ image: UIImage, to crop: NormalizedCrop, perspective: PerspectiveQuad? = nil,
+                        quarterTurns: Int = 0, enhanced: Bool = false) -> UIImage {
+        PhotoPerspective.render(image, adjustment: PhotoAdjustment(crop: crop, perspective: perspective,
+            quarterTurns: quarterTurns, enhanced: enhanced), maxDimension: 2400) ?? image
     }
 
     /// A JPEG small enough for every provider (at most 1024 px per side), as base64.

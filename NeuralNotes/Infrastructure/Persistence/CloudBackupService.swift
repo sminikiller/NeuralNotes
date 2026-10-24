@@ -24,13 +24,17 @@ final class CloudBackupService {
     @ObservationIgnored private let transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)?
     @ObservationIgnored private let fileUpload: (@Sendable (URLRequest, URL) async throws -> Int)?
     @ObservationIgnored private let fileDownload: (@Sendable (URL) async throws -> URL)?
+    @ObservationIgnored private let automaticNetwork: @MainActor () -> Bool
+    @ObservationIgnored private var pendingClosures: [(Notebook, LibraryViewModel, CloudBackupOwner)] = []
 
     init(folder: URL? = nil, client: ManagedAIClient? = nil,
          transport: (@Sendable (URLRequest) async throws -> ManagedAIHTTPResponse)? = nil,
          fileUpload: (@Sendable (URLRequest, URL) async throws -> Int)? = nil,
-         fileDownload: (@Sendable (URL) async throws -> URL)? = nil) {
+         fileDownload: (@Sendable (URL) async throws -> URL)? = nil,
+         automaticNetwork: (@MainActor () -> Bool)? = nil) {
         self.client = client ?? ManagedAIAccount.client; self.transport = transport
         self.fileUpload = fileUpload; self.fileDownload = fileDownload
+        self.automaticNetwork = automaticNetwork ?? { CloudNetworkMonitor.shared.unmeteredWiFi }
         let base = folder ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("CloudBackupQueue", isDirectory: true)
         baseFolder = base; self.folder = base
@@ -41,10 +45,15 @@ final class CloudBackupService {
     private func finishOperation() {
         busy = false; operationOwner = nil
         if resetAfterOperation { resetAfterOperation = false; accountDidChange() }
+        if !pendingClosures.isEmpty {
+            let pending = pendingClosures.removeFirst()
+            Task { await notebookClosed(pending.0, library: pending.1, expectedOwner: pending.2) }
+        }
     }
     func accountDidChange() {
         guard !busy else { resetAfterOperation = true; return }
         owner = nil; queue = CloudBackupQueue(); documents = []; conflicts = [:]; syncState = nil; status = ""
+        pendingClosures = []
     }
     func prepareAccount() async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
@@ -113,12 +122,12 @@ final class CloudBackupService {
     }
 
     /// Downloads a cloud copy and imports it as a new notebook: local notes are never replaced.
-    func downloadCopy(_ document: CloudDocument, library: LibraryViewModel) async {
+    func downloadCopy(_ document: CloudDocument, library: LibraryViewModel, revision: Int? = nil) async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
         do {
             try await selectAccount()
             let (service, token) = try await account()
-            let (data, code) = try await exchange(CloudBackupWire.download(studyURL: service.studyURL, token: token, documentID: document.id))
+            let (data, code) = try await exchange(CloudBackupWire.download(studyURL: service.studyURL, token: token, documentID: document.id, revision: revision))
             guard code == 200 else { throw CloudBackupWire.failure(status: code) }
             let file = try await downloadFile(CloudBackupWire.downloadURL(data, service: service), expectedBytes: document.bytes)
             defer { try? FileManager.default.removeItem(at: file) }
@@ -133,6 +142,63 @@ final class CloudBackupService {
     }
 
     var automatic: Bool { syncState?.automatic ?? false }
+    var backupOnClose: Bool { syncState?.backupOnClose ?? false }
+    var wifiOnly: Bool { syncState?.wifiOnly ?? false }
+    var lastBackupAt: Date? { syncState?.lastBackupAt }
+    var accountConnected: Bool { owner != nil }
+
+    func setBackupPreferences(onClose: Bool, wifiOnly: Bool) async {
+        guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount(); syncState?.backupOnClose = onClose; syncState?.wifiOnly = wifiOnly; try persistSyncState()
+        } catch { status = message(error, title: "") }
+    }
+
+    /// This switch only covers notebooks explicitly enrolled in the current account.
+    /// A login change must never silently upload another student's local notebooks.
+    func notebookClosed(_ book: Notebook, library: LibraryViewModel, expectedOwner: CloudBackupOwner? = nil) async {
+        guard let current = await client.snapshot() else { return }
+        let closingOwner = CloudBackupOwner(studyURL: current.service.studyURL, userID: current.userID)
+        guard expectedOwner == nil || expectedOwner == closingOwner else { return }
+        if busy {
+            pendingClosures.removeAll { $0.0.documentID == book.documentID }
+            pendingClosures.append((book, library, closingOwner)); return
+        }
+        busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount()
+            guard owner == closingOwner, backupOnClose, syncState?.checkpoints[book.documentID] != nil else { return }
+            try await prepare(book, library: library)
+            guard !wifiOnly || automaticNetwork() else { status = "Backup pronto: in attesa di Wi-Fi senza risparmio dati."; return }
+            await drain()
+        } catch { status = message(error, title: book.title) }
+    }
+
+    func versions(_ document: CloudDocument) async -> [CloudSnapshot] {
+        guard !busy else { return [] }; busy = true; operationOwner = nil; defer { finishOperation() }
+        do {
+            try await selectAccount(); var collected: [Int: CloudSnapshot] = [:]
+            for offset in stride(from: 0, through: 10_000, by: 50) {
+                let (service, token) = try await account()
+                let (data, code) = try await exchange(CloudBackupWire.versions(studyURL: service.studyURL, token: token, documentID: document.id, offset: offset))
+                guard code == 200 else { throw CloudBackupWire.failure(status: code) }
+                _ = try await account()
+                let batch = try CloudBackupWire.snapshots(data, documentID: document.id)
+                for value in batch {
+                    if let previous = collected[value.revision], previous != value { throw CloudBackupFailure.conflict }
+                    collected[value.revision] = value
+                }
+                if batch.count < 50 { return collected.values.sorted { $0.revision > $1.revision } }
+            }
+            throw CloudBackupFailure.invalidResponse
+        } catch { status = message(error, title: document.title); return [] }
+    }
+
+    func downloadVersion(_ snapshot: CloudSnapshot, title: String, library: LibraryViewModel) async {
+        let document = CloudDocument(id: snapshot.documentID, revision: snapshot.revision, title: title,
+            checksum: snapshot.checksum, bytes: snapshot.bytes, deleted: false, updatedAt: snapshot.createdAt)
+        await downloadCopy(document, library: library, revision: snapshot.revision)
+    }
 
     func setAutomatic(_ enabled: Bool) async {
         guard !busy else { return }; busy = true; operationOwner = nil; defer { finishOperation() }
@@ -144,7 +210,9 @@ final class CloudBackupService {
     func synchronizeIfEnabled(_ library: LibraryViewModel) async {
         guard !busy else { return }
         await prepareAccount()
+        if backupOnClose, (!wifiOnly || automaticNetwork()), !queue.jobs.isEmpty { await retry() }
         guard automatic else { return }
+        guard !wifiOnly || automaticNetwork() else { return }
         await synchronize(library, automaticOnly: true)
     }
 
@@ -349,6 +417,7 @@ final class CloudBackupService {
                     }
                     guard code == 200 else { throw CloudBackupWire.failure(status: code) }
                     let document = try CloudBackupWire.committed(data, job: job)
+                    syncState?.lastBackupAt = Date()
                     syncState?.committed(job, revision: document.revision)
                     try persistSyncState()
                     queue.complete(job.documentID, revision: document.revision); try persist()

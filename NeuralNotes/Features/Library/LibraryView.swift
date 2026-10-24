@@ -105,6 +105,10 @@ struct LibraryView: View {
     private var importPresentation: some View {
         documentPresentation
         .task {
+            await CloudBackupService.shared.prepareAccount()
+            if CloudBackupService.shared.accountConnected { await CloudBackupService.shared.refresh() }
+        }
+        .task {
             while !Task.isCancelled {
                 if scenePhase == .active { await CloudBackupService.shared.synchronizeIfEnabled(model) }
                 do { try await Task.sleep(for: .seconds(120)) } catch { return }
@@ -136,10 +140,7 @@ struct LibraryView: View {
             case .recovery: RecoveryPanel(library: model)
             case .cloud: CloudSyncPanel(library: model)
             case .account:
-                NavigationStack {
-                    ManagedAIAccountPanel(initial: AIEngineConfiguration(), connected: { _ in }, offersAIConfiguration: false)
-                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { sheet = nil } } }
-                }
+                AccountServicesPanel(library: model)
             case .organization(let book): NotebookOrganizationPanel(library: model, notebook: book)
             case .help: QuickGuidePanel()
             case .search:
@@ -177,6 +178,9 @@ struct LibraryView: View {
     var body: some View {
         notifiedLibrary
         .onChange(of: model.scope) { _, _ in path = [] }
+        .onChange(of: CloudNetworkMonitor.shared.unmeteredWiFi) { _, ready in
+            if ready { Task { await CloudBackupService.shared.synchronizeIfEnabled(model) } }
+        }
         .onChange(of: LibraryRevision.shared.value) { _, _ in model.perform { try model.reload() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.perform { try model.reload() } }
@@ -240,8 +244,6 @@ struct LibraryView: View {
                 Label("Sul tuo iPad", systemImage: "internaldrive")
                     .font(.footnote).foregroundStyle(.secondary)
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
-                Button { sheet = .account } label: { Label("Account NeuralNotes", systemImage: "person.crop.circle") }.accessibilityIdentifier("libraryAccount")
-                Button { sheet = .cloud } label: { Label("Cloud e sincronizzazione", systemImage: "icloud") }
                 Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
@@ -326,6 +328,7 @@ struct LibraryView: View {
         .searchable(text: $model.query, prompt: "Cerca un quaderno")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button { sheet = .account } label: { Label("Account e servizi", systemImage: "person.crop.circle") }.accessibilityIdentifier("libraryAccount")
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }
                     .disabled(model.importing)
                 Menu {
@@ -382,6 +385,7 @@ struct LibraryView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
                         LibraryNotebookCover(notebook: notebook, library: model)
+                            .overlay(alignment: .bottomLeading) { NotebookCloudBadge(documentID: notebook.documentID).padding(8) }
                         notebookCaption(notebook).padding(.horizontal, 4)
                     }
                 }

@@ -55,6 +55,7 @@ final class EditorViewModel {
     var searchRequest = 0
     var focusRequest = 0
     var objectEditorRequest = 0
+    var imageStraightenRequest = 0
     var ink = Color.black
     var thickness: Double = 3
     var selectionWidth: Double = 3

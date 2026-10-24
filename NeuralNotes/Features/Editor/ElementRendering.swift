@@ -4,7 +4,8 @@ import NeuralNotesCore
 @MainActor
 enum ElementRendering {
     static func drawImage(_ element: ImageElement, package: URL, context: CGContext) {
-        guard let image = DocumentRenderCache.shared.croppedImage(package.appendingPathComponent(element.file), crop: element.crop ?? .full) else { return }
+        guard let image = DocumentRenderCache.shared.croppedImage(package.appendingPathComponent(element.file), crop: element.crop ?? .full,
+            perspective: element.perspective, quarterTurns: element.photoQuarterTurns ?? 0, enhanced: element.photoEnhanced ?? false) else { return }
         let rect = CGRect(x: element.x, y: element.y, width: element.width, height: element.height)
         context.saveGState()
         context.translateBy(x: rect.midX, y: rect.midY)

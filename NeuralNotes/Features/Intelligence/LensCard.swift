@@ -8,7 +8,7 @@ import NeuralNotesCore
 struct LensSessionView: View {
     let model: EditorViewModel
     @Bindable var session: LensSession
-    let insertPhoto: (Data, NormalizedCrop) -> Void
+    let insertPhoto: (Data, PhotoAdjustment) -> Void
     @State private var question = ""
     @State private var configuring = false
 
@@ -55,7 +55,7 @@ struct LensSessionView: View {
     }
 
     private var busyRow: some View {
-        let label = "\(session.pending) · chiedo a \(session.configuration.engine.title)…"
+        let label = "\(session.pending) Â· chiedo a \(session.configuration.engine.title)â€¦"
         return HStack {
             ProgressView()
             Text(label).font(.caption).lineLimit(2)
@@ -65,7 +65,7 @@ struct LensSessionView: View {
     }
 
     private var composer: some View {
-        let placeholder: String = session.turns.isEmpty ? "Chiedi qualcosa su questa selezione…" : "Fai un’altra domanda…"
+        let placeholder: String = session.turns.isEmpty ? "Chiedi qualcosa su questa selezioneâ€¦" : "Fai unâ€™altra domandaâ€¦"
         let empty = question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(alignment: .bottom, spacing: 8) {
             TextField(placeholder, text: $question, axis: .vertical)
@@ -93,9 +93,9 @@ struct LensSessionView: View {
     private var consent: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Inviare la selezione a \(session.configuration.engine.title)?").font(.subheadline.bold())
-            Text("Il testo letto (e l’immagine, se c’è) parte solo quando premi una domanda. La scelta vale per questo motore.").font(.caption)
+            Text("Il testo letto (e lâ€™immagine, se câ€™Ã¨) parte solo quando premi una domanda. La scelta vale per questo motore.").font(.caption)
             HStack {
-                Button("Sì, sempre") { session.grant(model) }.buttonStyle(.borderedProminent)
+                Button("SÃ¬, sempre") { session.grant(model) }.buttonStyle(.borderedProminent)
                 Button("Impostazioni") { configuring = true }.buttonStyle(.bordered)
             }
         }.padding(10).frame(maxWidth: .infinity, alignment: .leading).background(Color.yellow.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
@@ -103,7 +103,7 @@ struct LensSessionView: View {
 
     @ViewBuilder private var selection: some View {
         if session.reading {
-            HStack { ProgressView(); Text("Leggo la selezione…").font(.caption).foregroundStyle(.secondary) }
+            HStack { ProgressView(); Text("Leggo la selezioneâ€¦").font(.caption).foregroundStyle(.secondary) }
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Selezione").font(.caption.bold()).foregroundStyle(.secondary)
@@ -111,21 +111,21 @@ struct LensSessionView: View {
                 TextField(selectionPlaceholder, text: $session.text, axis: .vertical)
                     .lineLimit(1...6).textFieldStyle(.roundedBorder)
                 if session.text.isEmpty && session.picture == nil {
-                    Text("Nessun testo letto: scrivilo qui o cerchia una zona più grande.").font(.caption).foregroundStyle(.secondary)
+                    Text("Nessun testo letto: scrivilo qui o cerchia una zona piÃ¹ grande.").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
     }
 
     private var selectionPlaceholder: String {
-        session.picture == nil ? "Testo selezionato" : "Testo letto nell’immagine (facoltativo)"
+        session.picture == nil ? "Testo selezionato" : "Testo letto nellâ€™immagine (facoltativo)"
     }
 
     @ViewBuilder private func photoPreview(_ preview: UIImage) -> some View {
         Image(uiImage: preview).resizable().scaledToFit().frame(maxHeight: 160).frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         if let photo = session.request.photo {
-            Button("Inserisci la foto nella pagina", systemImage: "photo.badge.plus") { insertPhoto(photo, session.request.photoCrop ?? .full) }
+            Button("Inserisci la foto nella pagina", systemImage: "photo.badge.plus") { insertPhoto(photo, session.request.photoAdjustment) }
                 .font(.caption)
         }
     }
@@ -149,7 +149,7 @@ struct LensSessionView: View {
             Text(turn.answer.origin).font(.caption2).foregroundStyle(.secondary)
             if let notice = turn.notice { Text(notice).font(.caption2).foregroundStyle(.orange) }
             if !session.noteExists(turn, model: model) {
-                Text("Anteprima · non aggiunta al foglio").font(.caption2).foregroundStyle(.secondary)
+                Text("Anteprima Â· non aggiunta al foglio").font(.caption2).foregroundStyle(.secondary)
             }
             answerActions(turn)
         }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
@@ -202,7 +202,7 @@ struct LensFormattedText: View {
         case .paragraph(let spans): styled(spans)
         case .heading(let spans): styled(spans).bold()
         case .bullet(let spans):
-            HStack(alignment: .firstTextBaseline, spacing: 6) { Text(verbatim: "•"); styled(spans) }
+            HStack(alignment: .firstTextBaseline, spacing: 6) { Text(verbatim: "â€¢"); styled(spans) }
         case .numbered(let marker, let spans):
             HStack(alignment: .firstTextBaseline, spacing: 6) { Text(verbatim: marker).monospacedDigit(); styled(spans) }
         }
@@ -225,9 +225,9 @@ struct LensGuide: View {
                 Text("Come si usa la Lente").font(.headline)
                 Label("Tocca o evidenzia le parole, poi scegli Spiega, Chiedi, Cerca o Copia.", systemImage: "underline")
                 Label("Dopo la selezione torni allo strumento precedente: scorri senza riselezionare. Per ricominciare usa Nuova selezione.", systemImage: "hand.draw")
-                Label("Leggi la risposta prima di decidere: Inserisci come nota la conserva sul foglio; Scarta elimina solo l’anteprima.", systemImage: "note.text.badge.plus")
+                Label("Leggi la risposta prima di decidere: Inserisci come nota la conserva sul foglio; Scarta elimina solo lâ€™anteprima.", systemImage: "note.text.badge.plus")
                 Label("Con la fotocamera scatti, ritagli la parte che ti serve e chiedi.", systemImage: "camera")
-                Label("Le note si spostano trascinandole. Il cerchietto in alto le riduce a 💡; tocca 💡 per riaprirle.", systemImage: "note.text")
+                Label("Le note si spostano trascinandole. Il cerchietto in alto le riduce a ðŸ’¡; tocca ðŸ’¡ per riaprirle.", systemImage: "note.text")
                 if model.tool != .lens {
                     Button("Attiva la Lente", systemImage: "sparkle.magnifyingglass") { model.chooseTool(.lens) }.buttonStyle(.borderedProminent)
                 }
@@ -244,7 +244,7 @@ struct LensSidePanel: View {
     let notebook: Notebook
     let close: () -> Void
     let undock: () -> Void
-    let insertPhoto: (Data, NormalizedCrop) -> Void
+    let insertPhoto: (Data, PhotoAdjustment) -> Void
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -286,7 +286,7 @@ struct LensFloatingCard: View {
     let model: EditorViewModel
     let session: LensSession
     let dock: () -> Void
-    let insertPhoto: (Data, NormalizedCrop) -> Void
+    let insertPhoto: (Data, PhotoAdjustment) -> Void
     @AppStorage("lens.floating.x") private var savedX = -1.0
     @AppStorage("lens.floating.y") private var savedY = -1.0
     @State private var drag = CGSize.zero

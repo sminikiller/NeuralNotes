@@ -479,6 +479,11 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
                 }
             }
             var items: [UIMenuElement] = [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
+            if model.page?.images.contains(where: { $0.id == id }) == true {
+                items.insert(UIAction(title: "Raddrizza immagine", image: UIImage(systemName: "viewfinder")) { _ in
+                    model.selectedObjectID = id; model.imageStraightenRequest += 1
+                }, at: 1)
+            }
             if !lens.isEmpty { items.insert(UIMenu(title: "", options: .displayInline, children: lens), at: 0) }
             return UIMenu(children: items)
         }

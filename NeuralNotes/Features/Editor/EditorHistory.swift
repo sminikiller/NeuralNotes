@@ -164,4 +164,23 @@ extension EditorViewModel {
             page.images[i].crop = crop
         }
     }
+
+    func straightenSelectedImage(_ edit: PhotoAdjustment) {
+        guard let id = selectedObjectID, let old = page?.images.first(where: { $0.id == id }),
+              edit.perspective?.isConvex != false, (0...3).contains(edit.quarterTurns),
+              let source = DocumentRenderCache.shared.image(workspace.package.appendingPathComponent(old.file)),
+              let result = PhotoPerspective.render(source, adjustment: edit, maxDimension: 800) else { return }
+        let ratio = Double(result.size.height / max(1, result.size.width))
+        mutatePage("Raddrizza e ritaglia immagine") { page in
+            guard let i = page.images.firstIndex(where: { $0.id == id }) else { return }
+            page.images[i].perspective = edit.perspective; page.images[i].crop = edit.crop
+            page.images[i].photoQuarterTurns = edit.quarterTurns; page.images[i].photoEnhanced = edit.enhanced
+            page.images[i].height = max(24, page.images[i].width * ratio)
+            let maximum = max(24, page.height - 32)
+            if page.images[i].height > maximum {
+                page.images[i].width *= maximum / page.images[i].height; page.images[i].height = maximum
+            }
+            page.images[i].y = min(page.images[i].y, max(0, page.height - page.images[i].height))
+        }
+    }
 }

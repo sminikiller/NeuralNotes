@@ -10,7 +10,7 @@ final class DocumentRenderCache {
     private let images = NSCache<NSURL, UIImage>()
     private let crops = NSCache<NSString, UIImage>()
     private(set) var pdfOpens = 0
-    init() { pdfs.countLimit = 6; images.totalCostLimit = 32 * 1024 * 1024; crops.totalCostLimit = 16 * 1024 * 1024 }
+    init() { pdfs.countLimit = 6; images.totalCostLimit = 32 * 1024 * 1024; crops.totalCostLimit = 64 * 1024 * 1024; crops.countLimit = 12 }
     private final class PDFBox { let value: CGPDFDocument; init(_ value: CGPDFDocument) { self.value = value } }
     func pdf(_ url: URL) -> CGPDFDocument? {
         if let cached = pdfs.object(forKey: url as NSURL) { return cached.value }
@@ -23,15 +23,15 @@ final class DocumentRenderCache {
         images.setObject(image, forKey: url as NSURL, cost: Int(image.size.width * image.scale * image.size.height * image.scale) * 4)
         return image
     }
-    func croppedImage(_ url: URL, crop: NormalizedCrop) -> UIImage? {
+    func croppedImage(_ url: URL, crop: NormalizedCrop, perspective: PerspectiveQuad? = nil, quarterTurns: Int = 0, enhanced: Bool = false) -> UIImage? {
         guard let image = image(url) else { return nil }
-        if crop == .full { return image }
-        let key = "\(url.path)|\(crop.x),\(crop.y),\(crop.width),\(crop.height)" as NSString
+        if crop == .full, perspective == nil, quarterTurns == 0, !enhanced, image.imageOrientation == .up { return image }
+        let edit = PhotoAdjustment(crop: crop, perspective: perspective, quarterTurns: quarterTurns, enhanced: enhanced)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        guard let encoded = try? encoder.encode(edit) else { return nil }
+        let key = "\(url.path)|\(encoded.base64EncodedString())" as NSString
         if let cached = crops.object(forKey: key) { return cached }
-        guard let cg = image.cgImage else { return nil }
-        let rect = CGRect(x: crop.x * Double(cg.width), y: crop.y * Double(cg.height), width: crop.width * Double(cg.width), height: crop.height * Double(cg.height)).integral
-        guard let cut = cg.cropping(to: rect) else { return nil }
-        let value = UIImage(cgImage: cut)
+        guard let value = PhotoPerspective.render(image, adjustment: edit), let cut = value.cgImage else { return nil }
         crops.setObject(value, forKey: key, cost: cut.width * cut.height * 4)
         return value
     }

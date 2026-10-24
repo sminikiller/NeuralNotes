@@ -120,13 +120,13 @@ public struct CloudBackupQueue: Codable, Equatable, Sendable {
 /// storage host the account was configured with.
 public enum CloudBackupWire {
     public static func platformURL(studyURL: URL, path: String, query: [URLQueryItem] = []) -> URL? {
-        guard studyURL.scheme == "https", studyURL.path.hasSuffix("/v1/study"), ["uploads", "commit", "documents", "download"].contains(path),
+        guard studyURL.scheme == "https", studyURL.path.hasSuffix("/v1/study"), ["uploads", "commit", "documents", "download", "snapshots"].contains(path),
               var parts = URLComponents(url: studyURL, resolvingAgainstBaseURL: false) else { return nil }
         parts.path = String(parts.path.dropLast("study".count)) + "platform/" + path
         parts.queryItems = query.isEmpty ? nil : query
         return parts.url
     }
-    private static func json(_ url: URL?, token: String, body: [String: Any]?) throws -> URLRequest {
+    static func json(_ url: URL?, token: String, body: [String: Any]?) throws -> URLRequest {
         guard let url, !token.isEmpty, !token.unicodeScalars.contains(where: { $0.value < 33 || $0.value == 127 }) else { throw CloudBackupFailure.signedOut }
         var request = URLRequest(url: url); request.timeoutInterval = 30
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -185,8 +185,10 @@ public enum CloudBackupWire {
               values.count <= 50, values.allSatisfy(\.isValid) else { throw CloudBackupFailure.invalidResponse }
         return values
     }
-    public static func download(studyURL: URL, token: String, documentID: UUID) throws -> URLRequest {
-        try json(platformURL(studyURL: studyURL, path: "download", query: [URLQueryItem(name: "document", value: documentID.uuidString.lowercased())]), token: token, body: nil)
+    public static func download(studyURL: URL, token: String, documentID: UUID, revision: Int? = nil) throws -> URLRequest {
+        var query = [URLQueryItem(name: "document", value: documentID.uuidString.lowercased())]
+        if let revision { guard revision > 0 else { throw CloudBackupFailure.invalidResponse }; query.append(URLQueryItem(name: "revision", value: String(revision))) }
+        return try json(platformURL(studyURL: studyURL, path: "download", query: query), token: token, body: nil)
     }
     public static func downloadURL(_ data: Data, service: ManagedAIService) throws -> URL {
         struct Value: Decodable { let url: URL; let expiresIn: Int }
