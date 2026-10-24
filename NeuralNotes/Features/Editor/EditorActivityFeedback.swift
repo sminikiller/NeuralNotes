@@ -51,7 +51,7 @@ struct EditorSaveStatus: View {
             Group {
                 if busy { ProgressView().controlSize(.small) }
                 else { Image(systemName: dirty ? "circle.dotted" : "checkmark.circle").foregroundStyle(.secondary) }
-            }.frame(width: 44, height: 44)
+            }.frame(width: 44, height: 44).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Stato del quaderno")

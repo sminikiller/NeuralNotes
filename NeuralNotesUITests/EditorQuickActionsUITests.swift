@@ -119,6 +119,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         device.orientation = .landscapeLeft
         let app = XCUIApplication(); openEditor(app)
         let strip = app.descendants(matching: .any)["editorPageStrip"].firstMatch
+        let track = app.descendants(matching: .any)["editorPageScrubber"].firstMatch
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(strip.waitForExistence(timeout: 5)); XCTAssertTrue(canvas.exists)
         for number in 2...6 {
@@ -129,9 +130,13 @@ final class EditorQuickActionsUITests: XCTestCase {
         for orientation in orientations {
             device.orientation = orientation
             let compact = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                let bar = strip.frame, page = canvas.frame
-                return abs(bar.height - 48) <= 2 && page.height > app.frame.height * 0.75
+                let bar = strip.frame, page = canvas.frame, scrubber = track.frame
+                // The material background's AX frame includes the home-indicator
+                // safe area (25 pt on this iPad), not just the 48 pt controls.
+                return abs(scrubber.height - 44) <= 2 && bar.height <= 90
+                    && page.height > app.frame.height * 0.75
                     && abs(bar.minY - page.maxY) <= 2
+                    && abs(scrubber.minY - page.maxY - 2) <= 2
             }, object: strip)
             wait(for: [compact], timeout: 5)
             XCTAssertGreaterThanOrEqual(app.buttons["editorPageCounter"].frame.height, 44)

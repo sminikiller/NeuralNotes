@@ -27,7 +27,7 @@ struct NotebookSwitcher: View {
                         .padding(.horizontal, 6).padding(.vertical, 3)
                         .background(Brand.accent.opacity(0.15), in: Capsule())
                 }
-            }.frame(minHeight: 44).frame(maxWidth: 220)
+            }.frame(minHeight: 44).frame(maxWidth: 220).contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel("Quaderni aperti: \(title)")
         .accessibilityValue("\(switching.notebooks.count) schede")
@@ -69,7 +69,7 @@ struct NotebookSwitcher: View {
             }.buttonStyle(.plain).accessibilityIdentifier("deskSelect-\(notebook.id)")
             Button {
                 expanded = false; switching.close(notebook.id)
-            } label: { Image(systemName: "xmark").font(.caption).frame(width: 44, height: 44) }
+            } label: { Image(systemName: "xmark").font(.caption).frame(width: 44, height: 44).contentShape(Rectangle()) }
                 .buttonStyle(.plain).foregroundStyle(.secondary)
                 .accessibilityLabel("Chiudi scheda \(notebook.title)")
         }.font(.subheadline)

@@ -490,6 +490,7 @@ struct EditorView: View {
             Button { jumpingToPage = true } label: {
                 Text("\(pageIndex + 1) / \(model.pages.count)").font(.caption.weight(.semibold).monospacedDigit())
                     .frame(minWidth: 64, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("Vai alla pagina")
             .accessibilityValue("Pagina \(pageIndex + 1) di \(model.pages.count)")
@@ -501,7 +502,7 @@ struct EditorView: View {
                 .padding(.horizontal, 4)
             if showSteps { pageStep(1) }
             Button { Task { await model.addPage() } } label: {
-                Image(systemName: "plus").frame(width: 44, height: 44)
+                Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
             }.accessibilityLabel("Aggiungi pagina").accessibilityIdentifier("editorAddPage")
             pageActions
         }
@@ -512,7 +513,7 @@ struct EditorView: View {
     private func pageStep(_ offset: Int) -> some View {
         Button { selectPage(pageIndex + offset) } label: {
             Image(systemName: offset < 0 ? "chevron.backward" : "chevron.forward")
-                .font(.system(size: 14, weight: .medium)).frame(width: 44, height: 44)
+                .font(.system(size: 14, weight: .medium)).frame(width: 44, height: 44).contentShape(Rectangle())
         }
         .accessibilityLabel(offset < 0 ? "Pagina precedente" : "Pagina successiva")
         .accessibilityIdentifier(offset < 0 ? "editorPreviousPage" : "editorNextPage")
@@ -531,7 +532,7 @@ struct EditorView: View {
             Button("Sposta avanti", systemImage: "arrow.forward") { Task { await movePage(1) } }.disabled(pageIndex >= model.pages.count - 1)
             Divider()
             Button("Elimina pagina", systemImage: "trash", role: .destructive) { confirmDelete = true }
-        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
             .accessibilityLabel("Azioni pagina").accessibilityIdentifier("editorPageActions")
     }
 

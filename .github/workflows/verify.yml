@@ -14,7 +14,7 @@ on:
         type: string
         required: false
       ui_test:
-        description: Optional Class/testMethod for a UI-only follow-up on unchanged application sources
+        description: Optional comma-separated Class/testMethod filters for UI-only or focused verification
         type: string
         required: false
       playground_launch:

@@ -31,13 +31,23 @@ mkdir -p "$result_dir"
 # full suite before xcodebuild. Keep the command array nonempty in every scope.
 # UI tests also share simulator preferences, so run them serially.
 test_selection=(-parallel-testing-enabled NO)
+append_ui_tests() {
+  local ui_case
+  local ui_cases=()
+  IFS=',' read -r -a ui_cases <<< "$NEURALNOTES_UI_TEST"
+  for ui_case in "${ui_cases[@]}"; do
+    [[ "$ui_case" =~ ^[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+$ ]]
+    test_selection+=("-only-testing:NeuralNotesUITests/$ui_case")
+  done
+}
 if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
-  test_selection+=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
+  test_selection+=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests)
+  if [ -n "${NEURALNOTES_UI_TEST:-}" ]; then append_ui_tests
+  else test_selection+=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests); fi
 fi
 if [ "${NEURALNOTES_UI_ONLY:-0}" = 1 ]; then
   if [ -n "${NEURALNOTES_UI_TEST:-}" ]; then
-    [[ "$NEURALNOTES_UI_TEST" =~ ^[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+$ ]]
-    test_selection+=("-only-testing:NeuralNotesUITests/$NEURALNOTES_UI_TEST")
+    append_ui_tests
   else
     test_selection+=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests)
   fi
