@@ -7,14 +7,18 @@ on:
       scope:
         description: Verification to run
         type: choice
-        options: [full, playground, focused, ui]
+        options: [full, playground, focused, ui, native]
         default: full
       verified_sha:
-        description: Full commit already validated for Core/native/Release/package (required for ui scope)
+        description: Commit already built and packaged (required for ui/native follow-up; app sources must match)
         type: string
         required: false
       ui_test:
         description: Optional comma-separated Class/testMethod filters for UI-only or focused verification
+        type: string
+        required: false
+      native_test:
+        description: Comma-separated Class/testMethod filters (required for native follow-up)
         type: string
         required: false
       playground_launch:
@@ -58,7 +62,7 @@ jobs:
       - name: Verify iPad package
         run: python tools/package_ipad.py
   backend-services:
-    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui'
+    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native'
     needs: portable
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -73,7 +77,7 @@ jobs:
       - name: Real local email Auth, private Storage and gateway integration (AI provider simulated)
         run: node backend/integration/run.mjs
   upgrade:
-    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui'
+    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native'
     needs: portable
     runs-on: macos-15
     timeout-minutes: 25
@@ -107,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require unchanged application for UI-only follow-up
-        if: inputs.scope == 'ui'
+        if: inputs.scope == 'ui' || inputs.scope == 'native'
         env:
           VERIFIED_APP_SHA: ${{ inputs.verified_sha }}
         shell: bash
@@ -124,6 +128,8 @@ jobs:
           NEURALNOTES_FOCUSED_TESTS: ${{ inputs.scope == 'focused' && '1' || '0' }}
           NEURALNOTES_UI_ONLY: ${{ inputs.scope == 'ui' && '1' || '0' }}
           NEURALNOTES_UI_TEST: ${{ inputs.ui_test }}
+          NEURALNOTES_NATIVE_ONLY: ${{ inputs.scope == 'native' && '1' || '0' }}
+          NEURALNOTES_NATIVE_TEST: ${{ inputs.native_test }}
         shell: bash
         run: |
           set -o pipefail
@@ -141,7 +147,7 @@ jobs:
             .verification/apple-validation.log
             .verification/**/*.xcresult
   playground:
-    if: inputs.scope != 'ui'
+    if: inputs.scope != 'ui' && inputs.scope != 'native'
     runs-on: ${{ inputs.playground_xcode == '15.4' && 'macos-14' || 'macos-15' }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ inputs.playground_xcode || '16.4' }}.app/Contents/Developer

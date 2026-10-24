@@ -9,7 +9,7 @@ xcrun swift --version
 xcodebuild -showsdks
 python3 tools/check_project.py
 verification_status=0
-if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ]; then
+if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ]; then
   swift test || verification_status=1
 fi
 
@@ -53,12 +53,21 @@ if [ "${NEURALNOTES_UI_ONLY:-0}" = 1 ]; then
   fi
   echo "UI-only follow-up: Core/native/Release/package evidence must come from the same application sources."
 fi
+if [ "${NEURALNOTES_NATIVE_ONLY:-0}" = 1 ]; then
+  [ -n "${NEURALNOTES_NATIVE_TEST:-}" ]
+  IFS=',' read -r -a native_cases <<< "$NEURALNOTES_NATIVE_TEST"
+  for native_case in "${native_cases[@]}"; do
+    [[ "$native_case" =~ ^[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+$ ]]
+    test_selection+=("-only-testing:NeuralNotesTests/$native_case")
+  done
+  echo "Native-only follow-up: unchanged application sources are required by the workflow guard."
+fi
 xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -destination "platform=iOS Simulator,id=$simulator_id" \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_dir/NeuralNotes.xcresult" \
   "${test_selection[@]}" CODE_SIGNING_ALLOWED=NO || verification_status=1
-if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ]; then
+if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ]; then
   xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
     -configuration Release -destination 'generic/platform=iOS' \
     -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1

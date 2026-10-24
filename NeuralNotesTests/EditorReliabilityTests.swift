@@ -361,11 +361,15 @@ final class EditorReliabilityTests: XCTestCase {
             let initially = try await model.workspace.automaticBackups(); XCTAssertTrue(initially.isEmpty)
             model.addText(); let saved = await model.flush(); XCTAssertTrue(saved)
             var copied = false
-            for _ in 0..<100 {
+            // Indexing precedes the idle backup. CI load must not turn its
+            // asynchronous completion into a fixed two-second race. This is
+            // an eventual idle-work assertion, not an interactive latency SLA.
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            while ContinuousClock.now < deadline {
                 if !(try await model.workspace.automaticBackups()).isEmpty { copied = true; break }
                 try await Task.sleep(for: .milliseconds(20))
             }
-            XCTAssertTrue(copied, "A dirty save still gets its idle backup")
+            XCTAssertTrue(copied, "A dirty save still gets its idle backup; warning=\(model.backupWarning ?? "none"), dirty=\(model.dirty), saving=\(model.saving), busy=\(model.interactionBusy)")
             model.addText(); let closed = await model.close(); XCTAssertTrue(closed)
             try await Task.sleep(for: .milliseconds(100))
             let after = try await model.workspace.automaticBackups(); XCTAssertEqual(after.count, 1)
