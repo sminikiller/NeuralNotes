@@ -17,6 +17,8 @@ ATTESTATIONS = (
     "physical_ipad", "long_audio_and_standby", "camera_and_pencil", "upgrade_keeps_notebooks",
     "live_ai", "smtp_delivery", "cloud_two_accounts", "account_deletion", "icloud_production", "privacy_review",
 )
+SIGNING_SECRETS = ("NN_CERTIFICATE_P12_BASE64", "NN_CERTIFICATE_PASSWORD", "NN_PROFILE_BASE64",
+                   "NN_ASC_KEY_BASE64", "NN_ASC_KEY_ID", "NN_ASC_ISSUER_ID")
 
 
 def public_https(value):
@@ -83,7 +85,20 @@ def archive_proof(folder):
             "build": info["CFBundleVersion"], "sdk": sdk, "minimumOS": info.get("MinimumOSVersion"),
             "requiredReasonCategories": sorted(reasons),
             "executableSHA256": hashlib.sha256((app / info["CFBundleExecutable"]).read_bytes()).hexdigest(),
+            "cloudSync": info.get("NNCloudSigned") is True,
             "signed": (app / "_CodeSignature/CodeResources").is_file(), "uploaded": False}
+
+
+def beta_problems(environment):
+    """Internal TestFlight beta: signing secrets (checked by name, never by value) and
+    export compliance. Public services and physical acceptance come after this build."""
+    problems = ["Missing GitHub distribution secret: " + name for name in SIGNING_SECRETS if not environment.get(name)]
+    info = plistlib.loads((ROOT / "NeuralNotes/Resources/Info.plist").read_bytes())
+    if info.get("ITSAppUsesNonExemptEncryption") is not False:
+        problems.append("Info.plist must declare ITSAppUsesNonExemptEncryption = false (HTTPS and hashing only)")
+    if not (ROOT / "NeuralNotes/Resources/PrivacyInfo.xcprivacy").is_file():
+        problems.append("Privacy manifest missing")
+    return problems
 
 
 def production_problems(config, source_sha, online=False):
@@ -116,12 +131,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--production", action="store_true")
     parser.add_argument("--online", action="store_true")
+    parser.add_argument("--beta", action="store_true", help="internal TestFlight beta: signing secrets and app metadata only")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
-    if not args.production and not args.archive:
-        parser.error('Choose --production and/or --archive; no verification was requested.')
-    report = {"production_checked": args.production, "problems": []}
+    if not args.production and not args.archive and not args.beta:
+        parser.error('Choose --production, --beta and/or --archive; no verification was requested.')
+    if args.production and args.beta:
+        parser.error('--production and --beta are separate release paths.')
+    report = {"production_checked": args.production, "beta_checked": args.beta, "problems": []}
     report["source_sha"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if args.archive:
         report["archive"] = archive_proof(args.archive)
@@ -129,6 +147,8 @@ def main():
         raw = os.environ.get("NN_PRODUCTION_CONFIG", "{}")
         config = json.loads(raw)
         report["problems"] = production_problems(config, report["source_sha"], args.online)
+    if args.beta:
+        report["problems"] += beta_problems(os.environ)
     report["passed"] = not report["problems"]
     encoded = json.dumps(report, indent=2)
     if args.report:
