@@ -116,7 +116,16 @@ def check_structure():
     assert playground_info["UIBackgroundModes"] == ["audio"]
     privacy = plistlib.loads((ROOT / "NeuralNotes/Resources/PrivacyInfo.xcprivacy").read_bytes())
     assert privacy["NSPrivacyTracking"] is False
-    assert privacy["NSPrivacyCollectedDataTypes"] == []
+    collected = privacy["NSPrivacyCollectedDataTypes"]
+    assert {item["NSPrivacyCollectedDataType"] for item in collected} == {
+        "NSPrivacyCollectedDataTypeName", "NSPrivacyCollectedDataTypeEmailAddress",
+        "NSPrivacyCollectedDataTypeUserID", "NSPrivacyCollectedDataTypeOtherUserContent",
+        "NSPrivacyCollectedDataTypePhotosorVideos", "NSPrivacyCollectedDataTypeAudioData",
+        "NSPrivacyCollectedDataTypeProductInteraction",
+    }
+    assert all(item["NSPrivacyCollectedDataTypeTracking"] is False and item["NSPrivacyCollectedDataTypeLinked"] is True
+               and item["NSPrivacyCollectedDataTypePurposes"] == ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+               for item in collected)
     assert privacy["NSPrivacyAccessedAPITypes"][0]["NSPrivacyAccessedAPITypeReasons"] == ["CA92.1"]
     print("PASS: app Info.plist and privacy manifest parse and expected settings")
 

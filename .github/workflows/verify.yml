@@ -7,7 +7,7 @@ on:
       scope:
         description: Verification to run
         type: choice
-        options: [full, playground, focused, ui, native]
+        options: [full, playground, focused, ui, native, delivery]
         default: full
       verified_sha:
         description: Commit already built and packaged (required for ui/native follow-up; app sources must match)
@@ -28,13 +28,17 @@ on:
       playground_xcode:
         description: Compiler/SDK for the App Playground package
         type: choice
-        options: ['16.4', '15.4']
+        options: ['26.6', '16.4', '15.4']
         default: '16.4'
       playground_configuration:
         description: Build configuration for the App Playground package
         type: choice
         options: [Debug, Release]
         default: Debug
+      delivery_upload:
+        description: Sign and upload to TestFlight (requires production acceptance and distribution secrets)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -59,6 +63,8 @@ jobs:
         run: python tools/check_project.py --swift-syntax
       - name: Backend unit tests (no provider calls)
         run: node --test backend/*.test.mjs
+      - name: Distribution preflight regression checks
+        run: python -m unittest discover -s tools -p test_release_readiness.py
       - name: Verify iPad package
         run: python tools/package_ipad.py
   backend-services:
@@ -79,7 +85,9 @@ jobs:
   upgrade:
     if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native'
     needs: portable
-    runs-on: macos-15
+    runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || 'macos-15' }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.scope == 'delivery' && '26.6' || '16.4' }}.app/Contents/Developer
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -106,7 +114,9 @@ jobs:
   apple:
     if: inputs.scope != 'playground'
     needs: portable
-    runs-on: macos-15
+    runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || 'macos-15' }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.scope == 'delivery' && '26.6' || '16.4' }}.app/Contents/Developer
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -148,9 +158,9 @@ jobs:
             .verification/**/*.xcresult
   playground:
     if: inputs.scope != 'ui' && inputs.scope != 'native'
-    runs-on: ${{ inputs.playground_xcode == '15.4' && 'macos-14' || 'macos-15' }}
+    runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || inputs.playground_xcode == '26.6' && 'macos-26' || inputs.playground_xcode == '15.4' && 'macos-14' || 'macos-15' }}
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.playground_xcode || '16.4' }}.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.scope == 'delivery' && '26.6' || inputs.playground_xcode || '16.4' }}.app/Contents/Developer
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -159,8 +169,8 @@ jobs:
           python-version: '3.13'
       - name: Build the delivered App Playground package
         env:
-          NEURALNOTES_PLAYGROUND_SMOKE: ${{ inputs.playground_launch && '1' || '0' }}
-          NEURALNOTES_PLAYGROUND_CONFIGURATION: ${{ inputs.playground_configuration || 'Debug' }}
+          NEURALNOTES_PLAYGROUND_SMOKE: ${{ (inputs.scope == 'delivery' || inputs.playground_launch) && '1' || '0' }}
+          NEURALNOTES_PLAYGROUND_CONFIGURATION: ${{ inputs.scope == 'delivery' && 'Release' || inputs.playground_configuration || 'Debug' }}
         shell: bash
         run: |
           set -o pipefail
@@ -179,3 +189,43 @@ jobs:
             .verification/playground-schemes.json
             .verification/playground-launch/
             .verification/NeuralNotes-iPad-*.zip
+  distribution:
+    if: inputs.scope == 'delivery'
+    needs: [portable, backend-services, upgrade, apple, playground]
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate the production configuration before a requested upload
+        if: inputs.delivery_upload
+        env:
+          NN_PRODUCTION_CONFIG: ${{ vars.NN_PRODUCTION_CONFIG }}
+        run: python3 tools/release_readiness.py --production --online
+      - name: Archive for distribution, or sign and upload when explicitly requested
+        env:
+          NN_DELIVERY_UPLOAD: ${{ inputs.delivery_upload && '1' || '0' }}
+          NN_RELEASE_VERSION: '1.0.0'
+          NN_RELEASE_BUILD: ${{ github.run_number }}
+          NN_CERTIFICATE_P12_BASE64: ${{ secrets.NN_CERTIFICATE_P12_BASE64 }}
+          NN_CERTIFICATE_PASSWORD: ${{ secrets.NN_CERTIFICATE_PASSWORD }}
+          NN_PROFILE_BASE64: ${{ secrets.NN_PROFILE_BASE64 }}
+          NN_ASC_KEY_BASE64: ${{ secrets.NN_ASC_KEY_BASE64 }}
+          NN_ASC_KEY_ID: ${{ secrets.NN_ASC_KEY_ID }}
+          NN_ASC_ISSUER_ID: ${{ secrets.NN_ASC_ISSUER_ID }}
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .verification/distribution
+          bash tools/distribute_macos.sh 2>&1 | tee .verification/distribution/build.log
+      - name: Preserve distribution evidence (never certificates or private keys)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: distribution-${{ github.run_id }}
+          retention-days: 14
+          include-hidden-files: true
+          path: |
+            .verification/distribution/build.log
+            .verification/distribution/archive-proof.json

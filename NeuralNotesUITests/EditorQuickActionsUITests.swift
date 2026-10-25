@@ -126,6 +126,24 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
     }
 
+    @MainActor func testPrivacyInformationIsAvailableWithoutAnAccount() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()
+        let account = app.buttons["libraryAccount"]
+        if !account.waitForExistence(timeout: 3) || !account.isHittable {
+            app.buttons["ToggleSidebar"].firstMatch.tap()
+        }
+        XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
+        let privacy = app.buttons["services-privacy"].firstMatch
+        XCTAssertTrue(privacy.waitForExistence(timeout: 5)); privacy.tap()
+        XCTAssertTrue(app.navigationBars["Privacy e assistenza"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Sul tuo iPad"].exists)
+        XCTAssertFalse(app.links["privacyPolicyLink"].exists, "An unconfigured build must not invent a public privacy URL")
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "privacy-and-support"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["Chiudi"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Account e servizi"].waitForExistence(timeout: 5))
+    }
+
     @MainActor func testManagedAIAccountExplainsMissingServiceWithoutEnablingLogin() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorLens"].tap()
