@@ -126,7 +126,13 @@ def check_structure():
     assert all(item["NSPrivacyCollectedDataTypeTracking"] is False and item["NSPrivacyCollectedDataTypeLinked"] is True
                and item["NSPrivacyCollectedDataTypePurposes"] == ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
                for item in collected)
-    assert privacy["NSPrivacyAccessedAPITypes"][0]["NSPrivacyAccessedAPITypeReasons"] == ["CA92.1"]
+    assert {item["NSPrivacyAccessedAPIType"]: set(item["NSPrivacyAccessedAPITypeReasons"])
+            for item in privacy["NSPrivacyAccessedAPITypes"]} == {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1", "3B52.1"},
+        "NSPrivacyAccessedAPICategoryDiskSpace": {"E174.1"},
+        "NSPrivacyAccessedAPICategorySystemBootTime": {"35F9.1"},
+    }
     print("PASS: app Info.plist and privacy manifest parse and expected settings")
 
     for path in (ROOT / "NeuralNotes/Resources/Assets.xcassets").rglob("Contents.json"):

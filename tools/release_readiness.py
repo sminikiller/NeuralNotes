@@ -70,8 +70,18 @@ def archive_proof(folder):
         raise ValueError("Archive app icon/catalog missing")
     if not (app / "PrivacyInfo.xcprivacy").is_file():
         raise ValueError("Archive privacy manifest missing")
+    privacy = plistlib.loads((app / "PrivacyInfo.xcprivacy").read_bytes())
+    reasons = {item["NSPrivacyAccessedAPIType"]: set(item["NSPrivacyAccessedAPITypeReasons"])
+               for item in privacy.get("NSPrivacyAccessedAPITypes", [])}
+    required = {"NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+                "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1", "3B52.1"},
+                "NSPrivacyAccessedAPICategoryDiskSpace": {"E174.1"},
+                "NSPrivacyAccessedAPICategorySystemBootTime": {"35F9.1"}}
+    if any(not codes <= reasons.get(category, set()) for category, codes in required.items()):
+        raise ValueError("Archive privacy manifest omits a required API reason used by this app")
     return {"bundleID": info["CFBundleIdentifier"], "version": info["CFBundleShortVersionString"],
             "build": info["CFBundleVersion"], "sdk": sdk, "minimumOS": info.get("MinimumOSVersion"),
+            "requiredReasonCategories": sorted(reasons),
             "executableSHA256": hashlib.sha256((app / info["CFBundleExecutable"]).read_bytes()).hexdigest(),
             "signed": (app / "_CodeSignature/CodeResources").is_file(), "uploaded": False}
 

@@ -139,7 +139,9 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
             audio.delegate = self
             guard audio.prepareToRecord() else { throw CocoaError(.fileWriteUnknown) }
             entry.segments.append(AudioTimelineSegment(file: file, start: entry.duration,
-                hostStart: ProcessInfo.processInfo.systemUptime))
+                // Playback/anchors use session-relative start and duration.
+                // Keep the legacy field decodable without collecting device uptime.
+                hostStart: 0))
             entry.state = "recording"
             entry.revision = (entry.revision ?? 0) + 1
             // Persist the file reference before starting the microphone.

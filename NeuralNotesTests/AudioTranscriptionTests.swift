@@ -184,7 +184,9 @@ final class AudioTranscriptionTests: XCTestCase {
         XCTAssertEqual(try AudioWindowReader.duration(of: url), 21600, accuracy: 0.001)
         let lastWindow = try XCTUnwrap(SpeechWindow.plan(duration: 21600, maximum: 45).last)
         XCTAssertEqual(try AudioWindowReader.read(url: url, window: lastWindow) { _ in }, 360_000)
-        var part = AudioTimelineSegment(file: path, start: 0, hostStart: 0); part.duration = 21600
+        // Historical documents may contain a device-clock stamp. Windowing and
+        // resume must depend exclusively on the session-relative timeline.
+        var part = AudioTimelineSegment(file: path, start: 0, hostStart: 900_000); part.duration = 21600
         var session = AudioSession(title: "Sei ore"); session.state = "finished"; session.segments = [part]
         try await workspace.saveSession(session)
         let first = AudioController(workspace: workspace); await first.load()

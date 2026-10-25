@@ -21,6 +21,8 @@ Il gateway non aggiunge log delle domande/risposte nel codice applicativo; ciò 
 
 Il manifest predisposto dichiara nome, email, User ID, contenuti dell’utente, foto/video, audio e interazioni per le funzionalità dell’app; dati collegati all’utente, tracking disabilitato. Il solo uso locale non invia questi dati al backend. Il manifest non sostituisce il questionario privacy di App Store Connect né la verifica dei fornitori effettivi. Controllare anche log tecnici/indirizzi IP e contatti di assistenza quando vengono attivati.
 
+Le API con motivazione obbligatoria sono dichiarate per preferenze locali (`CA92.1`), metadati dei file nel contenitore e dei file scelti dall’utente (`C617.1`, `3B52.1`), verifica dello spazio prima di scrivere/importare/comprimere (`E174.1`) e misurazione dei tempi interni (`35F9.1`). Le nuove registrazioni non conservano più `systemUptime` nel campo legacy `hostStart`: riproduzione e ancore usano `start`/`duration`. I file storici restano compatibili. [Definizioni Apple](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype).
+
 ## Conservazione e cancellazione
 
 - L’utente può esportare i dati dell’account e richiederne la cancellazione dall’app, previa conferma email.

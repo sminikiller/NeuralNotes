@@ -29,7 +29,7 @@ struct ManagedAIAccountPanel: View {
         Form {
             Section {
                 Label("Account NeuralNotes", systemImage: "person.crop.circle").font(.headline)
-                Text("Accedi con un codice email. Modelli e chiavi sono gestiti dal servizio; gli appunti restano sul dispositivo finché scegli un’azione AI.").font(.caption)
+                Text("Accedi con un codice email. Modelli e chiavi sono gestiti dal servizio. I contenuti vengono inviati quando usi l’AI online o colleghi un quaderno al cloud.").font(.caption)
             }
             if let account {
                 Section("Account") {
@@ -53,10 +53,10 @@ struct ManagedAIAccountPanel: View {
             if endpoint.isEmpty {
                 Section { Text("Il servizio online non è ancora attivato in questo pacchetto. La scrittura e le funzioni locali sono disponibili.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("managedAINotConfigured") }
             }
-            DisclosureGroup("Configurazione del servizio · avanzate") {
+            if ManagedAIAccount.bundledStudyURL == nil { DisclosureGroup("Configurazione del servizio · avanzate") {
                 TextField("URL HTTPS /v1/study", text: $endpoint).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled().disabled(busy || account != nil)
                 Text("Nella versione distribuita l’indirizzo viene impostato dallo sviluppatore. Nessuna chiave del provider va inserita qui.").font(.caption)
-            }
+            } }
             if busy { ProgressView("Connessione…") }
             if let notice { Text(notice).font(.callout).textSelection(.enabled) }
             if let error { Text(error).foregroundStyle(.red) }

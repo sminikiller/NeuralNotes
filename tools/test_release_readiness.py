@@ -1,6 +1,9 @@
 import datetime
+import plistlib
+import tempfile
 import unittest
-from release_readiness import ATTESTATIONS, configuration_problems, public_https
+from pathlib import Path
+from release_readiness import ATTESTATIONS, archive_proof, configuration_problems, public_https
 from validate_distribution_profile import validate
 
 
@@ -31,6 +34,24 @@ class ReleaseReadinessTests(unittest.TestCase):
                 "Entitlements": {"application-identifier": "64R668842U.com.neuralnotes.NeuralNotes", "get-task-allow": False,
                     "com.apple.developer.icloud-container-identifiers": ["iCloud.com.neuralnotes.NeuralNotes"],
                     "com.apple.developer.icloud-services": ["CloudKit"], "com.apple.developer.icloud-container-environment": "Production"}}
+
+    def test_archive_metadata_rejects_missing_api_reasons_and_obsolete_sdk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / "Products/Applications/NeuralNotes.app"; app.mkdir(parents=True)
+            info = {"DTSDKName": "iphoneos26.5", "CFBundleIdentifier": "com.neuralnotes.NeuralNotes",
+                    "CFBundleExecutable": "NeuralNotes", "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "1",
+                    "CFBundleIcons~ipad": {"CFBundlePrimaryIcon": {"CFBundleIconName": "AppIcon"}}}
+            (app / "Info.plist").write_bytes(plistlib.dumps(info))
+            (app / "NeuralNotes").write_bytes(b"metadata-fixture-not-a-compiled-binary")
+            (app / "Assets.car").write_bytes(b"metadata-fixture-not-an-asset-catalog")
+            (app / "PrivacyInfo.xcprivacy").write_bytes(plistlib.dumps({}))
+            with self.assertRaisesRegex(ValueError, "required API reason"): archive_proof(directory)
+            manifest = Path(__file__).resolve().parents[1] / "NeuralNotes/Resources/PrivacyInfo.xcprivacy"
+            (app / "PrivacyInfo.xcprivacy").write_bytes(manifest.read_bytes())
+            self.assertEqual(len(archive_proof(directory)["requiredReasonCategories"]), 4)
+            info["DTSDKName"] = "iphoneos18.5"
+            (app / "Info.plist").write_bytes(plistlib.dumps(info))
+            with self.assertRaisesRegex(ValueError, "SDK 26"): archive_proof(directory)
 
     def test_profile_metadata_requires_distribution_and_matching_cloud_entitlements(self):
         self.assertEqual(validate(self.profile()), "00000000-0000-4000-8000-000000000001")
