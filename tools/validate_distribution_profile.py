@@ -6,8 +6,8 @@ import uuid
 from pathlib import Path
 
 TEAM = "64R668842U"
-BUNDLE = "com.neuralnotes.NeuralNotes"
-CONTAINER = "iCloud.com.neuralnotes.NeuralNotes"
+BUNDLE = "com.lorenzominichilli.neuralnotes"
+CONTAINER = "iCloud.com.lorenzominichilli.neuralnotes"
 
 
 def validate(profile, now=None, require_cloud=True):

@@ -45,7 +45,7 @@ final class CloudNotebookSync {
         throw CloudNotebookFailure.configuration
         #else
         guard Bundle.main.object(forInfoDictionaryKey: "NNCloudSigned") as? Bool == true else { throw CloudNotebookFailure.configuration }
-        let container = CKContainer(identifier: "iCloud.com.neuralnotes.NeuralNotes")
+        let container = CKContainer(identifier: "iCloud.com.lorenzominichilli.neuralnotes")
         guard try await container.accountStatus() == .available else { throw CloudNotebookFailure.account }
         let generation = accountGeneration
         let user = try await container.userRecordID().recordName
