@@ -3,7 +3,7 @@ import plistlib
 import tempfile
 import unittest
 from pathlib import Path
-from release_readiness import ATTESTATIONS, archive_proof, configuration_problems, public_https
+from release_readiness import ATTESTATIONS, SIGNING_SECRETS, archive_proof, beta_problems, configuration_problems, public_https
 from validate_distribution_profile import validate
 
 
@@ -63,6 +63,21 @@ class ReleaseReadinessTests(unittest.TestCase):
         with self.assertRaises(ValueError): validate(profile)
         profile = self.profile(); profile["Entitlements"]["com.apple.developer.icloud-container-environment"] = "Development"
         with self.assertRaises(ValueError): validate(profile)
+
+    def test_internal_beta_needs_signing_secrets_but_not_public_services_or_acceptance(self):
+        missing = beta_problems({})
+        self.assertEqual(missing, ["Missing GitHub distribution secret: " + name for name in SIGNING_SECRETS])
+        self.assertEqual(beta_problems(dict.fromkeys(SIGNING_SECRETS, "fixture-not-a-secret")), [])
+        # The production path keeps every public-service and physical-acceptance requirement.
+        self.assertIn("Acceptance still open: physical_ipad", configuration_problems({}, "a" * 40))
+
+    def test_beta_profile_may_omit_the_icloud_container_but_not_distribution_checks(self):
+        profile = self.profile()
+        profile["Entitlements"] = {"application-identifier": "64R668842U.com.neuralnotes.NeuralNotes", "get-task-allow": False}
+        with self.assertRaisesRegex(ValueError, "iCloud container"): validate(profile)
+        self.assertEqual(validate(profile, require_cloud=False), "00000000-0000-4000-8000-000000000001")
+        profile["ProvisionedDevices"] = ["fixture-device"]
+        with self.assertRaises(ValueError): validate(profile, require_cloud=False)
 
 
 if __name__ == "__main__":

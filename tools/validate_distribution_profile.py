@@ -10,7 +10,8 @@ BUNDLE = "com.neuralnotes.NeuralNotes"
 CONTAINER = "iCloud.com.neuralnotes.NeuralNotes"
 
 
-def validate(profile, now=None):
+def validate(profile, now=None, require_cloud=True):
+    """require_cloud=False is the internal TestFlight beta, signed without the iCloud container."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     entitlements = profile.get("Entitlements", {})
     if profile.get("TeamIdentifier") != [TEAM]:
@@ -24,17 +25,20 @@ def validate(profile, now=None):
         raise ValueError("Profile is expired or has no valid expiry.")
     if not profile.get("DeveloperCertificates"):
         raise ValueError("Profile contains no distribution certificate.")
-    if CONTAINER not in entitlements.get("com.apple.developer.icloud-container-identifiers", []):
+    if require_cloud and CONTAINER not in entitlements.get("com.apple.developer.icloud-container-identifiers", []):
         raise ValueError("Profile does not grant the NeuralNotes iCloud container.")
-    if "CloudKit" not in entitlements.get("com.apple.developer.icloud-services", []):
+    if require_cloud and "CloudKit" not in entitlements.get("com.apple.developer.icloud-services", []):
         raise ValueError("Profile does not enable CloudKit.")
-    if entitlements.get("com.apple.developer.icloud-container-environment") != "Production":
+    if require_cloud and entitlements.get("com.apple.developer.icloud-container-environment") != "Production":
         raise ValueError("Distribution requires the production CloudKit environment.")
     return str(uuid.UUID(profile["UUID"])).upper()
 
 
 if __name__ == "__main__":
     try:
-        print(validate(plistlib.loads(Path(sys.argv[1]).read_bytes())))
+        arguments = sys.argv[1:]
+        require_cloud = "--no-cloud" not in arguments
+        paths = [argument for argument in arguments if argument != "--no-cloud"]
+        print(validate(plistlib.loads(Path(paths[0]).read_bytes()), require_cloud=require_cloud))
     except (ValueError, KeyError, IndexError, plistlib.InvalidFileException) as error:
         sys.exit(str(error))

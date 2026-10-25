@@ -39,6 +39,8 @@ Gli host sopra sono segnaposto, non servizi creati. Lo script verifica gateway e
 
 ## 4. Firma e App Store Connect
 
+**Beta interna prima del collaudo:** lo scope `testflight` firma e carica su TestFlight un commit già verificato, senza iCloud e senza le condizioni di produzione del punto 5. Serve perché il collaudo fisico si fa proprio con quella build. Passaggi da Windows e browser, senza Mac: [TESTFLIGHT_SENZA_MAC.md](TESTFLIGHT_SENZA_MAC.md). La pubblicazione sull'App Store resta il percorso completo qui sotto.
+
 Nel team Apple `64R668842U` registrare/verificare l’App ID esplicito `com.neuralnotes.NeuralNotes`, il container `iCloud.com.neuralnotes.NeuralNotes` e la scheda app. Abilitare CloudKit e distribuire lo schema nel suo ambiente Production dopo il collaudo. Non presumere che siano già registrati perché compaiono nel progetto.
 
 La tabella esatta dei record/campi e il percorso Development → Production sono in `CLOUDKIT_SCHEMA.md`.

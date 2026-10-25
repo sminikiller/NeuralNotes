@@ -14,6 +14,7 @@
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>NNCloudSigned</key><true/>
+    <key>ITSAppUsesNonExemptEncryption</key><false/>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSMicrophoneUsageDescription</key><string>Registra lezioni e collega gli appunti al momento dell’audio.</string>
     <key>NSCameraUsageDescription</key><string>Scatta foto da ritagliare e inserire nei tuoi appunti.</string>
