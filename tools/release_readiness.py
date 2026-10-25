@@ -1,5 +1,6 @@
 """Fail closed before a production upload; never read or display secret values."""
 import argparse
+import hashlib
 import ipaddress
 import json
 import os
@@ -24,7 +25,7 @@ def public_https(value):
         host = url.hostname or ""
         if url.scheme != "https" or url.username or url.password or url.fragment or url.query:
             return False
-        if "." not in host or host.endswith((".invalid", ".example", ".localhost", ".local")) or host in ("example.com", "example.org", "example.net"):
+        if "." not in host or host.endswith((".invalid", ".example", ".test", ".localhost", ".local")) or host in ("example.com", "example.org", "example.net"):
             return False
         try:
             if not ipaddress.ip_address(host).is_global:
@@ -71,6 +72,7 @@ def archive_proof(folder):
         raise ValueError("Archive privacy manifest missing")
     return {"bundleID": info["CFBundleIdentifier"], "version": info["CFBundleShortVersionString"],
             "build": info["CFBundleVersion"], "sdk": sdk, "minimumOS": info.get("MinimumOSVersion"),
+            "executableSHA256": hashlib.sha256((app / info["CFBundleExecutable"]).read_bytes()).hexdigest(),
             "signed": (app / "_CodeSignature/CodeResources").is_file(), "uploaded": False}
 
 
@@ -107,14 +109,16 @@ def main():
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
+    if not args.production and not args.archive:
+        parser.error('Choose --production and/or --archive; no verification was requested.')
     report = {"production_checked": args.production, "problems": []}
+    report["source_sha"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if args.archive:
         report["archive"] = archive_proof(args.archive)
     if args.production:
         raw = os.environ.get("NN_PRODUCTION_CONFIG", "{}")
         config = json.loads(raw)
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        report["problems"] = production_problems(config, sha, args.online)
+        report["problems"] = production_problems(config, report["source_sha"], args.online)
     report["passed"] = not report["problems"]
     encoded = json.dumps(report, indent=2)
     if args.report:

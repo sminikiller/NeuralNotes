@@ -1,0 +1,20 @@
+{
+  "gateway_origin": "",
+  "privacy_url": "",
+  "support_url": "",
+  "operator_name": "",
+  "support_email": "",
+  "acceptance_source_sha": "",
+  "acceptance": {
+    "physical_ipad": false,
+    "long_audio_and_standby": false,
+    "camera_and_pencil": false,
+    "upgrade_keeps_notebooks": false,
+    "live_ai": false,
+    "smtp_delivery": false,
+    "cloud_two_accounts": false,
+    "account_deletion": false,
+    "icloud_production": false,
+    "privacy_review": false
+  }
+}

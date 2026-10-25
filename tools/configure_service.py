@@ -51,14 +51,28 @@ def verify(origin):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--origin', required=True, help='Public HTTPS origin/prefix, not a provider key.')
+    parser.add_argument('--privacy-url', help='Published HTTPS privacy notice; requires --support-url too.')
+    parser.add_argument('--support-url', help='Published HTTPS support page; requires --privacy-url too.')
     args = parser.parse_args()
     origin = secure_origin(args.origin)
     verify(origin)  # No plist is edited on a failed remote check.
+    pages = {}
+    if bool(args.privacy_url) != bool(args.support_url):
+        parser.error('Provide both --privacy-url and --support-url.')
+    if args.privacy_url:
+        opener = urllib.request.build_opener(NoRedirects())
+        for key, raw in [('NeuralNotesPrivacyURL', args.privacy_url), ('NeuralNotesSupportURL', args.support_url)]:
+            url = secure_origin(raw)
+            with opener.open(url, timeout=20) as response:
+                if response.status != 200 or not response.read(1):
+                    raise ValueError('Published privacy/support page is not accessible.')
+            pages[key] = url
     files = [ROOT / 'NeuralNotes/Resources/Info.plist', ROOT / 'NeuralNotes/App/PlaygroundInfo.plist']
     encoded = []
     for file in files:
         value = plistlib.loads(file.read_bytes())
         value['NeuralNotesServiceURL'] = origin
+        value.update(pages)
         encoded.append((file, plistlib.dumps(value, sort_keys=False)))
     for file, data in encoded:
         temporary = file.with_suffix('.plist.pending')

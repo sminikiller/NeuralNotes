@@ -73,8 +73,16 @@ subprocess.run(['security','list-keychains','-d','user','-s',sys.argv[2],*previo
 PY
   security import "$scratch/distribution.p12" -k "$keychain" -P "$NN_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+  python3 - "$scratch/production.entitlements" <<'PY'
+import plistlib, sys
+from pathlib import Path
+value = plistlib.loads(Path('NeuralNotes/Resources/NeuralNotes.entitlements').read_bytes())
+value['com.apple.developer.icloud-container-environment'] = 'Production'
+Path(sys.argv[1]).write_bytes(plistlib.dumps(value))
+PY
   signing=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution'
     "PROVISIONING_PROFILE_SPECIFIER=$profile_uuid" 'DEVELOPMENT_TEAM=64R668842U'
+    "CODE_SIGN_ENTITLEMENTS=$scratch/production.entitlements"
     "OTHER_CODE_SIGN_FLAGS=--keychain $keychain")
 fi
 archive="$output/NeuralNotes.xcarchive"

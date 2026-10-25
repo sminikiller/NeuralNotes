@@ -1,4 +1,3 @@
-import copy
 import datetime
 import unittest
 from release_readiness import ATTESTATIONS, configuration_problems, public_https
@@ -12,9 +11,9 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertEqual(len([e for e in errors if e.startswith("Acceptance still open:")]), len(ATTESTATIONS))
 
     def test_acceptance_is_bound_to_the_exact_source(self):
-        config = dict(gateway_origin="https://gateway.neuralnotes.test", privacy_url="https://legal.neuralnotes.test/privacy",
-                      support_url="https://legal.neuralnotes.test/support", operator_name="Fixture only",
-                      support_email="support@neuralnotes.test", acceptance_source_sha="a" * 40,
+        config = dict(gateway_origin="https://gateway.neuralnotes.it", privacy_url="https://legal.neuralnotes.it/privacy",
+                      support_url="https://legal.neuralnotes.it/support", operator_name="Fixture only",
+                      support_email="support@neuralnotes.it", acceptance_source_sha="a" * 40,
                       acceptance=dict.fromkeys(ATTESTATIONS, True))
         self.assertEqual(configuration_problems(config, "a" * 40), [])
         self.assertIn("Acceptance evidence must identify the exact source commit", configuration_problems(config, "b" * 40))

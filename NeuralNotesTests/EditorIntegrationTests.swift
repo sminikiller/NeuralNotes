@@ -610,8 +610,11 @@ final class EditorIntegrationTests: XCTestCase {
             let nearby = inkStroke([CGPoint(x: 180, y: 60), CGPoint(x: 180, y: 160)])
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: crossed + [nearby])
             model.strokeEnded(); model.finishInkGesture()
-            let points = (0..<12).map { i in
-                CGPoint(x: i % 2 == 0 ? 100 : 160, y: 80 + i * 3)
+            var points: [CGPoint] = []
+            for index in 0..<12 {
+                let x: CGFloat = index % 2 == 0 ? 100 : 160
+                let y: CGFloat = 80 + CGFloat(index) * 3
+                points.append(CGPoint(x: x, y: y))
             }
             model.strokeBegan()
             model.canvas.drawing = PKDrawing(strokes: crossed + [nearby, inkStroke(points)])
