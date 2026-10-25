@@ -121,7 +121,7 @@ from pathlib import Path
 Path(sys.argv[1]).write_bytes(plistlib.dumps({
     'method': 'app-store-connect', 'destination': 'upload', 'teamID': '64R668842U',
     'signingStyle': 'manual', 'signingCertificate': 'Apple Distribution',
-    'provisioningProfiles': {'com.neuralnotes.NeuralNotes': sys.argv[2]},
+    'provisioningProfiles': {'com.lorenzominichilli.neuralnotes': sys.argv[2]},
     'manageAppVersionAndBuildNumber': False, 'uploadSymbols': True,
 }))
 PY

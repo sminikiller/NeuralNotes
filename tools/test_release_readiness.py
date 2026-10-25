@@ -31,14 +31,14 @@ class ReleaseReadinessTests(unittest.TestCase):
     def profile(self):
         return {"UUID": "00000000-0000-4000-8000-000000000001", "TeamIdentifier": ["64R668842U"],
                 "ExpirationDate": datetime.datetime(2030, 1, 1), "DeveloperCertificates": [b"synthetic-not-a-certificate"],
-                "Entitlements": {"application-identifier": "64R668842U.com.neuralnotes.NeuralNotes", "get-task-allow": False,
-                    "com.apple.developer.icloud-container-identifiers": ["iCloud.com.neuralnotes.NeuralNotes"],
+                "Entitlements": {"application-identifier": "64R668842U.com.lorenzominichilli.neuralnotes", "get-task-allow": False,
+                    "com.apple.developer.icloud-container-identifiers": ["iCloud.com.lorenzominichilli.neuralnotes"],
                     "com.apple.developer.icloud-services": ["CloudKit"], "com.apple.developer.icloud-container-environment": "Production"}}
 
     def test_archive_metadata_rejects_missing_api_reasons_and_obsolete_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
             app = Path(directory) / "Products/Applications/NeuralNotes.app"; app.mkdir(parents=True)
-            info = {"DTSDKName": "iphoneos26.5", "CFBundleIdentifier": "com.neuralnotes.NeuralNotes",
+            info = {"DTSDKName": "iphoneos26.5", "CFBundleIdentifier": "com.lorenzominichilli.neuralnotes",
                     "CFBundleExecutable": "NeuralNotes", "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "1",
                     "CFBundleIcons~ipad": {"CFBundlePrimaryIcon": {"CFBundleIconName": "AppIcon"}}}
             (app / "Info.plist").write_bytes(plistlib.dumps(info))
@@ -73,7 +73,7 @@ class ReleaseReadinessTests(unittest.TestCase):
 
     def test_beta_profile_may_omit_the_icloud_container_but_not_distribution_checks(self):
         profile = self.profile()
-        profile["Entitlements"] = {"application-identifier": "64R668842U.com.neuralnotes.NeuralNotes", "get-task-allow": False}
+        profile["Entitlements"] = {"application-identifier": "64R668842U.com.lorenzominichilli.neuralnotes", "get-task-allow": False}
         with self.assertRaisesRegex(ValueError, "iCloud container"): validate(profile)
         self.assertEqual(validate(profile, require_cloud=False), "00000000-0000-4000-8000-000000000001")
         profile["ProvisionedDevices"] = ["fixture-device"]

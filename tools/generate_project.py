@@ -94,7 +94,7 @@ def make_project():
         resources = [buildfile(target + p, file_ref=refs[p]) for p in resource_files] if target == "NeuralNotes" else []
         resource_phase = add(target + "resources", "{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (" + ",".join(resources) + "); runOnlyForDeploymentPostprocessing = 0;}")
         settings = {
-            "PRODUCT_NAME": "$(TARGET_NAME)", "PRODUCT_BUNDLE_IDENTIFIER": "com.neuralnotes." + target,
+            "PRODUCT_NAME": "$(TARGET_NAME)", "PRODUCT_BUNDLE_IDENTIFIER": "com.lorenzominichilli.neuralnotes" + target.removeprefix("NeuralNotes"),
             "TARGETED_DEVICE_FAMILY": "2", "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
             "SUPPORTS_MACCATALYST": "NO", "CODE_SIGN_STYLE": "Automatic", "DEVELOPMENT_TEAM": "64R668842U",
             "MARKETING_VERSION": "0.24.1", "CURRENT_PROJECT_VERSION": "52",

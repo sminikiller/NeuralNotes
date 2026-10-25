@@ -17,10 +17,10 @@ Restano attivi i backup su File, l'export nativo e il cloud dell'account, quando
 
 1. Apri [Identifiers](https://developer.apple.com/account/resources/identifiers/list) e premi **+**.
 2. Scegli **App IDs**, poi **App**.
-3. Descrizione `NeuralNotes`. In **Bundle ID** scegli **Explicit** e scrivi `com.neuralnotes.NeuralNotes`.
+3. Descrizione `NeuralNotes`. In **Bundle ID** scegli **Explicit** e scrivi `com.lorenzominichilli.neuralnotes`.
 4. Non attivare altre funzioni (per questa beta niente iCloud), poi **Continue** e **Register**.
 
-Se l'identificativo esiste già, va bene così: passa al punto 2.
+Se l'identificativo esiste già, va bene così: passa al punto 2. Il progetto usa `com.lorenzominichilli.neuralnotes` perché `com.neuralnotes.NeuralNotes` non è disponibile su Apple.
 
 ## 2. Crea il certificato di distribuzione (da Windows)
 
@@ -51,7 +51,7 @@ Ti chiede due volte una password: scegline una e conservala, perché è il segre
 
 1. Apri [Nuovo profilo](https://developer.apple.com/account/resources/profiles/add).
 2. In **Distribution** scegli **App Store Connect**, poi **Continue**.
-3. Scegli l'App ID `com.neuralnotes.NeuralNotes` e il certificato del punto 2.
+3. Scegli l'App ID `com.lorenzominichilli.neuralnotes` e il certificato del punto 2.
 4. Nome `NeuralNotes App Store`, poi **Generate** e **Download**. Sposta il file `.mobileprovision` in `neuralnotes-firma`.
 
 ## 4. Crea la scheda dell'app in App Store Connect
@@ -61,7 +61,7 @@ Ti chiede due volte una password: scegline una e conservala, perché è il segre
    - piattaforma **iOS**;
    - nome **NeuralNotes** (se è già usato da altri, scegline uno simile: conta il Bundle ID);
    - lingua principale **Italiano**;
-   - Bundle ID `com.neuralnotes.NeuralNotes`;
+   - Bundle ID `com.lorenzominichilli.neuralnotes`;
    - SKU `neuralnotes-ipad`;
    - accesso **completo**.
 3. Premi **Crea**.

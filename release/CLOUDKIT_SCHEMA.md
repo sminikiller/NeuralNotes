@@ -2,7 +2,7 @@
 
 Derivato dal codice `NeuralNotes/Infrastructure/Persistence/CloudNotebookSync.swift`. Non attiva un container sul portale Apple.
 
-Team atteso: `64R668842U`. App ID: `com.neuralnotes.NeuralNotes`. Container: `iCloud.com.neuralnotes.NeuralNotes`. Il codice usa il **database privato dell’utente**, non un archivio pubblico condiviso.
+Team atteso: `64R668842U`. App ID: `com.lorenzominichilli.neuralnotes`. Container: `iCloud.com.lorenzominichilli.neuralnotes`. Il codice usa il **database privato dell’utente**, non un archivio pubblico condiviso.
 
 | Record type | Campo | Tipo |
 | --- | --- | --- |

@@ -64,7 +64,7 @@ def archive_proof(folder):
     match = re.fullmatch(r"iphoneos(\d+)(?:\.\d+)*", sdk)
     if not match or int(match[1]) < 26:
         raise ValueError("Archive was not built with iOS SDK 26 or later")
-    if info.get("CFBundleIdentifier") != "com.neuralnotes.NeuralNotes":
+    if info.get("CFBundleIdentifier") != "com.lorenzominichilli.neuralnotes":
         raise ValueError("Unexpected archive Bundle ID")
     if not (app / info.get("CFBundleExecutable", "missing")).is_file():
         raise ValueError("Archive executable missing")

@@ -41,7 +41,7 @@ Gli host sopra sono segnaposto, non servizi creati. Lo script verifica gateway e
 
 **Beta interna prima del collaudo:** lo scope `testflight` firma e carica su TestFlight un commit già verificato, senza iCloud e senza le condizioni di produzione del punto 5. Serve perché il collaudo fisico si fa proprio con quella build. Passaggi da Windows e browser, senza Mac: [TESTFLIGHT_SENZA_MAC.md](TESTFLIGHT_SENZA_MAC.md). La pubblicazione sull'App Store resta il percorso completo qui sotto.
 
-Nel team Apple `64R668842U` registrare/verificare l’App ID esplicito `com.neuralnotes.NeuralNotes`, il container `iCloud.com.neuralnotes.NeuralNotes` e la scheda app. Abilitare CloudKit e distribuire lo schema nel suo ambiente Production dopo il collaudo. Non presumere che siano già registrati perché compaiono nel progetto.
+Nel team Apple `64R668842U` registrare/verificare l’App ID esplicito `com.lorenzominichilli.neuralnotes`, il container `iCloud.com.lorenzominichilli.neuralnotes` e la scheda app. `com.neuralnotes.NeuralNotes` non è disponibile su Apple: gli identificativi seguono quello registrato dal team. Abilitare CloudKit e distribuire lo schema nel suo ambiente Production dopo il collaudo. Non presumere che siano già registrati perché compaiono nel progetto.
 
 La tabella esatta dei record/campi e il percorso Development → Production sono in `CLOUDKIT_SCHEMA.md`.
 
@@ -72,7 +72,7 @@ Il workflow con upload abilitato esegue l’archivio firmato e `xcodebuild -expo
 
 ### Passaggio da Playgrounds a TestFlight
 
-Il runner Playgrounds e l’app distribuita possono avere Bundle ID e contenitori diversi. Nel collaudo CLI il pacchetto Playground usa `neuralnotes.swiftpm.NeuralNotes`, mentre l’archivio Store usa `com.neuralnotes.NeuralNotes`. **Non aspettarsi che TestFlight legga automaticamente i quaderni del runner.** La prova di aggiornamento CI sostituisce due app Xcode con lo stesso Bundle ID e non dimostra una migrazione tra questi contenitori.
+Il runner Playgrounds e l’app distribuita possono avere Bundle ID e contenitori diversi. Nel collaudo CLI il pacchetto Playground usa `neuralnotes.swiftpm.NeuralNotes`, mentre l’archivio Store usa `com.lorenzominichilli.neuralnotes`. **Non aspettarsi che TestFlight legga automaticamente i quaderni del runner.** La prova di aggiornamento CI sostituisce due app Xcode con lo stesso Bundle ID e non dimostra una migrazione tra questi contenitori.
 
 Prima della prima installazione TestFlight esportare i quaderni attuali in formato nativo su File/iCloud Drive. Conservare Playgrounds e i suoi documenti; importare un backup nella nuova app e controllare pagine, inchiostro, foto, audio e trascrizioni, poi importare gli altri. Non usare solo il PDF come backup modificabile. Non eliminare il progetto o i dati precedenti per risolvere un problema di build. Le cartelle della libreria restano da verificare/riorganizzare separatamente.
 
