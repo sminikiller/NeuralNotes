@@ -1,6 +1,8 @@
-# Attivazione account e AI — backend 0.6 / app 0.23
+# Attivazione account e AI — backend 0.6 / app 0.24
 
 ## Stato effettivo
+
+Ricontrollato il 25 ottobre 2026: nessun deployment GitHub registrato, nessun segreto repository disponibile e connettori Render/Supabase non collegati. Il preflight segnala mancanti `NN_SUPABASE_URL`, `NN_SUPABASE_PUBLIC_KEY` e `NN_PROVIDER_KEY`. Il blueprint punta a `codex/photo-perspective-sync-center`, che include la cronologia cloud della 0.24; questa configurazione non avvia da sola un deploy.
 
 Il backend e l’accesso email sono implementati. I servizi Auth/PostgREST/database/email sono stati provati realmente **in locale**, con due identità e TLS verificato; DeepSeek era sostituito da una fixture. Non esiste ancora un URL pubblico configurato nel pacchetto. I collegamenti Supabase/Render e la chiave privata DeepSeek non sono disponibili nella sessione; nessuna infrastruttura a pagamento è stata creata.
 
