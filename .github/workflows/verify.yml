@@ -7,12 +7,17 @@ on:
       scope:
         description: Verification to run
         type: choice
-        options: [full, playground, focused, ui, native, delivery]
+        options: [full, playground, focused, ui, native, delivery, archive]
         default: full
       verified_sha:
         description: Commit already built and packaged (required for ui/native follow-up; app sources must match)
         type: string
         required: false
+      apple_xcode:
+        description: Compiler for native/UI follow-up (delivery always uses 26.6)
+        type: choice
+        options: ['16.4', '26.6']
+        default: '16.4'
       ui_test:
         description: Optional comma-separated Class/testMethod filters for UI-only or focused verification
         type: string
@@ -68,7 +73,7 @@ jobs:
       - name: Verify iPad package
         run: python tools/package_ipad.py
   backend-services:
-    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native'
+    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native' && inputs.scope != 'archive'
     needs: portable
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -83,7 +88,7 @@ jobs:
       - name: Real local email Auth, private Storage and gateway integration (AI provider simulated)
         run: node backend/integration/run.mjs
   upgrade:
-    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native'
+    if: inputs.scope != 'playground' && inputs.scope != 'focused' && inputs.scope != 'ui' && inputs.scope != 'native' && inputs.scope != 'archive'
     needs: portable
     runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || 'macos-15' }}
     env:
@@ -112,11 +117,11 @@ jobs:
             .verification/upgrade/before.json
             .verification/upgrade/after.json
   apple:
-    if: inputs.scope != 'playground'
+    if: inputs.scope != 'playground' && inputs.scope != 'archive'
     needs: portable
-    runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || 'macos-15' }}
+    runs-on: ${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '26.6') && 'macos-26' || 'macos-15' }}
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.scope == 'delivery' && '26.6' || '16.4' }}.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '26.6') && '26.6' || '16.4' }}.app/Contents/Developer
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -157,7 +162,7 @@ jobs:
             .verification/apple-validation.log
             .verification/**/*.xcresult
   playground:
-    if: inputs.scope != 'ui' && inputs.scope != 'native'
+    if: inputs.scope != 'ui' && inputs.scope != 'native' && inputs.scope != 'archive'
     runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || inputs.playground_xcode == '26.6' && 'macos-26' || inputs.playground_xcode == '15.4' && 'macos-14' || 'macos-15' }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ inputs.scope == 'delivery' && '26.6' || inputs.playground_xcode || '16.4' }}.app/Contents/Developer
@@ -190,7 +195,11 @@ jobs:
             .verification/playground-launch/
             .verification/NeuralNotes-iPad-*.zip
   distribution:
-    if: inputs.scope == 'delivery'
+    if: >-
+      always() && needs.portable.result == 'success' &&
+      ((inputs.scope == 'archive' && !inputs.delivery_upload) ||
+       (inputs.scope == 'delivery' && needs.backend-services.result == 'success' &&
+        needs.upgrade.result == 'success' && needs.apple.result == 'success' && needs.playground.result == 'success'))
     needs: [portable, backend-services, upgrade, apple, playground]
     runs-on: macos-26
     timeout-minutes: 25
@@ -198,6 +207,16 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require unchanged verified application for an archive-only follow-up
+        if: inputs.scope == 'archive'
+        env:
+          VERIFIED_APP_SHA: ${{ inputs.verified_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERIFIED_APP_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --depth=1 origin "$VERIFIED_APP_SHA"
+          git diff --exit-code FETCH_HEAD HEAD -- NeuralNotes NeuralNotes.xcodeproj Package.swift Package.resolved tools/package_ipad.py tools/generate_project.py
       - name: Validate the production configuration before a requested upload
         if: inputs.delivery_upload
         env:

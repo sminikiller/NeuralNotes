@@ -243,7 +243,10 @@ final class EditorQuickActionsUITests: XCTestCase {
         let app = XCUIApplication(); openEditor(app)
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        canvas.pinch(withScale: 2, velocity: 1)
+        // Xcode 26 synthesizes a scale-2 pinch with less than ten points of
+        // travel per finger, below UIKit's gesture slop on this simulator.
+        // Use a clear spread; the same zoom/double-tap assertions remain below.
+        canvas.pinch(withScale: 4, velocity: 2)
         let zoomed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Ingrandita"), object: canvas)
         wait(for: [zoomed], timeout: 5)
         canvas.doubleTap()

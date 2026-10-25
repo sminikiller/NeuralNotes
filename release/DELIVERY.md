@@ -41,6 +41,8 @@ Gli host sopra sono segnaposto, non servizi creati. Lo script verifica gateway e
 
 Nel team Apple `64R668842U` registrare/verificare l’App ID esplicito `com.neuralnotes.NeuralNotes`, il container `iCloud.com.neuralnotes.NeuralNotes` e la scheda app. Abilitare CloudKit e distribuire lo schema nel suo ambiente Production dopo il collaudo. Non presumere che siano già registrati perché compaiono nel progetto.
 
+La tabella esatta dei record/campi e il percorso Development → Production sono in `CLOUDKIT_SCHEMA.md`.
+
 Il percorso CI usa un certificato **Apple Distribution con chiave privata**, un profilo App Store Connect coerente e una chiave API App Store Connect autorizzata all’upload. Il file `.cer` di sviluppo da solo non li sostituisce. Impostare questi GitHub Actions secrets senza salvarli nel repository:
 
 - `NN_CERTIFICATE_P12_BASE64`: PKCS#12 di distribuzione con chiave privata.
