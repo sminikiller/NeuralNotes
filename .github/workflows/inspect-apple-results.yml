@@ -6,12 +6,19 @@ on:
         description: Verification run containing an apple-validation artifact
         required: true
         type: string
+      xcode:
+        description: Match the compiler used to produce the xcresult
+        type: choice
+        options: ['16.4', '26.6']
+        default: '16.4'
 permissions:
   contents: read
   actions: read
 jobs:
   inspect:
-    runs-on: macos-15
+    runs-on: ${{ inputs.xcode == '26.6' && 'macos-26' || 'macos-15' }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.xcode || '16.4' }}.app/Contents/Developer
     timeout-minutes: 10
     steps:
       - name: Download and export failed test evidence

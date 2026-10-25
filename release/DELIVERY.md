@@ -22,6 +22,8 @@ Il job distribution salva versione, Bundle ID, SDK, sistema minimo e presenza de
 4. Eseguire `node backend/preflight.mjs`, poi `node backend/preflight.mjs --live-model` con una chiave valida. La seconda prova consuma una quantità limitata di credito; i test con fixture non la sostituiscono.
 5. Verificare email reale, accesso/refresh/logout, due account isolati, upload/download/versioni/conflitti e cancellazione. Misurare streaming e primo token, inclusi ripresa rete e timeout. Configurare budget, monitoraggio `/ready`, backup database e politica di conservazione.
 
+Il 25 ottobre 2026 è stato ricontrollato il contratto ufficiale: `deepseek-flash`, `/chat/completions` e `/v1/tools/search` con `query`, `count` e `need_content` corrispondono all’adapter. Questo confronto non è una chiamata live né dimostra credito o accesso sull’account. [Modelli](https://api-docs.deepseek.com/quick_start/pricing/), [ricerca](https://api-docs.deepseek.com/guides/search/). I costi del provider sono separati dall’account Apple e dal login dell’app.
+
 La sincronizzazione account è limitata a 100 MiB per quaderno; l’import locale di PDF fino a 1 GiB non supera questo limite. Cartelle e cestino non sono sincronizzati. Community, abbonamenti e pagamenti restano fuori dalla prima delivery: non pubblicizzarli come disponibili.
 
 ## 3. Collegare app e pagine pubbliche

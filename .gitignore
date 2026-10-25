@@ -6,6 +6,10 @@ DerivedData/
 xcuserdata/
 *.ipa
 *.xcarchive
+*.p12
+*.p8
+*.mobileprovision
+release/production.local.json
 __pycache__/
 .verification/
 .env
