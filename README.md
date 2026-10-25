@@ -1,4 +1,8 @@
-# NeuralNotes 0.23.0 — candidato delivery iPad
+# NeuralNotes 0.24.0 — candidato delivery iPad
+
+**0.24.0/build 51 — foto e centro sincronizzazione:** correzione prospettica non distruttiva con rilevamento bordi, quattro angoli, rotazione, miglioramento e ritaglio condivisi da editor, PDF e Lente; centro account/servizi unico, backup alla chiusura con coda persistente e Wi-Fi facoltativo, badge della libreria e versioni cloud scaricabili come copie indipendenti. [Dettagli, verifiche e limiti](docs/DELIVERY_0_24_0.md). I servizi pubblici e iCloud firmato richiedono ancora l’attivazione descritta nella guida: le nuove schermate non pubblicano automaticamente il backend.
+
+[Verifica completa](https://github.com/sminikiller/NeuralNotes/actions/runs/40111820267) PASS (tutti i 29 test UI, backend con Storage reale e aggiornamento senza eliminare il quaderno di prova). [Seguito finale](https://github.com/sminikiller/NeuralNotes/actions/runs/40148822439) PASS su 104 test nativi e tre UI, Release e ZIP effettivamente avviato; [Swift 5.10 / Xcode 15.4](https://github.com/sminikiller/NeuralNotes/actions/runs/40148826004) PASS sullo stesso contenuto del pacchetto finale.
 
 **0.23.0/build 50 — Annulla, account e guida:** ripristino della pagina corrente in memoria senza attendere il disco; sincronizzazione account dei quaderni chiusi con checkpoint, ripresa e conflitti; 45 tutorial ricercabili con progressi salvati. Il controllo automatico trasferisce solo quaderni già associati all’account; il comando esplicito aggiunge quelli nuovi. [Consegna, hash e verifiche](docs/DELIVERY_0_23_0.md), [guida completa](docs/GUIDA_FUNZIONI.md). Backend pubblico, SMTP/provider live e iCloud firmato restano da attivare: il codice predisposto e i test locali non sono un servizio online già pubblicato.
 

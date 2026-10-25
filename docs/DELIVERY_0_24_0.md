@@ -30,4 +30,37 @@
 
 ## Verifica
 
-Le evidenze e i risultati della compilazione Apple vengono riportati qui a completamento dei test. I controlli di sintassi eseguiti su Windows non sostituiscono il type-checking Apple o il collaudo fisico di fotocamera, Pencil e iCloud.
+La [verifica completa Apple 40111820267](https://github.com/sminikiller/NeuralNotes/actions/runs/40111820267), sul sorgente `cbfcc2b434d0ab77264bec79ec725041cc0dc0fc`, è passata in tutti e cinque i job:
+
+- 55 test unitari Node e controllo grammaticale di 321 file Swift.
+- macOS: 280 XCTest Core e 98 test FSRS, senza errori.
+- Simulatore iPadOS 18.5: 423 XCTest Core/nativi, dei quali 421 passati e due saltati perché specifici degli alias Darwin `/private/var`; entrambi passano nel job macOS. Anche 98 test FSRS sul simulatore passano.
+- Tutti i 29 test dell’interfaccia passano. Il test foto trascina un angolo, ruota, attiva Migliora, conferma e riapre, verificando che le impostazioni siano conservate. Il test account apre il nuovo centro e arriva al campo email. Gli altri test coprono anche l’editor, Annulla, navigazione, audio e guida.
+- Riepilogo xcresult: **548 passati, due saltati, zero fallimenti** su 550 test del simulatore.
+- Build Release del progetto Xcode e del pacchetto App Playground effettivamente estratto dallo ZIP, per simulatore e dispositivo senza firma. Il pacchetto è installato e avviato sul simulatore; processo vivo per 60 controlli e libreria/guida rilevate a schermo.
+- Backend con servizi locali reali: Auth email, PostgreSQL/RLS, Storage, quote, commit con controllo revisione, storico proprietario, URL firmato di una revisione con confronto dei byte, isolamento fra account, rinnovo/uscita e cancellazione. Il provider AI in questo collaudo è esplicitamente simulato: non sono state eseguite richieste a un provider live.
+- Aggiornamento simulato da 0.20.8 alla nuova app, installata sullo stesso contenitore senza disinstallazione: quaderno SwiftData, manifest e catalogo con trascrizione conservati; gli hash dei file controllati sono identici prima e dopo.
+
+La revisione finale `0048cb19f21ee28255652a2e4bbcdae228071d1c` corregge anche la codifica di alcune stringhe individuata nell’ispezione della schermata e mantiene le proporzioni di una foto già ruotata prima del raddrizzamento (regressione aggiunta al test di annulla/export). L’anteprima cattura una copia immutabile delle impostazioni per compilare anche con Swift 5.10.
+
+La [verifica finale mirata 40148822439](https://github.com/sminikiller/NeuralNotes/actions/runs/40148822439) è **PASS** sulla revisione consegnata: 280 XCTest Core e 98 FSRS su macOS, tutti i 104 test nativi selezionati (editor, affidabilità, audio, account e foto), tre prove UI (foto, accesso dal centro account e apertura/chiusura Lente), Release del progetto e dello ZIP reale per simulatore e dispositivo senza firma. Lo ZIP è stato installato e avviato sul simulatore, rimasto vivo per 60 controlli con libreria/guida rilevata a schermo. I job backend e upgrade non sono ripetuti nel seguito: la logica backend è invariata rispetto alla verifica completa verde.
+
+La [compilazione aggiuntiva Xcode 15.4 / Swift 5.10](https://github.com/sminikiller/NeuralNotes/actions/runs/40148826004) sulla stessa revisione finale è **PASS**: build Release dello ZIP reale, sia per simulatore sia per dispositivo senza firma. Il primo tentativo ha individuato una cattura mutabile nell’anteprima, ora sostituita con una cattura per valore. Non si tratta di esecuzione fisica su iPad.
+
+L’[estrazione finale di xcresult e schermate](https://github.com/sminikiller/NeuralNotes/actions/runs/40150081546) conferma **107 test passati, zero saltati e zero fallimenti** nel seguito nativo/UI. La schermata è stata ispezionata anche visivamente, verificando la correzione dei caratteri accentati:
+
+![Anteprima del pannello foto durante il collaudo UI con immagine sintetica](images/photo-perspective-0.24.png)
+
+Non sono prove fisiche su iPad: fotocamera, Apple Pencil, precisione del rilevamento su foto reali e iCloud firmato richiedono ancora il collaudo sul dispositivo. I controlli di sintassi su Windows non sostituiscono il type-checking Apple.
+
+## Pacchetto iPad
+
+`NeuralNotes-iPad-0.24.0.zip`: 538.822 byte, 239 file. Artefatto della compilazione Apple finale, non rigenerato dopo il collaudo. SHA-256:
+
+```
+7a0b2d8230ed9f00c5e609260f4ef8ea5f8b61c5d8a9c7ee0a42cbc189bb0f4f
+```
+
+CRC e insieme completo dei file verificati; confronto con i sorgenti canonici passato (solo normalizzazione CRLF/LF per 112 file testuali, risorse binarie identiche). Il pacchetto compilato anche con Swift 5.10 contiene gli stessi file estratti, byte per byte; il differente hash ZIP dipende dai metadati dell’archivio.
+
+Esportare prima un backup nativo dei quaderni attuali, estrarre lo ZIP e aprire `NeuralNotes.swiftpm` in Swift Playgrounds. Il pacchetto non richiede l’uso di xtool o di WSL. Conservare il progetto e i backup precedenti durante il collaudo sull’iPad.
