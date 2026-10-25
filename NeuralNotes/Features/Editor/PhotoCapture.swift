@@ -221,7 +221,9 @@ struct PhotoCropPanel: View {
         var value = edit; value.crop = .full
         if mode == 1 { value.perspective = nil }
         rendering = true
-        let result = await Task.detached(priority: .userInitiated) { PhotoPerspective.render(image, adjustment: value, maxDimension: 1600) }.value
+        let result = await Task.detached(priority: .userInitiated) { [image, value] in
+            PhotoPerspective.render(image, adjustment: value, maxDimension: 1600)
+        }.value
         guard !Task.isCancelled else { return }
         preview = result; rendering = false
     }
