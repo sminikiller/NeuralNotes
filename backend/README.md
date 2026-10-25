@@ -1,8 +1,8 @@
-# Gateway gestito e piattaforma NeuralNotes 0.5
+# Gateway gestito e piattaforma NeuralNotes 0.6
 
-La 0.19 aggiunge blueprint di staging, preflight senza stampa dei segreti e integrazione locale reale Auth/email/PostgREST/RLS/quote/sessioni. **41 test Node passati**, più il nuovo test completo con servizi reali e trasporto DeepSeek simulato. Servizi pubblici non attivati. [Attivazione e test riproducibili](ACTIVATION.md).
+Stato del 25 ottobre 2026: **55 test Node passati**, più integrazione locale reale Auth/email/PostgREST/RLS/Storage/quote/sessioni con due account e trasporto AI simulato. Blueprint di staging e preflight disponibili; servizi pubblici non attivati. [Attivazione e test riproducibili](ACTIVATION.md), [delivery e credenziali richieste](../release/DELIVERY.md).
 
-La 0.17 aggiunge DeepSeek e un server account/community/sync con Supabase. [Configurazione e limiti](ENVIRONMENT.md), [piano prodotto e costi](../docs/AI_COMMUNITY_PLAN_0_17.md). Il servizio non è distribuito; la 0.18 ha la schermata account email, mentre community e coda cloud native restano da realizzare. [Client nativo e limiti](../docs/AI_MANAGED_0_18_0.md). Le sezioni seguenti descrivono anche il percorso personale HMAC e l’adapter Responses precedente, ancora disponibili. `npm start` ora esegue `start.mjs`; per i test completi usa `node --test backend/*.test.mjs` dalla radice. Le 39 prove storiche della 0.17 sono incluse nelle 41 attuali, oltre al controllo PostgreSQL separato `backend/platform/verify.ps1`.
+Il client email, il profilo/esportazione/cancellazione account, la coda backup, la sincronizzazione dei quaderni chiusi e la cronologia delle versioni sono implementati. La community dispone di API, ma non è una community pubblica già avviata. [Configurazione e limiti](ENVIRONMENT.md). Le sezioni seguenti descrivono anche il percorso personale HMAC e l’adapter Responses precedente, ancora disponibili: non confonderli con il servizio gestito multiutente. `npm start` esegue `start.mjs`; per i test usa `node --test backend/*.test.mjs` dalla radice e il controllo PostgreSQL separato `backend/platform/verify.ps1`. I documenti 0.17/0.18 rimangono riferimenti storici.
 
 # NeuralNotes backend personale
 

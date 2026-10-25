@@ -1,4 +1,8 @@
-# NeuralNotes 0.24.0 — candidato delivery iPad
+# NeuralNotes 0.24.1 — preparazione delivery e TestFlight
+
+**0.24.1/build 52:** pipeline Xcode 26.6 e archivio Store 1.0.0/build 114 verificati senza firma; privacy e assistenza nell’app, manifest con le motivazioni delle API effettivamente usate e controlli per firma/upload. [Consegna e prove](docs/DELIVERY_0_24_1.md), [percorso operativo](release/DELIVERY.md), [metadati Store](release/APP_STORE_IT.md).
+
+[Verifica finale](https://github.com/sminikiller/NeuralNotes/actions/runs/40209152163) PASS: 104 test nativi e tre UI, Core/FSRS, Release e ZIP compilato e avviato. [Compatibilità Swift 5.10](https://github.com/sminikiller/NeuralNotes/actions/runs/40209156663) PASS sullo stesso contenuto. [Archivio SDK 26.5](https://github.com/sminikiller/NeuralNotes/actions/runs/40209182333) PASS, **senza firma e senza upload**. Backend pubblico, provider/SMTP live e prove fisiche restano aperti; la build non è su TestFlight.
 
 **0.24.0/build 51 — foto e centro sincronizzazione:** correzione prospettica non distruttiva con rilevamento bordi, quattro angoli, rotazione, miglioramento e ritaglio condivisi da editor, PDF e Lente; centro account/servizi unico, backup alla chiusura con coda persistente e Wi-Fi facoltativo, badge della libreria e versioni cloud scaricabili come copie indipendenti. [Dettagli, verifiche e limiti](docs/DELIVERY_0_24_0.md). I servizi pubblici e iCloud firmato richiedono ancora l’attivazione descritta nella guida: le nuove schermate non pubblicano automaticamente il backend.
 

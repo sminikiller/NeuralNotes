@@ -68,6 +68,16 @@ Il workflow con upload abilitato esegue l’archivio firmato e `xcodebuild -expo
 
 ## 6. Beta e Store
 
+### Passaggio da Playgrounds a TestFlight
+
+Il runner Playgrounds e l’app distribuita possono avere Bundle ID e contenitori diversi. Nel collaudo CLI il pacchetto Playground usa `neuralnotes.swiftpm.NeuralNotes`, mentre l’archivio Store usa `com.neuralnotes.NeuralNotes`. **Non aspettarsi che TestFlight legga automaticamente i quaderni del runner.** La prova di aggiornamento CI sostituisce due app Xcode con lo stesso Bundle ID e non dimostra una migrazione tra questi contenitori.
+
+Prima della prima installazione TestFlight esportare i quaderni attuali in formato nativo su File/iCloud Drive. Conservare Playgrounds e i suoi documenti; importare un backup nella nuova app e controllare pagine, inchiostro, foto, audio e trascrizioni, poi importare gli altri. Non usare solo il PDF come backup modificabile. Non eliminare il progetto o i dati precedenti per risolvere un problema di build. Le cartelle della libreria restano da verificare/riorganizzare separatamente.
+
+### Accettazione e scheda Store
+
 Provare sul dispositivo fisico la build TestFlight: primo avvio, registrazione di ore/standby, camera/Pencil, documenti grandi, aggiornamento senza perdita dati, import dei vecchi export, account/cloud e iCloud su due dispositivi. Preparare screenshot e metadati da `APP_STORE_IT.md`; completare privacy, età, disponibilità, note e accesso revisori. Inviare ad App Review solo dopo questi passaggi.
+
+Completare anche la dichiarazione Apple sulla crittografia in base all’uso effettivo di TLS e CryptoKit; il progetto non inventa un’esenzione o una documentazione di esportazione per conto dell’operatore.
 
 Riferimenti ufficiali: [SDK richiesto](https://developer.apple.com/news/?id=ueeok6yw), [upload](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/), [workflow Store](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-workflow/), [profilo di distribuzione](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/), [privacy manifest](https://developer.apple.com/documentation/technotes/tn3184-adding-data-collection-details-to-your-privacy-manifest).
