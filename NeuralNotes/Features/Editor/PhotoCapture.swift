@@ -71,7 +71,7 @@ struct PhotoCropPanel: View {
     var straighten = false
     var title = "Modifica foto"
     var confirm = "Usa foto"
-    var hint = "Lâ€™originale resta conservato. Puoi modificare di nuovo o annullare."
+    var hint = "L’originale resta conservato. Puoi modificare di nuovo o annullare."
     let completion: (PhotoAdjustment) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var edit = PhotoAdjustment()
