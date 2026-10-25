@@ -170,7 +170,11 @@ extension EditorViewModel {
               edit.perspective?.isConvex != false, (0...3).contains(edit.quarterTurns),
               let source = DocumentRenderCache.shared.image(workspace.package.appendingPathComponent(old.file)),
               let result = PhotoPerspective.render(source, adjustment: edit, maxDimension: 800) else { return }
-        let ratio = Double(result.size.height / max(1, result.size.width))
+        let sourceRatio = Double(result.size.height / max(1, result.size.width))
+        // Object rotation predates photo adjustments and swaps its bounding box.
+        // Keep that transform when correcting a photo that was already rotated.
+        let sideways = abs((old.rotation ?? 0).truncatingRemainder(dividingBy: 180)) == 90
+        let ratio = sideways ? 1 / sourceRatio : sourceRatio
         mutatePage("Raddrizza e ritaglia immagine") { page in
             guard let i = page.images.firstIndex(where: { $0.id == id }) else { return }
             page.images[i].perspective = edit.perspective; page.images[i].crop = edit.crop
