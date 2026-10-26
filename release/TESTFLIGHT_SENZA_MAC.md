@@ -9,7 +9,13 @@ Questa è la **beta interna**: la usi tu (e chi aggiungi al team) per il collaud
 
 Restano attivi i backup su File, l'export nativo e il cloud dell'account, quando il servizio sarà pubblicato. La pubblicazione sull'App Store usa invece il percorso completo di [DELIVERY.md](DELIVERY.md).
 
-**Ti servono:** l'Apple Developer Program attivo sul team `64R668842U`, un PC Windows con Git per Windows (Git Bash) e un browser. Tempo: circa 30–45 minuti la prima volta.
+**Il compilatore è sui server GitHub.** Sul tuo dispositivo non devi installare Xcode, Swift o un altro compilatore. Per le operazioni sul sito Apple basta il browser, anche dall'iPad.
+
+La richiesta del certificato è già pronta: [scarica NeuralNotes-TestFlight.certSigningRequest](signing/NeuralNotes-TestFlight.certSigningRequest). Questo file contiene la richiesta pubblica, non la chiave privata. La chiave corrispondente è conservata separatamente sul PC nella cartella ignorata `.verification/apple-testflight-signing`; deve essere conservata per creare il `.p12` quando Apple restituisce il certificato.
+
+**Primo passaggio senza terminale:** apri [Nuovo certificato Apple](https://developer.apple.com/account/resources/certificates/add), seleziona **Apple Distribution**, premi **Continue**, carica questa richiesta e scarica il `.cer` generato. Il `.cer` va poi abbinato alla chiave già preparata per ottenere il file `.p12`: il solo certificato scaricato non contiene la chiave privata. Non occorre un Mac per questa conversione.
+
+Le istruzioni del punto 2 qui sotto sono l'alternativa per chi vuole generare e custodire da sé una coppia nuova su Windows. Se usi la richiesta già pronta, non generare una seconda chiave: non corrisponderebbe al certificato.
 
 > **Sicurezza.** Chiave privata, file `.p12`, password e file `.p8` restano solo sul tuo PC e nei segreti di GitHub. Non incollarli in chat, nelle email o nel repository. Se finiscono altrove, revoca certificato e chiave dal sito Apple e creane di nuovi.
 
@@ -22,7 +28,7 @@ Restano attivi i backup su File, l'export nativo e il cloud dell'account, quando
 
 Se l'identificativo esiste già, va bene così: passa al punto 2. Il progetto usa `com.lorenzominichilli.neuralnotes` perché `com.neuralnotes.NeuralNotes` non è disponibile su Apple.
 
-## 2. Crea il certificato di distribuzione (da Windows)
+## 2. Alternativa: crea da te la richiesta e il certificato su Windows
 
 Apri **Git Bash** e scrivi, una riga alla volta, sostituendo `LA-TUA-EMAIL` con l'email del tuo account Apple:
 
