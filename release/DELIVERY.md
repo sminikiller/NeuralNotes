@@ -2,7 +2,7 @@
 
 ## Stato
 
-Preparazione avviata il 25 ottobre 2026. Versione di collaudo 0.24.1/build 52; l’archivio Store usa 1.0.0 e un numero di build CI distinto. Il vecchio ZIP 0.24.0 resta intatto. Non esiste ancora una pubblicazione TestFlight/App Store o un backend pubblico verificato.
+Preparazione avviata il 25 ottobre 2026. Versione di collaudo 0.24.1/build 52; l’archivio Store usa 1.0.0 e un numero di build CI distinto. Il vecchio ZIP 0.24.0 resta intatto. Il 26 ottobre 2026 la beta interna 1.0.0 (build 120), senza iCloud, è stata firmata e caricata su TestFlight dal workflow GitHub e installata sull'iPad: vedi [TESTFLIGHT_SENZA_MAC.md](TESTFLIGHT_SENZA_MAC.md). Non esistono ancora una pubblicazione sull'App Store o un backend pubblico verificato.
 
 ## 1. Verificare SDK e archivio
 
