@@ -243,24 +243,37 @@ final class EditorQuickActionsUITests: XCTestCase {
         let app = XCUIApplication(); openEditor(app)
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        func waitForSettledViewport(_ value: String, line: UInt = #line) -> Bool {
+            // The viewport reports "Zoom in corso" until UIKit's animation or
+            // pinch ends. Do not send the next double tap on an intermediate frame.
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@ AND isHittable == true", value), object: canvas)
+            let completed = XCTWaiter.wait(for: [settled], timeout: 15) == .completed
+            if !completed {
+                let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                screenshot.lifetime = .keepAlways; add(screenshot)
+                let hierarchy = XCTAttachment(string: app.debugDescription)
+                hierarchy.lifetime = .keepAlways; add(hierarchy)
+            }
+            XCTAssertTrue(completed, "Viewport did not settle at \(value); actual: \(String(describing: canvas.value))", line: line)
+            return completed
+        }
+        guard waitForSettledViewport("Pagina intera") else { return }
         // Xcode 26 synthesizes a scale-2 pinch with less than ten points of
         // travel per finger, below UIKit's gesture slop on this simulator.
         // Use a clear spread; the same zoom/double-tap assertions remain below.
         canvas.pinch(withScale: 4, velocity: 2)
-        let zoomed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Ingrandita"), object: canvas)
-        wait(for: [zoomed], timeout: 5)
+        guard waitForSettledViewport("Ingrandita") else { return }
         canvas.doubleTap()
-        let fitted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina intera"), object: canvas)
-        wait(for: [fitted], timeout: 5)
+        guard waitForSettledViewport("Pagina intera") else { return }
         canvas.doubleTap()
-        let widthFitted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Ingrandita"), object: canvas)
-        wait(for: [widthFitted], timeout: 5)
+        guard waitForSettledViewport("Ingrandita") else { return }
         canvas.doubleTap()
-        let toggledBack = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina intera"), object: canvas)
-        wait(for: [toggledBack], timeout: 5)
-        canvas.doubleTap(); app.buttons["editorFitPage"].tap()
-        let fittedAgain = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina intera"), object: canvas)
-        wait(for: [fittedAgain], timeout: 5)
+        guard waitForSettledViewport("Pagina intera") else { return }
+        canvas.doubleTap()
+        guard waitForSettledViewport("Ingrandita") else { return }
+        app.buttons["editorFitPage"].tap()
+        _ = waitForSettledViewport("Pagina intera")
     }
 
     @MainActor

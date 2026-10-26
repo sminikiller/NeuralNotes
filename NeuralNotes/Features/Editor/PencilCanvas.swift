@@ -19,6 +19,8 @@ final class CanvasHost: UIView {
     let canvas: PKCanvasView
     private var lastSize = CGSize.zero
     private(set) var fitsPageWidth = false
+    private(set) var viewportAnimationActive = false
+    private var viewportAnimationGeneration = 0
     var interaction: CanvasInteraction?
     var textInput: CanvasTextInput?
     var drawingAssistant: CanvasDrawingAssistant?
@@ -149,8 +151,7 @@ final class CanvasHost: UIView {
             self.canvas.setContentOffset(offset, animated: false)
             self.alignSurface()
         }
-        if animated { UIView.animate(withDuration: 0.25, animations: changes) }
-        else { changes() }
+        animateViewport(animated: animated, changes: changes)
     }
 
     /// Double tap alternates whole-page and edge-to-edge width. The explicit
@@ -175,8 +176,38 @@ final class CanvasHost: UIView {
             self.canvas.setContentOffset(CGPoint(x: 0, y: y), animated: false)
             self.alignSurface()
         }
-        if animated { UIView.animate(withDuration: 0.25, animations: changes) }
-        else { changes() }
+        animateViewport(animated: animated, changes: changes)
+    }
+
+    private func animateViewport(animated: Bool, changes: @escaping () -> Void) {
+        viewportAnimationGeneration += 1
+        let generation = viewportAnimationGeneration
+        viewportAnimationActive = animated
+        publishViewportState()
+        if animated {
+            // Keep the same animation and touch handling as the device-tested
+            // beta. Only publish "settled" after UIKit completes the animation.
+            UIView.animate(withDuration: 0.25, animations: changes) { [weak self] _ in
+                guard let self, self.viewportAnimationGeneration == generation else { return }
+                self.viewportAnimationActive = false
+                self.publishViewportState()
+            }
+        } else {
+            changes()
+            publishViewportState()
+        }
+    }
+
+    func publishViewportState() {
+        // Defer model writes out of updateUIView/layout; read current state
+        // when the task runs, never a snapshot from an older zoom callback.
+        Task { @MainActor [weak self] in
+            guard let self, let model = self.model else { return }
+            let moving = self.viewportAnimationActive || self.canvas.isZooming || self.canvas.isZoomBouncing
+            let zoomed = self.fitsPageWidth || self.canvas.zoomScale > self.canvas.minimumZoomScale * 1.05
+            if model.canvasViewportMoving != moving { model.canvasViewportMoving = moving }
+            if model.canvasZoomed != zoomed { model.canvasZoomed = zoomed }
+        }
     }
 
     func alignSurface() {
@@ -257,14 +288,13 @@ struct PencilCanvas: UIViewRepresentable {
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) { model.strokeEnded() }
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
             host?.alignSurface()
-            // Read the final geometry after layout: several zoom callbacks may
-            // arrive before SwiftUI can update, especially during rotation.
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let canvas = self.model.canvas
-                let zoomed = self.host?.fitsPageWidth == true || canvas.zoomScale > canvas.minimumZoomScale * 1.05
-                if self.model.canvasZoomed != zoomed { self.model.canvasZoomed = zoomed }
-            }
+            host?.publishViewportState()
+        }
+        func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            host?.publishViewportState()
+        }
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            host?.publishViewportState()
         }
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             host?.alignSurface()

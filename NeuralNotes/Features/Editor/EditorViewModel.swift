@@ -80,6 +80,7 @@ final class EditorViewModel {
     var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape || movingObjects }
     var fitPageRequest = 0
     var canvasZoomed = false
+    var canvasViewportMoving = false
     var showZoomNavigator = false
     var laserActive = false
     var searchFocus: SearchFocusRequest?

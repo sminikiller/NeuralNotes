@@ -728,6 +728,40 @@ final class EditorIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testZoomStateSettlesAfterTheFinalAnimationWithoutChangingInk() async throws {
+        try await withEditor { model in
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 1200, height: 900))
+            let controller = UIViewController()
+            window.rootViewController = controller; window.makeKeyAndVisible()
+            defer { window.isHidden = true }
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.surface.page = try XCTUnwrap(model.page)
+            host.frame = controller.view.bounds; controller.view.addSubview(host); host.layoutIfNeeded()
+            model.canvas.drawing = PKDrawing(strokes: [inkStroke([CGPoint(x: 20, y: 80), CGPoint(x: 300, y: 80)])])
+            let drawing = model.canvas.drawing.dataRepresentation()
+            host.togglePageZoom(animated: true)
+            let widthSettled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                !host.viewportAnimationActive && !model.canvasViewportMoving && model.canvasZoomed
+            }, object: nil)
+            await fulfillment(of: [widthSettled], timeout: 5)
+            XCTAssertEqual(host.surface.frame.minX, 0, accuracy: 0.5)
+            XCTAssertEqual(host.surface.frame.maxX, host.bounds.width, accuracy: 0.5)
+            // A newer explicit fit request must win over an earlier completion.
+            host.togglePageZoom(animated: true)
+            host.togglePageZoom(animated: true)
+            host.fitPage(animated: true)
+            let pageSettled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                !host.viewportAnimationActive && !model.canvasViewportMoving && !model.canvasZoomed
+            }, object: nil)
+            await fulfillment(of: [pageSettled], timeout: 5)
+            XCTAssertFalse(host.fitsPageWidth)
+            XCTAssertEqual(model.canvas.zoomScale, model.canvas.minimumZoomScale, accuracy: 0.0001)
+            XCTAssertTrue(host.bounds.insetBy(dx: -1, dy: -1).contains(host.surface.frame))
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), drawing)
+        }
+    }
+
+    @MainActor
     func testWidthZoomTargetsTheActivePageInEveryNavigationMode() async throws {
         try await withEditor { model in
             let key = "editor.navigation.\(model.workspace.documentID)"

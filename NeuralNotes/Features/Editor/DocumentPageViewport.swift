@@ -9,7 +9,7 @@ struct DocumentPageViewport: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("pencilCanvas")
-            .accessibilityValue(model.canvasZoomed ? "Ingrandita" : "Pagina intera")
+            .accessibilityValue(model.canvasViewportMoving ? "Zoom in corso" : (model.canvasZoomed ? "Ingrandita" : "Pagina intera"))
             .overlay(alignment: .bottomTrailing) {
                 if model.searchFocus != nil { Button("Chiudi evidenziazione", systemImage: "xmark") { model.searchFocus = nil }.font(.caption).buttonStyle(.bordered).padding(8) }
             }
