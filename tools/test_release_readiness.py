@@ -64,6 +64,12 @@ class ReleaseReadinessTests(unittest.TestCase):
         profile = self.profile(); profile["Entitlements"]["com.apple.developer.icloud-container-environment"] = "Development"
         with self.assertRaises(ValueError): validate(profile)
 
+    def test_profile_uuid_keeps_the_case_xcode_matches(self):
+        profile = self.profile(); profile["UUID"] = "abcdef12-3456-4789-8abc-def012345678"
+        self.assertEqual(validate(profile), "abcdef12-3456-4789-8abc-def012345678")
+        profile["UUID"] = "{abcdef12-3456-4789-8abc-def012345678}"
+        with self.assertRaises(ValueError): validate(profile)
+
     def test_internal_beta_needs_signing_secrets_but_not_public_services_or_acceptance(self):
         missing = beta_problems({})
         self.assertEqual(missing, ["Missing GitHub distribution secret: " + name for name in SIGNING_SECRETS])
