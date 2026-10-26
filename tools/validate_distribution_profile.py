@@ -31,7 +31,11 @@ def validate(profile, now=None, require_cloud=True):
         raise ValueError("Profile does not enable CloudKit.")
     if require_cloud and entitlements.get("com.apple.developer.icloud-container-environment") != "Production":
         raise ValueError("Distribution requires the production CloudKit environment.")
-    return str(uuid.UUID(profile["UUID"])).upper()
+    profile_uuid = profile["UUID"]
+    if str(uuid.UUID(profile_uuid)) != profile_uuid.lower():
+        raise ValueError("Profile UUID is malformed.")
+    # Xcode matches PROVISIONING_PROFILE_SPECIFIER against this exact string, case included.
+    return profile_uuid
 
 
 if __name__ == "__main__":
