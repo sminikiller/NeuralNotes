@@ -21,6 +21,7 @@ xcodebuild -version
 scratch="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/neuralnotes-signing.XXXXXX")"
 keychain="$scratch/signing.keychain-db"
 profile_path=""
+legacy_profile_path=""
 cleanup() {
   if [ -f "$scratch/keychains.json" ]; then
     python3 - "$scratch/keychains.json" <<'PY'
@@ -29,7 +30,10 @@ subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', *json.load(ope
 PY
   fi
   if [ -f "$keychain" ]; then security delete-keychain "$keychain" >/dev/null 2>&1 || true; fi
-  if [ -n "$profile_path" ]; then rm -f "$profile_path"; fi
+  for installed_profile in "$profile_path" "$legacy_profile_path"; do
+    if [ -n "$installed_profile" ]; then rm -f "$installed_profile"; fi
+  done
+  if [ -f "$scratch/project.pbxproj" ]; then cp "$scratch/project.pbxproj" "$root/NeuralNotes.xcodeproj/project.pbxproj"; fi
   # scratch is the exact directory returned by mktemp, never a user path.
   rm -rf "$scratch"
 }
@@ -57,13 +61,17 @@ PY
   security cms -D -i "$scratch/distribution.mobileprovision" > "$scratch/profile.plist"
   if [ "$cloud" = 1 ]; then profile_uuid="$(python3 tools/validate_distribution_profile.py "$scratch/profile.plist")"
   else profile_uuid="$(python3 tools/validate_distribution_profile.py --no-cloud "$scratch/profile.plist")"; fi
-  profile_folder="$HOME/Library/MobileDevice/Provisioning Profiles"
-  mkdir -p "$profile_folder"
-  candidate_profile="$profile_folder/$profile_uuid.mobileprovision"
+  # Xcode 16 and later read profiles from UserData; the older folder serves earlier tools.
+  new_profile="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$profile_uuid.mobileprovision"
+  old_profile="$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
   # Do not overwrite a pre-existing profile on a developer's machine.
-  [ ! -e "$candidate_profile" ] || { echo 'Profile already installed; use an isolated CI runner.'; exit 1; }
-  profile_path="$candidate_profile"
-  cp "$scratch/distribution.mobileprovision" "$profile_path"
+  [ ! -e "$new_profile" ] && [ ! -e "$old_profile" ] || { echo 'Profile already installed; use an isolated CI runner.'; exit 1; }
+  profile_path="$new_profile"
+  legacy_profile_path="$old_profile"
+  for installed_profile in "$profile_path" "$legacy_profile_path"; do
+    mkdir -p "$(dirname "$installed_profile")"
+    cp "$scratch/distribution.mobileprovision" "$installed_profile"
+  done
   keychain_password="$(openssl rand -hex 24)"
   security create-keychain -p "$keychain_password" "$keychain"
   security set-keychain-settings -lut 21600 "$keychain"
@@ -85,10 +93,7 @@ value = plistlib.loads(Path('NeuralNotes/Resources/NeuralNotes.entitlements').re
 value['com.apple.developer.icloud-container-environment'] = 'Production'
 Path(sys.argv[1]).write_bytes(plistlib.dumps(value))
 PY
-    signing=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution'
-      "PROVISIONING_PROFILE_SPECIFIER=$profile_uuid" 'DEVELOPMENT_TEAM=64R668842U'
-      "CODE_SIGN_ENTITLEMENTS=$scratch/production.entitlements"
-      "OTHER_CODE_SIGN_FLAGS=--keychain $keychain")
+    app_signing=("CODE_SIGN_ENTITLEMENTS=$scratch/production.entitlements")
   else
     # Internal beta: no iCloud container entitlement, and the app keeps iCloud sync
     # switched off. Both files live in the temporary folder, never in the checkout.
@@ -100,11 +105,31 @@ info = plistlib.loads(Path('NeuralNotes/Resources/Info.plist').read_bytes())
 info['NNCloudSigned'] = False
 Path(sys.argv[2]).write_bytes(plistlib.dumps(info))
 PY
-    signing=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution'
-      "PROVISIONING_PROFILE_SPECIFIER=$profile_uuid" 'DEVELOPMENT_TEAM=64R668842U'
-      "CODE_SIGN_ENTITLEMENTS=$scratch/beta.entitlements" "INFOPLIST_FILE=$scratch/Info.plist"
-      "OTHER_CODE_SIGN_FLAGS=--keychain $keychain")
+    app_signing=("CODE_SIGN_ENTITLEMENTS=$scratch/beta.entitlements" "INFOPLIST_FILE=$scratch/Info.plist")
   fi
+  # Swift package targets reject a provisioning profile, so signing is set on the app
+  # target only. The original project file is restored on exit.
+  cp "$root/NeuralNotes.xcodeproj/project.pbxproj" "$scratch/project.pbxproj"
+  python3 - "$root/NeuralNotes.xcodeproj/project.pbxproj" CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution' \
+    "PROVISIONING_PROFILE_SPECIFIER=$profile_uuid" "OTHER_CODE_SIGN_FLAGS=--keychain $keychain" "${app_signing[@]}" <<'PY'
+import json, re, sys
+from pathlib import Path
+path, settings = Path(sys.argv[1]), dict(item.split('=', 1) for item in sys.argv[2:])
+lines = path.read_text(encoding='utf-8').split('\n')
+release = [index for index, line in enumerate(lines)
+           if 'PRODUCT_BUNDLE_IDENTIFIER = "com.lorenzominichilli.neuralnotes";' in line and 'name = Release;' in line]
+if len(release) != 1:
+    sys.exit('App target Release configuration not found.')
+line = lines[release[0]]
+for key, value in settings.items():
+    entry = f'{key} = {json.dumps(value)};'
+    line, found = re.subn(r'(?<![A-Za-z0-9_])' + re.escape(key) + r' = "(?:[^"\\]|\\.)*";', lambda _: entry, line)
+    if not found:
+        line = line.replace('buildSettings = {', 'buildSettings = {' + entry + ' ', 1)
+lines[release[0]] = line
+path.write_text('\n'.join(lines), encoding='utf-8')
+PY
+  signing=(CODE_SIGNING_ALLOWED=YES)
 fi
 archive="$output/NeuralNotes.xcarchive"
 [ ! -e "$archive" ] || { echo 'Archive already exists; use a fresh CI checkout.'; exit 1; }
