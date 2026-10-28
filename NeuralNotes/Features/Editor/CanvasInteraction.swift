@@ -98,11 +98,24 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         guard let host, let model, model.tool == .objects else { outline.path = nil; handle.path = nil; return }
         let path = UIBezierPath()
-        for id in model.selectedIDs { if let rect = objectRect(id) { path.append(UIBezierPath(rect: host.surface.convert(rect, to: host))) } }
+        for id in model.selectedIDs {
+            if let shape = model.page?.shapes?.first(where: { $0.id == id }) {
+                let corners = [StrokeSample(x: shape.x, y: shape.y), .init(x: shape.x + shape.width, y: shape.y),
+                    .init(x: shape.x + shape.width, y: shape.y + shape.height), .init(x: shape.x, y: shape.y + shape.height)]
+                let box = UIBezierPath()
+                for (index, corner) in corners.enumerated() {
+                    let rotated = ShapeGeometry.rotate(corner, shape: shape)
+                    let at = host.surface.convert(CGPoint(x: rotated.x, y: rotated.y), to: host)
+                    if index == 0 { box.move(to: at) } else { box.addLine(to: at) }
+                }
+                box.close(); path.append(box)
+            } else if let rect = objectRect(id) { path.append(UIBezierPath(rect: host.surface.convert(rect, to: host))) }
+        }
         if model.selectionIncludesInk { path.append(UIBezierPath(rect: host.surface.convert(model.selectedInkBounds, to: host))) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         outline.path = path.cgPath
-        if model.selectedIDs.count == 1, !model.selectionIncludesInk, let id = model.selectedObjectID, let rect = objectRect(id) {
+        if model.selectedIDs.count == 1, !model.selectionIncludesInk, let id = model.selectedObjectID,
+           model.page?.shapes?.contains(where: { $0.id == id }) != true, let rect = objectRect(id) {
             let display = host.surface.convert(rect, to: host)
             handle.path = UIBezierPath(ovalIn: CGRect(x: display.maxX - 7, y: display.maxY - 7, width: 14, height: 14)).cgPath
         } else { handle.path = nil }

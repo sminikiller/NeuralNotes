@@ -82,7 +82,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             guard let shape = selectedShape, !model.interactionBusy else { return }
             source = shape; draft = shape; dragged = button.handle
             model.cancelMaintenance(); model.movingObjects = true
-            host.surface.hiddenObjectID = shape.id; host.foregroundObjects.update(host)
+            host.surface.hiddenObjectID = shape.id; host.foregroundObjects.update(host); host.paperDetail.update(from: host)
         }
         guard let source, let dragged else { return }
         if gesture.state == .cancelled || gesture.state == .failed { reset(); update(); return }
@@ -103,7 +103,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     func reset() {
         if draft != nil {
             model?.movingObjects = false
-            if let host { host.surface.hiddenObjectID = nil; host.foregroundObjects.update(host) }
+            if let host { host.surface.hiddenObjectID = nil; host.foregroundObjects.update(host); host.paperDetail.update(from: host) }
         }
         draft = nil; source = nil; dragged = nil; setNeedsDisplay()
     }

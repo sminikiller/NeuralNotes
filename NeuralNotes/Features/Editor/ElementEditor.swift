@@ -34,25 +34,7 @@ struct ElementEditor: View {
                 }
                 ForEach($shapes) { $shape in
                     Section(model.selectedIDs.contains(shape.id) ? "Forma selezionata" : "Forma") {
-                        Picker("Forma", selection: $shape.kind) {
-                            ForEach(ShapeKind.allCases, id: \.self) { kind in Label(kind.title, systemImage: kind.icon).tag(kind) }
-                        }
-                        position(x: $shape.x, y: $shape.y, width: $shape.width)
-                        HStack { Text("Altezza"); TextField("Altezza", value: $shape.height, format: .number).keyboardType(.decimalPad) }
-                        ColorPicker("Colore", selection: Binding(get: {
-                            Color(red: shape.red, green: shape.green, blue: shape.blue)
-                        }, set: { color in
-                            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-                            PaperInk.color(color).getRed(&r, green: &g, blue: &b, alpha: &a)
-                            shape.red = Double(r); shape.green = Double(g); shape.blue = Double(b)
-                        }), supportsOpacity: false)
-                        Stepper("Spessore \(Int(shape.lineWidth)) pt", value: $shape.lineWidth, in: 1...40)
-                        ShapeParametersFields(shape: $shape)
-                        NavigationLink("Stile della forma") {
-                            Form {
-                                ShapeStyleFields(style: Binding(get: { ShapeStyle(shape) }, set: { shape = $0.applying(to: shape) }), maximumRadius: min(shape.width, shape.height) / 2)
-                            }.navigationTitle("Stile")
-                        }
+                        ShapeElementFields(shape: $shape)
                         Button("Rimuovi forma", role: .destructive) { shapes.removeAll { $0.id == shape.id } }
                     }.id(shape.id)
                 }

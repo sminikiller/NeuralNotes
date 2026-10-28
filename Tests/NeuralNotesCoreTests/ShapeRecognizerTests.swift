@@ -26,7 +26,9 @@ final class ShapeRecognizerTests: XCTestCase {
             if kind == .star || kind == .polygon { shape.height = 220; shape.sides = 5 }
             if kind == .arc { shape.height = 220; shape.arcStart = 0.3; shape.arcSweep = .pi * 1.25 }
             for mode in [ShapeRecognitionMode.hold, .automatic] {
-                let value = try XCTUnwrap(ShapeRecognizer.recognize(samples(shape, noise: 0.4), mode: mode), "\(kind) in \(mode)")
+                guard let value = ShapeRecognizer.recognize(samples(shape, noise: 0.4), mode: mode) else {
+                    XCTFail("\(kind) in \(mode)"); continue
+                }
                 XCTAssertEqual(value.shape.kind, kind, "\(kind) in \(mode)")
                 XCTAssertGreaterThanOrEqual(value.confidence, mode == .automatic ? 0.85 : 0.6)
             }

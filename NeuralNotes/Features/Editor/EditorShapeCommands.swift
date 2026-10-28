@@ -38,14 +38,14 @@ extension EditorViewModel {
         selectedObjectID = shape.id; rememberPalette()
     }
     var selectedShapes: [ShapeElement] { (page?.shapes ?? []).filter { selectedIDs.contains($0.id) } }
-    func applyShapeStyle(_ style: ShapeStyle) {
+    func applyShapeStyle(_ style: NeuralNotesCore.ShapeStyle) {
         guard style.isValid else { return }
         let ids = selectedIDs
         mutatePage("Stile forme") { page in
             page.shapes = page.shapes?.map { ids.contains($0.id) ? style.applying(to: $0) : $0 }
         }
     }
-    func applyShapeStyleAndParameters(_ style: ShapeStyle, template: ShapeElement?) {
+    func applyShapeStyleAndParameters(_ style: NeuralNotesCore.ShapeStyle, template: ShapeElement?) {
         guard style.isValid else { return }
         let ids = selectedIDs
         mutatePage("Stile e parametri forme") { page in

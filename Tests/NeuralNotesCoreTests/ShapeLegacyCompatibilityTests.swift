@@ -24,7 +24,7 @@ final class ShapeLegacyCompatibilityTests: XCTestCase {
         try store.create(manifest)
         let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
         let added = try await workspace.addPage()
-        var page = try legacy(); page.id = added.id; page.revision = added.revision
+        var page = try legacy(); page.id = added.id; page.revision = added.revision + 1
         let fixtureImage = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/0.24.1/legacy.png")
         let imageURL = try await workspace.url("images/legacy.png")
         try Data(contentsOf: fixtureImage).write(to: imageURL)
@@ -36,8 +36,20 @@ final class ShapeLegacyCompatibilityTests: XCTestCase {
         _ = try NativeImport.copy(from: archive, into: store, documentID: documentID, notebookID: notebookID)
         let copy = DocumentWorkspace(package: store.packageURL(for: documentID), documentID: documentID, notebookID: notebookID)
         let pages = try await copy.pages(), restored = try XCTUnwrap(pages.first)
-        XCTAssertEqual(restored.shapes, saved.shapes); XCTAssertEqual(restored.texts, saved.texts)
-        XCTAssertEqual(restored.images, saved.images)
+        XCTAssertEqual(restored.shapes?.count, saved.shapes?.count)
+        XCTAssertEqual(restored.texts.count, saved.texts.count); XCTAssertEqual(restored.images.count, saved.images.count)
+        for (actual, source) in zip(restored.shapes ?? [], saved.shapes ?? []) {
+            XCTAssertNotEqual(actual.id, source.id)
+            var expected = source; expected.id = actual.id; XCTAssertEqual(actual, expected)
+        }
+        for (actual, source) in zip(restored.texts, saved.texts) {
+            XCTAssertNotEqual(actual.id, source.id)
+            var expected = source; expected.id = actual.id; XCTAssertEqual(actual, expected)
+        }
+        for (actual, source) in zip(restored.images, saved.images) {
+            XCTAssertNotEqual(actual.id, source.id)
+            var expected = source; expected.id = actual.id; XCTAssertEqual(actual, expected)
+        }
         let restoredImage = try await copy.url("images/legacy.png")
         XCTAssertEqual(try Data(contentsOf: restoredImage), try Data(contentsOf: imageURL))
         let bytes = try await copy.drawing(restored); XCTAssertEqual(bytes, Data([1, 2, 3, 4]))

@@ -27,7 +27,8 @@ public enum ShapeHandles {
         }
         if shape.kind == .star {
             let angle = .pi / Double(shape.sides ?? 5) - Double.pi / 2, ratio = shape.innerRatio ?? 0.5
-            values.append((.innerRadius, .init(x: x + w / 2 + w / 2 * ratio * cos(angle), y: y + h / 2 + h / 2 * ratio * sin(angle))))
+            let radius = min(w, h) / 2 * ratio
+            values.append((.innerRadius, .init(x: x + w / 2 + radius * cos(angle), y: y + h / 2 + radius * sin(angle))))
         }
         if shape.kind == .arc {
             let start = shape.arcStart ?? 0, sweep = shape.arcSweep ?? .pi
@@ -51,13 +52,18 @@ public enum ShapeHandles {
             let corners = [StrokeSample(x: source.x, y: source.y), .init(x: source.x + source.width, y: source.y),
                            .init(x: source.x + source.width, y: source.y + source.height), .init(x: source.x, y: source.y + source.height)]
             let opposite = corners[(index + 2) % 4]
-            let newWidth = min(20000, max(8, abs(point.x - opposite.x))), newHeight = min(20000, max(8, abs(point.y - opposite.y)))
-            let localCenter = StrokeSample(x: (point.x + opposite.x) / 2, y: (point.y + opposite.y) / 2)
+            var newWidth = min(20000, max(8, abs(point.x - opposite.x))), newHeight = min(20000, max(8, abs(point.y - opposite.y)))
+            if [.arc, .polygon, .star].contains(source.kind) {
+                let side = max(newWidth, newHeight); newWidth = side; newHeight = side
+            }
+            let adjusted = StrokeSample(x: opposite.x + (point.x < opposite.x ? -newWidth : newWidth),
+                                        y: opposite.y + (point.y < opposite.y ? -newHeight : newHeight))
+            let localCenter = StrokeSample(x: (adjusted.x + opposite.x) / 2, y: (adjusted.y + opposite.y) / 2)
             let center = ShapeGeometry.rotate(localCenter, shape: source)
             shape.x = center.x - newWidth / 2; shape.y = center.y - newHeight / 2
             shape.width = newWidth; shape.height = newHeight
         case .innerRadius:
-            let ratio = hypot((point.x - cx) / max(1, source.width / 2), (point.y - cy) / max(1, source.height / 2))
+            let ratio = hypot(point.x - cx, point.y - cy) / max(1, min(source.width, source.height) / 2)
             shape.innerRatio = min(0.8, max(0.2, ratio))
         case .start, .end:
             if source.kind == .arc {
@@ -85,9 +91,16 @@ public enum ShapeHandles {
         case .vertex(let index):
             var vertices = source.vertices ?? [.init(x: 0, y: 0), .init(x: 1, y: 0), .init(x: 1, y: 1), .init(x: 0, y: 1)]
             guard vertices.indices.contains(index) else { return source }
-            vertices[index] = .init(x: min(1, max(0, (point.x - source.x) / source.width)), y: min(1, max(0, (point.y - source.y) / source.height)))
+            var local = vertices.map { StrokeSample(x: source.x + $0.x * source.width, y: source.y + $0.y * source.height) }
+            local[index] = point
+            let left = local.map(\.x).min()!, top = local.map(\.y).min()!
+            let width = local.map(\.x).max()! - left, height = local.map(\.y).max()! - top
+            guard width >= 1, height >= 1, width <= 20000, height <= 20000 else { return source }
+            vertices = local.map { .init(x: ($0.x - left) / width, y: ($0.y - top) / height) }
             guard Set(vertices.map { "\($0.x)|\($0.y)" }).count == vertices.count else { return source }
-            shape.vertices = vertices
+            let center = ShapeGeometry.rotate(.init(x: left + width / 2, y: top + height / 2), shape: source)
+            shape.x = center.x - width / 2; shape.y = center.y - height / 2
+            shape.width = width; shape.height = height; shape.vertices = vertices
         }
         if let radius = shape.cornerRadius { shape.cornerRadius = min(radius, min(shape.width, shape.height) / 2) }
         return shape

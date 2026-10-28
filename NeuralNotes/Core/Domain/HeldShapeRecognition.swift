@@ -117,12 +117,15 @@ public enum HeldShapeRecognition {
             if deviation > max(3, shaft * 0.035) { return nil }
         }
         var left = false, right = false
+        // Small heads remain recognizable on a long shaft (including our
+        // default 12-point arrow). Requiring 4% of the shaft discarded them.
+        let sideThreshold = max(2, min(4, shaft * 0.04))
         for p in points[tipIndex...] {
             let along = (p.x - first.x) * dx + (p.y - first.y) * dy
             let cross = (p.x - first.x) * dy - (p.y - first.y) * dx
             guard along >= shaft * 0.62, along <= shaft * 1.03, abs(cross) <= shaft * 0.35 else { return nil }
-            if cross > shaft * 0.04 { left = true }
-            if cross < -shaft * 0.04 { right = true }
+            if cross > sideThreshold { left = true }
+            if cross < -sideThreshold { right = true }
         }
         return left && right ? (first, tip) : nil
     }

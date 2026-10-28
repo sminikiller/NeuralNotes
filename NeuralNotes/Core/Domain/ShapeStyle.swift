@@ -40,7 +40,7 @@ public struct ShapeStyle: Codable, Equatable, Sendable {
     public init(_ shape: ShapeElement) {
         color = InkColor(shape.red, shape.green, shape.blue); width = shape.lineWidth
         fill = shape.fill; fillOpacity = shape.fillOpacity; dash = shape.dash
-        cornerRadius = shape.cornerRadius; arrowHeads = shape.arrowHeads
+        cornerRadius = shape.cornerRadius; arrowHeads = shape.arrowHeads ?? (shape.kind == .arrow ? .end : ArrowHeads.none)
         arrowStyle = shape.arrowStyle; strokeOpacity = shape.strokeOpacity
     }
     public func applying(to source: ShapeElement) -> ShapeElement {

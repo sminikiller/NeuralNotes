@@ -66,6 +66,28 @@ final class ShapeGeometryTests: XCTestCase {
         shape.fillOpacity = nil; shape.vertices = [.init(x: 0, y: 0), .init(x: 0, y: 0), .init(x: 1, y: 1)]
         page.shapes = [shape]; XCTAssertThrowsError(try PageValidation.validate(page))
     }
+    func testFreeVertexCanMoveOutsideTheOriginalBoxWithoutMovingOtherVertices() throws {
+        var shape = ShapeElement(kind: .freePolygon, x: 100, y: 100, width: 200, height: 100)
+        shape.rotation = 30
+        let before = ShapeHandles.positions(shape, zoom: 1)
+        let target = ShapeGeometry.rotate(.init(x: 40, y: 60), shape: shape)
+        let changed = ShapeHandles.moved(shape, handle: .vertex(0), to: target)
+        let after = ShapeHandles.positions(changed, zoom: 1)
+        for index in 0..<4 {
+            let expected: StrokeSample
+            if index == 0 { expected = target }
+            else { expected = try XCTUnwrap(before.first { $0.0 == .vertex(index) }?.1) }
+            let actual = try XCTUnwrap(after.first { $0.0 == .vertex(index) }?.1)
+            XCTAssertEqual(actual.x, expected.x, accuracy: 0.001)
+            XCTAssertEqual(actual.y, expected.y, accuracy: 0.001)
+        }
+        XCTAssertTrue(changed.hasValidOptions)
+    }
+    func testUnknownRecognitionKindsDoNotInvalidateWorkspacePreferences() throws {
+        let data = Data(#"{"enabledKinds":["future-a","future-b","line"]}"#.utf8)
+        let value = try JSONDecoder().decode(ShapePreferences.self, from: data)
+        XCTAssertTrue(value.isValid); XCTAssertEqual(value.kinds, [.rectangle, .line])
+    }
     func testUnknownKindsAndStylesFallBackWithoutLosingThePage() throws {
         var page = PageSnapshot(); page.shapes = [ShapeElement(kind: .star)]
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(page)) as? [String: Any])

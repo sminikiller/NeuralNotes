@@ -3,7 +3,7 @@ import NeuralNotesCore
 
 @MainActor
 struct ShapeStyleFields: View {
-    @Binding var style: ShapeStyle
+    @Binding var style: NeuralNotesCore.ShapeStyle
     var maximumRadius: Double = 80
     var body: some View {
         Section("Contorno") {
@@ -36,10 +36,10 @@ struct ShapeStyleFields: View {
             }
         }
     }
-    private func value<T>(_ key: WritableKeyPath<ShapeStyle, T?>, fallback: T) -> Binding<T> {
+    private func value<T>(_ key: WritableKeyPath<NeuralNotesCore.ShapeStyle, T?>, fallback: T) -> Binding<T> {
         Binding(get: { style[keyPath: key] ?? fallback }, set: { style[keyPath: key] = $0 })
     }
-    private func color(_ key: WritableKeyPath<ShapeStyle, InkColor?>, fallback: InkColor) -> Binding<Color> {
+    private func color(_ key: WritableKeyPath<NeuralNotesCore.ShapeStyle, InkColor?>, fallback: InkColor) -> Binding<Color> {
         Binding(get: { (style[keyPath: key] ?? fallback).color }, set: { style[keyPath: key] = InkColor($0) })
     }
 }

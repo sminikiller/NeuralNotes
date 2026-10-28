@@ -5,7 +5,7 @@ import NeuralNotesCore
 struct ShapeStylePanel: View {
     let model: EditorViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var style = ShapeStyle()
+    @State private var style = NeuralNotesCore.ShapeStyle()
     @State private var shape: ShapeElement?
     var body: some View {
         NavigationStack {
@@ -32,7 +32,7 @@ struct ShapeStylePanel: View {
                 }
             }
         }.task {
-            if let first = model.selectedShapes.first { style = ShapeStyle(first); shape = first }
+            if let first = model.selectedShapes.first { style = NeuralNotesCore.ShapeStyle(first); shape = first }
             else { style = model.shapePreferences.style ?? .standard }
         }
     }

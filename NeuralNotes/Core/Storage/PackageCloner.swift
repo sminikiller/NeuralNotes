@@ -75,6 +75,16 @@ extension NativeDocumentStore {
                     page.anchors[index].id = UUID()
                     if let mapped = sessionMap[page.anchors[index].audioSessionID] { page.anchors[index].audioSessionID = mapped }
                 }
+                if var shapes = page.shapes {
+                    for index in shapes.indices {
+                        if var anchor = shapes[index].audioAnchor {
+                            anchor.id = UUID()
+                            if let mapped = sessionMap[anchor.audioSessionID] { anchor.audioSessionID = mapped }
+                            shapes[index].audioAnchor = anchor
+                        }
+                    }
+                    page.shapes = shapes
+                }
                 try encoder.encode(page).write(to: destination.appendingPathComponent("pages/\(page.id).json"), options: .atomic)
                 if activePageIDs.contains(original) { pageIDs.append(page.id) }
                 try FileManager.default.removeItem(at: oldURL)
