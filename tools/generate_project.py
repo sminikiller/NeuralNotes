@@ -43,7 +43,9 @@ def make_project():
     refs = {}
     for path in app_files + unit_files + ui_files + resource_files + ["NeuralNotes/Resources/Info.plist"]:
         kind = "sourcecode.swift" if path.endswith(".swift") else (
-            "folder.assetcatalog" if path.endswith(".xcassets") else "text.plist.xml")
+            "folder.assetcatalog" if path.endswith(".xcassets") else
+            "text.json" if path.endswith(".json") else
+            "text" if path.endswith(".txt") else "text.plist.xml")
         refs[path] = add("file:" + path,
             f"{{isa = PBXFileReference; lastKnownFileType = {kind}; path = {quote(path)}; sourceTree = SOURCE_ROOT;}}")
 
