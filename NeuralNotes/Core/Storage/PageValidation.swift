@@ -5,7 +5,7 @@ public enum PageValidation {
         guard (0...1_000_000_000).contains(page.revision), page.width.isFinite, page.height.isFinite,
               (0...20000).contains(page.width), (0...20000).contains(page.height), page.width > 0, page.height > 0,
               page.appearance?.isValid != false, page.tapes?.allSatisfy(\.isValid) != false,
-              (page.pdfMarkups ?? []).allSatisfy(\.isValid) else { throw LibraryFailure.corruptDocument }
+              (page.pdfMarkups ?? []).allSatisfy(\.isValid), (page.shapes?.count ?? 0) <= 10000 else { throw LibraryFailure.corruptDocument }
         if let time = page.lastEditedAt, !time.isFinite || time < 0 { throw LibraryFailure.corruptDocument }
         if let index = page.pdfIndex, index < 0 || index == Int.max { throw LibraryFailure.corruptDocument }
         for text in page.texts {
@@ -24,9 +24,10 @@ public enum PageValidation {
         }
         for shape in page.shapes ?? [] {
             guard [shape.x, shape.y, shape.width, shape.height, shape.red, shape.green, shape.blue, shape.lineWidth].allSatisfy(\.isFinite),
-                  shape.width > 0, shape.height > 0, (0...1).contains(shape.red), (0...1).contains(shape.green), (0...1).contains(shape.blue),
+                  shape.width > 0, shape.height > 0, shape.width <= 20000, shape.height <= 20000,
+                  (0...1).contains(shape.red), (0...1).contains(shape.green), (0...1).contains(shape.blue),
                   shape.lineWidth > 0, shape.lineWidth <= 200, shape.start?.isValid != false, shape.end?.isValid != false,
-                  shape.rotation?.isFinite != false else { throw LibraryFailure.corruptDocument }
+                  shape.rotation?.isFinite != false, shape.hasValidOptions else { throw LibraryFailure.corruptDocument }
         }
         let ids = Set(page.objectIDs)
         guard ids.count == page.objectIDs.count else { throw LibraryFailure.corruptDocument }

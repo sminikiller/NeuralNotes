@@ -46,7 +46,7 @@ struct EditorQuickToolbar: View {
                             ForEach(["★ Importante", "Definizione", "Domanda per il prof", "Da ripassare"], id: \.self) { label in Button(label) { model.addStickyNote(label) } }
                         }
                         ForEach(ShapeKind.allCases, id: \.self) { kind in
-                            Button(kind.title, systemImage: kind.icon) { model.shapeKind = kind; model.tool = .shape; model.configureTool() }
+                            Button(kind.title, systemImage: kind.icon) { model.chooseShape(kind) }
                         }
                     } label: { Image(systemName: "photo.badge.plus").frame(width: 44, height: 44) }.accessibilityLabel("Inserisci foto o forma")
                     if !vertical && usesInk {
@@ -120,6 +120,8 @@ struct EditorQuickToolbar: View {
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
+                Button { model.shapeStyleRequest += 1 } label: { Image(systemName: "paintbrush.pointed") }
+                    .accessibilityLabel("Stile forme").accessibilityIdentifier("selectionShapeStyle").disabled(model.selectedShapes.isEmpty)
                 Menu {
                     Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
                     Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }

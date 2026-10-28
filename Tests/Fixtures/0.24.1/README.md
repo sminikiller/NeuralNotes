@@ -1,0 +1,1 @@
+Snapshot JSON e immagine sintetica nel formato della versione 0.24.1. Nessun campo introdotto nella 0.25. La foto conserva le opzioni prospettiche esistenti. I test scrivono la pagina in un pacchetto nativo, la riaprono e verificano backup, immagine originale e, sui test Apple, export PDF. Non contiene appunti di utenti.

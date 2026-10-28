@@ -18,5 +18,14 @@ struct DocumentPageViewport: View {
                     PageTextControls(model: model).padding(8)
                 }
             }
+            .overlay(alignment: .bottom) {
+                if let notice = model.recognitionNotice {
+                    HStack(spacing: 12) {
+                        Text(notice).font(.callout)
+                        Button("Annulla") { Task { await model.performUndo() } }.font(.callout.bold())
+                    }.padding(12).background(.regularMaterial, in: Capsule()).padding(12)
+                        .accessibilityIdentifier("shapeRecognitionNotice")
+                }
+            }
     }
 }

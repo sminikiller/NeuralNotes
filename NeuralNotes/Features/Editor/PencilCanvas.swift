@@ -26,6 +26,7 @@ final class CanvasHost: UIView {
     var drawingAssistant: CanvasDrawingAssistant?
     var rulerGuide: RulerGuideView?
     var pencilControls: PencilControls?
+    var shapeHandles: ShapeHandlesOverlay?
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
     private let inputShield = PendingPageInputShield()
@@ -107,6 +108,7 @@ final class CanvasHost: UIView {
             // Drop page-scoped presentation before exposing another document page.
             CATransaction.begin(); CATransaction.setDisableActions(true)
             interaction?.resetForPageChange()
+            shapeHandles?.reset()
             surface.layer.contents = nil
             surface.hiddenTextID = nil; surface.hiddenObjectID = nil
             paperDetail.resetForPageChange()
@@ -211,7 +213,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); shapeHandles?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
@@ -263,6 +265,8 @@ struct PencilCanvas: UIViewRepresentable {
         model.drawingAssistant = host.drawingAssistant
         host.rulerGuide = RulerGuideView(host: host, model: model)
         host.pencilControls = PencilControls(host: host, model: model)
+        let shapeHandles = ShapeHandlesOverlay(host: host, model: model)
+        host.shapeHandles = shapeHandles; host.addSubview(shapeHandles)
         PaperInk.configureNavigation(model.canvas, fingerDrawing: model.fingerDrawing)
         return host
     }

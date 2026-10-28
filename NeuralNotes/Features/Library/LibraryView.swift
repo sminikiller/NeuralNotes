@@ -5,7 +5,7 @@ import NeuralNotesCore
 import CoreSpotlight
 
 private enum LibrarySheet: Identifiable {
-    case account, createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook), help
+    case account, createNotebook, editNotebook(Notebook), createFolder(UUID?), renameFolder(LibraryFolder), diagnostics, cover(Notebook), storage(Notebook), recovery, search, cloud, organization(Notebook), help, about
     var id: String {
         switch self {
         case .createNotebook: return "new-notebook"
@@ -21,6 +21,7 @@ private enum LibrarySheet: Identifiable {
         case .account: return "account"
         case .organization(let book): return "organization-\(book.id)"
         case .help: return "help"
+        case .about: return "about"
         }
     }
 }
@@ -145,6 +146,7 @@ struct LibraryView: View {
             case .help: QuickGuidePanel()
             case .search:
                 GlobalSearchPanel(library: model) { book, reference, query in pendingSearch = (book, reference, query) }
+            case .about: AboutNeuralNotes()
             }
         }
     }
@@ -245,6 +247,7 @@ struct LibraryView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
                 Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
+                Button { sheet = .about } label: { Label("Informazioni su NeuralNotes", systemImage: "info.circle") }.accessibilityIdentifier("libraryAbout")
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }

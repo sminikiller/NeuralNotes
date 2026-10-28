@@ -38,7 +38,8 @@ def make_project():
     unit_files = sorted(p.relative_to(ROOT).as_posix() for base in ["NeuralNotesTests", "Tests"]
                         for p in (ROOT / base).rglob("*.swift"))
     ui_files = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "NeuralNotesUITests").rglob("*.swift"))
-    resource_files = ["NeuralNotes/Resources/Assets.xcassets", "NeuralNotes/Resources/PrivacyInfo.xcprivacy"]
+    resource_files = ["NeuralNotes/Resources/Assets.xcassets", "NeuralNotes/Resources/PrivacyInfo.xcprivacy",
+                      "NeuralNotes/Resources/Credits.json", "NeuralNotes/Resources/ThirdPartyNotices.txt"]
     refs = {}
     for path in app_files + unit_files + ui_files + resource_files + ["NeuralNotes/Resources/Info.plist"]:
         kind = "sourcecode.swift" if path.endswith(".swift") else (
@@ -97,7 +98,7 @@ def make_project():
             "PRODUCT_NAME": "$(TARGET_NAME)", "PRODUCT_BUNDLE_IDENTIFIER": "com.lorenzominichilli.neuralnotes" + target.removeprefix("NeuralNotes"),
             "TARGETED_DEVICE_FAMILY": "2", "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
             "SUPPORTS_MACCATALYST": "NO", "CODE_SIGN_STYLE": "Automatic", "DEVELOPMENT_TEAM": "64R668842U",
-            "MARKETING_VERSION": "0.24.1", "CURRENT_PROJECT_VERSION": "52",
+            "MARKETING_VERSION": "0.25.0", "CURRENT_PROJECT_VERSION": "53",
             "GENERATE_INFOPLIST_FILE": "YES", "SWIFT_EMIT_LOC_STRINGS": "YES",
         }
         if target == "NeuralNotes":
@@ -200,6 +201,10 @@ def make_assets():
     png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
     png += chunk(b"IDAT", zlib.compress(bytes(rows), 9)) + chunk(b"IEND", b"")
     (icon / "AppIcon.png").write_bytes(png)
+    logo = assets / "AppLogo.imageset"
+    logo.mkdir(exist_ok=True)
+    (logo / "AppLogo.png").write_bytes(png)
+    (logo / "Contents.json").write_text(json.dumps({"images": [{"filename": "AppLogo.png", "idiom": "universal"}], "info": info}, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

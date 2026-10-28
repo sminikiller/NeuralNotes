@@ -6,6 +6,7 @@ import plistlib
 import urllib.parse
 import urllib.request
 import base64
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,13 +51,23 @@ def verify(origin):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--origin', required=True, help='Public HTTPS origin/prefix, not a provider key.')
+    parser.add_argument('--origin', help='Public HTTPS origin/prefix, not a provider key.')
     parser.add_argument('--privacy-url', help='Published HTTPS privacy notice; requires --support-url too.')
     parser.add_argument('--support-url', help='Published HTTPS support page; requires --privacy-url too.')
+    parser.add_argument('--feedback-email', help='Public contact mailbox; no credentials or notebook data.')
     args = parser.parse_args()
-    origin = secure_origin(args.origin)
-    verify(origin)  # No plist is edited on a failed remote check.
+    if not any([args.origin, args.privacy_url, args.support_url, args.feedback_email]):
+        parser.error('Provide a gateway, privacy/support pages or a feedback email.')
+    origin = secure_origin(args.origin) if args.origin else None
+    if origin:
+        verify(origin)  # No plist is edited on a failed remote check.
     pages = {}
+    if args.feedback_email:
+        email = args.feedback_email
+        pattern = r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}"
+        if len(email) > 254 or not re.fullmatch(pattern, email):
+            parser.error('Provide a single valid feedback email address, without display names or line breaks.')
+        pages['NeuralNotesFeedbackEmail'] = email
     if bool(args.privacy_url) != bool(args.support_url):
         parser.error('Provide both --privacy-url and --support-url.')
     if args.privacy_url:
@@ -71,14 +82,15 @@ def main():
     encoded = []
     for file in files:
         value = plistlib.loads(file.read_bytes())
-        value['NeuralNotesServiceURL'] = origin
+        if origin:
+            value['NeuralNotesServiceURL'] = origin
         value.update(pages)
         encoded.append((file, plistlib.dumps(value, sort_keys=False)))
     for file, data in encoded:
         temporary = file.with_suffix('.plist.pending')
         temporary.write_bytes(data)
         temporary.replace(file)
-    print('Configured both app builds for the verified managed gateway; no credentials written.')
+    print('Configured the requested public service/contact values in both app builds; no credentials written.')
 
 
 if __name__ == '__main__':

@@ -80,6 +80,7 @@ struct WorkspacePanel: View {
                     NavigationLink { ToolPalettePanel(model: model).padding().navigationTitle("Colori per strumento") } label: { Label("Colori e spessori", systemImage: "paintpalette") }
                 }
                 Section { NavigationLink("Penne, preset e gomma") { WritingToolsPanel(model: model) } }
+                Section { NavigationLink("Riconoscimento forme") { ShapeRecognitionPanel(model: model) } }
                 Section("Salva una configurazione") {
                     TextField("Nome attività", text: $name)
                     Button("Duplica con questo nome", systemImage: "plus.square.on.square") { model.duplicateWorkspace(name: name); name = "" }
@@ -128,8 +129,8 @@ struct WorkspacePanel: View {
                 Text("Con questa opzione usa due dita per scorrere e per il doppio tocco.").font(.caption)
             }
             Section("Durante la scrittura") {
-                Toggle("Tieni premuto per una forma precisa", isOn: binding(\.holdShapes))
-                Text("Disegna una linea, un cerchio o un rettangolo e ferma la punta per circa 0,65 secondi prima di sollevarla. Un piccolo feedback conferma la correzione; puoi annullare il tratto corretto.").font(.caption)
+                ShapeRecognitionModePicker(model: model)
+                NavigationLink("Scegli forme e tipo di risultato") { ShapeRecognitionPanel(model: model) }
                 Toggle("Scarabocchio per cancellare", isOn: binding(\.scratchErase))
             }
             Section("Navigazione") {

@@ -94,6 +94,10 @@ def check_structure():
         actual = [objects[objects[b]["fileRef"]]["path"] for b in source["files"]]
         assert len(actual) == len(set(actual)), f"Duplicate sources in {name}"
         assert set(actual) == expected[name], f"Wrong target membership: {name}"
+        if name == "NeuralNotes":
+            resources = next(p for p in phases if p["isa"] == "PBXResourcesBuildPhase")
+            resource_paths = {objects[objects[b]["fileRef"]]["path"] for b in resources["files"]}
+            assert {"NeuralNotes/Resources/Credits.json", "NeuralNotes/Resources/ThirdPartyNotices.txt"}.issubset(resource_paths)
         for ident in objects[target["buildConfigurationList"]]["buildConfigurations"]:
             config = objects[ident]["buildSettings"]
             assert config["TARGETED_DEVICE_FAMILY"] == "2"
@@ -140,6 +144,7 @@ def check_structure():
         for image in data.get("images", []):
             assert (path.parent / image["filename"]).is_file()
     icon = (ROOT / "NeuralNotes/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png").read_bytes()
+    assert (ROOT / "NeuralNotes/Resources/Assets.xcassets/AppLogo.imageset/AppLogo.png").read_bytes() == icon
     assert icon[:8] == b"\x89PNG\r\n\x1a\n"
     position = 8
     while position < len(icon):

@@ -18,33 +18,6 @@ enum ElementRendering {
     }
 
     static func drawShape(_ shape: ShapeElement, context: CGContext) {
-        let rect = CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
-        context.saveGState()
-        context.translateBy(x: rect.midX, y: rect.midY)
-        context.rotate(by: CGFloat(shape.rotation ?? 0) * .pi / 180)
-        context.translateBy(x: -rect.midX, y: -rect.midY)
-        context.setStrokeColor(UIColor(red: shape.red, green: shape.green, blue: shape.blue, alpha: 1).cgColor)
-        context.setLineWidth(shape.lineWidth); context.setLineCap(.round); context.setLineJoin(.round)
-        switch shape.kind {
-        case .ellipse: context.strokeEllipse(in: rect)
-        case .rectangle: context.stroke(rect)
-        case .triangle:
-            context.move(to: CGPoint(x: rect.midX, y: rect.minY))
-            context.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); context.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-            context.closePath(); context.strokePath()
-        case .line, .arrow:
-            let start = shape.start ?? ShapeEndpoint(x: 0, y: 1), end = shape.end ?? ShapeEndpoint(x: 1, y: 0)
-            let a = CGPoint(x: rect.minX + CGFloat(start.x) * rect.width, y: rect.minY + CGFloat(start.y) * rect.height)
-            let b = CGPoint(x: rect.minX + CGFloat(end.x) * rect.width, y: rect.minY + CGFloat(end.y) * rect.height)
-            context.move(to: a); context.addLine(to: b)
-            if shape.kind == .arrow {
-                let angle = atan2(b.y - a.y, b.x - a.x), length = max(12, shape.lineWidth * 4)
-                for delta in [-CGFloat.pi / 6, CGFloat.pi / 6] {
-                    context.move(to: b); context.addLine(to: CGPoint(x: b.x - length * cos(angle + delta), y: b.y - length * sin(angle + delta)))
-                }
-            }
-            context.strokePath()
-        }
-        context.restoreGState()
+        ShapePathRendering.draw(shape, context: context)
     }
 }

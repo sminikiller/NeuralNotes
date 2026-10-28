@@ -2,9 +2,27 @@ import datetime
 import plistlib
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from release_readiness import ATTESTATIONS, SIGNING_SECRETS, archive_proof, beta_problems, configuration_problems, public_https
 from validate_distribution_profile import validate
+import configure_service
+
+
+class FeedbackConfigurationTests(unittest.TestCase):
+    def test_email_only_configuration_does_not_need_a_gateway_or_write_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = [root / 'NeuralNotes/Resources/Info.plist', root / 'NeuralNotes/App/PlaygroundInfo.plist']
+            for file in files:
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(plistlib.dumps({'preserved': True}))
+            with patch.object(configure_service, 'ROOT', root), patch('sys.argv', ['configure_service.py', '--feedback-email', 'feedback@example.com']), patch.object(configure_service, 'verify') as verify:
+                configure_service.main()
+                verify.assert_not_called()
+            for file in files:
+                value = plistlib.loads(file.read_bytes())
+                self.assertEqual(value, {'preserved': True, 'NeuralNotesFeedbackEmail': 'feedback@example.com'})
 
 
 class ReleaseReadinessTests(unittest.TestCase):

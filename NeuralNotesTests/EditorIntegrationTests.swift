@@ -166,8 +166,10 @@ final class EditorIntegrationTests: XCTestCase {
             XCTAssertEqual(model.canvas.drawing.strokes[1].ink.inkType, .marker)
             XCTAssertEqual(model.canvas.drawing.strokes[1].path.creationDate, rough.path.creationDate)
             XCTAssertNil(model.pendingHeldShape)
+            await model.performUndo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+            XCTAssertEqual(model.canvas.drawing.strokes.last?.path.count, rough.path.count)
             await model.performUndo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
-            await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+            await model.performRedo(); await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
         }
     }
 
@@ -176,6 +178,7 @@ final class EditorIntegrationTests: XCTestCase {
         for kind in [ShapeKind.line, .ellipse] {
             try await withEditor { model in
                 model.editWorkspace { $0.holdShapes = true }
+                model.editShapePreferences { $0.output = .ink }
                 let host = CanvasHost(canvas: model.canvas); host.model = model
                 host.surface.page = try XCTUnwrap(model.page)
                 host.frame = CGRect(x: 0, y: 0, width: 1200, height: 900); host.setNeedsLayout(); host.layoutIfNeeded()
@@ -190,7 +193,8 @@ final class EditorIntegrationTests: XCTestCase {
                     }
                 }
                 model.strokeBegan(); assistant.begin(at: locations[0]); assistant.move(samples: Array(locations.dropFirst()))
-                model.canvas.drawing = PKDrawing(strokes: [inkStroke(locations)])
+                let rough = inkStroke(locations)
+                model.canvas.drawing = PKDrawing(strokes: [rough])
                 assistant.recognizeHold()
                 XCTAssertEqual(model.pendingHeldShape?.kind, kind)
                 let confirmed = try XCTUnwrap(model.pendingHeldShape?.samples.count)
@@ -219,9 +223,16 @@ final class EditorIntegrationTests: XCTestCase {
                         let distance = abs(dx * offsetY - dy * offsetX) / length
                         XCTAssertLessThan(distance, 0.01)
                     }
-                } else { XCTAssertEqual(corrected.path.count, 121) }
+                } else {
+                    XCTAssertGreaterThan(corrected.path.count, 100)
+                    for point in corrected.path {
+                        let radius = hypot((point.location.x - 200) / 60, (point.location.y - 200) / 45)
+                        XCTAssertEqual(radius, 1, accuracy: 0.04)
+                    }
+                }
+                await model.performUndo(); XCTAssertEqual(model.canvas.drawing.strokes.first?.path.count, rough.path.count)
                 await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
-                await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+                await model.performRedo(); await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
                 let saved = await model.flush(); XCTAssertTrue(saved)
                 try await model.load(try XCTUnwrap(model.page))
                 XCTAssertEqual(model.canvas.drawing.strokes.first?.path.count, corrected.path.count)

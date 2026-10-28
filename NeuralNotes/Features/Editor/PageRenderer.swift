@@ -4,7 +4,7 @@ import NeuralNotesCore
 
 @MainActor
 enum PageRenderer {
-    static func draw(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil) {
+    static func draw(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil, hidingObjectIDs: Set<UUID> = []) {
         let rect = CGRect(x: 0, y: 0, width: page.width, height: page.height)
         let appearance = page.appearance ?? PaperAppearance(spacing: page.paper == .ruled ? 32 : 24)
         let rgb = appearance.tone.rgb
@@ -37,7 +37,7 @@ enum PageRenderer {
             context.restoreGState()
         }
         let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
-        for id in page.orderedObjectIDs where !above.contains(id) && id != hidingObjectID {
+        for id in page.orderedObjectIDs where !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
             drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
     }
@@ -45,9 +45,9 @@ enum PageRenderer {
     static func drawSingle(_ id: UUID, page: PageSnapshot, package: URL, in context: CGContext) {
         drawObject(id, objects: ObjectLookup(page), page: page, package: package, context: context, hidingTextID: nil)
     }
-    static func drawForeground(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil) {
+    static func drawForeground(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil, hidingObjectIDs: Set<UUID> = []) {
         let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
-        for id in page.orderedObjectIDs where above.contains(id) && id != hidingObjectID {
+        for id in page.orderedObjectIDs where above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
             drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
         for tape in page.tapes ?? [] {
@@ -122,6 +122,7 @@ final class PageSurfaceView: UIView {
     var hiddenTextID: UUID? { didSet { if oldValue != hiddenTextID { setNeedsDisplay() } } }
     /// The object being dragged: only its moving picture is shown until it is dropped.
     var hiddenObjectID: UUID? { didSet { if oldValue != hiddenObjectID { setNeedsDisplay() } } }
+    var replayHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != replayHiddenObjectIDs { setNeedsDisplay() } } }
     var page = PageSnapshot() {
         didSet {
             if oldValue.id != page.id { layer.contents = nil }
@@ -135,6 +136,6 @@ final class PageSurfaceView: UIView {
     var package = URL(fileURLWithPath: "/")
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID)
+        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: replayHiddenObjectIDs)
     }
 }

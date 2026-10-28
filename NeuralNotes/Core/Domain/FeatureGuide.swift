@@ -28,6 +28,20 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("about", .library, "Informazioni e crediti", "info.circle", "Controlla versione e build prima di inviare una segnalazione.", [
+            "Nella libreria apri Informazioni su NeuralNotes, accanto alla guida; la trovi anche in Account e servizi.",
+            "Leggi versione e build oppure premi Copia informazioni. Il testo contiene solo versione, sistema e modello del dispositivo, senza appunti o dati dell’account.",
+            "Consulta ringraziamenti, privacy e licenze. Se l’indirizzo è configurato, usa Invia un feedback o Segnala un problema." ]),
+        .init("shape-tools", .writing, "Forme e maniglie", "shapes", "Rombi, poligoni, stelle e archi modificabili.", [
+            "Tieni premuto uno strumento forma o apri Inserisci foto o forma. Scegli la figura; per poligoni e stelle imposta il numero di lati o punte nelle opzioni.",
+            "Trascina tra due angoli. Per frecce e linee parti dalla coda; per un arco trascina tra gli estremi della corda.",
+            "Passa a Oggetti e seleziona il contorno. Trascina angoli, rotazione o maniglie specifiche. Sul poligono libero tieni premuto un lato per aggiungere un vertice, o un vertice per rimuoverlo.",
+            "Con una o più forme selezionate apri Stile forme. Scegli contorno, riempimento, tratteggio e punte, poi Applica. Annulla ripristina lo stile precedente in un passo." ], tools: [.line, .arrow, .ellipse, .rectangle, .triangle, .objects]),
+        .init("shape-recognition", .writing, "Riconoscimento automatico delle forme", "wand.and.stars", "Scegli quando correggere e se ottenere una forma o inchiostro.", [
+            "Nel Workspace apri Riconoscimento forme. Scegli Spento, Tieni ferma la punta oppure Automatico al rilascio; puoi farlo anche dalle opzioni della penna.",
+            "Scegli quali figure riconoscere e se ottenere una Forma modificabile o un Tratto di penna. L’evidenziatore rimane un tratto diritto.",
+            "In modalità Tieni ferma la punta disegna la figura, fermati per circa mezzo secondo e solleva. In Automatico solleva normalmente: le figure riconosciute con sicurezza si correggono.",
+            "L’avviso Corretto in… offre Annulla per ripristinare il tratto originale. Il riconoscimento è prudente vicino alla scrittura; puoi sempre usare gli strumenti forma espliciti." ], tools: [.pen, .marker]),
         .init("library", .library, "Crea e organizza i quaderni", "books.vertical", "Cartelle, tag, preferiti e recenti.", [
             "Dalla libreria premi + per creare un quaderno e scegli titolo e cartella.",
             "Usa il menu del quaderno per rinominarlo, spostarlo o gestire tag e preferiti. Crea cartelle dalla barra laterale.",

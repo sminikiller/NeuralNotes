@@ -47,6 +47,12 @@ struct ElementEditor: View {
                             shape.red = Double(r); shape.green = Double(g); shape.blue = Double(b)
                         }), supportsOpacity: false)
                         Stepper("Spessore \(Int(shape.lineWidth)) pt", value: $shape.lineWidth, in: 1...40)
+                        ShapeParametersFields(shape: $shape)
+                        NavigationLink("Stile della forma") {
+                            Form {
+                                ShapeStyleFields(style: Binding(get: { ShapeStyle(shape) }, set: { shape = $0.applying(to: shape) }), maximumRadius: min(shape.width, shape.height) / 2)
+                            }.navigationTitle("Stile")
+                        }
                         Button("Rimuovi forma", role: .destructive) { shapes.removeAll { $0.id == shape.id } }
                     }.id(shape.id)
                 }

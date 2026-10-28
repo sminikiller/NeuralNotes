@@ -20,6 +20,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private var markerSession: MarkerEraseSession?
     private var guiding = false
     private var guideEdge = 1.0
+    private var beganAt = Date()
+    private var connectionIndex = ShapeConnectionIndex()
+    private var snapHint: String?
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model
@@ -35,7 +38,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
-        let enabled = model.tool == .shape || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.currentWorkspace.holdShapes))
+        let enabled = model.tool == .shape || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.recognitionMode != .off))
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -45,11 +48,23 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         begin(at: touch.location(in: host.surface))
     }
     func begin(at: CGPoint) {
+        model?.finishInkGesture()
         cancel()
         guard let host, let model, let page = model.page else { return }
         guard host.surface.bounds.contains(at) else { return }
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
+        beganAt = Date(); snapHint = nil
+        let connections = (page.shapes ?? []).filter { !(page.lockedObjects ?? []).contains($0.id) }.flatMap { shape in
+            let local = [StrokeSample(x: shape.x + shape.width / 2, y: shape.y),
+                .init(x: shape.x + shape.width, y: shape.y + shape.height / 2),
+                .init(x: shape.x + shape.width / 2, y: shape.y + shape.height),
+                .init(x: shape.x, y: shape.y + shape.height / 2)]
+            return local.map { ShapeGeometry.rotate($0, shape: shape) }
+        }
+        connectionIndex = ShapeConnectionIndex(points: connections)
+        if model.tool == .shape, model.shapeKind == .line || model.shapeKind == .arrow,
+           let snapped = connection(near: points[0]) { points[0] = snapped }
         if model.rulerActive && (model.tool == .pen || model.tool == .marker) {
             guideEdge = model.rulerGuide.edge(nearest: points[0])
             guard let projected = model.rulerGuide.project(points[0], edge: guideEdge, width: page.width, height: page.height) else { pageID = nil; return }
@@ -83,11 +98,12 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             markerSession?.append(samples.map { StrokeSample(x: Double($0.x), y: Double($0.y)) }); return
         }
         if model.tool == .shape { drawPreview(model.shapeKind); return }
+        guard model.recognitionMode == .hold else { return }
         guard let at = samples.last else { return }
         if hypot(at.x - anchor.x, at.y - anchor.y) > max(1.5, 3 / host.canvas.zoomScale) {
             anchor = at; holdTask?.cancel()
             holdTask = Task { [weak self] in
-                do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
+                do { try await Task.sleep(for: .milliseconds(550)) } catch { return }
                 self?.recognizeHold()
             }
         }
@@ -120,11 +136,11 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         if model.tool == .shape {
             model.drawingShape = false
             if !cancelled, model.page?.id == pageID, let first = points.first, let last = points.last {
-                model.addDraggedShape(model.shapeKind, from: first, to: last)
+                model.addDraggedShape(model.shapeKind, from: first, to: connection(near: last) ?? last)
             }
             cancel(); return
         }
-        if cancelled { model.pendingHeldShape = nil; finishPreview() }
+        if cancelled { model.pendingHeldShape = nil; model.pendingShapeRecognition = nil; finishPreview() }
         else if held {
             // The final PencilKit drawing arrives separately. The model keeps
             // this preview until it has replaced exactly that new stroke.
@@ -132,14 +148,15 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
                 do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
                 self?.finishPreview()
             }
-        }
+        } else if model.recognitionMode == .automatic { recognizeAtLift() }
         pageID = nil
     }
     func recognizeHold() {
         guard let host, let model, let page = model.page, page.id == pageID,
-              model.currentWorkspace.holdShapes, !model.rulerActive, model.tool == .pen || model.tool == .marker,
-              let kind = HeldShapeRecognition.recognize(points) else { return }
-        held = true; model.pendingHeldShape = (page.id, kind, points)
+              model.recognitionMode == .hold, !model.rulerActive, model.tool == .pen || model.tool == .marker,
+              let result = ShapeRecognizer.recognize(points, enabled: model.tool == .marker ? [.line] : model.shapePreferences.kinds) else { return }
+        let kind = result.shape.kind
+        held = true; model.pendingHeldShape = (page.id, kind, points); model.pendingShapeRecognition = result
         previousInk.image = PaperInk.image(before, from: CGRect(x: 0, y: 0, width: page.width, height: page.height),
             scale: min(2, 1600 / max(CGFloat(page.width), CGFloat(page.height))))
         previousInk.frame = host.surface.frame; host.addSubview(previousInk)
@@ -156,7 +173,17 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             for (i, p) in points.enumerated() {
                 if i == 0 { path.move(to: CGPoint(x: p.x, y: p.y)) } else { path.addLine(to: CGPoint(x: p.x, y: p.y)) }
             }
-        } else { path = PreciseStrokeGeometry.path(kind: kind, points: samples) }
+        } else if model.tool == .shape, let a = samples.first, let b = samples.last,
+                  let shape = model.shapeForDrag(kind, from: a, to: connection(near: b) ?? b) {
+            path = UIBezierPath(cgPath: ShapePathRendering.path(ShapeGeometry.path(for: shape)))
+            for arrow in ShapeGeometry.arrowPaths(for: shape) { path.append(UIBezierPath(cgPath: ShapePathRendering.path(arrow))) }
+            let snap = ShapeSnapping.drag(kind: kind, start: a, end: b)
+            let hint: String? = snap.proportionsSnapped ? "Proporzioni 1:1" : (snap.angleSnapped ? "Angolo agganciato" : nil)
+            if let hint, hint != snapHint { host.showPageInputHint(hint); UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+            snapHint = hint
+            preview.fillColor = shape.fill.map { UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: shape.fillOpacity ?? 0.25).cgColor }
+            preview.lineDashPattern = (shape.dash ?? .solid).lengths(width: shape.lineWidth * host.canvas.zoomScale).map { NSNumber(value: $0) }
+        } else { path = PreciseStrokeGeometry.path(kind: kind, points: samples); preview.fillColor = UIColor.clear.cgColor; preview.lineDashPattern = nil }
         let converted = UIBezierPath(cgPath: path.cgPath)
         var transform = CGAffineTransform(scaleX: host.canvas.zoomScale, y: host.canvas.zoomScale)
         transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
@@ -175,8 +202,27 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         if guiding { model?.cancelGuidedInk(before); guiding = false }
         markerSession?.finish(cancelled: true); markerSession = nil
         holdTask?.cancel(); holdTask = nil; finishPreview()
-        model?.pendingHeldShape = nil; model?.drawingShape = false
+        model?.pendingHeldShape = nil; model?.pendingShapeRecognition = nil; model?.pendingAutomaticRecognition = false; model?.drawingShape = false
         points = []; pageID = nil
+    }
+    private func connection(near point: StrokeSample) -> StrokeSample? {
+        guard let host, model?.tool == .shape, model?.shapeKind == .line || model?.shapeKind == .arrow else { return nil }
+        return connectionIndex.nearest(point, zoom: host.canvas.zoomScale)
+    }
+    private func recognizeAtLift() {
+        guard let model, let pageID, !model.rulerActive, let first = points.first else { return }
+        let nearWriting = before.strokes.suffix(12).contains { stroke in
+            let box = stroke.renderBounds
+            return Date().timeIntervalSince(stroke.path.creationDate) < 8 &&
+                box.insetBy(dx: -20, dy: -20).contains(CGPoint(x: first.x, y: first.y))
+        }
+        let marker = model.tool == .marker
+        let duration = Date().timeIntervalSince(beganAt)
+        let context = ShapeRecognitionContext(duration: marker ? max(0.18, duration) : duration, nearWriting: !marker && nearWriting)
+        guard let result = ShapeRecognizer.recognize(points, mode: .automatic,
+            enabled: model.tool == .marker ? [.line] : model.shapePreferences.kinds, context: context) else { return }
+        model.pendingHeldShape = (pageID, result.shape.kind, points)
+        model.pendingShapeRecognition = result; model.pendingAutomaticRecognition = true
     }
 }
 
@@ -200,111 +246,4 @@ private final class DrawingTouchMonitor: UIGestureRecognizer {
     }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { owner?.end(cancelled: true); tracked = nil; state = .cancelled }
     override func reset() { tracked = nil; super.reset() }
-}
-
-@MainActor
-enum PreciseStrokeGeometry {
-    static func path(kind: ShapeKind, points: [StrokeSample]) -> UIBezierPath {
-        let path = UIBezierPath()
-        guard let a = points.first, let b = points.last else { return path }
-        let xs: [Double] = points.map(\.x)
-        let ys: [Double] = points.map(\.y)
-        let minX: Double = xs.min() ?? a.x
-        let minY: Double = ys.min() ?? a.y
-        let width: Double = max(1.0, (xs.max() ?? b.x) - minX)
-        let height: Double = max(1.0, (ys.max() ?? b.y) - minY)
-        let rect = CGRect(x: minX, y: minY, width: width, height: height)
-        switch kind {
-        case .line, .arrow:
-            let endpoints = kind == .arrow ? HeldShapeRecognition.arrowEndpoints(points) : HeldShapeRecognition.lineEndpoints(points)
-            let a = endpoints?.0 ?? a
-            let rawEnd = endpoints?.1 ?? b
-            let b = PreciseLine.snappedEnd(from: a, to: rawEnd)
-            path.move(to: CGPoint(x: a.x, y: a.y)); path.addLine(to: CGPoint(x: b.x, y: b.y))
-            if kind == .arrow {
-                let angle = atan2(b.y - a.y, b.x - a.x)
-                for delta in [-Double.pi / 6, Double.pi / 6] {
-                    path.move(to: CGPoint(x: b.x, y: b.y)); path.addLine(to: CGPoint(x: b.x - 14 * cos(angle + delta), y: b.y - 14 * sin(angle + delta)))
-                }
-            }
-        case .ellipse: return UIBezierPath(ovalIn: rect)
-        case .rectangle:
-            if let corners = HeldShapeRecognition.rectangleVertices(points), let first = corners.first {
-                path.move(to: CGPoint(x: first.x, y: first.y))
-                for corner in corners.dropFirst() { path.addLine(to: CGPoint(x: corner.x, y: corner.y)) }; path.close()
-                return path
-            }
-            return UIBezierPath(rect: rect)
-        case .triangle:
-            let vertices = HeldShapeRecognition.triangleVertices(points) ?? [StrokeSample(x: rect.midX, y: rect.minY), StrokeSample(x: rect.maxX, y: rect.maxY), StrokeSample(x: rect.minX, y: rect.maxY)]
-            path.move(to: CGPoint(x: vertices[0].x, y: vertices[0].y))
-            for point in vertices.dropFirst() { path.addLine(to: CGPoint(x: point.x, y: point.y)) }; path.close()
-        }
-        return path
-    }
-    static func stroke(kind: ShapeKind, points: [StrokeSample], original: PKStroke) -> PKStroke {
-        let path = path(kind: kind, points: points)
-        var locations: [CGPoint] = []
-        // Sample the exact geometry into native PencilKit vectors. No raster
-        // replacement is stored in the notebook or its vector PDF export.
-        let bounds = path.bounds
-        if kind == .line, let a = points.first, let b = points.last {
-            let endpoints = HeldShapeRecognition.lineEndpoints(points)
-            let start = endpoints?.0 ?? a, end = endpoints?.1 ?? b
-            locations = PreciseLine.samples(from: start, to: PreciseLine.snappedEnd(from: start, to: end)).map { CGPoint(x: $0.x, y: $0.y) }
-        } else if kind == .arrow || kind == .rectangle || kind == .triangle {
-            // Respect move commands (arrow wings): return to the tip rather than
-            // connecting the two wings across their opening.
-            var pen = CGPoint.zero
-            path.cgPath.applyWithBlock { element in
-                let element = element.pointee
-                switch element.type {
-                case .moveToPoint:
-                    pen = element.points[0]; locations.append(pen)
-                case .addLineToPoint:
-                    let end = element.points[0]
-                    let count = max(2, min(400, Int(ceil(hypot(end.x - pen.x, end.y - pen.y) / 4))))
-                    let start = pen
-                    for i in 1...count {
-                        let t = CGFloat(i) / CGFloat(count)
-                        locations.append(CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t))
-                    }; pen = end
-                case .closeSubpath:
-                    if let first = locations.first { locations.append(first) }
-                default: break
-                }
-            }
-        } else {
-            locations = (0...120).map { i in
-                let angle = Double(i) * 2 * .pi / 120
-                return CGPoint(x: bounds.midX + bounds.width / 2 * CGFloat(cos(angle)), y: bounds.midY + bounds.height / 2 * CGFloat(sin(angle)))
-            }
-        }
-        let sample = original.path.interpolatedPoints(by: .distance(8)).map { $0 }.first
-        let size = sample?.size ?? CGSize(width: 3, height: 3)
-        let controls = locations.enumerated().map { i, p in
-            PKStrokePoint(location: p, timeOffset: Double(i) * 0.02, size: size, opacity: sample?.opacity ?? 1,
-                force: sample?.force ?? 1, azimuth: sample?.azimuth ?? 0, altitude: sample?.altitude ?? .pi / 2)
-        }
-        return PKStroke(ink: original.ink, path: PKStrokePath(controlPoints: controls, creationDate: original.path.creationDate))
-    }
-}
-
-@MainActor
-extension EditorViewModel {
-    func addDraggedShape(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample) {
-        let end = kind == .line || kind == .arrow ? PreciseLine.snappedEnd(from: a, to: b) : b
-        guard let shape = ShapeElement.dragged(kind: kind, from: a, to: end, color: InkColor(ink), lineWidth: thickness) else { return }
-        mutatePage("Traccia \(kind.title)") { $0.shapes = ($0.shapes ?? []) + [shape] }
-        selectedObjectID = shape.id; rememberPalette()
-    }
-    func applyHeldShapeIfNeeded() -> Bool {
-        defer { pendingHeldShape = nil }
-        guard currentWorkspace.holdShapes, tool == .pen || tool == .marker,
-              let held = pendingHeldShape, held.page == page?.id, let bytes = editBeforeGesture?.drawing,
-              let previous = try? PKDrawing(data: bytes), canvas.drawing.strokes.count == previous.strokes.count + 1,
-              let original = canvas.drawing.strokes.last else { return false }
-        let corrected = PreciseStrokeGeometry.stroke(kind: held.kind, points: held.samples, original: original)
-        canvas.drawing = PKDrawing(strokes: previous.strokes + [corrected]); return true
-    }
 }

@@ -96,7 +96,7 @@ public struct TranscriptionChunk: Codable, Equatable, Sendable {
     }
 }
 
-public struct StrokeSample: Sendable {
+public struct StrokeSample: Equatable, Sendable {
     public var x: Double, y: Double
     public init(x: Double, y: Double) { self.x = x; self.y = y }
 }

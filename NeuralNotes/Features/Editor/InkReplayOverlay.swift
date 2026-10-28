@@ -14,6 +14,7 @@ final class InkReplayOverlay: UIImageView {
     init() { super.init(frame: .zero); isHidden = true; isUserInteractionEnabled = false; contentMode = .scaleToFill }
     required init?(coder: NSCoder) { nil }
     func resetForPageChange(_ host: CanvasHost) {
+        host.surface.replayHiddenObjectIDs = []
         host.canvas.layer.opacity = 1
         active = false; image = nil; isHidden = true; key = ""
         drawing = PKDrawing(); signatures = []; previousVisible = []
@@ -21,10 +22,20 @@ final class InkReplayOverlay: UIImageView {
     func update(_ host: CanvasHost) {
         guard let model = host.model, let page = model.page, let audio = model.audio,
               audio.replayInk, let sessionID = audio.playingSessionID else {
+            if !host.surface.replayHiddenObjectIDs.isEmpty {
+                host.surface.replayHiddenObjectIDs = []; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
+            }
             if active {
                 host.canvas.layer.opacity = 1; active = false; isHidden = true; image = nil; key = ""
                 host.model?.configureTool()
             }; return
+        }
+        let hiddenShapes = Set((page.shapes ?? []).compactMap { shape -> UUID? in
+            guard let anchor = shape.audioAnchor, anchor.audioSessionID == sessionID, anchor.seconds > audio.playback else { return nil }
+            return shape.id
+        })
+        if hiddenShapes != host.surface.replayHiddenObjectIDs {
+            host.surface.replayHiddenObjectIDs = hiddenShapes; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
         }
         let generation = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)|\(sessionID)"
         if key != generation {

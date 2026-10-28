@@ -5,17 +5,24 @@ import NeuralNotesCore
 struct ToolOptionsPopover: View {
     @Bindable var model: EditorViewModel
     let tool: WorkspaceTool
+    @State private var recognitionDetails = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        ScrollView { VStack(alignment: .leading, spacing: 12) {
             Label(tool.title, systemImage: tool.icon).font(.headline)
             if tool == .pen || tool == .marker { inkOptions }
             else if tool == .eraser { eraserOptions }
             else if tool.shape != nil { shapeOptions }
             else if tool == .lasso || tool == .objects { selectionOptions }
             else { otherOptions }
-        }.padding(18).frame(width: 310)
+        }.padding(18) }.frame(width: 340).frame(maxHeight: 620)
             .accessibilityIdentifier("toolOptions-\(tool.rawValue)")
             .presentationCompactAdaptation(.popover)
+            .sheet(isPresented: $recognitionDetails) {
+                NavigationStack {
+                    ShapeRecognitionPanel(model: model)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fine") { recognitionDetails = false } } }
+                }
+            }
     }
     private var inkOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,7 +32,8 @@ struct ToolOptionsPopover: View {
                 }.pickerStyle(.menu)
             }
             ToolPalettePanel(model: model)
-            Toggle("Raddrizza tenendo premuto", isOn: Binding(get: { model.currentWorkspace.holdShapes }, set: { value in model.editWorkspace { $0.holdShapes = value } }))
+            ShapeRecognitionModePicker(model: model).pickerStyle(.menu)
+            Button("Forme da riconoscere e risultato", systemImage: "shapes") { recognitionDetails = true }
             if tool == .pen {
                 Button("Salva questa penna", systemImage: "star") {
                     let preset = PenPreset(kind: model.writingOptions.pen, color: InkColor(model.ink), width: model.thickness)
@@ -49,14 +57,7 @@ struct ToolOptionsPopover: View {
         }
     }
     private var shapeOptions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(ShapeKind.allCases, id: \.self) { kind in
-                Button { model.shapeKind = kind; model.tool = .shape; model.configureTool() } label: {
-                    HStack { Label(kind.title, systemImage: kind.icon); Spacer(); if model.shapeKind == kind { Image(systemName: "checkmark") } }
-                }
-            }
-            ToolPalettePanel(model: model)
-        }
+        ShapeToolOptions(model: model)
     }
     private var selectionOptions: some View {
         VStack(alignment: .leading, spacing: 12) {

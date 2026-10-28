@@ -12,7 +12,10 @@ extension EditorViewModel {
         }
         for image in page.images where selectedIDs.contains(image.id) { result = result.union(CGRect(x: image.x, y: image.y, width: image.width, height: image.height)) }
         for tape in page.tapes ?? [] where selectedIDs.contains(tape.id) { result = result.union(CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)) }
-        for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) { result = result.union(CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)) }
+        for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) {
+            let box = ShapeGeometry.bounds(shape)
+            result = result.union(CGRect(x: box.x, y: box.y, width: box.width, height: box.height))
+        }
         return result
     }
     func transformSelection(scale: CGFloat = 1, degrees: CGFloat = 0) {
@@ -47,6 +50,7 @@ extension EditorViewModel {
                 shapes[i].width *= Double(scale); shapes[i].height *= Double(scale)
                 shapes[i].x = at.x - shapes[i].width / 2; shapes[i].y = at.y - shapes[i].height / 2
                 shapes[i].lineWidth = min(200, shape.lineWidth * Double(scale)); shapes[i].rotation = (shape.rotation ?? 0) + Double(degrees)
+                shapes[i].cornerRadius = shape.cornerRadius.map { min($0 * Double(scale), min(shapes[i].width, shapes[i].height) / 2) }
             }; page.shapes = shapes
         }
         if var tapes = page.tapes {

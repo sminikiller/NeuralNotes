@@ -131,6 +131,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if let handles = host?.shapeHandles, let touched = touch.view, touched.isDescendant(of: handles) { return false }
         if touch.type == .pencil, gesture is UITapGestureRecognizer,
            model?.tool == .pen || model?.tool == .marker || model?.tool == .eraser { return false }
         if pageSwipes.contains(where: { $0 === gesture }) && touch.type != .direct { return false }
@@ -428,7 +429,12 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let margin = 14 / max(host.canvas.zoomScale, 0.1)
         if model.selectedIDs.count == 1, let id = model.selectedObjectID,
            let rect = objectRect(id), CGRect(x: rect.maxX - margin, y: rect.maxY - margin, width: margin * 2, height: margin * 2).contains(point) { return id }
-        if let id = allIDs.reversed().first(where: { objectRect($0)?.contains(point) == true }) { return id }
+        if let id = allIDs.reversed().first(where: { id in
+            if let shape = model.page?.shapes?.first(where: { $0.id == id }) {
+                return ShapeGeometry.hit(.init(x: point.x, y: point.y), shape: shape, zoom: host.canvas.zoomScale)
+            }
+            return objectRect(id)?.contains(point) == true
+        }) { return id }
         return model.selectionIncludesInk && model.selectedInkBounds.contains(point) ? inkID : nil
     }
     private func objectRect(_ id: UUID, visual: Bool = true) -> CGRect? {
@@ -437,8 +443,11 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if let image = page.images.first(where: { $0.id == id }) { return CGRect(x: image.x, y: image.y, width: image.width, height: image.height) }
         if let shape = page.shapes?.first(where: { $0.id == id }) {
             let box = CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
-            let rotation = CGAffineTransform(translationX: box.midX, y: box.midY).rotated(by: CGFloat(shape.rotation ?? 0) * .pi / 180).translatedBy(x: -box.midX, y: -box.midY)
-            return visual ? box.applying(rotation) : box
+            if visual {
+                let frame = ShapeGeometry.bounds(shape)
+                return CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+            }
+            return box
         }
         if let text = page.texts.first(where: { $0.id == id }) {
             let box = RichText.bounds(text, pageHeight: page.height)

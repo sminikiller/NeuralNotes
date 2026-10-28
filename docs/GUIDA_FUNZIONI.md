@@ -381,3 +381,25 @@ Seleziona testo digitale e conserva i riferimenti.
 1. Apri lo studio PDF e un documento con testo selezionabile. I PDF composti soltanto da scansioni possono richiedere OCR.
 2. Seleziona le righe da copiare o evidenziare con i controlli PDF disponibili; usa l’indice per raggiungere una sezione.
 3. Riporta le parti utili negli appunti e controlla il risultato. Per un tratto libero sopra la pagina usa invece l’evidenziatore dell’editor.
+
+
+## Novità 0.25 — Crediti, forme e riconoscimento
+
+### Informazioni su NeuralNotes
+1. Nella libreria apri **Informazioni su NeuralNotes**, accanto alla guida; la stessa voce è in **Account e servizi**.
+2. Controlla versione e build e premi **Copia informazioni** per una segnalazione: il testo non contiene appunti né dati dell’account.
+3. Consulta ringraziamenti e licenze. Email, privacy e assistenza dipendono dalla configurazione della build; i collegamenti mancanti non diventano pulsanti rotti.
+
+### Nuove forme e stile
+1. Apri **Inserisci foto o forma** oppure tieni premuto uno strumento forma. Scegli rombo, poligono, poligono libero, stella o arco.
+2. Trascina sul foglio; per linee e frecce parti dalla coda. Per l’arco il gesto indica la corda iniziale.
+3. Passa a **Oggetti**, seleziona il contorno e usa le maniglie. Nella stella regoli il raggio interno; nell’arco inizio, fine e curvatura. Sul poligono libero tieni premuto un lato per aggiungere un vertice o un vertice per rimuoverlo.
+4. Con una o più forme selezionate apri **Stile forme**: imposta contorno, tratteggio, opacità, riempimento, angoli e punte; premi **Applica**. **Usa come predefinito** salva lo stile nel Workspace del quaderno.
+5. **Annulla** e **Ripristina** agiscono sulla modifica intera, senza passare da ogni movimento del cursore.
+
+### Riconoscimento delle forme
+1. In **Workspace → Riconoscimento forme** scegli **Spento**, **Tieni ferma la punta** o **Automatico al rilascio**. Le opzioni rapide sono anche nel menu della penna.
+2. Scegli le figure abilitate e il risultato: **Forma modificabile** o **Tratto di penna**. Con l’evidenziatore viene corretta solo la linea, conservando l’inchiostro.
+3. Disegna la figura. Nella modalità con attesa ferma la punta per circa mezzo secondo, poi solleva; in modalità automatica solleva normalmente.
+4. Una correzione automatica mostra **Corretto in… · Annulla**. Annulla ripristina il tratto originale; un successivo annulla può rimuoverlo.
+5. Il sistema evita tratti molto rapidi e la vicinanza alla scrittura recente. Quando una figura non viene riconosciuta, usa lo strumento esplicito: gli appunti rimangono tuoi.

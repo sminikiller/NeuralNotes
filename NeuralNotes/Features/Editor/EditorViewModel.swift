@@ -68,6 +68,11 @@ final class EditorViewModel {
     @ObservationIgnored var workspaceSaveTask: Task<Void, Never>?
     @ObservationIgnored weak var drawingAssistant: CanvasDrawingAssistant?
     @ObservationIgnored var pendingHeldShape: (page: UUID, kind: ShapeKind, samples: [StrokeSample])?
+    @ObservationIgnored var pendingShapeRecognition: ShapeRecognitionResult?
+    @ObservationIgnored var pendingAutomaticRecognition = false
+    var recognitionNotice: String?
+    @ObservationIgnored var recognitionNoticeTask: Task<Void, Never>?
+    var shapeStyleRequest = 0
     var pageNavigation = PageNavigationMode.single {
         didSet {
             UserDefaults.standard.set(pageNavigation.rawValue, forKey: "editor.navigation.\(workspace.documentID)")
@@ -274,6 +279,7 @@ final class EditorViewModel {
         guard hasLease, !loading, !navigating else { return }
         cancelMaintenance()
         searchFocus = nil
+        recognitionNoticeTask?.cancel(); recognitionNotice = nil
         finishInkGesture()
         rememberPalette()
         usingInkTool = true
@@ -316,9 +322,6 @@ final class EditorViewModel {
               before.drawing != canvas.drawing.dataRepresentation() else { return }
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         finishingInkGesture = true; defer { finishingInkGesture = false }
-        let shaped = applyHeldShapeIfNeeded()
-        let scratched = shaped || rulerActive ? false : eraseScratchIfNeeded()
-        drawingAssistant?.finishPreview()
         if let (session, time) = strokeTime, var page {
             let existing = Set(page.anchors.map(\.signature))
             for signature in signatures() {
@@ -328,9 +331,20 @@ final class EditorViewModel {
             }
             self.page = page
         }
+        let raw = captureEdit(ink: true)
+        let automatic = pendingAutomaticRecognition
+        let recognizedTitle = pendingHeldShape?.kind.title
+        let shaped = applyHeldShapeIfNeeded()
+        let scratched = shaped || rulerActive ? false : eraseScratchIfNeeded()
+        drawingAssistant?.finishPreview()
         strokeTime = nil
         editBeforeGesture = nil
-        recordEdit(before, label: shaped ? "Forma precisa" : scratched ? "Scarabocchio: cancella" : "Inchiostro")
+        if shaped, let raw, before != raw {
+            let metadata = (try? JSONEncoder().encode(before.page).count) ?? 0
+            history.record(.content(before, raw), label: "Inchiostro", cost: (before.drawing?.count ?? 0) + (raw.drawing?.count ?? 0) + metadata * 2)
+            recordEdit(raw, label: "Forma precisa")
+        } else { recordEdit(before, label: scratched ? "Scarabocchio: cancella" : "Inchiostro") }
+        if automatic, shaped, let recognizedTitle { showRecognitionNotice(recognizedTitle) }
         drawingChanged()
         if tool == .eraser && writingOptions.returnToPen { chooseTool(.pen) }
     }
@@ -454,6 +468,8 @@ final class EditorViewModel {
         canvas.delegate = nil
         drawingAssistant?.cancel()
         pendingHeldShape = nil
+        pendingShapeRecognition = nil; pendingAutomaticRecognition = false
+        recognitionNoticeTask?.cancel(); recognitionNotice = nil
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
         signaturesBeforeStroke = []
@@ -621,6 +637,12 @@ final class EditorViewModel {
         // Use the interpolated curve, rather than the whole bounding
         // rectangle of a long stroke, to avoid jumping to unrelated handwriting.
         var nearest: (StrokeAnchor, CGFloat)?
+        for shape in page.shapes ?? [] {
+            if let anchor = shape.audioAnchor,
+               ShapeGeometry.hit(.init(x: point.x, y: point.y), shape: shape, zoom: canvas.zoomScale) {
+                nearest = (anchor, 0); break
+            }
+        }
         for (index, stroke) in canvas.drawing.strokes.enumerated() {
             guard let anchor = page.anchors.first(where: { $0.signature == keys[index] }),
                   stroke.renderBounds.insetBy(dx: -tolerance, dy: -tolerance).contains(point) else { continue }

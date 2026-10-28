@@ -2,7 +2,7 @@ import SwiftUI
 import NeuralNotesCore
 
 private enum AccountServiceSheet: String, Identifiable {
-    case account, cloud, ai, privacy
+    case account, cloud, ai, privacy, about
     var id: String { rawValue }
 }
 
@@ -30,6 +30,7 @@ struct AccountServicesPanel: View {
                     serviceButton("Motore AI", detail: configuration.engine == .offline ? "Sintesi locale · offline" : "\(configuration.engine.title) · configura e prova la connessione", icon: "sparkles", target: .ai)
                 }
                 Section("Informazioni") {
+                    serviceButton("Informazioni su NeuralNotes", detail: "Versione, crediti e feedback", icon: "info.circle", target: .about)
                     serviceButton("Privacy e assistenza", detail: "Dati locali, servizi online e contatti", icon: "hand.raised", target: .privacy)
                 }
             }.navigationTitle("Account e servizi")
@@ -45,6 +46,7 @@ struct AccountServicesPanel: View {
                 case .cloud: CloudSyncPanel(library: library)
                 case .ai: AIConnectionPanel(configuration: $configuration, consentKey: $consent)
                 case .privacy: PrivacyAndSupportPanel()
+                case .about: AboutNeuralNotes()
                 }
             }
     }
@@ -100,9 +102,6 @@ private struct PrivacyAndSupportPanel: View {
         }
     }
     private func publicLink(_ key: String) -> URL? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: key) as? String,
-              let url = URL(string: raw), url.scheme == "https", url.host != nil,
-              url.user == nil, url.password == nil else { return nil }
-        return url
+        AppInformation.publicLink(Bundle.main.object(forInfoDictionaryKey: key) as? String)
     }
 }
