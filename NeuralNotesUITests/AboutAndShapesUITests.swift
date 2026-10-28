@@ -57,6 +57,8 @@ final class AboutAndShapesUITests: XCTestCase {
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "star-style-and-handles"; attachment.lifetime = .keepAlways; add(attachment)
         app.buttons["editorUndo"].tap()
-        XCTAssertTrue(app.buttons["editorRedo"].isEnabled); app.buttons["editorRedo"].tap()
+        let redo = app.buttons["editorRedo"]
+        let redoReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
+        wait(for: [redoReady], timeout: 8); redo.tap()
     }
 }
