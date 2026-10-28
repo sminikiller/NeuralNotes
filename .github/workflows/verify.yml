@@ -161,6 +161,7 @@ jobs:
           path: |
             .verification/apple-validation.log
             .verification/**/*.xcresult
+            .verification/**/screenshots/
   playground:
     if: inputs.scope != 'ui' && inputs.scope != 'native' && inputs.scope != 'archive' && inputs.scope != 'testflight'
     runs-on: ${{ inputs.scope == 'delivery' && 'macos-26' || inputs.playground_xcode == '26.6' && 'macos-26' || inputs.playground_xcode == '15.4' && 'macos-14' || 'macos-15' }}

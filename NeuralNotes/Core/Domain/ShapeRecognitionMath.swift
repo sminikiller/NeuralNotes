@@ -37,11 +37,26 @@ enum ShapeRecognitionMath {
         let right = simplify(Array(points[selected...]), tolerance: tolerance)
         return Array(left.dropLast()) + right
     }
-    static func corners(_ points: [StrokeSample], span: Double) -> [StrokeSample] {
+    static func hasDistinctCorners(_ input: [StrokeSample]) -> Bool {
+        let points = Array(input.dropLast()), count = points.count
+        guard count >= 8 else { return false }
+        var turns: [Double] = []
+        for index in points.indices {
+            let a = points[(index + count - 1) % count], b = points[index], c = points[(index + 1) % count]
+            let ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y
+            let product = max(0.001, hypot(ux, uy) * hypot(vx, vy))
+            turns.append(acos(min(1, max(-1, (ux * vx + uy * vy) / product))))
+        }
+        let mean = turns.reduce(0, +) / Double(count)
+        let peak = turns.max() ?? 0
+        let flat = turns.filter { $0 < mean * 0.45 }.count
+        return peak > 0.25 && peak > mean * 2.2 && Double(flat) / Double(count) > 0.25
+    }
+    static func corners(_ points: [StrokeSample], span: Double, tolerance: Double = 0.04) -> [StrokeSample] {
         guard let a = points.first,
               let farthest = points.indices.max(by: { distance(a, points[$0]) < distance(a, points[$1]) }), farthest > 0 else { return [] }
-        let first = simplify(Array(points[...farthest]), tolerance: span * 0.04)
-        let second = simplify(Array(points[farthest...]) + [a], tolerance: span * 0.04)
+        let first = simplify(Array(points[...farthest]), tolerance: span * tolerance)
+        let second = simplify(Array(points[farthest...]) + [a], tolerance: span * tolerance)
         var result = Array(first.dropLast()) + Array(second.dropLast())
         var changed = true
         while changed && result.count > 3 {

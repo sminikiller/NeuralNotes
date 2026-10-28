@@ -67,6 +67,12 @@ xcodebuild test -project NeuralNotes.xcodeproj -scheme NeuralNotes \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_dir/NeuralNotes.xcresult" \
   "${test_selection[@]}" CODE_SIGNING_ALLOWED=NO || verification_status=1
+if [ -d "$result_dir/NeuralNotes.xcresult" ]; then
+  # Keep screenshots viewable outside macOS as well as the original result bundle.
+  # This optional export never changes the test outcome.
+  xcrun xcresulttool export attachments --path "$result_dir/NeuralNotes.xcresult" \
+    --output-path "$result_dir/screenshots" || echo "Screenshot export unavailable; original xcresult retained."
+fi
 if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ]; then
   xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
     -configuration Release -destination 'generic/platform=iOS' \

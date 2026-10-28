@@ -281,6 +281,9 @@ final class DocumentWorkspaceTests: XCTestCase {
         try await workspace.saveSession(session)
         var page = try await workspace.addPage(); page.revision = 1
         page.anchors = [StrokeAnchor(signature: "stroke", audioSessionID: session.id, seconds: 4.5)]
+        var shape = ShapeElement(kind: .rectangle)
+        shape.audioAnchor = StrokeAnchor(signature: "shape", audioSessionID: session.id, seconds: 5)
+        page.shapes = [shape]
         page = try await workspace.save(page, drawing: Data([42]))
         let newDocument = UUID(), newNotebook = UUID()
         try store.clone(from: workspace.package, documentID: newDocument, notebookID: newNotebook)
@@ -289,6 +292,9 @@ final class DocumentWorkspaceTests: XCTestCase {
         XCTAssertNotEqual(pages[0].id, page.id)
         XCTAssertNotEqual(catalog.sessions[0].id, session.id)
         XCTAssertEqual(pages[0].anchors[0].audioSessionID, catalog.sessions[0].id)
+        XCTAssertEqual(pages[0].shapes?.first?.audioAnchor?.audioSessionID, catalog.sessions[0].id)
+        XCTAssertEqual(pages[0].shapes?.first?.audioAnchor?.seconds, 5)
+        XCTAssertNotEqual(pages[0].shapes?.first?.audioAnchor?.id, shape.audioAnchor?.id)
         let bytes = try await cloned.drawing(pages[0])
         XCTAssertEqual(bytes, Data([42]))
         XCTAssertNoThrow(try store.read(documentID: manifest.documentID, notebookID: manifest.notebookID))

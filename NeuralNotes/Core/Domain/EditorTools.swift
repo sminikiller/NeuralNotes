@@ -68,6 +68,19 @@ public struct ShapeEndpoint: Codable, Equatable, Sendable {
 }
 
 public extension ShapeElement {
+    func changingKind(to kind: ShapeKind) -> ShapeElement {
+        guard kind != self.kind else { return self }
+        var value = self; value.kind = kind
+        value.vertices = nil; value.arcStart = nil; value.arcSweep = nil
+        value.sides = kind == .star ? min(12, max(4, sides ?? 5)) : (kind == .polygon ? min(12, max(3, sides ?? 6)) : nil)
+        value.innerRatio = kind == .star ? (innerRatio ?? 0.5) : nil
+        if !kind.isOpen { value.start = nil; value.end = nil }
+        if kind == .arc || kind == .polygon || kind == .star {
+            let side = max(width, height), cx = x + width / 2, cy = y + height / 2
+            value.width = side; value.height = side; value.x = cx - side / 2; value.y = cy - side / 2
+        }
+        return value
+    }
     static func dragged(kind: ShapeKind, from a: StrokeSample, to b: StrokeSample,
                         color: InkColor, lineWidth: Double) -> ShapeElement? {
         guard [a.x, a.y, b.x, b.y, lineWidth].allSatisfy(\.isFinite), color.isValid,

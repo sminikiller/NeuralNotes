@@ -43,7 +43,8 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         if buttons.contains(where: { $0.frame.insetBy(dx: -13, dy: -13).contains(point) }) { return true }
         guard let shape = selectedShape, shape.kind == .freePolygon, let host else { return false }
         let at = host.surface.convert(point, from: self)
-        return ShapeGeometry.hit(.init(x: at.x, y: at.y), shape: shape, zoom: host.canvas.zoomScale, tolerance: 10)
+        var contour = shape; contour.fill = nil
+        return ShapeGeometry.hit(.init(x: at.x, y: at.y), shape: contour, zoom: host.canvas.zoomScale, tolerance: 10)
     }
     override func draw(_ rect: CGRect) {
         guard let draft, let host, let context = UIGraphicsGetCurrentContext() else { return }

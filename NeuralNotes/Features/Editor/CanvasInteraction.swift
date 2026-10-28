@@ -144,7 +144,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        if let handles = host?.shapeHandles, let touched = touch.view, touched.isDescendant(of: handles) { return false }
+        if let handles = host?.shapeHandles, let touched = touch.view,
+           touched !== handles, touched.isDescendant(of: handles) { return false }
         if touch.type == .pencil, gesture is UITapGestureRecognizer,
            model?.tool == .pen || model?.tool == .marker || model?.tool == .eraser { return false }
         if pageSwipes.contains(where: { $0 === gesture }) && touch.type != .direct { return false }

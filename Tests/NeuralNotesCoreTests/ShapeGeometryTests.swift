@@ -20,6 +20,15 @@ final class ShapeGeometryTests: XCTestCase {
         polygon.kind = .rectangle; polygon.cornerRadius = 10
         XCTAssertTrue(ShapeGeometry.path(for: polygon).commands.contains { if case .quad = $0 { return true }; return false })
     }
+    func testChangingKindsResetsIncompatibleParametersAndKeepsIdentityAndStyle() {
+        var polygon = ShapeElement(kind: .polygon); polygon.sides = 3; polygon.fill = .blue
+        for kind in ShapeKind.allCases {
+            let changed = polygon.changingKind(to: kind)
+            XCTAssertEqual(changed.id, polygon.id); XCTAssertEqual(changed.fill, .blue)
+            XCTAssertTrue(changed.hasValidOptions, kind.rawValue)
+            if kind == .star { XCTAssertEqual(changed.sides, 4) }
+        }
+    }
     func testFilledAndOutlineHitTestingUsesScreenToleranceAtAnyZoom() {
         var shape = ShapeElement(kind: .ellipse, x: 10, y: 20, width: 100, height: 60)
         XCTAssertFalse(ShapeGeometry.hit(.init(x: 60, y: 50), shape: shape, zoom: 1))
@@ -56,6 +65,9 @@ final class ShapeGeometryTests: XCTestCase {
         XCTAssertEqual(ShapeHandles.moved(star, handle: .end, to: .init(x: .nan, y: 20)), star)
         let rotated = ShapeHandles.moved(star, handle: .rotation, to: .init(x: star.x + star.width, y: star.y + star.height / 2))
         XCTAssertEqual(rotated.rotation, 90)
+        var arc = ShapeElement(kind: .arc); arc.rotation = 1e308; arc.arcStart = 1e308
+        XCTAssertTrue(ShapeGeometry.polylines(ShapeGeometry.path(for: arc)).flatMap { $0 }.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+        XCTAssertTrue(ShapeHandles.moved(arc, handle: .start, to: .init(x: 300, y: 250)).hasValidOptions)
     }
     func testValidationRejectsBadNewFieldsButAcceptsLegacyThinContours() {
         var page = PageSnapshot(); var shape = ShapeElement(kind: .rectangle, lineWidth: 0.1)

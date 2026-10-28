@@ -19,7 +19,8 @@ final class AboutAndShapesUITests: XCTestCase {
             XCTAssertNotNil(version.label.range(of: #"^Versione [0-9]+\.[0-9]+\.[0-9]+ \(build [0-9]+\)$"#, options: .regularExpression))
             let copy = app.buttons["aboutCopyInformation"]
             XCTAssertTrue(copy.exists); copy.tap()
-            XCTAssertTrue(app.buttons["Informazioni copiate"].waitForExistence(timeout: 5) || app.buttons["aboutCopyInformation"].exists)
+            let copied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Informazioni copiate"), object: copy)
+            wait(for: [copied], timeout: 5)
             XCTAssertFalse(app.buttons["Invia un feedback"].exists)
             let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "credits-\(appearance)"; attachment.lifetime = .keepAlways; add(attachment)
             app.buttons["Chiudi"].tap(); app.terminate()

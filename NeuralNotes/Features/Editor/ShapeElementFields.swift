@@ -5,7 +5,7 @@ import NeuralNotesCore
 struct ShapeElementFields: View {
     @Binding var shape: ShapeElement
     var body: some View {
-        Picker("Forma", selection: $shape.kind) {
+        Picker("Forma", selection: Binding(get: { shape.kind }, set: { shape = shape.changingKind(to: $0) })) {
             ForEach(ShapeKind.allCases, id: \.self) { kind in Label(kind.title, systemImage: kind.icon).tag(kind) }
         }
         coordinate("X", $shape.x)

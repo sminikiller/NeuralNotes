@@ -43,10 +43,14 @@ public enum ShapeRecognizer {
             if let arc = arc(sampled), let value = accepted(arc.shape, arc.confidence) { return value }
             return nil
         }
-        if let ellipse = ellipse(sampled), let value = accepted(ellipse.shape, ellipse.confidence) { return value }
-        let vertices = ShapeRecognitionMath.corners(sampled, span: span)
-        guard (3...24).contains(vertices.count) else { return nil }
-        let fitted = ShapePolygonRecognition.recognize(vertices, samples: sampled, span: span)
+        let sharp = ShapeRecognitionMath.hasDistinctCorners(sampled)
+        // A high-sided regular polygon also fits an ellipse. Distinct corners
+        // separated by straight edges take precedence; smooth circles do not.
+        // Use finer RDP only with this evidence, retaining all 12 polygon sides.
+        let vertices = ShapeRecognitionMath.corners(sampled, span: span, tolerance: sharp ? 0.018 : 0.04)
+        let fitted = (3...24).contains(vertices.count) ? ShapePolygonRecognition.recognize(vertices, samples: sampled, span: span) : nil
+        if sharp, let fitted { return accepted(fitted.shape, fitted.confidence) }
+        if let ellipse = ellipse(sampled) { return accepted(ellipse.shape, ellipse.confidence) }
         if let fitted { return accepted(fitted.shape, fitted.confidence) }
         return nil
     }

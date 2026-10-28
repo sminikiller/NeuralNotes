@@ -42,6 +42,25 @@ final class ShapeRecognizerTests: XCTestCase {
         let result = try XCTUnwrap(ShapeRecognizer.recognize(samples(hexagon, noise: 0.7), mode: .automatic))
         XCTAssertEqual(result.shape.kind, .polygon); XCTAssertEqual(result.shape.sides, 6)
     }
+    func testAllPolygonAndStarPointCounts() {
+        for kind in [ShapeKind.polygon, .star] {
+            for count in (kind == .star ? 4 : 5)...12 {
+                var shape = ShapeElement(kind: kind, x: 100, y: 100, width: 300, height: 300)
+                shape.sides = count; shape.innerRatio = kind == .star ? 0.5 : nil
+                let result = ShapeRecognizer.recognize(samples(shape, noise: 0.3), mode: .automatic)
+                XCTAssertEqual(result?.shape.kind, kind, "\(kind), \(count)")
+                XCTAssertEqual(result?.shape.sides, count, "\(kind), \(count)")
+            }
+        }
+    }
+    func testSmoothRoundAndElongatedEllipsesDoNotBecomePolygons() {
+        for width in [160.0, 300, 480] {
+            var shape = ShapeElement(kind: .ellipse, width: width, height: 160); shape.rotation = 27
+            let result = ShapeRecognizer.recognize(samples(shape, noise: 0.3), mode: .automatic)
+            XCTAssertEqual(result?.shape.kind, .ellipse)
+            XCTAssertNil(ShapeRecognizer.recognize(samples(shape), enabled: [.polygon, .star]))
+        }
+    }
     func testAutomaticRecognitionRejectsWritingContextAndFastSmallStrokes() {
         let shapes = [ShapeElement(kind: .ellipse), ShapeElement(kind: .triangle), ShapeElement(kind: .line)]
         for shape in shapes {

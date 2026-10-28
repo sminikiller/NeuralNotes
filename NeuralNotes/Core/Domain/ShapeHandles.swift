@@ -69,10 +69,11 @@ public enum ShapeHandles {
             if source.kind == .arc {
                 let angle = atan2((point.y - cy) / source.height, (point.x - cx) / source.width)
                 let sign = (source.arcSweep ?? .pi) >= 0 ? 1.0 : -1.0
-                let end = (source.arcStart ?? 0) + (source.arcSweep ?? .pi)
-                let start = handle == .start ? angle : (source.arcStart ?? 0)
-                var sweep = (handle == .start ? end : angle) - start
-                while sweep * sign < 0 { sweep += sign * 2 * .pi }
+                let originalStart = (source.arcStart ?? 0).truncatingRemainder(dividingBy: 2 * .pi)
+                let end = originalStart + (source.arcSweep ?? .pi)
+                let start = handle == .start ? angle : originalStart
+                var sweep = ((handle == .start ? end : angle) - start).truncatingRemainder(dividingBy: 2 * .pi)
+                if sweep * sign < 0 { sweep += sign * 2 * .pi }
                 shape.arcStart = start
                 shape.arcSweep = sign * min(350 * .pi / 180, max(10 * .pi / 180, abs(sweep)))
             } else {

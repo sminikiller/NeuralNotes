@@ -98,6 +98,9 @@ def check_structure():
             resources = next(p for p in phases if p["isa"] == "PBXResourcesBuildPhase")
             resource_paths = {objects[objects[b]["fileRef"]]["path"] for b in resources["files"]}
             assert {"NeuralNotes/Resources/Credits.json", "NeuralNotes/Resources/ThirdPartyNotices.txt"}.issubset(resource_paths)
+            resource_types = {objects[objects[b]["fileRef"]]["path"]: objects[objects[b]["fileRef"]]["lastKnownFileType"] for b in resources["files"]}
+            assert resource_types["NeuralNotes/Resources/Credits.json"] == "text.json"
+            assert resource_types["NeuralNotes/Resources/ThirdPartyNotices.txt"] == "text"
         for ident in objects[target["buildConfigurationList"]]["buildConfigurations"]:
             config = objects[ident]["buildSettings"]
             assert config["TARGETED_DEVICE_FAMILY"] == "2"

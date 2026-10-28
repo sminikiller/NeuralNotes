@@ -66,6 +66,28 @@ final class ShapeEditorTests: XCTestCase {
             XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertEqual(model.page?.shapes?.first?.audioAnchor, anchor)
         }
     }
+    @MainActor func testExportedPDFContainsTheNewShapeFill() async throws {
+        try await fixture { model in
+            model.addDraggedShape(.star, from: .init(x: 150, y: 180), to: .init(x: 450, y: 480))
+            var style = NeuralNotesCore.ShapeStyle(); style.fill = .red; style.fillOpacity = 1
+            model.applyShapeStyle(style)
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            let file = try await DocumentServices.exportPDF(workspace: model.workspace)
+            defer { try? FileManager.default.removeItem(at: file) }
+            let document = try XCTUnwrap(PDFDocument(url: file))
+            let page = try XCTUnwrap(document.page(at: 0))
+            let image = try XCTUnwrap(page.thumbnail(of: CGSize(width: 384, height: 512), for: .mediaBox).cgImage)
+            var pixels = [UInt8](repeating: 255, count: 384 * 512 * 4)
+            try pixels.withUnsafeMutableBytes { bytes in
+                let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: 384, height: 512,
+                    bitsPerComponent: 8, bytesPerRow: 384 * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: 384, height: 512))
+            }
+            let red = stride(from: 0, to: pixels.count, by: 4).filter { pixels[$0] > 180 && pixels[$0 + 1] < 80 && pixels[$0 + 2] < 80 }.count
+            XCTAssertGreaterThan(red, 1000, "Il PDF deve contenere il riempimento della stella, non solo una pagina valida.")
+        }
+    }
     @MainActor func testOldPageFixtureOpensSavesAndExportsPDFAndNativeBackup() async throws {
         try await fixture { model in
             let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()

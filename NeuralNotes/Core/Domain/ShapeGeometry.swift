@@ -17,7 +17,7 @@ public enum ShapeGeometry {
     public static func path(for shape: ShapeElement) -> ShapePath {
         guard [shape.x, shape.y, shape.width, shape.height].allSatisfy(\.isFinite),
               shape.width > 0, shape.height > 0, shape.width <= 20000, shape.height <= 20000,
-              abs(shape.x) < 1_000_000, abs(shape.y) < 1_000_000, shape.hasValidOptions else { return ShapePath() }
+              abs(shape.x) < 1_000_000, abs(shape.y) < 1_000_000, shape.rotation?.isFinite != false, shape.hasValidOptions else { return ShapePath() }
         let x = shape.x, y = shape.y, w = shape.width, h = shape.height
         var result = ShapePath()
         switch shape.kind {
@@ -64,7 +64,7 @@ public enum ShapeGeometry {
         return result
     }
     public static func rotate(_ point: StrokeSample, shape: ShapeElement, inverse: Bool = false) -> StrokeSample {
-        let angle = (shape.rotation ?? 0) * .pi / 180 * (inverse ? -1 : 1)
+        let angle = (shape.rotation ?? 0).truncatingRemainder(dividingBy: 360) * .pi / 180 * (inverse ? -1 : 1)
         let cx = shape.x + shape.width / 2, cy = shape.y + shape.height / 2
         let dx = point.x - cx, dy = point.y - cy
         return sample(cx + dx * cos(angle) - dy * sin(angle), cy + dx * sin(angle) + dy * cos(angle))
@@ -103,6 +103,7 @@ public enum ShapeGeometry {
         commands.append(.close); return ShapePath(commands)
     }
     private static func ellipseArc(_ shape: ShapeElement, start: Double, sweep: Double, closed: Bool) -> ShapePath {
+        let start = start.truncatingRemainder(dividingBy: 2 * .pi)
         let count = max(1, min(8, Int(ceil(abs(sweep) / (.pi / 2)))))
         let step = sweep / Double(count), rx = shape.width / 2, ry = shape.height / 2
         let cx = shape.x + rx, cy = shape.y + ry
