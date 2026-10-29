@@ -63,6 +63,7 @@ struct EditorQuickToolbar: View {
                 }.padding(6)
             }
             .frame(maxWidth: vertical ? 56 : 900, maxHeight: vertical ? 560 : 56)
+            .accessibilityIdentifier("editorToolbarScroll")
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 23).stroke(.white.opacity(0.18)))
             .shadow(color: .black.opacity(0.18), radius: 14, y: 5)

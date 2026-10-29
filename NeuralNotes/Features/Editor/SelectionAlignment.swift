@@ -42,14 +42,8 @@ extension EditorViewModel {
             guard let r = arranged[id], let original = originals[id] else { continue }
             page.texts[i].x = r.x; page.texts[i].y = r.y; page.texts[i].width = r.width
             if action == .height {
-                let scale = r.height / original.height
-                let attributed = NSMutableAttributedString(attributedString: RichText.attributed(page.texts[i]))
-                attributed.enumerateAttribute(.font, in: NSRange(location: 0, length: attributed.length)) { value, range, _ in
-                    if let font = value as? UIFont { attributed.addAttribute(.font, value: font.withSize(min(1000, max(1, font.pointSize * scale))), range: range) }
-                }
-                page.texts[i].width = original.width * scale
-                page.texts[i].fontSize = min(1000, max(1, page.texts[i].fontSize * scale))
-                page.texts[i].rtf = RichText.data(attributed)
+                page.texts[i].width = original.width
+                page.texts[i] = RichText.fittingHeight(page.texts[i], height: r.height, pageHeight: page.height)
             }
         }
         self.page = page

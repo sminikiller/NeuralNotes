@@ -28,7 +28,12 @@ final class SnapAndAlignmentUITests: XCTestCase {
         undo.tap()
         let redo = app.buttons["editorRedo"]
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)], timeout: 8); redo.tap()
-        app.buttons["editorWorkspace"].tap(); app.buttons["workspaceSnapping"].tap()
+        let workspace = app.buttons["editorWorkspace"], toolbar = app.scrollViews["editorToolbarScroll"]
+        for _ in 0..<4 where !workspace.isHittable { toolbar.swipeLeft() }
+        XCTAssertTrue(workspace.isHittable); workspace.tap()
+        let snap = app.buttons["workspaceSnapping"]
+        for _ in 0..<4 where !(snap.exists && snap.isHittable) { app.descendants(matching: .any)["workspaceList"].firstMatch.swipeUp() }
+        XCTAssertTrue(snap.waitForExistence(timeout: 5)); snap.tap()
         let objects = app.switches["snapObjectsToggle"], grid = app.switches["snapGridToggle"]
         XCTAssertTrue(objects.waitForExistence(timeout: 5)); XCTAssertTrue(grid.exists)
         objects.tap(); XCTAssertEqual(objects.value as? String, "0")

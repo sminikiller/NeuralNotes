@@ -398,11 +398,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                     changed.texts[i].width = max(24, min(page.width - x, w + dx))
                     if keepRatio, let source = before?.page.texts.first(where: { $0.id == id }) {
                         let scale = changed.texts[i].width / w
-                        let attributed = NSMutableAttributedString(attributedString: RichText.attributed(source))
-                        attributed.enumerateAttribute(.font, in: NSRange(location: 0, length: attributed.length)) { value, range, _ in
-                            if let font = value as? UIFont { attributed.addAttribute(.font, value: font.withSize(min(1000, max(1, font.pointSize * scale))), range: range) }
-                        }
-                        changed.texts[i].fontSize = min(1000, max(1, source.fontSize * scale)); changed.texts[i].rtf = RichText.data(attributed)
+                        changed.texts[i] = RichText.scaled(source, by: scale)
                     }
                 }
                 else { changed.texts[i].x = x + dx; changed.texts[i].y = y + dy }

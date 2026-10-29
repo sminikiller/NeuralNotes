@@ -99,4 +99,27 @@ final class SelectionAlignmentTests: XCTestCase {
             await model.performUndo(); XCTAssertEqual(model.page?.shapes?.count, 2)
         }
     }
+    @MainActor func testMixedTextPhotoAndTapeAlignAndEqualHeightWithActualTextMetrics() async throws {
+        try await fixture { model in
+            var text = TextElement(text: "Testo breve"); text.x = 100; text.y = 200; text.width = 100; text.fontSize = 6
+            var image = ImageElement(file: "images/fixture.png", width: 50, height: 70); image.x = 300; image.y = 300
+            let tape = StudyTape(x: 400, y: 400, width: 80, height: 40)
+            let imageURL = try await model.workspace.url(image.file)
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1
+            let photo = UIGraphicsImageRenderer(size: .init(width: 8, height: 8), format: format).image { context in UIColor.red.setFill(); context.fill(.init(x: 0, y: 0, width: 8, height: 8)) }
+            try XCTUnwrap(photo.pngData()).write(to: imageURL)
+            model.mutatePage("Fixture") { $0.texts = [text]; $0.images = [image]; $0.tapes = [tape] }
+            model.selectedIDs = [text.id, image.id, tape.id]
+            let initial = model.page
+            model.arrangeSelection(.top)
+            XCTAssertEqual(model.page?.texts[0].y, 200); XCTAssertEqual(model.page?.images[0].y, 200); XCTAssertEqual(model.page?.tapes?[0].y, 200)
+            await model.performUndo(); XCTAssertEqual(model.page?.texts, initial?.texts); XCTAssertEqual(model.page?.images, initial?.images)
+            model.selectedIDs = [text.id, image.id, tape.id]; model.arrangeSelection(.height)
+            let changed = try XCTUnwrap(model.page?.texts.first)
+            XCTAssertEqual(RichText.bounds(changed, pageHeight: 1024).height, 70, accuracy: 0.25)
+            XCTAssertEqual(model.page?.images[0].height, 70); XCTAssertEqual(model.page?.tapes?[0].height, 70)
+            XCTAssertNotNil(changed.rtf)
+            await model.performUndo(); XCTAssertEqual(model.page?.texts, initial?.texts)
+        }
+    }
 }
