@@ -48,15 +48,9 @@ public enum NativeArchive {
             if file.path != "metadata.json" { sources.append((file.path, file.url)) }
         }
         sources.sort { $0.0 < $1.0 }
-        #if DEBUG
-        print("NativeBackup025: listed \(sources.count) source files")
-        #endif
         guard sources.count < 50_000 else { throw NativeArchiveFailure.limit }
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         let metadataData = try encoder.encode(metadata)
-        #if DEBUG
-        print("NativeBackup025: metadata encoded")
-        #endif
         var entries: [Entry] = [], stamps: [Date?] = []
         var total = UInt64(metadataData.count)
         for (path, url) in sources {
@@ -70,9 +64,6 @@ public enum NativeArchive {
         }
         entries.append(Entry(path: "metadata.json", size: UInt64(metadataData.count), checksum: CRC32.checksum(metadataData)))
         let header = try encoder.encode(Header(version: 1, entries: entries))
-        #if DEBUG
-        print("NativeBackup025: checksums and header ready")
-        #endif
         guard header.count <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
         guard !FileManager.default.fileExists(atPath: destination.path) else { throw CocoaError(.fileWriteFileExists) }
         guard FileManager.default.createFile(atPath: destination.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
@@ -95,9 +86,6 @@ public enum NativeArchive {
             }
             try output.write(contentsOf: metadataData)
             try output.synchronize()
-            #if DEBUG
-            print("NativeBackup025: archive synchronized")
-            #endif
             ArchiveChecksumCache.shared.persist()
         } catch {
             try? FileManager.default.removeItem(at: destination)
