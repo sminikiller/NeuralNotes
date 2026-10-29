@@ -131,4 +131,28 @@ final class SelectionAlignmentTests: XCTestCase {
             await model.performUndo(); XCTAssertEqual(model.page?.texts, initial?.texts)
         }
     }
+    @MainActor func testSecondFingerModifiesAnActiveShapeButInitialTwoFingerGestureCanNavigate() async throws {
+        try await fixture { model in
+            model.chooseShape(.rectangle)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let assistant = CanvasDrawingAssistant(host: host, model: model); host.drawingAssistant = assistant
+            assistant.begin(at: .init(x: 200, y: 200))
+            XCTAssertFalse(assistant.additionalTouchIsModifier(primaryIsPencil: false))
+            XCTAssertFalse(assistant.locksPageNavigation)
+            assistant.cancel()
+            assistant.begin(at: .init(x: 200, y: 200)); assistant.move(samples: [.init(x: 280, y: 300)])
+            XCTAssertTrue(assistant.locksPageNavigation)
+            XCTAssertFalse(model.canvas.panGestureRecognizer.isEnabled)
+            XCTAssertTrue(assistant.additionalTouchIsModifier(primaryIsPencil: false))
+            PaperInk.configureNavigation(model.canvas, fingerDrawing: true)
+            XCTAssertFalse(model.canvas.panGestureRecognizer.isEnabled, "Un aggiornamento del layout non deve riattivare lo scorrimento durante il gesto.")
+            assistant.end(cancelled: true)
+            XCTAssertFalse(assistant.locksPageNavigation); XCTAssertTrue(model.canvas.panGestureRecognizer.isEnabled)
+            XCTAssertTrue(model.page?.shapes?.isEmpty ?? true)
+            assistant.begin(at: .init(x: 220, y: 220))
+            XCTAssertTrue(assistant.additionalTouchIsModifier(primaryIsPencil: true))
+            assistant.cancel(); XCTAssertTrue(model.canvas.panGestureRecognizer.isEnabled)
+        }
+    }
 }

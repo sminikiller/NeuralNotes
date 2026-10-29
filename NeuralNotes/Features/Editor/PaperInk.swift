@@ -18,7 +18,7 @@ enum PaperInk {
                               NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         canvas.panGestureRecognizer.allowedTouchTypes = scrollingTypes
         canvas.panGestureRecognizer.minimumNumberOfTouches = fingerDrawing ? 2 : 1
-        canvas.panGestureRecognizer.isEnabled = true
+        canvas.panGestureRecognizer.isEnabled = (canvas.superview as? CanvasHost)?.drawingAssistant?.locksPageNavigation != true
         canvas.pinchGestureRecognizer?.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     }
 

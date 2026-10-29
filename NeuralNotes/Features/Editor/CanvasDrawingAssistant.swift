@@ -24,6 +24,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private var connectionIndex = ShapeConnectionIndex()
     private var shapeSnapEngine: SnapEngine?
     private var snapHint: String?
+    private(set) var locksPageNavigation = false
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model
@@ -98,7 +99,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         if model.tool == .eraser {
             markerSession?.append(samples.map { StrokeSample(x: Double($0.x), y: Double($0.y)) }); return
         }
-        if model.tool == .shape { drawPreview(model.shapeKind); return }
+        if model.tool == .shape {
+            if shapeHasMoved { lockPageNavigation() }
+            drawPreview(model.shapeKind); return
+        }
         guard model.recognitionMode == .hold else { return }
         guard let at = samples.last else { return }
         if hypot(at.x - anchor.x, at.y - anchor.y) > max(1.5, 3 / host.canvas.zoomScale) {
@@ -207,6 +211,20 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         model?.pendingHeldShape = nil; model?.pendingShapeRecognition = nil; model?.pendingAutomaticRecognition = false; model?.drawingShape = false
         points = []; pageID = nil
         shapeSnapEngine = nil; host?.snapGuides?.show([])
+        if locksPageNavigation { locksPageNavigation = false; host?.canvas.panGestureRecognizer.isEnabled = true }
+    }
+    private var shapeHasMoved: Bool {
+        guard points.count > 1, let last = points.last, let host else { return false }
+        return hypot(last.x - anchor.x, last.y - anchor.y) >= 4 / max(0.05, host.canvas.zoomScale)
+    }
+    private func lockPageNavigation() {
+        locksPageNavigation = true; host?.canvas.panGestureRecognizer.isEnabled = false
+    }
+    /// A two-finger gesture begun before drawing must remain page navigation.
+    /// Once the primary pointer is drawing, extra fingers only modify snapping.
+    func additionalTouchIsModifier(primaryIsPencil: Bool) -> Bool {
+        guard model?.tool == .shape, primaryIsPencil || shapeHasMoved else { return false }
+        lockPageNavigation(); return true
     }
     private func connection(near point: StrokeSample) -> StrokeSample? {
         guard let host, !host.snapSecondTouch, !monitor.modifierFlags.contains(.alternate), model?.snapPreferences.objectsEnabled == true,
@@ -254,7 +272,10 @@ private final class DrawingTouchMonitor: UIGestureRecognizer {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         // Once drawing a shape, a second finger is only a snap modifier.
         // It must not cancel the draft or replace its primary Pencil/finger.
-        if tracked != nil { return }
+        if let tracked {
+            if owner?.additionalTouchIsModifier(primaryIsPencil: tracked.type == .pencil) == true { return }
+            owner?.end(cancelled: true); self.tracked = nil; state = .cancelled; return
+        }
         guard touches.count == 1, let touch = touches.first else { owner?.cancel(); state = .cancelled; return }
         tracked = touch; owner?.begin(touch); state = .began
     }
