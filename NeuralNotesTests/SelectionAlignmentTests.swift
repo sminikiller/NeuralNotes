@@ -155,4 +155,34 @@ final class SelectionAlignmentTests: XCTestCase {
             assistant.cancel(); XCTAssertTrue(model.canvas.panGestureRecognizer.isEnabled)
         }
     }
+    @MainActor func testPrimaryLiftWithModifierKeepsTheUnsnappedShapeEndpoint() async throws {
+        try await fixture { model in
+            model.chooseShape(.line)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let assistant = CanvasDrawingAssistant(host: host, model: model); host.drawingAssistant = assistant
+            assistant.begin(at: .init(x: 100, y: 100)); assistant.move(samples: [.init(x: 300, y: 103)])
+            assistant.end(cancelled: false, modifierActive: true)
+            let shape = try XCTUnwrap(model.page?.shapes?.last)
+            let end = try XCTUnwrap(ShapeHandles.positions(shape, zoom: 1).first { $0.0 == .end }?.1)
+            XCTAssertEqual(end.x, 300, accuracy: 0.001); XCTAssertEqual(end.y, 103, accuracy: 0.001)
+            XCTAssertFalse(assistant.locksPageNavigation); XCTAssertTrue(model.canvas.panGestureRecognizer.isEnabled)
+            await model.performUndo(); XCTAssertTrue(model.page?.shapes?.isEmpty ?? true)
+        }
+    }
+    @MainActor func testAccessibleRotationChangesAngleWithoutMovingTheShapeAndUndoesOnce() async throws {
+        try await fixture { model in
+            let shape = ShapeElement(kind: .star, x: 100, y: 100, width: 120, height: 120)
+            model.mutatePage("Fixture") { $0.shapes = [shape] }; model.selectedObjectID = shape.id; model.chooseTool(.objects)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            let handles = ShapeHandlesOverlay(host: host, model: model)
+            XCTAssertTrue(handles.rotateByDegrees(15))
+            XCTAssertEqual(model.page?.shapes?.first?.rotation, 15)
+            XCTAssertEqual(model.page?.shapes?.first?.x, 100); XCTAssertEqual(model.page?.shapes?.first?.y, 100)
+            await model.performUndo(); XCTAssertEqual(model.page?.shapes?.first, shape)
+            await model.performRedo(); XCTAssertEqual(model.page?.shapes?.first?.rotation, 15)
+            model.selectedObjectID = shape.id
+            XCTAssertTrue(handles.rotateByDegrees(-15)); XCTAssertEqual(model.page?.shapes?.first?.rotation, 0)
+        }
+    }
 }

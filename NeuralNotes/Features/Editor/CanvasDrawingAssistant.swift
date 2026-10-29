@@ -113,7 +113,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             }
         }
     }
-    func end(cancelled: Bool) {
+    func end(cancelled: Bool, modifierActive: Bool? = nil) {
         holdTask?.cancel(); holdTask = nil
         guard let model else { cancel(); return }
         if guiding {
@@ -141,7 +141,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         if model.tool == .shape {
             model.drawingShape = false
             if !cancelled, model.page?.id == pageID, let first = points.first, let last = points.last {
-                let endpoint = shapeEndpoint(last)
+                let endpoint = shapeEndpoint(last, modifierActive: modifierActive)
                 model.addDraggedShape(model.shapeKind, from: first, to: endpoint.0, preserveEnd: endpoint.1)
             }
             cancel(); return
@@ -227,13 +227,13 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         lockPageNavigation(); return true
     }
     private func connection(near point: StrokeSample) -> StrokeSample? {
-        guard let host, !host.snapSecondTouch, !monitor.modifierFlags.contains(.alternate), model?.snapPreferences.objectsEnabled == true,
+        guard let host, !monitor.snapModifierActive, !monitor.modifierFlags.contains(.alternate), model?.snapPreferences.objectsEnabled == true,
               model?.tool == .shape, model?.shapeKind == .line || model?.shapeKind == .arrow else { return nil }
         return connectionIndex.nearest(point, zoom: host.canvas.zoomScale)
     }
-    private func shapeEndpoint(_ point: StrokeSample) -> (StrokeSample, Bool) {
+    private func shapeEndpoint(_ point: StrokeSample, modifierActive: Bool? = nil) -> (StrokeSample, Bool) {
         guard let host, let model else { return (point, false) }
-        let suspended = host.snapSecondTouch || monitor.modifierFlags.contains(.alternate)
+        let suspended = (modifierActive ?? monitor.snapModifierActive) || monitor.modifierFlags.contains(.alternate)
         if suspended { host.snapGuides?.show([]); return (point, true) }
         if let connected = connection(near: point) { host.snapGuides?.show([]); return (connected, true) }
         guard let engine = shapeSnapEngine else { return (point, false) }
@@ -267,26 +267,31 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
 private final class DrawingTouchMonitor: UIGestureRecognizer {
     weak var owner: CanvasDrawingAssistant?
     private weak var tracked: UITouch?
+    private(set) var snapModifierActive = false
     override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool { false }
     override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool { false }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         // Once drawing a shape, a second finger is only a snap modifier.
         // It must not cancel the draft or replace its primary Pencil/finger.
         if let tracked {
+            snapModifierActive = SnapTouchModifiers.active(primary: tracked, event: event)
             if owner?.additionalTouchIsModifier(primaryIsPencil: tracked.type == .pencil) == true { return }
             owner?.end(cancelled: true); self.tracked = nil; state = .cancelled; return
         }
         guard touches.count == 1, let touch = touches.first else { owner?.cancel(); state = .cancelled; return }
-        tracked = touch; owner?.begin(touch); state = .began
+        tracked = touch; snapModifierActive = SnapTouchModifiers.active(primary: touch, event: event)
+        owner?.begin(touch); state = .began
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
         guard let touch = tracked, touches.contains(touch) else { return }
+        snapModifierActive = SnapTouchModifiers.active(primary: touch, event: event)
         owner?.move(touch, event: event); state = .changed
     }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
         guard let touch = tracked, touches.contains(touch) else { return }
-        owner?.move(touch, event: event); owner?.end(cancelled: false); tracked = nil; state = .ended
+        snapModifierActive = SnapTouchModifiers.active(primary: touch, event: event, includingEnded: true)
+        owner?.move(touch, event: event); owner?.end(cancelled: false, modifierActive: snapModifierActive); tracked = nil; state = .ended
     }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { owner?.end(cancelled: true); tracked = nil; state = .cancelled }
-    override func reset() { tracked = nil; super.reset() }
+    override func reset() { tracked = nil; snapModifierActive = false; super.reset() }
 }

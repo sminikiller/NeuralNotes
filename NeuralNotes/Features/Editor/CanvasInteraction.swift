@@ -356,7 +356,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 ? SnapRect(x: group.minX, y: group.minY, width: max(1, group.width + dx), height: max(1, group.height + dy))
                 : SnapRect(group.offsetBy(dx: dx, dy: dy))
             let snapped = engine.snap(proposed, zoom: host.canvas.zoomScale, preferences: model.snapPreferences,
-                                      resizing: resizing, suspended: host.snapSecondTouch || gesture.modifierFlags.contains(.alternate))
+                                      resizing: resizing, suspended: (gesture as? SnapPanGestureRecognizer)?.suspendsSnapping == true || gesture.modifierFlags.contains(.alternate))
             if resizing { dx = snapped.rect.width - group.width; dy = snapped.rect.height - group.height }
             else { dx = snapped.rect.x - group.minX; dy = snapped.rect.y - group.minY }
             var guides = snapped.guides

@@ -28,7 +28,6 @@ final class CanvasHost: UIView {
     var pencilControls: PencilControls?
     var shapeHandles: ShapeHandlesOverlay?
     var snapGuides: SnapGuidesView?
-    var snapSecondTouch = false
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
     private let inputShield = PendingPageInputShield()
@@ -61,7 +60,6 @@ final class CanvasHost: UIView {
         addSubview(laserPointer)
         addSubview(lensBar)
         let guides = SnapGuidesView(host: self); snapGuides = guides; addSubview(guides)
-        addGestureRecognizer(SnapTouchMonitor(host: self))
     }
     required init?(coder: NSCoder) { return nil }
 

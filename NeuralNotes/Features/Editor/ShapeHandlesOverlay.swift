@@ -65,13 +65,23 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         button.accessibilityLabel = handle.title; button.accessibilityIdentifier = "shapeHandle-\(handle)"
         let pan = SnapPanGestureRecognizer(target: self, action: #selector(moveHandle(_:)))
         pan.maximumNumberOfTouches = 2; button.addGestureRecognizer(pan)
-        button.accessibilityCustomActions = [
+        button.accessibilityCustomActions = handle == .rotation ? [
+            UIAccessibilityCustomAction(name: "Ruota 15° a destra") { [weak self] _ in self?.rotateByDegrees(15) ?? false },
+            UIAccessibilityCustomAction(name: "Ruota 15° a sinistra") { [weak self] _ in self?.rotateByDegrees(-15) ?? false }
+        ] : [
             UIAccessibilityCustomAction(name: "Sposta a destra") { [weak self] _ in self?.adjust(handle, dx: 4, dy: 0) ?? false },
             UIAccessibilityCustomAction(name: "Sposta a sinistra") { [weak self] _ in self?.adjust(handle, dx: -4, dy: 0) ?? false },
             UIAccessibilityCustomAction(name: "Sposta in alto") { [weak self] _ in self?.adjust(handle, dx: 0, dy: -4) ?? false },
             UIAccessibilityCustomAction(name: "Sposta in basso") { [weak self] _ in self?.adjust(handle, dx: 0, dy: 4) ?? false }
         ]
         return button
+    }
+    func rotateByDegrees(_ degrees: Double) -> Bool {
+        guard degrees.isFinite, abs(degrees) <= 360, let model, model.hasLease, !model.interactionBusy,
+              !model.loading, !model.navigating, var shape = selectedShape,
+              !(model.page?.lockedObjects ?? []).contains(shape.id) else { return false }
+        shape.rotation = ((shape.rotation ?? 0) + degrees).truncatingRemainder(dividingBy: 360)
+        commit(shape, model: model); return true
     }
     private func adjust(_ handle: ShapeHandle, dx: Double, dy: Double) -> Bool {
         guard let model, let host, let shape = selectedShape,
@@ -93,7 +103,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         guard let source, let dragged else { return }
         if gesture.state == .cancelled || gesture.state == .failed { reset(); update(); return }
         let at = gesture.location(in: host.surface)
-        let suspended = host.snapSecondTouch || gesture.modifierFlags.contains(.alternate)
+        let suspended = (gesture as? SnapPanGestureRecognizer)?.suspendsSnapping == true || gesture.modifierFlags.contains(.alternate)
         var target = StrokeSample(x: at.x, y: at.y)
         var guides: [SnapGuide] = []
         if dragged != .rotation && dragged != .innerRadius && dragged != .arcCurvature, let engine = snapEngine {
