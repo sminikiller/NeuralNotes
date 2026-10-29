@@ -105,9 +105,13 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             keepProportions: model.snapPreferences.keepProportions ?? false, snapRotation: snapping, snapProportions: snapping)
         if dragged == .rotation, let rotation = value.rotation {
             let raw = atan2(at.y - (source.y + source.height / 2), at.x - (source.x + source.width / 2)) * 180 / .pi + 90
-            if abs(rotation - raw) > 0.01, rotation != lastSnappedRotation {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred(); lastSnappedRotation = rotation
-            } else if abs(rotation - raw) <= 0.01 { lastSnappedRotation = nil }
+            let onStep = abs(rotation / 15 - (rotation / 15).rounded()) < 0.00001
+            // Passing exactly through the snapped angle is still the same
+            // bucket; clearing it there would produce a second vibration.
+            if snapping && onStep && abs(rotation - raw) <= 3.001 {
+                if rotation != lastSnappedRotation { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+                lastSnappedRotation = rotation
+            } else { lastSnappedRotation = nil }
         }
         // A square/proportion lock can move the handle away from a candidate.
         // Never leave a guide claiming an alignment that was not applied.
