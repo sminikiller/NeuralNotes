@@ -51,7 +51,12 @@ final class SnapEngineTests: XCTestCase {
     func testIsometricGridHasObliqueOffsetAndUsesDistanceThreshold() throws {
         let grid = SnapGrid(step: 24, isometric: true)
         let point = try XCTUnwrap(grid.nearest(.init(x: 25, y: 14)))
-        XCTAssertEqual(point.x, 24); XCTAssertEqual(point.y, 24 / sqrt(3), accuracy: 0.001)
+        XCTAssertEqual(point.x, 24 * sqrt(3) / 2, accuracy: 0.001); XCTAssertEqual(point.y, 12, accuracy: 0.001)
+        for sample in [StrokeSample(x: 27, y: 81), .init(x: 100, y: 300), .init(x: -18, y: 54)] {
+            let nearest = try XCTUnwrap(grid.nearest(sample))
+            let a = (nearest.y - nearest.x / sqrt(3)) / 24, b = (nearest.y + nearest.x / sqrt(3)) / 24
+            XCTAssertEqual(a, a.rounded(), accuracy: 0.0001); XCTAssertEqual(b, b.rounded(), accuracy: 0.0001)
+        }
         var preferences = SnapPreferences(); preferences.objects = false
         let engine = SnapEngine(objects: [], page: page, grid: grid)
         XCTAssertTrue(engine.snapPoint(.init(x: point.x + 1, y: point.y + 1), zoom: 1, preferences: preferences).snapped)

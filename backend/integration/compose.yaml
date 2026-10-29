@@ -7,7 +7,9 @@ services:
     volumes:
       - ./bootstrap.sql:/docker-entrypoint-initdb.d/bootstrap.sql:ro
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U postgres]
+      # initdb's temporary server only has a Unix socket. Dependants must wait
+      # for the final TCP server, after bootstrap and the entrypoint restart.
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres]
       interval: 1s
       timeout: 2s
       retries: 40

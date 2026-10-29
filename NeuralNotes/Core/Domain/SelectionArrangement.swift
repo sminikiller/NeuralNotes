@@ -25,8 +25,10 @@ public enum SelectionArrangement: String, CaseIterable, Sendable {
                 return a == b ? $0.key.uuidString < $1.key.uuidString : a < b
             }
             let total = sorted.reduce(0.0) { $0 + (horizontal ? $1.value.width : $1.value.height) }
-            let gap = ((horizontal ? maxX - minX : maxY - minY) - total) / Double(values.count - 1)
-            var position = horizontal ? minX : minY
+            let first = sorted.first!.value, last = sorted.last!.value
+            let start = horizontal ? first.x : first.y, end = horizontal ? last.maxX : last.maxY
+            let gap = (end - start - total) / Double(values.count - 1)
+            var position = start
             for (id, original) in sorted {
                 var rect = original
                 if horizontal { rect.x = position } else { rect.y = position }

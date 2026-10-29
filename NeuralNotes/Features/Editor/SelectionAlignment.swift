@@ -24,6 +24,10 @@ extension EditorViewModel {
             for i in shapes.indices {
                 guard let r = arranged[shapes[i].id] else { continue }
                 shapes[i].x = r.x; shapes[i].y = r.y; shapes[i].width = r.width; shapes[i].height = r.height
+                if [.star, .polygon, .arc].contains(shapes[i].kind) {
+                    if action == .width { shapes[i].height = r.width }
+                    if action == .height { shapes[i].width = r.height }
+                }
                 if let radius = shapes[i].cornerRadius { shapes[i].cornerRadius = min(radius, min(r.width, r.height) / 2) }
             }; page.shapes = shapes
         }

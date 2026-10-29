@@ -63,8 +63,8 @@ public struct SnapGrid: Sendable {
         default: return .init()
         }
     }
-    /// Same three line families as the paper renderer: vertical and ±30°
-    /// from horizontal (60° from the vertical axis).
+    /// Intersections of the paper renderer's two oblique line families (±30°,
+    /// hence 60° to one another). Existing paper rendering stays unchanged.
     public func nearest(_ point: StrokeSample) -> StrokeSample? {
         guard step.isFinite, step >= 1, step <= 1000, point.x.isFinite, point.y.isFinite, abs(point.x) <= 1_000_000, abs(point.y) <= 1_000_000,
               origin.x.isFinite, origin.y.isFinite else { return nil }
@@ -72,14 +72,15 @@ public struct SnapGrid: Sendable {
         if !isometric {
             return .init(x: origin.x + (px / step).rounded() * step, y: origin.y + (py / step).rounded() * step)
         }
-        let rise = 1 / sqrt(3.0)
         // An isometric lattice has offset rows. Search adjacent columns rather
         // than rounding x/y independently, which produces a rectangular grid.
-        let column = (px / step).rounded()
+        let columnWidth = step * sqrt(3.0) / 2
+        let column = (px / columnWidth).rounded()
         var best: StrokeSample?, error = Double.infinity
         for offset in -1...1 {
-            let x = (column + Double(offset)) * step
-            let phase = x * rise
+            let index = column + Double(offset)
+            let x = index * columnWidth
+            let phase = index * step / 2
             let y = phase + ((py - phase) / step).rounded() * step
             let distance = hypot(x - px, y - py)
             if distance < error { error = distance; best = .init(x: x + origin.x, y: y + origin.y) }

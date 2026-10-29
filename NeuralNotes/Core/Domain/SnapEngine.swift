@@ -13,13 +13,14 @@ public struct SnapEngine: Sendable {
         self.page = page; self.grid = grid
         self.objects = objects.prefix(100_000).filter {
             !excluding.contains($0.id) && !$0.locked && $0.rect.valid && $0.rotation.isFinite &&
+            $0.rect.maxX >= page.x && $0.rect.x <= page.maxX && $0.rect.maxY >= page.y && $0.rect.y <= page.maxY &&
             abs($0.rotation.truncatingRemainder(dividingBy: 360)) < 0.001
         }.map(\.rect)
         var references = self.objects
         if page.valid { references.append(page) }
         for rect in references {
-            for value in [rect.x, rect.midX, rect.maxX] { xCells[Int(floor(value / 64)), default: []].append(.init(value: value)) }
-            for value in [rect.y, rect.midY, rect.maxY] { yCells[Int(floor(value / 64)), default: []].append(.init(value: value)) }
+            for value in [rect.x, rect.midX, rect.maxX] where value >= page.x && value <= page.maxX { xCells[Int(floor(value / 64)), default: []].append(.init(value: value)) }
+            for value in [rect.y, rect.midY, rect.maxY] where value >= page.y && value <= page.maxY { yCells[Int(floor(value / 64)), default: []].append(.init(value: value)) }
         }
         if let margin, margin.isFinite, margin > 0, margin < page.width {
             xCells[Int(floor(margin / 64)), default: []].append(.init(value: margin))

@@ -76,7 +76,9 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     private func adjust(_ handle: ShapeHandle, dx: Double, dy: Double) -> Bool {
         guard let model, let host, let shape = selectedShape,
               let at = ShapeHandles.positions(shape, zoom: host.canvas.zoomScale).first(where: { $0.0 == handle })?.1 else { return false }
-        let result = ShapeHandles.moved(shape, handle: handle, to: .init(x: at.x + dx, y: at.y + dy))
+        let result = ShapeHandles.moved(shape, handle: handle, to: .init(x: at.x + dx, y: at.y + dy),
+            keepProportions: model.snapPreferences.keepProportions ?? false,
+            snapRotation: model.snapPreferences.objectsEnabled, snapProportions: model.snapPreferences.objectsEnabled)
         commit(result, model: model); return true
     }
     @objc private func moveHandle(_ gesture: UIPanGestureRecognizer) {

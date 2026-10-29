@@ -31,4 +31,10 @@ final class SelectionArrangementTests: XCTestCase {
         XCTAssertEqual(vertical[b]!.y - vertical[a]!.maxY, vertical[c]!.y - vertical[b]!.maxY)
         XCTAssertEqual(SelectionArrangement.horizontal.applying([a: source[a]!, b: source[b]!]), [a: source[a]!, b: source[b]!])
     }
+    func testDistributionKeepsFirstAndLastFixedEvenWithAnOverlappingWideObject() {
+        let a = UUID(), b = UUID(), c = UUID()
+        let source = [a: SnapRect(x: 0, y: 0, width: 500, height: 50), b: .init(x: 100, y: 0, width: 10, height: 50), c: .init(x: 200, y: 0, width: 10, height: 50)]
+        let arranged = SelectionArrangement.horizontal.applying(source)
+        XCTAssertEqual(arranged[a], source[a]); XCTAssertEqual(arranged[c], source[c])
+    }
 }

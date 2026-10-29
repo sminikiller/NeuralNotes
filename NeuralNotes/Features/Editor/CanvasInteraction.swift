@@ -248,6 +248,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
             if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
                 resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
+                if let id = original.keys.first, page.shapes?.contains(where: { $0.id == id }) == true { resizing = false }
             } else { resizing = false }
         }
         // One object moving: a picture of it follows the finger and the page changes once, on release.
@@ -334,6 +335,15 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 })
         let keepRatio = resizing && (model.snapPreferences.keepProportions == true || original.keys.contains(where: { id in page.images.contains { $0.id == id } }))
         if keepRatio, let group { dy = dx * group.height / max(1, group.width) }
+        if resizing, let group {
+            var width = max(24, min(page.width - group.minX, group.width + dx))
+            if keepRatio {
+                let ratio = group.height / max(1, group.width)
+                width = min(width, max(1, page.height - group.minY) / max(0.01, ratio))
+                dy = width * ratio - group.height
+            }
+            dx = width - group.width
+        }
         if !resizing, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
             let a = -Double(group.minX), b = page.width - Double(group.maxX)
             let c = -Double(group.minY), d = page.height - Double(group.maxY)
@@ -364,6 +374,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 let tx = group.width * (sx - 1) / 2 * host.canvas.zoomScale
                 let ty = group.height * (sy - 1) / 2 * host.canvas.zoomScale
                 dragPreview?.setAffineTransform(CGAffineTransform(a: sx, b: 0, c: 0, d: sy, tx: tx, ty: ty))
+                let box = CGRect(x: group.minX, y: group.minY, width: group.width * sx, height: group.height * sy)
+                let display = host.surface.convert(box, to: host)
+                outline.path = UIBezierPath(rect: display).cgPath
+                handle.path = UIBezierPath(ovalIn: CGRect(x: display.maxX - 7, y: display.maxY - 7, width: 14, height: 14)).cgPath
                 CATransaction.commit()
             } else { movePreview(dx: dx, dy: dy, host: host) }
             return

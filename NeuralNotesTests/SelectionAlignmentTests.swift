@@ -28,6 +28,9 @@ final class SelectionAlignmentTests: XCTestCase {
             XCTAssertEqual(model.page?.shapes?[3], shapes[3])
             await model.performUndo(); XCTAssertEqual(model.page?.shapes, shapes)
             await model.performRedo(); XCTAssertEqual(model.page?.shapes?.prefix(3).map(\.y), [150, 150, 150])
+            // History intentionally clears selection; start the next command
+            // with a fresh selection, exactly as the editor UI does.
+            model.selectedIDs = Set(shapes.map(\.id))
             model.arrangeSelection(.horizontal)
             let result = try XCTUnwrap(model.page?.shapes)
             XCTAssertEqual(result[1].x - result[0].x - result[0].width, result[2].x - result[1].x - result[1].width, accuracy: 0.01)
@@ -77,6 +80,8 @@ final class SelectionAlignmentTests: XCTestCase {
             _ = try NativeImport.copy(from: backup, into: store, documentID: documentID, notebookID: notebookID)
             let copy = DocumentWorkspace(package: store.packageURL(for: documentID), documentID: documentID, notebookID: notebookID)
             let restoredPages = try await copy.pages(), restored = try XCTUnwrap(restoredPages.first)
+            let restoredCatalog = try await copy.catalog()
+            XCTAssertEqual(restoredCatalog.editorWorkspaces?.selected.snapping, model.currentWorkspace.snapping)
             for (actual, original) in zip(restored.shapes ?? [], legacy.shapes ?? []) {
                 var expected = original; expected.id = actual.id; XCTAssertEqual(actual, expected)
             }
