@@ -114,7 +114,7 @@ final class ShapeEditorTests: XCTestCase {
             defer { try? FileManager.default.removeItem(at: pdf) }
             XCTAssertEqual(PDFDocument(url: pdf)?.pageCount, 1)
             print("Legacy025: exported PDF")
-            let manifest = try JSONDecoder().decode(DocumentManifest.self, from: Data(contentsOf: model.workspace.package.appendingPathComponent("manifest.json")))
+            let manifest = try await model.workspace.manifest()
             print("Legacy025: decoded document manifest")
             let notebook = Notebook(id: manifest.notebookID, documentID: model.workspace.documentID,
                 title: "Legacy", createdAt: Date(), updatedAt: Date(), folderID: nil, cover: .lagoon, isFavorite: false)
