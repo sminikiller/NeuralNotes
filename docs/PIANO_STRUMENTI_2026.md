@@ -603,7 +603,7 @@ Il testo del piano sopra è conservato integralmente.
 
 - ✅ Prerequisiti verificati nella run 40391428100.
 - ✅ 0.25 — §2–3: implementata e verificata. Verifica completa [40815806130](https://github.com/sminikiller/NeuralNotes/actions/runs/40815806130), sei job verdi e tutti i 32 test UI superati. Beta 1.0.0 (128) firmata e caricata su Apple con [40875248301](https://github.com/sminikiller/NeuralNotes/actions/runs/40875248301). Elaborazione/disponibilità TestFlight non ancora confermata. ZIP compilato esatto e prove in docs/DELIVERY_0_25.md.
-- 🟡 0.26 — §4 aggancio completo, griglia e allineamenti: in sviluppo.
+- ✅ 0.26 — §4 aggancio, griglia e allineamenti: implementata e verificata. [40901219596](https://github.com/sminikiller/NeuralNotes/actions/runs/40901219596), sei job verdi, 33 test UI superati, fixture 0.25/PDF/backup e aggiornamento 0.20.8 conservati. Beta **1.0.0 (135)** firmata e caricata con [40939882142](https://github.com/sminikiller/NeuralNotes/actions/runs/40939882142); elaborazione Apple non confermata. ZIP esatto e prove in docs/DELIVERY_0_26.md.
 - ❌ 0.27 — §5 diagrammi e connettori persistenti: successiva.
 - ❌ 0.28 — §6 selezioni, gomme e goniometro: successiva.
 - ❌ 0.29 — §7 testo e finestra di zoom: successiva.
