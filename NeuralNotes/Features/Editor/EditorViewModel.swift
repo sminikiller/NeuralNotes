@@ -73,6 +73,8 @@ final class EditorViewModel {
     var recognitionNotice: String?
     @ObservationIgnored var recognitionNoticeTask: Task<Void, Never>?
     var shapeStyleRequest = 0
+    var connectorStyleRequest = 0
+    var diagramLabelEditor: DiagramLabelEditTarget?
     var pageNavigation = PageNavigationMode.single {
         didSet {
             UserDefaults.standard.set(pageNavigation.rawValue, forKey: "editor.navigation.\(workspace.documentID)")
@@ -484,7 +486,7 @@ final class EditorViewModel {
         lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
         endTextEdit()
         replaceInkSession(with: drawing)
-        page = current; selectedObjectID = nil; dirty = recovered; recoveredFromPrevious = recovered
+        page = current; selectedObjectID = nil; diagramLabelEditor = nil; dirty = recovered; recoveredFromPrevious = recovered
         status = recovered ? "Revisione precedente recuperata — salva" : "Salvato sul dispositivo"
         configureTool()
         (pagePresenter as? CanvasHost)?.synchronizePage()

@@ -52,7 +52,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         guard let draft, let host, let context = UIGraphicsGetCurrentContext() else { return }
         context.saveGState(); context.translateBy(x: host.surface.frame.minX, y: host.surface.frame.minY)
         context.scaleBy(x: host.canvas.zoomScale, y: host.canvas.zoomScale)
-        ElementRendering.drawShape(draft, context: context); context.restoreGState()
+        ElementRendering.drawShape(draft, context: context, page: model?.page); context.restoreGState()
     }
     private var selectedShape: ShapeElement? {
         guard let id = model?.selectedObjectID else { return nil }

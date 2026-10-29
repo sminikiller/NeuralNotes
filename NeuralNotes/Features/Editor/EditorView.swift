@@ -130,6 +130,7 @@ struct EditorView: View {
             .sheet(item: $photoCrop) { request in photoCropSheet(request) }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
             .sheet(item: $model.lensNoteEditor) { target in LensNoteEditor(model: model, noteID: target.id) }
+            .sheet(item: $model.diagramLabelEditor) { target in DiagramLabelEditor(model: model, target: target) }
     }
 
     private var errorShown: Binding<Bool> {

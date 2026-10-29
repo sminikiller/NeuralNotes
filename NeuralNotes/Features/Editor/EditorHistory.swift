@@ -27,6 +27,7 @@ extension EditorViewModel {
     }
 
     func recordEdit(_ before: EditorContentState?, label: String) {
+        if !applyingHistory, let before, before.page.id == page?.id { settleDiagramReferences(from: before.page) }
         guard !applyingHistory, let before, let after = captureEdit(ink: before.drawing != nil), before != after else { return }
         recognitionNoticeTask?.cancel(); recognitionNotice = nil
         let metadata = (try? JSONEncoder().encode(before.page).count) ?? 0

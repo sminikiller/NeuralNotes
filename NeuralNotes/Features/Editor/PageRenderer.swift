@@ -66,15 +66,19 @@ enum PageRenderer {
     }
     private struct ObjectLookup {
         let texts: [UUID: TextElement], images: [UUID: ImageElement], shapes: [UUID: ShapeElement]
+        let connectors: [UUID: ConnectorElement], diagramObjects: [UUID: ConnectorObject]
         init(_ page: PageSnapshot) {
             texts = Dictionary(page.texts.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
             images = Dictionary(page.images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
             shapes = Dictionary((page.shapes ?? []).map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+            connectors = Dictionary((page.connectors ?? []).map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+            diagramObjects = connectors.isEmpty ? [:] : DiagramObjects.make(page)
         }
     }
     private static func drawObject(_ id: UUID, objects: ObjectLookup, page: PageSnapshot, package: URL, context: CGContext, hidingTextID: UUID?) {
         if let image = objects.images[id] { ElementRendering.drawImage(image, package: package, context: context) }
-        else if let shape = objects.shapes[id] { ElementRendering.drawShape(shape, context: context) }
+        else if let shape = objects.shapes[id] { ElementRendering.drawShape(shape, context: context, page: page) }
+        else if let connector = objects.connectors[id] { ConnectorRendering.draw(connector, objects: objects.diagramObjects, page: page, context: context) }
         else if let text = objects.texts[id] {
             if text.lensNote?.isCollapsed == true { drawLensBadge(text, context: context); return }
             let tone = page.appearance?.tone ?? .white
@@ -127,7 +131,7 @@ final class PageSurfaceView: UIView {
         didSet {
             if oldValue.id != page.id { layer.contents = nil }
             if oldValue.id != page.id || oldValue.paper != page.paper || oldValue.texts != page.texts
-                || oldValue.images != page.images || oldValue.shapes != page.shapes || oldValue.pdfFile != page.pdfFile
+                || oldValue.images != page.images || oldValue.shapes != page.shapes || oldValue.connectors != page.connectors || oldValue.pdfFile != page.pdfFile
                 || oldValue.pdfMarkups != page.pdfMarkups || oldValue.appearance != page.appearance || oldValue.width != page.width || oldValue.height != page.height {
                 setNeedsDisplay()
             }

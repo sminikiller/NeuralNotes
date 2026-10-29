@@ -61,7 +61,9 @@ public extension ShapeElement {
               innerRatio.map({ $0.isFinite && (0.2...0.8).contains($0) }) != false,
               arcStart?.isFinite != false,
               arcSweep.map({ $0.isFinite && (10 * Double.pi / 180...350 * Double.pi / 180).contains(abs($0)) }) != false,
-              sides.map({ (kind == .star ? 4...12 : 3...12).contains($0) }) != false else { return false }
+              sides.map({ (kind == .star ? 4...12 : 3...12).contains($0) }) != false,
+              (label?.count ?? 0) <= 100_000, (labelRTF?.count ?? 0) <= 2 * 1024 * 1024,
+              labelFontSize.map({ $0.isFinite && (6...200).contains($0) }) != false else { return false }
         if let vertices {
             guard (3...64).contains(vertices.count), vertices.allSatisfy(\.isValid) else { return false }
             let unique = Set(vertices.map { "\($0.x)|\($0.y)" })

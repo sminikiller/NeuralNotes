@@ -54,6 +54,11 @@ public struct ShapeElement: Codable, Identifiable, Equatable, Sendable {
     public var arrowStyle: ArrowStyle?
     public var strokeOpacity: Double?
     public var audioAnchor: StrokeAnchor?
+    public var label: String?
+    public var labelRTF: Data?
+    public var labelFontSize: Double?
+    public var labelAutoFit: Bool?
+    public var pageLink: PageLinkTarget?
     public init(kind: ShapeKind, x: Double = 80, y: Double = 100, width: Double = 160, height: Double = 160,
                 red: Double = 0, green: Double = 0, blue: Double = 0, lineWidth: Double = 3) {
         self.kind = kind; self.x = x; self.y = y; self.width = width; self.height = height

@@ -97,6 +97,7 @@ public struct PageSnapshot: Codable, Identifiable, Equatable, Sendable {
     public var objectOrder: [UUID]?
     public var lockedObjects: [UUID]?
     public var aboveInkObjects: [UUID]?
+    public var connectors: [ConnectorElement]?
     public init(id: UUID = UUID()) { self.id = id }
 }
 

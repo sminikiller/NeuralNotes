@@ -17,7 +17,12 @@ enum ElementRendering {
         context.restoreGState()
     }
 
-    static func drawShape(_ shape: ShapeElement, context: CGContext) {
+    static func drawShape(_ shape: ShapeElement, context: CGContext, page: PageSnapshot? = nil) {
         ShapePathRendering.draw(shape, context: context)
+        if let label = DiagramLabels.shape(shape, page: page) {
+            context.saveGState()
+            if !shape.kind.isOpen { context.addPath(ShapePathRendering.path(ShapeGeometry.path(for: shape))); context.clip() }
+            DiagramLabels.draw(label, context: context); context.restoreGState()
+        }
     }
 }

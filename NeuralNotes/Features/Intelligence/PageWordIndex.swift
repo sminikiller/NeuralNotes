@@ -26,7 +26,23 @@ final class PageWordIndex {
             let words = Self.typedWords(text, pageHeight: page.height)
             if !words.isEmpty { groups.append(words) }
         }
+        for shape in page.shapes ?? [] {
+            if let label = DiagramLabels.shape(shape, page: page) { groups.append(labelWords(label, page: page)) }
+        }
+        if page.connectors?.isEmpty == false {
+            let objects = DiagramObjects.make(page)
+            for connector in page.connectors ?? [] {
+                if let label = DiagramLabels.connector(connector, objects: objects, page: page) { groups.append(labelWords(label, page: page)) }
+            }
+        }
         return groups
+    }
+    private func labelWords(_ label: DiagramLabelLayout, page: PageSnapshot) -> [PageWord] {
+        Self.typedWords(label.text, pageHeight: max(page.height, label.box.maxY)).compactMap { word in
+            let clipped = word.rect.intersection(label.box)
+            guard !clipped.isNull, !clipped.isEmpty else { return nil }
+            return PageWord(text: word.text, rect: clipped.applying(label.transform))
+        }
     }
 
     /// The text layer or the OCR of the page has been read (possibly finding nothing).
@@ -47,7 +63,7 @@ final class PageWordIndex {
             guard model.page?.id == page.id, self.key(page) == cacheKey else { return }
             if words.isEmpty {
                 // Handwriting, scans and photos: word boxes from the OCR of the drawn page.
-                var visual = page; visual.texts = []; visual.tapes = []; visual.shapes = []
+                var visual = page; visual.texts = []; visual.tapes = []; visual.shapes = []; visual.connectors = []
                 let image = DocumentServices.image(page: visual, drawing: ink, workspace: model.workspace, maxDimension: 2200)
                 if let data = image.pngData() {
                     let found = try await VisionOCRService().words(image: data)

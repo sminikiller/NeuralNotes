@@ -95,7 +95,7 @@ public actor DocumentWorkspace {
         let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("NeuralNotesSearch").appendingPathComponent("\(documentID).json")
         if let data = try? Data(contentsOf: cache), let snapshot = try? JSONDecoder().decode(SearchSnapshot.self, from: data),
-           snapshot.format == 2, snapshot.generation == generation {
+           snapshot.format == SearchSnapshot.currentFormat, snapshot.generation == generation {
             searchChunks = snapshot.chunks
         } else {
             let ocr = loadOCRCache()
@@ -441,7 +441,8 @@ public actor DocumentWorkspace {
     private func readPage(_ id: UUID) throws -> PageSnapshot {
         try Task.checkCancellation()
         try settlePageBatch()
-        let page: PageSnapshot = try read("pages/\(id).json")
+        var page: PageSnapshot = try read("pages/\(id).json")
+        page.detachMissingConnectorTargets()
         try PageValidation.validate(page)
         guard page.id == id, page.width.isFinite, page.height.isFinite,
               page.width > 0, page.height > 0, page.width <= 20000, page.height <= 20000 else {

@@ -2,13 +2,15 @@ import Foundation
 
 /// Rebuildable derived data; never a source of notebook contents or backup data.
 struct SearchSnapshot: Codable {
+    static let currentFormat = 3
     let format: Int
     let generation: String
     let chunks: [IndexedChunk]
     static func make(pages: [PageSnapshot], catalog: DocumentCatalog, documentID: UUID, generation: String, automaticOCR: [String: AutomaticOCRPage] = [:]) -> Self {
         var chunks: [IndexedChunk] = []
         for page in pages {
-            var sources: [(String, SearchContentKind)] = [(page.texts.map(\.text).joined(separator: "\n"), .text), (page.recognizedText, page.pdfFile == nil ? .handwriting : .pdf)]
+            let labels = (page.shapes ?? []).compactMap(\.label) + (page.connectors ?? []).compactMap(\.label)
+            var sources: [(String, SearchContentKind)] = [((page.texts.map(\.text) + labels).joined(separator: "\n"), .text), (page.recognizedText, page.pdfFile == nil ? .handwriting : .pdf)]
             if let ocr = automaticOCR[page.id.uuidString], ocr.revision == page.revision { sources.append((ocr.text, page.pdfFile == nil ? .handwriting : .pdf)) }
             for (text, kind) in sources { for line in text.split(separator: "\n") {
                 let value = String(line); var start = value.startIndex
@@ -27,6 +29,6 @@ struct SearchSnapshot: Codable {
                 chunks.append(IndexedChunk(text: block.text, reference: SourceReference(documentID: documentID, audioSessionID: session.id, seconds: block.start), kind: .audio))
             }
         }
-        return Self(format: 2, generation: generation, chunks: chunks)
+        return Self(format: currentFormat, generation: generation, chunks: chunks)
     }
 }

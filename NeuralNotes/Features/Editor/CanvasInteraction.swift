@@ -25,6 +25,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private let fitTap = UITapGestureRecognizer()
     private let objectTap = UITapGestureRecognizer()
     private let pointerFitTap = UITapGestureRecognizer()
+    private let labelTap = UITapGestureRecognizer()
     private let undoTap = UITapGestureRecognizer(), redoTap = UITapGestureRecognizer()
     private let nextSwipe = UISwipeGestureRecognizer(), previousSwipe = UISwipeGestureRecognizer()
     private let nextVerticalSwipe = UISwipeGestureRecognizer(), previousVerticalSwipe = UISwipeGestureRecognizer()
@@ -55,6 +56,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         tap.require(toFail: fitTap)
         tap.require(toFail: pointerFitTap)
+        labelTap.addTarget(self, action: #selector(fitPage(_:))); labelTap.numberOfTapsRequired = 2
+        labelTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        labelTap.delegate = self; labelTap.cancelsTouchesInView = false; host.canvas.addGestureRecognizer(labelTap)
+        tap.require(toFail: labelTap)
         undoTap.numberOfTouchesRequired = 2; redoTap.numberOfTouchesRequired = 3
         undoTap.addTarget(self, action: #selector(historyTap(_:))); redoTap.addTarget(self, action: #selector(historyTap(_:)))
         undoTap.require(toFail: fitTap)
@@ -127,6 +132,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
         guard let model, let host, !model.loading, !model.navigating else { return false }
+        if gesture === labelTap { return model.tool == .objects && model.editingTextID == nil }
         if gesture === undoTap || gesture === redoTap { return model.hasLease && !model.hasActiveStroke && model.editingTextID == nil }
         if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,
            model.checklistHit(at: gesture.location(in: host.surface)) != nil { return true }
@@ -160,7 +166,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         // PencilKit's internal scroll/tap recognizers must not swallow our fit
         // or page-turn gesture. Drawing input itself remains Pencil-only.
-        gesture === objectTap || gesture === fitTap || gesture === pointerFitTap || pageSwipes.contains(where: { $0 === gesture })
+        gesture === objectTap || gesture === fitTap || gesture === pointerFitTap || gesture === labelTap || pageSwipes.contains(where: { $0 === gesture })
     }
 
     @objc private func turnPage(_ gesture: UISwipeGestureRecognizer) {
@@ -169,7 +175,13 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         Task { await model?.turnPage(delta) }
     }
 
-    @objc private func fitPage(_ gesture: UITapGestureRecognizer) { host?.togglePageZoom(animated: true) }
+    @objc private func fitPage(_ gesture: UITapGestureRecognizer) {
+        if let host, let model, model.tool == .objects, let id = hit(gesture.location(in: host.surface)),
+           model.page?.shapes?.contains(where: { $0.id == id }) == true || model.page?.connectors?.contains(where: { $0.id == id }) == true {
+            model.editDiagramLabel(id); return
+        }
+        if gesture !== labelTap { host?.togglePageZoom(animated: true) }
+    }
     @objc private func historyTap(_ gesture: UITapGestureRecognizer) {
         Task { if gesture === undoTap { await model?.performUndo() } else { await model?.performRedo() } }
     }
@@ -502,7 +514,14 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if model.selectedIDs.count == 1, let id = model.selectedObjectID,
            let rect = objectRect(id), CGRect(x: rect.maxX - margin, y: rect.maxY - margin, width: margin * 2, height: margin * 2).contains(point) { return id }
         if let id = allIDs.reversed().first(where: { id in
+            if let page = model.page, let connector = page.connectors?.first(where: { $0.id == id }) {
+                let objects = DiagramObjects.make(page)
+                if let label = DiagramLabels.connector(connector, objects: objects, page: page), label.box.contains(point) { return true }
+                return ConnectorGeometry.hit(.init(x: point.x, y: point.y), connector: connector, objects: objects, zoom: host.canvas.zoomScale)
+            }
             if let shape = model.page?.shapes?.first(where: { $0.id == id }) {
+                if let page = model.page, let label = DiagramLabels.shape(shape, page: page),
+                   label.box.contains(point.applying(label.transform.inverted())) { return true }
                 return ShapeGeometry.hit(.init(x: point.x, y: point.y), shape: shape, zoom: host.canvas.zoomScale)
             }
             return objectRect(id)?.contains(point) == true
@@ -511,6 +530,12 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
     private func objectRect(_ id: UUID, visual: Bool = true) -> CGRect? {
         guard let page = model?.page else { return nil }
+        if let connector = page.connectors?.first(where: { $0.id == id }) {
+            let objects = DiagramObjects.make(page)
+            var box = ConnectorGeometry.bounds(connector, objects: objects).cgRect
+            if let label = DiagramLabels.connector(connector, objects: objects, page: page) { box = box.union(label.box) }
+            return box
+        }
         if let tape = page.tapes?.first(where: { $0.id == id }) { return CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height) }
         if let image = page.images.first(where: { $0.id == id }) {
             let box = CGRect(x: image.x, y: image.y, width: image.width, height: image.height)

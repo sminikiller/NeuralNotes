@@ -21,9 +21,13 @@ public struct IndexedPageLink: Identifiable, Equatable, Sendable {
 public enum PageLinks {
     public static func index(_ pages: [PageSnapshot]) -> [IndexedPageLink] {
         pages.flatMap { page in
-            page.texts.compactMap { text in
+            let texts = page.texts.compactMap { text in
                 text.pageLink.map { IndexedPageLink(originPageID: page.id, textID: text.id, label: String(text.text.prefix(240)), target: $0) }
             }
+            let shapes = (page.shapes ?? []).compactMap { shape in
+                shape.pageLink.map { IndexedPageLink(originPageID: page.id, textID: shape.id, label: String((shape.label ?? shape.kind.title).prefix(240)), target: $0) }
+            }
+            return texts + shapes
         }
     }
     public static func backlinks(to target: PageLinkTarget, in pages: [PageSnapshot]) -> [IndexedPageLink] {

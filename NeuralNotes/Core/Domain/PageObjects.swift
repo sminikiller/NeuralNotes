@@ -11,7 +11,7 @@ public struct StudyTape: Codable, Equatable, Identifiable, Sendable {
 }
 
 public extension PageSnapshot {
-    var objectIDs: [UUID] { images.map(\.id) + (shapes ?? []).map(\.id) + texts.map(\.id) + (tapes ?? []).map(\.id) }
+    var objectIDs: [UUID] { images.map(\.id) + (shapes ?? []).map(\.id) + texts.map(\.id) + (tapes ?? []).map(\.id) + (connectors ?? []).map(\.id) }
     var orderedObjectIDs: [UUID] {
         let valid = Set(objectIDs); var seen = Set<UUID>()
         return ((objectOrder ?? []) + objectIDs).filter { valid.contains($0) && seen.insert($0).inserted }
@@ -21,6 +21,7 @@ public extension PageSnapshot {
         objectOrder = objectOrder?.filter { valid.contains($0) }
         lockedObjects = lockedObjects?.filter { valid.contains($0) }
         aboveInkObjects = aboveInkObjects?.filter { valid.contains($0) }
+        detachMissingConnectorTargets()
     }
     @discardableResult mutating func renewObjectIDs() -> [UUID: UUID] {
         var map: [UUID: UUID] = [:]
@@ -28,6 +29,13 @@ public extension PageSnapshot {
         for i in images.indices { let old = images[i].id; images[i].id = UUID(); map[old] = images[i].id }
         if var values = shapes { for i in values.indices { let old = values[i].id; values[i].id = UUID(); map[old] = values[i].id }; shapes = values }
         if var values = tapes { for i in values.indices { let old = values[i].id; values[i].id = UUID(); map[old] = values[i].id }; tapes = values }
+        if var values = connectors {
+            for i in values.indices { let old = values[i].id; values[i].id = UUID(); map[old] = values[i].id }
+            for i in values.indices {
+                values[i].from.objectID = values[i].from.objectID.flatMap { map[$0] }
+                values[i].to.objectID = values[i].to.objectID.flatMap { map[$0] }
+            }; connectors = values
+        }
         objectOrder = objectOrder.map { $0.compactMap { map[$0] } }
         lockedObjects = lockedObjects.map { $0.compactMap { map[$0] } }
         aboveInkObjects = aboveInkObjects.map { $0.compactMap { map[$0] } }

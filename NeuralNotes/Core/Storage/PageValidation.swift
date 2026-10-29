@@ -5,7 +5,8 @@ public enum PageValidation {
         guard (0...1_000_000_000).contains(page.revision), page.width.isFinite, page.height.isFinite,
               (0...20000).contains(page.width), (0...20000).contains(page.height), page.width > 0, page.height > 0,
               page.appearance?.isValid != false, page.tapes?.allSatisfy(\.isValid) != false,
-              (page.pdfMarkups ?? []).allSatisfy(\.isValid), (page.shapes?.count ?? 0) <= 10000 else { throw LibraryFailure.corruptDocument }
+              (page.pdfMarkups ?? []).allSatisfy(\.isValid), (page.shapes?.count ?? 0) <= 10000,
+              (page.connectors?.count ?? 0) <= 10000, (page.connectors ?? []).allSatisfy(\.isValid) else { throw LibraryFailure.corruptDocument }
         if let time = page.lastEditedAt, !time.isFinite || time < 0 { throw LibraryFailure.corruptDocument }
         if let index = page.pdfIndex, index < 0 || index == Int.max { throw LibraryFailure.corruptDocument }
         for text in page.texts {
