@@ -382,13 +382,22 @@ public actor DocumentWorkspace {
     }
 
     public func exportNative(metadata: Notebook) throws -> URL {
+        #if DEBUG
+        print("NativeBackup025: begin export")
+        #endif
         try settlePageBatch()
         guard try catalog().sessions.allSatisfy({ $0.state != "recording" }) else {
             throw LibraryFailure.recoveryRequired("Metti in pausa la registrazione prima di esportare il backup.")
         }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        #if DEBUG
+        print("NativeBackup025: catalog checked")
+        #endif
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let destination = directory.appendingPathComponent("NeuralNotes.nnbackup", isDirectory: false)
+        #if DEBUG
+        print("NativeBackup025: destination prepared")
+        #endif
         try NativeArchive.write(package: package, metadata: metadata, to: destination)
         return destination
     }

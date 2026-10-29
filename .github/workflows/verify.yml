@@ -138,8 +138,16 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
+      - name: Verify Core before starting simulator tests
+        if: inputs.scope != 'ui' && inputs.scope != 'native'
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .verification
+          swift test 2>&1 | tee .verification/core-validation.log
       - name: Build, run Swift tests and iPad UI tests
         env:
+          NEURALNOTES_CORE_VALIDATED: '1'
           NEURALNOTES_FOCUSED_TESTS: ${{ inputs.scope == 'focused' && '1' || '0' }}
           NEURALNOTES_UI_ONLY: ${{ inputs.scope == 'ui' && '1' || '0' }}
           NEURALNOTES_UI_TEST: ${{ inputs.ui_test }}
@@ -160,6 +168,7 @@ jobs:
           if-no-files-found: warn
           path: |
             .verification/apple-validation.log
+            .verification/core-validation.log
             .verification/**/*.xcresult
             .verification/**/screenshots/
   playground:

@@ -57,7 +57,7 @@ final class ShapeRecognizerTests: XCTestCase {
         for width in [160.0, 300, 480] {
             var shape = ShapeElement(kind: .ellipse, width: width, height: 160); shape.rotation = 27
             let result = ShapeRecognizer.recognize(samples(shape, noise: 0.3), mode: .automatic)
-            XCTAssertEqual(result?.shape.kind, .ellipse)
+            XCTAssertEqual(result?.shape.kind, .ellipse, "Ellisse \(width) × 160")
             XCTAssertNil(ShapeRecognizer.recognize(samples(shape), enabled: [.polygon, .star]))
         }
     }

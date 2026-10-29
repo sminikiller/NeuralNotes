@@ -42,7 +42,9 @@ enum ShapeRecognitionMath {
         guard count >= 8 else { return false }
         var turns: [Double] = []
         for index in points.indices {
-            let a = points[(index + count - 1) % count], b = points[index], c = points[(index + 1) % count]
+            // Average each tangent over two resampled intervals. Single-step
+            // jitter on a smooth circle must not count as a polygon corner.
+            let a = points[(index + count - 2) % count], b = points[index], c = points[(index + 2) % count]
             let ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y
             let product = max(0.001, hypot(ux, uy) * hypot(vx, vy))
             turns.append(acos(min(1, max(-1, (ux * vx + uy * vy) / product))))
@@ -50,7 +52,7 @@ enum ShapeRecognitionMath {
         let mean = turns.reduce(0, +) / Double(count)
         let peak = turns.max() ?? 0
         let flat = turns.filter { $0 < mean * 0.45 }.count
-        return peak > 0.25 && peak > mean * 2.2 && Double(flat) / Double(count) > 0.25
+        return peak > 0.35 && peak > mean * 2.2 && Double(flat) / Double(count) > 0.12
     }
     static func corners(_ points: [StrokeSample], span: Double, tolerance: Double = 0.04) -> [StrokeSample] {
         guard let a = points.first,

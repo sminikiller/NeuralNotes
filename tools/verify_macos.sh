@@ -9,7 +9,7 @@ xcrun swift --version
 xcodebuild -showsdks
 python3 tools/check_project.py
 verification_status=0
-if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ]; then
+if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_CORE_VALIDATED:-0}" != 1 ]; then
   swift test || verification_status=1
 fi
 
