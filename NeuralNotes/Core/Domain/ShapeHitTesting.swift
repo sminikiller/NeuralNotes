@@ -1,6 +1,34 @@
 import Foundation
 
 public extension ShapeGeometry {
+    static func connectionPoints(_ shape: ShapeElement) -> [StrokeSample] {
+        var local = shape; local.rotation = nil
+        guard let outline = polylines(path(for: local)).first, outline.count >= 2 else { return [] }
+        if shape.kind.isOpen {
+            return ShapeRecognitionMath.resample(outline, count: 3).map { rotate($0, shape: shape) }
+        }
+        let center = StrokeSample(x: shape.x + shape.width / 2, y: shape.y + shape.height / 2)
+        let directions = [sample(0, -1), sample(1, 0), sample(0, 1), sample(-1, 0)]
+        var result: [StrokeSample] = []
+        for direction in directions {
+            var farthest: Double?
+            for index in 1..<outline.count {
+                let a = outline[index - 1], b = outline[index]
+                let sx = b.x - a.x, sy = b.y - a.y
+                let denominator = direction.x * sy - direction.y * sx
+                guard abs(denominator) > 0.000001 else { continue }
+                let px = a.x - center.x, py = a.y - center.y
+                let distance = (px * sy - py * sx) / denominator
+                let along = (px * direction.y - py * direction.x) / denominator
+                if distance >= 0, (-0.000001...1.000001).contains(along), distance > (farthest ?? -1) { farthest = distance }
+            }
+            if let distance = farthest {
+                let point = sample(center.x + direction.x * distance, center.y + direction.y * distance)
+                result.append(rotate(point, shape: shape))
+            }
+        }
+        return result
+    }
     static func polylines(_ path: ShapePath, steps: Int = 32) -> [[StrokeSample]] {
         let count = min(128, max(4, steps))
         var lines: [[StrokeSample]] = [], line: [StrokeSample] = [], current = sample(0, 0)

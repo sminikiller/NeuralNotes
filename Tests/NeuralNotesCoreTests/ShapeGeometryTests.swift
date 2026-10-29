@@ -128,4 +128,13 @@ final class ShapeGeometryTests: XCTestCase {
         for _ in 0..<200 { XCTAssertNotNil(index.nearest(.init(x: 103, y: 102), zoom: 1)) }
         XCTAssertLessThan(Date().timeIntervalSince(start), 0.2)
     }
+    func testConnectionPointsAreOnTheActualShapeInsteadOfItsEmptyBoundingCorners() {
+        for kind in ShapeKind.allCases {
+            var shape = ShapeElement(kind: kind, width: 300, height: 200)
+            shape.sides = kind == .star ? 5 : 6; shape.rotation = 23
+            let points = ShapeGeometry.connectionPoints(shape)
+            XCTAssertFalse(points.isEmpty, kind.rawValue)
+            for point in points { XCTAssertTrue(ShapeGeometry.hit(point, shape: shape, zoom: 4, tolerance: 0.1), kind.rawValue) }
+        }
+    }
 }

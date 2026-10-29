@@ -19,9 +19,9 @@ extension EditorViewModel {
         guard !hasActiveStroke else { return }
         shapeKind = kind; tool = .shape; restoreToolPalette(); configureTool()
     }
-    func shapeForDrag(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample) -> ShapeElement? {
+    func shapeForDrag(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample, preserveEnd: Bool = false) -> ShapeElement? {
         let snapped = ShapeSnapping.drag(kind: kind, start: a, end: b)
-        guard var shape = ShapeElement.dragged(kind: kind, from: a, to: snapped.end, color: InkColor(ink), lineWidth: thickness) else { return nil }
+        guard var shape = ShapeElement.dragged(kind: kind, from: a, to: preserveEnd ? b : snapped.end, color: InkColor(ink), lineWidth: thickness) else { return nil }
         shape.sides = kind == .star ? max(4, shapePreferences.sides ?? 5) : (kind == .polygon ? (shapePreferences.sides ?? 6) : nil)
         shape.innerRatio = kind == .star ? (shapePreferences.innerRatio ?? 0.5) : nil
         var style = shapePreferences.style ?? .standard
@@ -29,8 +29,8 @@ extension EditorViewModel {
         shape = style.applying(to: shape)
         return shape
     }
-    func addDraggedShape(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample) {
-        guard var shape = shapeForDrag(kind, from: a, to: b) else { return }
+    func addDraggedShape(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample, preserveEnd: Bool = false) {
+        guard var shape = shapeForDrag(kind, from: a, to: b, preserveEnd: preserveEnd) else { return }
         if let (session, seconds) = audio?.recordingAnchor {
             shape.audioAnchor = StrokeAnchor(signature: "shape:\(shape.id)", audioSessionID: session, seconds: seconds)
         }

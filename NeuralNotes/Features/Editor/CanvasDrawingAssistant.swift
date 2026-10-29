@@ -55,12 +55,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
         beganAt = Date(); snapHint = nil
-        let connections = (page.shapes ?? []).filter { !(page.lockedObjects ?? []).contains($0.id) }.flatMap { shape in
-            let local = [StrokeSample(x: shape.x + shape.width / 2, y: shape.y),
-                .init(x: shape.x + shape.width, y: shape.y + shape.height / 2),
-                .init(x: shape.x + shape.width / 2, y: shape.y + shape.height),
-                .init(x: shape.x, y: shape.y + shape.height / 2)]
-            return local.map { ShapeGeometry.rotate($0, shape: shape) }
+        var connections: [StrokeSample] = []
+        if model.tool == .shape, model.shapeKind == .line || model.shapeKind == .arrow {
+            let locked = Set(page.lockedObjects ?? [])
+            connections = (page.shapes ?? []).filter { !locked.contains($0.id) }.flatMap { ShapeGeometry.connectionPoints($0) }
         }
         connectionIndex = ShapeConnectionIndex(points: connections)
         if model.tool == .shape, model.shapeKind == .line || model.shapeKind == .arrow,
@@ -136,7 +134,8 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         if model.tool == .shape {
             model.drawingShape = false
             if !cancelled, model.page?.id == pageID, let first = points.first, let last = points.last {
-                model.addDraggedShape(model.shapeKind, from: first, to: connection(near: last) ?? last)
+                let connected = connection(near: last)
+                model.addDraggedShape(model.shapeKind, from: first, to: connected ?? last, preserveEnd: connected != nil)
             }
             cancel(); return
         }
@@ -174,11 +173,11 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
                 if i == 0 { path.move(to: CGPoint(x: p.x, y: p.y)) } else { path.addLine(to: CGPoint(x: p.x, y: p.y)) }
             }
         } else if model.tool == .shape, let a = samples.first, let b = samples.last,
-                  let shape = model.shapeForDrag(kind, from: a, to: connection(near: b) ?? b) {
+                  let shape = model.shapeForDrag(kind, from: a, to: connection(near: b) ?? b, preserveEnd: connection(near: b) != nil) {
             path = UIBezierPath(cgPath: ShapePathRendering.path(ShapeGeometry.path(for: shape)))
             for arrow in ShapeGeometry.arrowPaths(for: shape) { path.append(UIBezierPath(cgPath: ShapePathRendering.path(arrow))) }
             let snap = ShapeSnapping.drag(kind: kind, start: a, end: b)
-            let hint: String? = snap.proportionsSnapped ? "Proporzioni 1:1" : (snap.angleSnapped ? "Angolo agganciato" : nil)
+            let hint: String? = connection(near: b) != nil ? "Estremo agganciato" : (snap.proportionsSnapped ? "Proporzioni 1:1" : (snap.angleSnapped ? "Angolo agganciato" : nil))
             if let hint, hint != snapHint { host.showPageInputHint(hint); UIImpactFeedbackGenerator(style: .light).impactOccurred() }
             snapHint = hint
             preview.fillColor = shape.fill.map { UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: shape.fillOpacity ?? 0.25).cgColor }

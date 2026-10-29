@@ -66,6 +66,14 @@ final class ShapeEditorTests: XCTestCase {
             XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertEqual(model.page?.shapes?.first?.audioAnchor, anchor)
         }
     }
+    @MainActor func testAttachedEndpointWinsOverNearbyAngleSnap() async throws {
+        try await fixture { model in
+            let a = StrokeSample(x: 100, y: 100), b = StrokeSample(x: 300, y: 153)
+            let shape = try XCTUnwrap(model.shapeForDrag(.arrow, from: a, to: b, preserveEnd: true))
+            let end = try XCTUnwrap(ShapeHandles.positions(shape, zoom: 1).first { $0.0 == .end }?.1)
+            XCTAssertEqual(end.x, b.x, accuracy: 0.001); XCTAssertEqual(end.y, b.y, accuracy: 0.001)
+        }
+    }
     @MainActor func testExportedPDFContainsTheNewShapeFill() async throws {
         try await fixture { model in
             model.addDraggedShape(.star, from: .init(x: 150, y: 180), to: .init(x: 450, y: 480))
