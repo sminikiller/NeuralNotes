@@ -59,6 +59,7 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     public var writing: WritingOptions?
     public var focusTools: [WorkspaceTool]?
     public var shapes: ShapePreferences?
+    public var snapping: SnapPreferences?
     public static let maximumFocusTools = 5
     public var effectiveFocusTools: [WorkspaceTool] { focusTools ?? Array(favorites.prefix(3)) }
     public init(name: String, favorites: [WorkspaceTool]) { self.name = name; self.favorites = favorites }

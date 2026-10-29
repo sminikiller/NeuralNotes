@@ -403,3 +403,11 @@ Seleziona testo digitale e conserva i riferimenti.
 3. Disegna la figura. Nella modalità con attesa ferma la punta per circa mezzo secondo, poi solleva; in modalità automatica solleva normalmente.
 4. Una correzione automatica mostra **Corretto in… · Annulla**. Annulla ripristina il tratto originale; un successivo annulla può rimuoverlo.
 5. Il sistema evita tratti molto rapidi e la vicinanza alla scrittura recente. Quando una figura non viene riconosciuta, usa lo strumento esplicito: gli appunti rimangono tuoi.
+
+## Aggancio e allineamento (0.26)
+1. Workspace → Aggancio: attiva oggetti, griglia e guide per questa attività. Quadretti, puntini, millimetri e isometrica usano il passo della carta; sulle altre carte la griglia opzionale è da 8 pt.
+2. Con Oggetti trascina vicino a bordi o centri: le guide sono temporanee e non entrano nei file o nel PDF. Tra due oggetti compaiono = e la distanza quando gli spazi coincidono.
+3. Durante un trascinamento già iniziato, appoggia un secondo dito oppure tieni premuto ⌥ per sospendere l’aggancio. Due dita all’inizio continuano a scorrere la pagina.
+4. Con due elementi selezionati apri Allinea e distribuisci. Scegli bordo, centro o dimensione; con tre elementi puoi distribuire in orizzontale o verticale. Il lazo tratta l’inchiostro selezionato come un elemento.
+5. Le maniglie delle forme agganciano bordi e griglia; la rotazione usa passi di 15° e un richiamo più forte entro 3° dagli angoli retti. Mantieni proporzioni conserva il rapporto durante il ridimensionamento.
+6. Gli oggetti bloccati sono esclusi. Gli oggetti ruotati non sono riferimenti di aggancio. Annulla ripristina l’intera operazione in un solo passo.

@@ -27,6 +27,8 @@ final class CanvasHost: UIView {
     var rulerGuide: RulerGuideView?
     var pencilControls: PencilControls?
     var shapeHandles: ShapeHandlesOverlay?
+    var snapGuides: SnapGuidesView?
+    var snapSecondTouch = false
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
     private let inputShield = PendingPageInputShield()
@@ -58,6 +60,8 @@ final class CanvasHost: UIView {
         insertSubview(lensNotes, belowSubview: searchHighlight)
         addSubview(laserPointer)
         addSubview(lensBar)
+        let guides = SnapGuidesView(host: self); snapGuides = guides; addSubview(guides)
+        addGestureRecognizer(SnapTouchMonitor(host: self))
     }
     required init?(coder: NSCoder) { return nil }
 
@@ -109,6 +113,7 @@ final class CanvasHost: UIView {
             CATransaction.begin(); CATransaction.setDisableActions(true)
             interaction?.resetForPageChange()
             shapeHandles?.reset()
+            snapGuides?.show([])
             surface.layer.contents = nil
             surface.hiddenTextID = nil; surface.hiddenObjectID = nil
             paperDetail.resetForPageChange()

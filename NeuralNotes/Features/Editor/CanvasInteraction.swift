@@ -17,6 +17,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private var resizing = false
     private let inkID = UUID()
     private var originalDrawing: PKDrawing?
+    private var snapEngine: SnapEngine?
     private var selectionTrace: [CGPoint] = []
     /// A Lens note dragged while the Lens tool is active.
     private var movingLensNote: UUID?
@@ -67,8 +68,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             swipe.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
             host.canvas.addGestureRecognizer(swipe)
         }
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
-        pan.maximumNumberOfTouches = 1
+        let pan = SnapPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        pan.maximumNumberOfTouches = 2
         for gesture in [tap as UIGestureRecognizer, pan] {
             gesture.delegate = self
             gesture.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.pencil.rawValue)]
@@ -85,6 +86,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         before = nil; original = [:]; originalDrawing = nil
         movingLensNote = nil; selectionTrace = []
+        snapEngine = nil; host?.snapGuides?.show([])
     }
 
     func refresh() {
@@ -216,6 +218,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if let before { model.page = before.page; if let data = before.drawing, let restored = try? PKDrawing(data: data) { model.canvas.drawing = restored } }
             endPreview(host: host)
             model.movingObjects = false; marquee.path = nil; wordHighlight.path = nil
+            snapEngine = nil; host.snapGuides?.show([])
             before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
         }
         if model.tool == .lens && movingLensNote == nil { lensStroke(gesture, point: point, page: page, host: host, model: model); return }
@@ -248,9 +251,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             } else { resizing = false }
         }
         // One object moving: a picture of it follows the finger and the page changes once, on release.
-        if original.count == 1, !resizing, !model.selectionIncludesInk, let id = original.keys.first, previewable(id, page: page) {
+        if original.count == 1, !model.selectionIncludesInk, let id = original.keys.first, previewable(id, page: page) {
             startPreview(id, page: page, host: host)
         }
+        snapEngine = model.snapEngine(excluding: model.selectedIDs)
     }
 
     /// The Lens stroke. With words on the page it highlights whole words as it goes:
@@ -327,12 +331,43 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 
     private func moveObjects(_ gesture: UIPanGestureRecognizer, point: CGPoint, page: PageSnapshot, host: CanvasHost, model: EditorViewModel) {
         var dx = Double(point.x - start.x), dy = Double(point.y - start.y)
+        let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 })
+        let keepRatio = resizing && (model.snapPreferences.keepProportions == true || original.keys.contains(where: { id in page.images.contains { $0.id == id } }))
+        if keepRatio, let group { dy = dx * group.height / max(1, group.width) }
         if !resizing, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
             let a = -Double(group.minX), b = page.width - Double(group.maxX)
             let c = -Double(group.minY), d = page.height - Double(group.maxY)
             dx = max(min(a, b), min(max(a, b), dx)); dy = max(min(c, d), min(max(c, d), dy))
         }
-        if dragPreview != nil, gesture.state != .ended { movePreview(dx: dx, dy: dy, host: host); return }
+        if let engine = snapEngine, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
+            let proposed = resizing
+                ? SnapRect(x: group.minX, y: group.minY, width: max(1, group.width + dx), height: max(1, group.height + dy))
+                : SnapRect(group.offsetBy(dx: dx, dy: dy))
+            let snapped = engine.snap(proposed, zoom: host.canvas.zoomScale, preferences: model.snapPreferences,
+                                      resizing: resizing, suspended: host.snapSecondTouch || gesture.modifierFlags.contains(.alternate))
+            if resizing { dx = snapped.rect.width - group.width; dy = snapped.rect.height - group.height }
+            else { dx = snapped.rect.x - group.minX; dy = snapped.rect.y - group.minY }
+            var guides = snapped.guides
+            if keepRatio {
+                let ratio = group.height / max(1, group.width)
+                if abs(snapped.rect.width - proposed.width) < 0.001, abs(snapped.rect.height - proposed.height) > 0.001 { dx = dy / ratio }
+                dy = dx * ratio
+                guides = guides.filter { abs($0.from.x - $0.to.x) < 0.01 ? abs($0.from.x - group.maxX - dx) < 0.1 : abs($0.from.y - group.maxY - dy) < 0.1 }
+            }
+            host.snapGuides?.show(guides)
+        }
+        if dragPreview != nil, gesture.state != .ended {
+            if resizing, let group {
+                let sx = max(24, group.width + dx) / max(1, group.width)
+                let sy = keepRatio ? sx : 1
+                CATransaction.begin(); CATransaction.setDisableActions(true)
+                let tx = group.width * (sx - 1) / 2 * host.canvas.zoomScale
+                let ty = group.height * (sy - 1) / 2 * host.canvas.zoomScale
+                dragPreview?.setAffineTransform(CGAffineTransform(a: sx, b: 0, c: 0, d: sy, tx: tx, ty: ty))
+                CATransaction.commit()
+            } else { movePreview(dx: dx, dy: dy, host: host) }
+            return
+        }
         var changed = page
         for (id, rect) in original {
             let x = Double(rect.minX), y = Double(rect.minY), w = Double(rect.width), h = Double(rect.height)
@@ -343,7 +378,17 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                     changed.images[i].width = width; changed.images[i].height = width * ratio
                 } else { changed.images[i].x = x + dx; changed.images[i].y = y + dy }
             } else if let i = page.texts.firstIndex(where: { $0.id == id }) {
-                if resizing { changed.texts[i].width = max(24, min(page.width - x, w + dx)) }
+                if resizing {
+                    changed.texts[i].width = max(24, min(page.width - x, w + dx))
+                    if keepRatio, let source = before?.page.texts.first(where: { $0.id == id }) {
+                        let scale = changed.texts[i].width / w
+                        let attributed = NSMutableAttributedString(attributedString: RichText.attributed(source))
+                        attributed.enumerateAttribute(.font, in: NSRange(location: 0, length: attributed.length)) { value, range, _ in
+                            if let font = value as? UIFont { attributed.addAttribute(.font, value: font.withSize(min(1000, max(1, font.pointSize * scale))), range: range) }
+                        }
+                        changed.texts[i].fontSize = min(1000, max(1, source.fontSize * scale)); changed.texts[i].rtf = RichText.data(attributed)
+                    }
+                }
                 else { changed.texts[i].x = x + dx; changed.texts[i].y = y + dy }
             } else if let i = page.shapes?.firstIndex(where: { $0.id == id }) {
                 if resizing {
@@ -377,6 +422,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if movingLensNote != nil { label = "Sposta nota della Lente" }
             model.recordEdit(before, label: label)
             before = nil; original = [:]; originalDrawing = nil
+            snapEngine = nil; host.snapGuides?.show([])
             if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; model.finishLensSelection(); refresh() }
         }
     }
@@ -502,6 +548,12 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
                 }
             }
             var items: [UIMenuElement] = [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
+            if model.arrangementCount >= 2 {
+                let actions = SelectionArrangement.allCases.map { action in
+                    UIAction(title: action.title, attributes: model.arrangementCount < action.minimumCount ? .disabled : []) { _ in model.arrangeSelection(action) }
+                }
+                items.insert(UIMenu(title: "Allinea e distribuisci", children: actions), at: 1)
+            }
             if model.page?.images.contains(where: { $0.id == id }) == true {
                 items.insert(UIAction(title: "Raddrizza immagine", image: UIImage(systemName: "viewfinder")) { _ in
                     model.selectedObjectID = id; model.imageStraightenRequest += 1

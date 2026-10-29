@@ -38,7 +38,7 @@ public enum ShapeHandles {
         values.append((.rotation, .init(x: x + w / 2, y: y - 32 / max(0.05, zoom))))
         return values.map { ($0.0, ShapeGeometry.rotate($0.1, shape: shape)) }
     }
-    public static func moved(_ source: ShapeElement, handle: ShapeHandle, to target: StrokeSample) -> ShapeElement {
+    public static func moved(_ source: ShapeElement, handle: ShapeHandle, to target: StrokeSample, keepProportions: Bool = false, snapRotation: Bool = true, snapProportions: Bool = true) -> ShapeElement {
         guard target.x.isFinite, target.y.isFinite, abs(target.x) <= 1_000_000, abs(target.y) <= 1_000_000 else { return source }
         var shape = source
         let point = ShapeGeometry.rotate(target, shape: source, inverse: true)
@@ -46,7 +46,7 @@ public enum ShapeHandles {
         switch handle {
         case .rotation:
             let angle = atan2(target.y - cy, target.x - cx) * 180 / .pi + 90
-            shape.rotation = ShapeRecognitionMath.snappedAngle(angle)
+            shape.rotation = snapRotation ? SnapEngine.rotation(angle) : angle
         case .corner(let index):
             guard (0..<4).contains(index) else { return source }
             let corners = [StrokeSample(x: source.x, y: source.y), .init(x: source.x + source.width, y: source.y),
@@ -54,6 +54,12 @@ public enum ShapeHandles {
             let opposite = corners[(index + 2) % 4]
             var newWidth = min(20000, max(8, abs(point.x - opposite.x))), newHeight = min(20000, max(8, abs(point.y - opposite.y)))
             if [.arc, .polygon, .star].contains(source.kind) {
+                let side = max(newWidth, newHeight); newWidth = side; newHeight = side
+            } else if keepProportions {
+                let ratio = source.height / source.width
+                if newWidth / source.width > newHeight / source.height { newHeight = newWidth * ratio }
+                else { newWidth = newHeight / ratio }
+            } else if snapProportions && max(newWidth, newHeight) / min(newWidth, newHeight) <= 1.08 {
                 let side = max(newWidth, newHeight); newWidth = side; newHeight = side
             }
             let adjusted = StrokeSample(x: opposite.x + (point.x < opposite.x ? -newWidth : newWidth),

@@ -119,6 +119,7 @@ struct EditorQuickToolbar: View {
                 Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
+                SelectionAlignmentMenu(model: model)
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
                 Button { model.shapeStyleRequest += 1 } label: { Image(systemName: "paintbrush.pointed") }
                     .accessibilityLabel("Stile forme").accessibilityIdentifier("selectionShapeStyle").disabled(model.selectedShapes.isEmpty)

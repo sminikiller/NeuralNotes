@@ -81,6 +81,7 @@ struct WorkspacePanel: View {
                 }
                 Section { NavigationLink("Penne, preset e gomma") { WritingToolsPanel(model: model) } }
                 Section { NavigationLink("Riconoscimento forme") { ShapeRecognitionPanel(model: model) } }
+                Section { NavigationLink("Aggancio") { SnapOptionsPanel(model: model) }.accessibilityIdentifier("workspaceSnapping") }
                 Section("Salva una configurazione") {
                     TextField("Nome attività", text: $name)
                     Button("Duplica con questo nome", systemImage: "plus.square.on.square") { model.duplicateWorkspace(name: name); name = "" }

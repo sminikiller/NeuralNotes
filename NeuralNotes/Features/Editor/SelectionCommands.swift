@@ -75,11 +75,11 @@ extension EditorViewModel {
             for var image in images { image.x += 20; image.y += 20; page?.images.append(image); ids.insert(image.id) }
             for var shape in copy.shapes ?? [] {
                 shape.x += 20; shape.y += 20
-                page?.shapes = (page?.shapes ?? []) + [shape]; ids.insert(shape.id)
+                var shapes = page?.shapes ?? []; shapes.append(shape); page?.shapes = shapes; ids.insert(shape.id)
             }
             for var tape in copy.tapes ?? [] {
                 tape.x += 20; tape.y += 20
-                page?.tapes = (page?.tapes ?? []) + [tape]; ids.insert(tape.id)
+                var tapes = page?.tapes ?? []; tapes.append(tape); page?.tapes = tapes; ids.insert(tape.id)
             }
             if let copied = copiedDrawing {
                 let strokes = copied.strokes.enumerated().map { index, stroke in

@@ -22,6 +22,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private var guideEdge = 1.0
     private var beganAt = Date()
     private var connectionIndex = ShapeConnectionIndex()
+    private var shapeSnapEngine: SnapEngine?
     private var snapHint: String?
 
     init(host: CanvasHost, model: EditorViewModel) {
@@ -61,8 +62,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             connections = (page.shapes ?? []).filter { !locked.contains($0.id) }.flatMap { ShapeGeometry.connectionPoints($0) }
         }
         connectionIndex = ShapeConnectionIndex(points: connections)
+        shapeSnapEngine = model.tool == .shape ? model.snapEngine(excluding: []) : nil
         if model.tool == .shape, model.shapeKind == .line || model.shapeKind == .arrow,
            let snapped = connection(near: points[0]) { points[0] = snapped }
+        if model.tool == .shape { points[0] = shapeEndpoint(points[0]).0 }
         if model.rulerActive && (model.tool == .pen || model.tool == .marker) {
             guideEdge = model.rulerGuide.edge(nearest: points[0])
             guard let projected = model.rulerGuide.project(points[0], edge: guideEdge, width: page.width, height: page.height) else { pageID = nil; return }
@@ -134,8 +137,8 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         if model.tool == .shape {
             model.drawingShape = false
             if !cancelled, model.page?.id == pageID, let first = points.first, let last = points.last {
-                let connected = connection(near: last)
-                model.addDraggedShape(model.shapeKind, from: first, to: connected ?? last, preserveEnd: connected != nil)
+                let endpoint = shapeEndpoint(last)
+                model.addDraggedShape(model.shapeKind, from: first, to: endpoint.0, preserveEnd: endpoint.1)
             }
             cancel(); return
         }
@@ -173,7 +176,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
                 if i == 0 { path.move(to: CGPoint(x: p.x, y: p.y)) } else { path.addLine(to: CGPoint(x: p.x, y: p.y)) }
             }
         } else if model.tool == .shape, let a = samples.first, let b = samples.last,
-                  let shape = model.shapeForDrag(kind, from: a, to: connection(near: b) ?? b, preserveEnd: connection(near: b) != nil) {
+                  let shape = previewShape(kind, start: a, end: b) {
             path = UIBezierPath(cgPath: ShapePathRendering.path(ShapeGeometry.path(for: shape)))
             for arrow in ShapeGeometry.arrowPaths(for: shape) { path.append(UIBezierPath(cgPath: ShapePathRendering.path(arrow))) }
             let snap = ShapeSnapping.drag(kind: kind, start: a, end: b)
@@ -203,10 +206,27 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         holdTask?.cancel(); holdTask = nil; finishPreview()
         model?.pendingHeldShape = nil; model?.pendingShapeRecognition = nil; model?.pendingAutomaticRecognition = false; model?.drawingShape = false
         points = []; pageID = nil
+        shapeSnapEngine = nil; host?.snapGuides?.show([])
     }
     private func connection(near point: StrokeSample) -> StrokeSample? {
-        guard let host, model?.tool == .shape, model?.shapeKind == .line || model?.shapeKind == .arrow else { return nil }
+        guard let host, !host.snapSecondTouch, !monitor.modifierFlags.contains(.alternate), model?.snapPreferences.objectsEnabled == true,
+              model?.tool == .shape, model?.shapeKind == .line || model?.shapeKind == .arrow else { return nil }
         return connectionIndex.nearest(point, zoom: host.canvas.zoomScale)
+    }
+    private func shapeEndpoint(_ point: StrokeSample) -> (StrokeSample, Bool) {
+        guard let host, let model else { return (point, false) }
+        let suspended = host.snapSecondTouch || monitor.modifierFlags.contains(.alternate)
+        if suspended { host.snapGuides?.show([]); return (point, true) }
+        if let connected = connection(near: point) { host.snapGuides?.show([]); return (connected, true) }
+        guard let engine = shapeSnapEngine else { return (point, false) }
+        var preferences = model.snapPreferences; preferences.objects = false
+        let result = engine.snapPoint(point, zoom: host.canvas.zoomScale, preferences: preferences)
+        host.snapGuides?.show(result.guides)
+        return (result.point, result.snapped)
+    }
+    private func previewShape(_ kind: ShapeKind, start: StrokeSample, end: StrokeSample) -> ShapeElement? {
+        let endpoint = shapeEndpoint(end)
+        return model?.shapeForDrag(kind, from: start, to: endpoint.0, preserveEnd: endpoint.1)
     }
     private func recognizeAtLift() {
         guard let model, let pageID, !model.rulerActive, let first = points.first else { return }
@@ -232,7 +252,10 @@ private final class DrawingTouchMonitor: UIGestureRecognizer {
     override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool { false }
     override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool { false }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
-        guard tracked == nil, touches.count == 1, let touch = touches.first else { owner?.cancel(); state = .cancelled; return }
+        // Once drawing a shape, a second finger is only a snap modifier.
+        // It must not cancel the draft or replace its primary Pencil/finger.
+        if tracked != nil { return }
+        guard touches.count == 1, let touch = touches.first else { owner?.cancel(); state = .cancelled; return }
         tracked = touch; owner?.begin(touch); state = .began
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {

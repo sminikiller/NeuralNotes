@@ -9,6 +9,8 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     private var source: ShapeElement?
     private var draft: ShapeElement?
     private var dragged: ShapeHandle?
+    private var snapEngine: SnapEngine?
+    private var lastSnappedRotation: Double?
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init(frame: .zero)
@@ -61,8 +63,8 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         button.backgroundColor = .systemTeal; button.layer.borderColor = UIColor.white.cgColor
         button.layer.borderWidth = 2; button.layer.cornerRadius = handle == .rotation ? 9 : 5
         button.accessibilityLabel = handle.title; button.accessibilityIdentifier = "shapeHandle-\(handle)"
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(moveHandle(_:)))
-        pan.maximumNumberOfTouches = 1; button.addGestureRecognizer(pan)
+        let pan = SnapPanGestureRecognizer(target: self, action: #selector(moveHandle(_:)))
+        pan.maximumNumberOfTouches = 2; button.addGestureRecognizer(pan)
         button.accessibilityCustomActions = [
             UIAccessibilityCustomAction(name: "Sposta a destra") { [weak self] _ in self?.adjust(handle, dx: 4, dy: 0) ?? false },
             UIAccessibilityCustomAction(name: "Sposta a sinistra") { [weak self] _ in self?.adjust(handle, dx: -4, dy: 0) ?? false },
@@ -82,13 +84,38 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         if gesture.state == .began {
             guard let shape = selectedShape, !model.interactionBusy else { return }
             source = shape; draft = shape; dragged = button.handle
+            snapEngine = model.snapEngine(excluding: [shape.id]); lastSnappedRotation = nil
             model.cancelMaintenance(); model.movingObjects = true
             host.surface.hiddenObjectID = shape.id; host.foregroundObjects.update(host); host.paperDetail.update(from: host)
         }
         guard let source, let dragged else { return }
         if gesture.state == .cancelled || gesture.state == .failed { reset(); update(); return }
         let at = gesture.location(in: host.surface)
-        draft = ShapeHandles.moved(source, handle: dragged, to: .init(x: at.x, y: at.y)); update()
+        let suspended = host.snapSecondTouch || gesture.modifierFlags.contains(.alternate)
+        var target = StrokeSample(x: at.x, y: at.y)
+        var guides: [SnapGuide] = []
+        if dragged != .rotation && dragged != .innerRadius && dragged != .arcCurvature, let engine = snapEngine {
+            let snapped = engine.snapPoint(target, zoom: host.canvas.zoomScale, preferences: model.snapPreferences, suspended: suspended)
+            target = snapped.point; guides = snapped.guides
+        }
+        let snapping = !suspended && model.snapPreferences.objectsEnabled
+        let value = ShapeHandles.moved(source, handle: dragged, to: target,
+            keepProportions: model.snapPreferences.keepProportions ?? false, snapRotation: snapping, snapProportions: snapping)
+        if dragged == .rotation, let rotation = value.rotation {
+            let raw = atan2(at.y - (source.y + source.height / 2), at.x - (source.x + source.width / 2)) * 180 / .pi + 90
+            if abs(rotation - raw) > 0.01, rotation != lastSnappedRotation {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred(); lastSnappedRotation = rotation
+            } else if abs(rotation - raw) <= 0.01 { lastSnappedRotation = nil }
+        }
+        // A square/proportion lock can move the handle away from a candidate.
+        // Never leave a guide claiming an alignment that was not applied.
+        if let actual = ShapeHandles.positions(value, zoom: host.canvas.zoomScale).first(where: { $0.0 == dragged })?.1 {
+            guides = guides.filter { guide in
+                abs(guide.from.x - guide.to.x) < 0.01 ? abs(actual.x - guide.from.x) < 0.1 : abs(actual.y - guide.from.y) < 0.1
+            }
+        }
+        if value.hasValidOptions { draft = value }
+        host.snapGuides?.show(guides); update()
         if gesture.state == .ended {
             let result = draft; reset()
             if let result { commit(result, model: model) }
@@ -107,6 +134,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             if let host { host.surface.hiddenObjectID = nil; host.foregroundObjects.update(host); host.paperDetail.update(from: host) }
         }
         draft = nil; source = nil; dragged = nil; setNeedsDisplay()
+        snapEngine = nil; lastSnappedRotation = nil; host?.snapGuides?.show([])
     }
     @objc private func editVertex(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, let host, let model, let shape = selectedShape,

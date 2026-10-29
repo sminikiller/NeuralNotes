@@ -21,7 +21,8 @@ extension EditorViewModel {
     }
     func shapeForDrag(_ kind: ShapeKind, from a: StrokeSample, to b: StrokeSample, preserveEnd: Bool = false) -> ShapeElement? {
         let snapped = ShapeSnapping.drag(kind: kind, start: a, end: b)
-        guard var shape = ShapeElement.dragged(kind: kind, from: a, to: preserveEnd ? b : snapped.end, color: InkColor(ink), lineWidth: thickness) else { return nil }
+        let end = preserveEnd || !snapPreferences.objectsEnabled ? b : snapped.end
+        guard var shape = ShapeElement.dragged(kind: kind, from: a, to: end, color: InkColor(ink), lineWidth: thickness) else { return nil }
         shape.sides = kind == .star ? max(4, shapePreferences.sides ?? 5) : (kind == .polygon ? (shapePreferences.sides ?? 6) : nil)
         shape.innerRatio = kind == .star ? (shapePreferences.innerRatio ?? 0.5) : nil
         var style = shapePreferences.style ?? .standard

@@ -28,6 +28,12 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("snap-align", .writing, "Aggancio e allineamento", "align.horizontal.left", "Sposta con precisione e distribuisci gli oggetti.", [
+            "Nel Workspace apri Aggancio. Scegli oggetti, griglia, linee guida e Mantieni proporzioni. Le opzioni sono separate per attività.",
+            "Con Oggetti trascina vicino a bordi, centri, margini o griglia. Le guide sottili indicano gli allineamenti; due segni = mostrano spaziature uguali tra oggetti.",
+            "Appoggia un secondo dito durante il trascinamento, o tieni premuto ⌥, per sospendere l’aggancio. Avviare lo scorrimento con due dita continua a spostare la pagina.",
+            "Seleziona almeno due oggetti e apri Allinea e distribuisci nella barra di selezione o nel menu contestuale. Per distribuire servono tre oggetti. Un solo Annulla ripristina tutta l’operazione.",
+            "Il lazo tratta i tratti selezionati come un riquadro. Gli oggetti bloccati o ruotati non attraggono il trascinamento." ], tools: [.objects, .lasso]),
         .init("about", .library, "Informazioni e crediti", "info.circle", "Controlla versione e build prima di inviare una segnalazione.", [
             "Nella libreria apri Informazioni su NeuralNotes, accanto alla guida; la trovi anche in Account e servizi.",
             "Leggi versione e build oppure premi Copia informazioni. Il testo contiene solo versione, sistema e modello del dispositivo, senza appunti o dati dell’account.",
