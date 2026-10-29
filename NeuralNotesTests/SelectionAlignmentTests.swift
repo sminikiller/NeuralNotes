@@ -47,12 +47,21 @@ final class SelectionAlignmentTests: XCTestCase {
                 size: .init(width: 3, height: 3), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2) }
             model.canvas.drawing = PKDrawing(strokes: [PKStroke(ink: PKInk(.pen, color: .blue), path: .init(controlPoints: points, creationDate: Date()))])
             let signatures = EditorInkSignatures.make(model.canvas.drawing)
+            let originalBounds = model.canvas.drawing.bounds
+            let anchor = StrokeAnchor(signature: try XCTUnwrap(signatures.first), audioSessionID: UUID(), seconds: 42)
             let shape = ShapeElement(kind: .rectangle, x: 60, y: 100, width: 100, height: 100)
-            model.mutatePage("Fixture") { $0.shapes = [shape] }
+            model.mutatePage("Fixture") { $0.shapes = [shape]; $0.anchors = [anchor] }
             model.selectedIDs = [shape.id]; model.selectionIncludesInk = true; model.selectedStrokeIndices = [0]
             model.arrangeSelection(.top)
             XCTAssertEqual(model.selectedInkBounds.minY, 100, accuracy: 0.1)
+            XCTAssertEqual(model.page?.anchors, [anchor])
             await model.performUndo(); XCTAssertEqual(EditorInkSignatures.make(model.canvas.drawing), signatures)
+            let restoredBounds = model.canvas.drawing.bounds
+            XCTAssertEqual(restoredBounds.minX, originalBounds.minX, accuracy: 0.01)
+            XCTAssertEqual(restoredBounds.minY, originalBounds.minY, accuracy: 0.01)
+            XCTAssertEqual(restoredBounds.width, originalBounds.width, accuracy: 0.01)
+            XCTAssertEqual(restoredBounds.height, originalBounds.height, accuracy: 0.01)
+            XCTAssertEqual(model.page?.anchors, [anchor])
             await model.performRedo(); XCTAssertEqual(model.selectedInkBounds.minY, 100, accuracy: 0.1)
         }
     }
