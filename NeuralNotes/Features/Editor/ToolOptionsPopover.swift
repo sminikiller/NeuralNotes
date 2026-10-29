@@ -33,7 +33,7 @@ struct ToolOptionsPopover: View {
             }
             ToolPalettePanel(model: model)
             ShapeRecognitionModePicker(model: model).pickerStyle(.menu)
-            Button("Forme da riconoscere e risultato", systemImage: "shapes") { recognitionDetails = true }
+            Button("Forme da riconoscere e risultato", systemImage: "square.on.circle") { recognitionDetails = true }
             if tool == .pen {
                 Button("Salva questa penna", systemImage: "star") {
                     let preset = PenPreset(kind: model.writingOptions.pen, color: InkColor(model.ink), width: model.thickness)

@@ -32,7 +32,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Nella libreria apri Informazioni su NeuralNotes, accanto alla guida; la trovi anche in Account e servizi.",
             "Leggi versione e build oppure premi Copia informazioni. Il testo contiene solo versione, sistema e modello del dispositivo, senza appunti o dati dell’account.",
             "Consulta ringraziamenti, privacy e licenze. Se l’indirizzo è configurato, usa Invia un feedback o Segnala un problema." ]),
-        .init("shape-tools", .writing, "Forme e maniglie", "shapes", "Rombi, poligoni, stelle e archi modificabili.", [
+        .init("shape-tools", .writing, "Forme e maniglie", "square.on.circle", "Rombi, poligoni, stelle e archi modificabili.", [
             "Tieni premuto uno strumento forma o apri Inserisci foto o forma. Scegli la figura; per poligoni e stelle imposta il numero di lati o punte nelle opzioni.",
             "Trascina tra due angoli. Per frecce e linee parti dalla coda; per un arco trascina tra gli estremi della corda.",
             "Passa a Oggetti e seleziona il contorno. Trascina angoli, rotazione o maniglie specifiche. Sul poligono libero tieni premuto un lato per aggiungere un vertice, o un vertice per rimuoverlo.",
