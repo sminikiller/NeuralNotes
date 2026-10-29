@@ -611,3 +611,6 @@ Il testo del piano sopra è conservato integralmente.
 - ❌ 0.31 — §9 trasformazioni della grafia: fase successiva.
 
 Nessuna modifica a identità, firma, segreti NN_* o corsia TestFlight. L’aggancio completo alla griglia dipende dalla 0.26; la 0.25 prepara geometria e punti di collegamento. Le misure fisiche di fluidità e i casi di grafia reale richiedono collaudo sull’iPad, distinto dai test sintetici.
+
+### Collaudo intermedio del 29 ottobre
+🟡 La 0.25 resta candidata. Crash di riconoscimento corretto e test nativo passato; quattro flussi UI mirati passati. L’ultima esecuzione mirata ha superato il gruppo Core e le build Release, ma il test nativo della fixture ha segnalato una lettura del manifest senza la strategia data corretta: il test è stato corretto, in attesa di verifica completa. Riferimenti: https://github.com/sminikiller/NeuralNotes/actions/runs/40792647023 e https://github.com/sminikiller/NeuralNotes/actions/runs/40814055321. Nessuna fase successiva iniziata; nessuna nuova build TestFlight pubblicata durante queste prove.
