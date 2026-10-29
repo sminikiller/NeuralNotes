@@ -49,7 +49,9 @@ public enum ShapeRecognizer {
         // Use finer RDP only with this evidence, retaining all 12 polygon sides.
         let vertices = ShapeRecognitionMath.corners(sampled, span: span, tolerance: sharp ? 0.018 : 0.04)
         let fitted = (3...24).contains(vertices.count) ? ShapePolygonRecognition.recognize(vertices, samples: sampled, span: span) : nil
-        if sharp, let fitted { return accepted(fitted.shape, fitted.confidence) }
+        if sharp, let fitted, fitted.shape.kind == .polygon || fitted.shape.kind == .star {
+            return accepted(fitted.shape, fitted.confidence)
+        }
         if let ellipse = ellipse(sampled) { return accepted(ellipse.shape, ellipse.confidence) }
         if let fitted { return accepted(fitted.shape, fitted.confidence) }
         return nil
