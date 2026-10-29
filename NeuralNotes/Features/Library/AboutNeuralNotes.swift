@@ -7,6 +7,7 @@ import Darwin
 struct AboutNeuralNotes: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showingGuide = false
     @State private var channel: String?
     @State private var copied = false
@@ -26,6 +27,7 @@ struct AboutNeuralNotes: View {
                 Section { header }
                 Section("Versione installata") {
                     Text(information.versionLabel).accessibilityIdentifier("aboutVersion")
+                        .accessibilityValue(colorScheme == .dark ? "Tema scuro" : "Tema chiaro")
                     if let channel { Label(channel, systemImage: "checkmark.seal") }
                     Button(copied ? "Informazioni copiate" : "Copia informazioni", systemImage: "doc.on.doc") {
                         UIPasteboard.general.string = information.diagnosticText; copied = true

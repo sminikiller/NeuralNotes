@@ -30,6 +30,9 @@ private struct LibraryScene: View {
                 #endif
             }
             .tint(Brand.accent)
+            #if DEBUG
+            .preferredColorScheme(testAppearance)
+            #endif
             .task {
                 if controller.library == nil && controller.startupError == nil { controller.start() }
                 if session == nil {
@@ -38,6 +41,15 @@ private struct LibraryScene: View {
                 }
             }
     }
+    #if DEBUG
+    private var testAppearance: ColorScheme? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--ui-testing") else { return nil }
+        if arguments.contains("--ui-dark") { return .dark }
+        if arguments.contains("--ui-light") { return .light }
+        return nil
+    }
+    #endif
     @ViewBuilder private var libraryContent: some View {
                 if let library = session {
                     LibraryView(model: library)

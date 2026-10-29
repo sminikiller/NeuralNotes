@@ -9,20 +9,21 @@ final class AboutAndShapesUITests: XCTestCase {
         for (appearance, orientation) in [("Dark", UIDeviceOrientation.portrait), ("Light", .landscapeLeft)] {
             device.orientation = orientation
             let app = XCUIApplication()
-            app.launchArguments = ["--ui-testing", "--reset-ui-storage", "-AppleInterfaceStyle", appearance]; app.launch()
+            app.launchArguments = ["--ui-testing", "--reset-ui-storage", appearance == "Dark" ? "--ui-dark" : "--ui-light"]; app.launch()
             let about = app.buttons["libraryAbout"]
             if !about.waitForExistence(timeout: 3) || !about.isHittable { app.buttons["ToggleSidebar"].firstMatch.tap() }
             for _ in 0..<5 where !(about.exists && about.isHittable) { app.swipeUp() }
             XCTAssertTrue(about.waitForExistence(timeout: 8)); about.tap()
             let version = app.staticTexts["aboutVersion"]
             XCTAssertTrue(version.waitForExistence(timeout: 8))
+            XCTAssertEqual(version.value as? String, appearance == "Dark" ? "Tema scuro" : "Tema chiaro")
             XCTAssertNotNil(version.label.range(of: #"^Versione [0-9]+\.[0-9]+\.[0-9]+ \(build [0-9]+\)$"#, options: .regularExpression))
             let copy = app.buttons["aboutCopyInformation"]
             XCTAssertTrue(copy.exists); copy.tap()
             let copied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Informazioni copiate"), object: copy)
             wait(for: [copied], timeout: 5)
             XCTAssertFalse(app.buttons["Invia un feedback"].exists)
-            let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "credits-\(appearance)"; attachment.lifetime = .keepAlways; add(attachment)
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "credits-\(appearance)"; attachment.lifetime = .keepAlways; add(attachment)
             app.buttons["Chiudi"].tap(); app.terminate()
         }
     }
@@ -56,7 +57,7 @@ final class AboutAndShapesUITests: XCTestCase {
         wait(for: [filled], timeout: 5)
         app.buttons["applyShapeStyle"].tap()
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "star-style-and-handles"; attachment.lifetime = .keepAlways; add(attachment)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "star-style-and-handles"; attachment.lifetime = .keepAlways; add(attachment)
         app.buttons["editorUndo"].tap()
         let redo = app.buttons["editorRedo"]
         let redoReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
