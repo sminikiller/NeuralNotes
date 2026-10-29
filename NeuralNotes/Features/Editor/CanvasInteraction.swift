@@ -18,6 +18,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private let inkID = UUID()
     private var originalDrawing: PKDrawing?
     private var snapEngine: SnapEngine?
+    private var originalVisualBounds: CGRect?
     private var selectionTrace: [CGPoint] = []
     /// A Lens note dragged while the Lens tool is active.
     private var movingLensNote: UUID?
@@ -86,7 +87,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         before = nil; original = [:]; originalDrawing = nil
         movingLensNote = nil; selectionTrace = []
-        snapEngine = nil; host?.snapGuides?.show([])
+        snapEngine = nil; originalVisualBounds = nil; host?.snapGuides?.show([])
     }
 
     func refresh() {
@@ -218,7 +219,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if let before { model.page = before.page; if let data = before.drawing, let restored = try? PKDrawing(data: data) { model.canvas.drawing = restored } }
             endPreview(host: host)
             model.movingObjects = false; marquee.path = nil; wordHighlight.path = nil
-            snapEngine = nil; host.snapGuides?.show([])
+            snapEngine = nil; originalVisualBounds = nil; host.snapGuides?.show([])
             before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
         }
         if model.tool == .lens && movingLensNote == nil { lensStroke(gesture, point: point, page: page, host: host, model: model); return }
@@ -256,6 +257,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             startPreview(id, page: page, host: host)
         }
         snapEngine = model.snapEngine(excluding: model.selectedIDs)
+        originalVisualBounds = original.keys.compactMap { $0 == inkID ? original[$0] : objectRect($0) }.reduce(nil as CGRect?) { $0?.union($1) ?? $1 }
     }
 
     /// The Lens stroke. With words on the page it highlights whole words as it goes:
@@ -349,7 +351,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             let c = -Double(group.minY), d = page.height - Double(group.maxY)
             dx = max(min(a, b), min(max(a, b), dx)); dy = max(min(c, d), min(max(c, d), dy))
         }
-        if let engine = snapEngine, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
+        if let engine = snapEngine, let group = resizing ? group : originalVisualBounds {
             let proposed = resizing
                 ? SnapRect(x: group.minX, y: group.minY, width: max(1, group.width + dx), height: max(1, group.height + dy))
                 : SnapRect(group.offsetBy(dx: dx, dy: dy))
@@ -436,7 +438,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if movingLensNote != nil { label = "Sposta nota della Lente" }
             model.recordEdit(before, label: label)
             before = nil; original = [:]; originalDrawing = nil
-            snapEngine = nil; host.snapGuides?.show([])
+            snapEngine = nil; originalVisualBounds = nil; host.snapGuides?.show([])
             if movingLensNote != nil { movingLensNote = nil; model.selectedObjectID = nil; model.finishLensSelection(); refresh() }
         }
     }
@@ -514,7 +516,16 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private func objectRect(_ id: UUID, visual: Bool = true) -> CGRect? {
         guard let page = model?.page else { return nil }
         if let tape = page.tapes?.first(where: { $0.id == id }) { return CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height) }
-        if let image = page.images.first(where: { $0.id == id }) { return CGRect(x: image.x, y: image.y, width: image.width, height: image.height) }
+        if let image = page.images.first(where: { $0.id == id }) {
+            let box = CGRect(x: image.x, y: image.y, width: image.width, height: image.height)
+            let angle = image.rotation ?? 0
+            // Quarter-turn images already store their visual width/height.
+            guard visual, abs(angle.truncatingRemainder(dividingBy: 180)) != 90 else { return box }
+            let transform = CGAffineTransform(translationX: -box.midX, y: -box.midY)
+                .concatenating(CGAffineTransform(rotationAngle: angle * .pi / 180))
+                .concatenating(CGAffineTransform(translationX: box.midX, y: box.midY))
+            return box.applying(transform)
+        }
         if let shape = page.shapes?.first(where: { $0.id == id }) {
             let box = CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
             if visual {
