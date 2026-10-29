@@ -597,20 +597,17 @@ Scrivimi alla fine di ogni fase, in italiano semplice:
 
 
 ---
-## Stato di esecuzione — 0.25 (aggiornamento 29 ottobre 2026)
+## Stato di esecuzione — aggiornamento 29 ottobre 2026
 
 Il testo del piano sopra è conservato integralmente.
 
-- ✅ Prerequisiti: ramo aggiornato; test zoom e avvio PostgreSQL corretti e verificati nella [run 40391428100](https://github.com/sminikiller/NeuralNotes/actions/runs/40391428100).
-- 🟡 0.25 — §2 Crediti e §3 forme: implementazione e test in corso. Verifiche Apple e consegna TestFlight ancora da eseguire.
-- ❌ 0.26 — §4 aggancio completo, griglia e allineamenti: fase successiva.
-- ❌ 0.27 — §5 diagrammi e connettori persistenti: fase successiva.
-- ❌ 0.28 — §6 selezioni, gomme e goniometro: fase successiva.
-- ❌ 0.29 — §7 testo e finestra di zoom: fase successiva.
-- ❌ 0.30 — §8 livelli: fase successiva.
-- ❌ 0.31 — §9 trasformazioni della grafia: fase successiva.
+- ✅ Prerequisiti verificati nella run 40391428100.
+- ✅ 0.25 — §2–3: implementata e verificata. Verifica completa [40815806130](https://github.com/sminikiller/NeuralNotes/actions/runs/40815806130), sei job verdi e tutti i 32 test UI superati. Beta 1.0.0 (128) firmata e caricata su Apple con [40875248301](https://github.com/sminikiller/NeuralNotes/actions/runs/40875248301). Elaborazione/disponibilità TestFlight non ancora confermata. ZIP compilato esatto e prove in docs/DELIVERY_0_25.md.
+- 🟡 0.26 — §4 aggancio completo, griglia e allineamenti: in sviluppo.
+- ❌ 0.27 — §5 diagrammi e connettori persistenti: successiva.
+- ❌ 0.28 — §6 selezioni, gomme e goniometro: successiva.
+- ❌ 0.29 — §7 testo e finestra di zoom: successiva.
+- ❌ 0.30 — §8 livelli: successiva.
+- ❌ 0.31 — §9 trasformazioni della grafia: successiva.
 
-Nessuna modifica a identità, firma, segreti NN_* o corsia TestFlight. L’aggancio completo alla griglia dipende dalla 0.26; la 0.25 prepara geometria e punti di collegamento. Le misure fisiche di fluidità e i casi di grafia reale richiedono collaudo sull’iPad, distinto dai test sintetici.
-
-### Collaudo intermedio del 29 ottobre
-🟡 La 0.25 resta candidata. Crash di riconoscimento corretto e test nativo passato; quattro flussi UI mirati passati. L’ultima esecuzione mirata ha superato il gruppo Core e le build Release, ma il test nativo della fixture ha segnalato una lettura del manifest senza la strategia data corretta: il test è stato corretto, in attesa di verifica completa. Riferimenti: https://github.com/sminikiller/NeuralNotes/actions/runs/40792647023 e https://github.com/sminikiller/NeuralNotes/actions/runs/40814055321. Nessuna fase successiva iniziata; nessuna nuova build TestFlight pubblicata durante queste prove.
+Nessuna modifica a identità, firma, segreti NN_* o corsia TestFlight. Nessuna attivazione iCloud. Ogni fase è verificata e consegnata separatamente. Tempi fisici di fluidità e falsi positivi su grafia reale rimangono distinti dalle prove sintetiche e sul simulatore.

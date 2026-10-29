@@ -1,7 +1,7 @@
 # NeuralNotes 0.25 — Crediti e strumenti forma
 
 ## Stato
-Implementazione candidata; verifica Xcode e consegna TestFlight ancora da completare. Non è una dichiarazione di rilascio. La build installata dall’utente resta la 1.0.0 (120) finché non viene completata una nuova pubblicazione.
+Verifica completa superata sul commit b64b2d6820945042f51707836dbd3a3bbc6f69f5. Beta interna 1.0.0 (128) firmata e caricata su Apple il 29 ottobre 2026. Il comando di upload è riuscito; elaborazione e disponibilità su TestFlight restano di competenza Apple.
 
 ## Contenuto
 - Informazioni su NeuralNotes dalla libreria e da Account e servizi: logo AppLogo derivato dall’icona, autore, ringraziamenti, versione/build reali, copia di informazioni tecniche senza dati dei quaderni, privacy in breve e licenze.
@@ -25,20 +25,15 @@ La sola libreria di terze parti inclusa nel binario iOS è swift-fsrs, vendorizz
 ## Versioni e distribuzione
 Generatore e pacchetto iPad: 0.25.0, build sorgente 53. La corsia TestFlight esistente assegna autonomamente versione commerciale 1.0.0 e numero progressivo di esecuzione; non viene modificata. La schermata Informazioni mostra sempre i valori effettivi del bundle, non quelli scritti in questo documento. Link e build effettivi saranno aggiunti dopo le verifiche.
 
-## Prove iniziali
-- Controlli di struttura, appartenenza dei sorgenti e grammatica Swift: superati localmente, non equivalgono a compilazione SDK.
-- 9 test Python di distribuzione e configurazione email: superati.
-- Test Core, nativi e UI nuovi: da compilare/eseguire con Xcode.
-- Verifica completa e pubblicazione TestFlight: in attesa.
+## Verifica conclusiva del 29 ottobre
+- [Verifica completa 40815806130](https://github.com/sminikiller/NeuralNotes/actions/runs/40815806130): tutti e sei i job verdi (portable, backend-services, upgrade, playground, apple, distribution).
+- Core macOS: 306 XCTest e 98 Swift Testing superati. iPad: 456 XCTest eseguiti, 2 saltati, nessun errore, più 98 Swift Testing superati. Tutti i 32 test UI superati.
+- Fixture del formato precedente: apertura, salvataggio, riapertura, PDF e backup nativo superati. Passano anche annulla/ripristina del riconoscimento e delle ancore audio, stile e riempimento effettivo nel PDF, replay senza modificare i dati.
+- Compilazione iOS Release e archivio non firmato riusciti. Il pacchetto Playgrounds della verifica è compilato per simulatore e dispositivo e supera 60 osservazioni di avvio nel simulatore.
+- Screenshot controllati: Informazioni in tema realmente scuro e chiaro, orientamento verticale e orizzontale; stella con riempimento e comandi di selezione.
+- Pacchetto esatto della CI: NeuralNotes-iPad-0.25.0.zip; SHA-256 `27b1f07776070a38db51677e0a528c4f04ef9511f492b2d2695e9c94329b0fb5`.
+- Backend: prove locali SQL/Auth/Storage superate; provider AI simulato. Questi risultati non attestano servizi di produzione.
+- Firma e caricamento TestFlight: [40875248301](https://github.com/sminikiller/NeuralNotes/actions/runs/40875248301), riuscito sul medesimo commit verificato: `EXPORT SUCCEEDED` e `UPLOAD_COMMAND_SUCCEEDED`.
 
 ## Fasi successive
-0.26–0.31 non iniziate: aggancio completo a griglia/allineamento, connettori persistenti, goniometro e gomme per tipo, testo/zoom di scrittura, livelli e riordino della grafia. Non incluse GIF, collaborazione in tempo reale o grafia generata.
-
-## Collaudo del 29 ottobre — aggiornamento intermedio
-- La compilazione Release per iOS e del pacchetto Playgrounds è passata nelle esecuzioni [40792647023](https://github.com/sminikiller/NeuralNotes/actions/runs/40792647023) e [40814055321](https://github.com/sminikiller/NeuralNotes/actions/runs/40814055321).
-- Il controllo mirato 40792647023 ha superato i quattro flussi UI selezionati: Informazioni/versione/copia, stella/stile/annulla/ripristina, archivio audio e cambio modalità pagina. I risultati includono screenshot esportati e controllati. Il comando di riempimento è ora un pulsante esplicito.
-- Il crash della conversione in forma modificabile è stato riprodotto e corretto: la pagina viene preparata in una copia locale e assegnata in un solo passaggio. Il relativo test nativo di ripristino dell’inchiostro e dell’ancora audio è passato, insieme al controllo del riempimento nel PDF e della riproduzione delle forme con l’audio.
-- Nell’esecuzione 40814055321 il gruppo Core è passato prima del simulatore, comprese le nuove prove sui numeri di lati/punte, sulle ellissi allungate e sui punti di collegamento effettivi. Il ricampionamento delle tangenti evita che il rumore di una circonferenza sia interpretato come un poligono.
-- Rimaneva un errore nel test nativo della fixture: leggeva il manifest con un JSONDecoder privo della strategia ISO-8601. Il test ora usa l’API canonica DocumentWorkspace.manifest(). L’export del vecchio backup e il suo import erano già passati nei test Core; il test nativo va confermato con questa correzione.
-- L’ispezione visiva ha rilevato che il vecchio argomento di lancio non imponeva davvero il tema scuro. Il nuovo test seleziona l’aspetto solo nella build di test, controlla il tema effettivo e cattura l’intero schermo. Le nuove immagini vanno ricontrollate dopo la verifica completa.
-- Verifica completa del commit finale e nuova pubblicazione TestFlight ancora da completare. Nessuna nuova beta dichiarata disponibile.
+0.26–0.31: aggancio completo a griglia/allineamento, connettori persistenti, goniometro e gomme per tipo, testo/zoom di scrittura, livelli e riordino della grafia. Ogni fase viene verificata e consegnata prima della successiva. Non incluse GIF, collaborazione in tempo reale o grafia generata.
