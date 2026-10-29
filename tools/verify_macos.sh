@@ -41,7 +41,7 @@ append_ui_tests() {
   done
 }
 if [ "${NEURALNOTES_FOCUSED_TESTS:-0}" = 1 ]; then
-  test_selection+=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesTests/AccountNotebookSyncTests -only-testing:NeuralNotesTests/PhotoPerspectiveTests -only-testing:NeuralNotesTests/ShapeEditorTests)
+  test_selection+=(-only-testing:NeuralNotesTests/EditorReliabilityTests -only-testing:NeuralNotesTests/EditorIntegrationTests -only-testing:NeuralNotesTests/AudioTranscriptionTests -only-testing:NeuralNotesTests/AudioCompressionTests -only-testing:NeuralNotesTests/EditorContentTests -only-testing:NeuralNotesTests/AccountNotebookSyncTests -only-testing:NeuralNotesTests/PhotoPerspectiveTests -only-testing:NeuralNotesTests/ShapeEditorTests -only-testing:NeuralNotesTests/SelectionAlignmentTests)
   if [ -n "${NEURALNOTES_UI_TEST:-}" ]; then append_ui_tests
   else test_selection+=(-only-testing:NeuralNotesUITests/AudioActionsUITests -only-testing:NeuralNotesUITests/EditorQuickActionsUITests); fi
 fi

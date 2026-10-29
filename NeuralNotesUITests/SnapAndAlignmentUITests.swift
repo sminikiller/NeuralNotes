@@ -36,7 +36,11 @@ final class SnapAndAlignmentUITests: XCTestCase {
         XCTAssertTrue(snap.waitForExistence(timeout: 5)); snap.tap()
         let objects = app.switches["snapObjectsToggle"], grid = app.switches["snapGridToggle"]
         XCTAssertTrue(objects.waitForExistence(timeout: 5)); XCTAssertTrue(grid.exists)
-        objects.tap(); XCTAssertEqual(objects.value as? String, "0")
+        XCTAssertEqual(objects.value as? String, "1")
+        // SwiftUI can expose the whole labelled Form row as the switch frame.
+        // Touch its trailing thumb, then wait for the real state transition.
+        objects.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: objects)], timeout: 5)
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "workspace-snapping"; shot.lifetime = .keepAlways; add(shot)
     }
 }
