@@ -93,19 +93,24 @@ final class ShapeEditorTests: XCTestCase {
             let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
                 .appendingPathComponent("Tests/Fixtures/0.24.1/page.json")
             var legacy = try JSONDecoder().decode(PageSnapshot.self, from: Data(contentsOf: file))
+            print("Legacy025: decoded previous-format fixture")
             let imageFile = try await model.workspace.url("images/legacy.png")
             try Data(contentsOf: file.deletingLastPathComponent().appendingPathComponent("legacy.png")).write(to: imageFile)
             legacy.id = try XCTUnwrap(model.page?.id); legacy.revision = model.page?.revision ?? 0
             model.page = legacy; model.drawingChanged()
             let saved = await model.flush(); XCTAssertTrue(saved)
+            print("Legacy025: saved previous-format content")
             try await model.load(try XCTUnwrap(model.page)); XCTAssertEqual(model.page?.shapes, legacy.shapes)
+            print("Legacy025: reopened persisted page")
             let pdf = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: pdf) }
             XCTAssertEqual(PDFDocument(url: pdf)?.pageCount, 1)
+            print("Legacy025: exported PDF")
             let manifest = try JSONDecoder().decode(DocumentManifest.self, from: Data(contentsOf: model.workspace.package.appendingPathComponent("manifest.json")))
             let notebook = Notebook(id: manifest.notebookID, documentID: model.workspace.documentID,
                 title: "Legacy", createdAt: Date(), updatedAt: Date(), folderID: nil, cover: .lagoon, isFavorite: false)
             let backup = try await model.workspace.exportNative(metadata: notebook)
+            print("Legacy025: exported native backup")
             defer { try? FileManager.default.removeItem(at: backup) }
             XCTAssertGreaterThan(try Data(contentsOf: backup).count, 100)
         }

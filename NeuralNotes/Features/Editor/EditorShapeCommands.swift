@@ -96,11 +96,13 @@ extension EditorViewModel {
         shape.red = Double(red); shape.green = Double(green); shape.blue = Double(blue)
         shape.lineWidth = min(200, max(0.1, Double(original.path.first?.size.width ?? CGFloat(thickness)))); shape.strokeOpacity = Double(alpha)
         let originalSignature = EditorInkSignatures.make(canvas.drawing).last
+        guard var current = page else { return false }
         if let signature = originalSignature {
-            shape.audioAnchor = page?.anchors.first(where: { $0.signature == signature })
-            page?.anchors.removeAll { $0.signature == signature }
+            shape.audioAnchor = current.anchors.first(where: { $0.signature == signature })
+            current.anchors.removeAll { $0.signature == signature }
         }
-        page?.shapes = (page?.shapes ?? []) + [shape]
+        current.shapes = (current.shapes ?? []) + [shape]
+        page = current
         canvas.drawing = previous
         return true
     }

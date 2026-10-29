@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class AudioActionsUITests: XCTestCase {
     @MainActor
@@ -13,6 +14,7 @@ final class AudioActionsUITests: XCTestCase {
     @MainActor
     private func openAudio(_ app: XCUIApplication) {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["--ui-testing", "--reset-ui-storage", "--ui-audio-fixture"]; app.launch()
         let notebook = app.buttons.matching(NSPredicate(format: "label == %@", "Audio UI test")).firstMatch
         XCTAssertTrue(notebook.waitForExistence(timeout: 10)); notebook.tap()
@@ -49,7 +51,7 @@ final class AudioActionsUITests: XCTestCase {
     @MainActor
     func testArchivedTranscriptCanBeFoundAndMovedBackToRecent() {
         let app = XCUIApplication(); openAudio(app)
-        let organize = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "audioOrganize-")).firstMatch
+        let organize = app.collectionViews["audioLibraryList"].buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "audioOrganize-")).firstMatch
         openOrganization(organize, in: app)
         let archive = app.buttons["Archivia"]; XCTAssertTrue(archive.waitForExistence(timeout: 3)); archive.tap()
         selectScope("Archivio", index: 1, in: app)

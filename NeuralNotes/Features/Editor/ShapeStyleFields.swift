@@ -17,7 +17,13 @@ struct ShapeStyleFields: View {
             Slider(value: value(\.strokeOpacity, fallback: 1), in: 0...1).accessibilityLabel("Opacità del contorno")
         }
         Section("Riempimento") {
-            Toggle("Riempimento", isOn: Binding(get: { style.fill != nil }, set: { style.fill = $0 ? (style.color ?? .black) : nil }))
+            Button {
+                var value = style
+                value.fill = value.fill == nil ? (value.color ?? .black) : nil
+                style = value
+            } label: {
+                Label(style.fill == nil ? "Attiva riempimento" : "Disattiva riempimento", systemImage: style.fill == nil ? "square" : "square.fill")
+            }.accessibilityIdentifier("shapeFillEnabled").accessibilityValue(style.fill == nil ? "Disattivo" : "Attivo")
             if style.fill != nil {
                 ColorPicker("Colore del riempimento", selection: color(\.fill, fallback: .blue), supportsOpacity: false)
                 Text("Opacità riempimento · \(Int((style.fillOpacity ?? 0.25) * 100))%")

@@ -5,7 +5,7 @@ final class AboutAndShapesUITests: XCTestCase {
     @MainActor func testCreditsOpenWithRealVersionInBothOrientationsAndAppearances() {
         continueAfterFailure = false
         let device = XCUIDevice.shared, original = device.orientation
-        defer { device.orientation = original }
+        defer { device.orientation = original == .unknown || original == .faceUp || original == .faceDown ? .portrait : original }
         for (appearance, orientation) in [("Dark", UIDeviceOrientation.portrait), ("Light", .landscapeLeft)] {
             device.orientation = orientation
             let app = XCUIApplication()
@@ -28,6 +28,7 @@ final class AboutAndShapesUITests: XCTestCase {
     }
     @MainActor func testStarCreationSelectionStyleAndUndo() {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()
         let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
         let title = app.textFields["notebookNameField"]; XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("Forme 0.25")
@@ -47,11 +48,11 @@ final class AboutAndShapesUITests: XCTestCase {
         XCTAssertTrue(style.waitForExistence(timeout: 5))
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: style)
         wait(for: [enabled], timeout: 8); style.tap()
-        let fill = app.switches["Riempimento"]
+        let fill = app.buttons["shapeFillEnabled"]
         for _ in 0..<4 where !(fill.exists && fill.isHittable) { app.swipeUp() }
         XCTAssertTrue(fill.waitForExistence(timeout: 5))
-        fill.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.5)).tap()
-        let filled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: fill)
+        fill.tap()
+        let filled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Attivo"), object: fill)
         wait(for: [filled], timeout: 5)
         app.buttons["applyShapeStyle"].tap()
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))

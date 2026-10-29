@@ -50,7 +50,8 @@ extension EditorViewModel {
                 shapes[i].width *= Double(scale); shapes[i].height *= Double(scale)
                 shapes[i].x = at.x - shapes[i].width / 2; shapes[i].y = at.y - shapes[i].height / 2
                 shapes[i].lineWidth = min(200, shape.lineWidth * Double(scale)); shapes[i].rotation = (shape.rotation ?? 0) + Double(degrees)
-                shapes[i].cornerRadius = shape.cornerRadius.map { min($0 * Double(scale), min(shapes[i].width, shapes[i].height) / 2) }
+                let maximumRadius = min(shapes[i].width, shapes[i].height) / 2
+                shapes[i].cornerRadius = shape.cornerRadius.map { min($0 * Double(scale), maximumRadius) }
             }; page.shapes = shapes
         }
         if var tapes = page.tapes {

@@ -224,17 +224,20 @@ final class EditorQuickActionsUITests: XCTestCase {
     }
     @MainActor
     func testChangingPageModeKeepsTheFullEditorCanvasBounds() {
+        XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorPageNavigation"].tap(); app.buttons["Pagina singola"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@ AND isHittable == true", "Zoom in corso"), object: canvas)
+        wait(for: [ready], timeout: 15)
         let original = canvas.frame
         for title in ["Scorrimento verticale", "Sfoglia orizzontalmente", "Pagina singola"] {
             app.buttons["editorPageNavigation"].tap(); app.buttons[title].tap()
             let stable = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                abs(canvas.frame.width - original.width) <= 2 && abs(canvas.frame.height - original.height) <= 2
+                (canvas.value as? String) != "Zoom in corso" && abs(canvas.frame.width - original.width) <= 2 && abs(canvas.frame.height - original.height) <= 2
             }, object: canvas)
-            wait(for: [stable], timeout: 5)
+            wait(for: [stable], timeout: 15)
             XCTAssertFalse(app.scrollViews["continuousPages"].exists)
         }
     }

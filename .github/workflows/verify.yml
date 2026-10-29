@@ -122,7 +122,7 @@ jobs:
     runs-on: ${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '26.6') && 'macos-26' || 'macos-15' }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '26.6') && '26.6' || '16.4' }}.app/Contents/Developer
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require unchanged application for UI-only follow-up
