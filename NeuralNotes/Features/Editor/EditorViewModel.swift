@@ -592,6 +592,7 @@ final class EditorViewModel {
         let ids = selectedIDs
         page?.texts.removeAll { ids.contains($0.id) }; page?.images.removeAll { ids.contains($0.id) }
         page?.shapes?.removeAll { ids.contains($0.id) }
+        page?.connectors?.removeAll { ids.contains($0.id) }
         page?.tapes?.removeAll { ids.contains($0.id) }; page?.pruneObjectReferences()
         if selectionIncludesInk {
             if let selectedStrokeIndices { canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { !selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
@@ -604,7 +605,7 @@ final class EditorViewModel {
     func duplicateSelectedObject() {
         guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         finishInkGesture(); endTextEdit()
-        if selectedIDs.count > 1 || selectionIncludesInk { if copySelection() { Task { await pasteSelection() } }; return }
+        if selectedIDs.count > 1 || selectionIncludesInk || selectedConnector != nil { if copySelection() { Task { await pasteSelection() } }; return }
         let before = captureEdit()
         guard let id = selectedObjectID else { return }
         if var text = page?.texts.first(where: { $0.id == id }) {

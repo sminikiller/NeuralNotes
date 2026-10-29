@@ -55,21 +55,36 @@ struct ShapeParametersFields: View {
     @Binding var shape: ShapeElement
     var body: some View {
         if shape.kind == .polygon || shape.kind == .star {
-            Stepper(shape.kind == .star ? "Punte: \(shape.sides ?? 5)" : "Lati: \(shape.sides ?? 6)", value: Binding(
-                get: { shape.sides ?? (shape.kind == .star ? 5 : 6) },
-                set: { shape.sides = $0; shape.vertices = nil }), in: (shape.kind == .star ? 4 : 3)...12)
+            Stepper(sideTitle, value: sideCount, in: minimumSides...12)
         }
-        if shape.kind == .star {
+        if shape.kind == .star { starParameters }
+        if shape.kind == .arc { arcParameters }
+        if shape.kind == .freePolygon { Text("Con Oggetti trascina i vertici. Tieni premuto un lato per aggiungere un vertice, o un vertice per rimuoverlo.").font(.caption).foregroundStyle(.secondary) }
+    }
+    private var minimumSides: Int { shape.kind == .star ? 4 : 3 }
+    private var sideTitle: String { shape.kind == .star ? "Punte: \(shape.sides ?? 5)" : "Lati: \(shape.sides ?? 6)" }
+    private var sideCount: Binding<Int> {
+        Binding(get: { shape.sides ?? (shape.kind == .star ? 5 : 6) }, set: { shape.sides = $0; shape.vertices = nil })
+    }
+    private var starRatio: Binding<Double> { Binding(get: { shape.innerRatio ?? 0.5 }, set: { shape.innerRatio = $0 }) }
+    private var arcDegrees: Double { abs(shape.arcSweep ?? Double.pi) * 180.0 / Double.pi }
+    private var arcBinding: Binding<Double> {
+        Binding(get: { arcDegrees }, set: { degrees in
+            let sign = (shape.arcSweep ?? Double.pi) < 0 ? -1.0 : 1.0
+            shape.arcSweep = degrees * Double.pi / 180.0 * sign
+        })
+    }
+    private var starParameters: some View {
+        Group {
             Text("Raggio interno · \(Int((shape.innerRatio ?? 0.5) * 100))%")
-            Slider(value: Binding(get: { shape.innerRatio ?? 0.5 }, set: { shape.innerRatio = $0 }), in: 0.2...0.8)
+            Slider(value: starRatio, in: 0.2...0.8)
                 .accessibilityLabel("Rapporto raggio interno della stella")
         }
-        if shape.kind == .arc {
-            Text("Ampiezza · \(Int(abs(shape.arcSweep ?? .pi) * 180 / .pi))°")
-            Slider(value: Binding(get: { abs(shape.arcSweep ?? .pi) * 180 / .pi }, set: {
-                shape.arcSweep = $0 * .pi / 180 * ((shape.arcSweep ?? .pi) < 0 ? -1 : 1)
-            }), in: 10...350).accessibilityLabel("Ampiezza dell’arco")
+    }
+    private var arcParameters: some View {
+        Group {
+            Text("Ampiezza · \(Int(arcDegrees))°")
+            Slider(value: arcBinding, in: 10...350).accessibilityLabel("Ampiezza dell’arco")
         }
-        if shape.kind == .freePolygon { Text("Con Oggetti trascina i vertici. Tieni premuto un lato per aggiungere un vertice, o un vertice per rimuoverlo.").font(.caption).foregroundStyle(.secondary) }
     }
 }

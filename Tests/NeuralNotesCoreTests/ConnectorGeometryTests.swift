@@ -2,6 +2,28 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class ConnectorGeometryTests: XCTestCase {
+    func testSpatialTargetsAreOrderedAndOversizedObjectsDoNotExpandTheGrid() {
+        let base = UUID(), middle = UUID(), top = UUID()
+        let boxes = [base: SnapRect(x: 0, y: 0, width: 20_000, height: 20_000),
+                     middle: SnapRect(x: 100, y: 100, width: 120, height: 100), top: SnapRect(x: 130, y: 130, width: 80, height: 60)]
+        let index = ConnectorTargetIndex(boxes: boxes, order: [base, middle, top])
+        XCTAssertEqual(index.candidates(at: .init(x: 160, y: 160), zoom: 2), [top, middle, base])
+        XCTAssertEqual(index.candidates(at: .init(x: 10_000, y: 10_000), zoom: 1), [base])
+        XCTAssertTrue(index.candidates(at: .init(x: .nan, y: 0), zoom: 1).isEmpty)
+    }
+    func testTargetQueriesOnFiveThousandBlocksStayWithinAFrameBudget() {
+        var boxes: [UUID: SnapRect] = [:], order: [UUID] = []
+        for i in 0..<5000 {
+            let id = UUID(); order.append(id)
+            boxes[id] = .init(x: Double(i % 100) * 200, y: Double(i / 100) * 160, width: 120, height: 100)
+        }
+        let index = ConnectorTargetIndex(boxes: boxes, order: order), start = Date()
+        for i in 0..<2000 {
+            let point = StrokeSample(x: Double(i % 100) * 200 + 60, y: Double(i / 100) * 160 + 50)
+            XCTAssertEqual(index.candidates(at: point, zoom: 2).first, order[i])
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(start) / 2000, 0.016, "Budget del runner, non una misura fisica dei fps dell’iPad.")
+    }
     func testRotatedContoursAttachAtTheNearestPointAndFollowGeometryChanges() throws {
         for kind in [ShapeKind.rectangle, .ellipse, .diamond, .polygon, .star, .triangle] {
             var shape = ShapeElement(kind: kind, x: 100, y: 150, width: 160, height: 160)

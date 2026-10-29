@@ -15,6 +15,14 @@ extension EditorViewModel {
         for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) {
             let box = ShapeGeometry.bounds(shape)
             result = result.union(CGRect(x: box.x, y: box.y, width: box.width, height: box.height))
+            if let label = DiagramLabels.shape(shape, page: page) { result = result.union(label.box.applying(label.transform)) }
+        }
+        if page.connectors?.isEmpty == false {
+            let objects = DiagramObjects.make(page)
+            for edge in page.connectors ?? [] where selectedIDs.contains(edge.id) {
+                result = result.union(ConnectorGeometry.bounds(edge, objects: objects).cgRect)
+                if let label = DiagramLabels.connector(edge, objects: objects, page: page) { result = result.union(label.box) }
+            }
         }
         return result
     }
@@ -61,6 +69,10 @@ extension EditorViewModel {
                 tapes[i].x = at.x - tapes[i].width / 2; tapes[i].y = at.y - tapes[i].height / 2
             }; page.tapes = tapes
         }
+        page.connectors = page.connectors?.map { edge in
+            guard selectedIDs.contains(edge.id) else { return edge }
+            return edge.transformed(scale: Double(scale), radians: Double(degrees) * .pi / 180, origin: .init(x: cx, y: cy))
+        }
         self.page = page
         if selectionIncludesInk {
             canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().map { index, stroke in
@@ -81,6 +93,10 @@ extension EditorViewModel {
         }
         if var shapes = page?.shapes {
             for i in shapes.indices where selectedIDs.contains(shapes[i].id) { shapes[i].red = color.red; shapes[i].green = color.green; shapes[i].blue = color.blue }; page?.shapes = shapes
+        }
+        if var edges = page?.connectors {
+            for i in edges.indices where selectedIDs.contains(edges[i].id) { var style = edges[i].effectiveStyle; style.color = color; edges[i].style = style }
+            page?.connectors = edges
         }
         if var texts = page?.texts {
             for i in texts.indices where selectedIDs.contains(texts[i].id) {
@@ -108,6 +124,10 @@ extension EditorViewModel {
         }
         if var shapes = page?.shapes {
             for i in shapes.indices where selectedIDs.contains(shapes[i].id) { shapes[i].lineWidth = width }; page?.shapes = shapes
+        }
+        if var edges = page?.connectors {
+            for i in edges.indices where selectedIDs.contains(edges[i].id) { var style = edges[i].effectiveStyle; style.width = width; edges[i].style = style }
+            page?.connectors = edges
         }
         recordEdit(before, label: "Spessore selezione"); drawingChanged()
     }

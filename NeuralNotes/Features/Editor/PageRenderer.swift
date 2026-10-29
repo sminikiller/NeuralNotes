@@ -64,7 +64,7 @@ enum PageRenderer {
             context.restoreGState()
         }
     }
-    private struct ObjectLookup {
+    @MainActor private struct ObjectLookup {
         let texts: [UUID: TextElement], images: [UUID: ImageElement], shapes: [UUID: ShapeElement]
         let connectors: [UUID: ConnectorElement], diagramObjects: [UUID: ConnectorObject]
         init(_ page: PageSnapshot) {
@@ -127,6 +127,8 @@ final class PageSurfaceView: UIView {
     /// The object being dragged: only its moving picture is shown until it is dropped.
     var hiddenObjectID: UUID? { didSet { if oldValue != hiddenObjectID { setNeedsDisplay() } } }
     var replayHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != replayHiddenObjectIDs { setNeedsDisplay() } } }
+    var interactionHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != interactionHiddenObjectIDs { setNeedsDisplay() } } }
+    var allHiddenObjectIDs: Set<UUID> { replayHiddenObjectIDs.union(interactionHiddenObjectIDs) }
     var page = PageSnapshot() {
         didSet {
             if oldValue.id != page.id { layer.contents = nil }
@@ -140,6 +142,6 @@ final class PageSurfaceView: UIView {
     var package = URL(fileURLWithPath: "/")
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: replayHiddenObjectIDs)
+        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: allHiddenObjectIDs)
     }
 }

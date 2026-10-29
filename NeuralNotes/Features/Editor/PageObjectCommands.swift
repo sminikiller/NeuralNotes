@@ -56,7 +56,7 @@ final class ForegroundObjectsView: UIView {
         guard !isHidden else { layer.contents = nil; return }
         isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false
         page = host.surface.page; package = host.surface.package
-        if replayHiddenObjectIDs != host.surface.replayHiddenObjectIDs { replayHiddenObjectIDs = host.surface.replayHiddenObjectIDs; setNeedsDisplay() }
+        if replayHiddenObjectIDs != host.surface.allHiddenObjectIDs { replayHiddenObjectIDs = host.surface.allHiddenObjectIDs; setNeedsDisplay() }
         if hiddenTextID != host.surface.hiddenTextID { hiddenTextID = host.surface.hiddenTextID; setNeedsDisplay() }
         if hiddenObjectID != host.surface.hiddenObjectID { hiddenObjectID = host.surface.hiddenObjectID; setNeedsDisplay() }
         bounds = host.surface.bounds; transform = host.surface.transform; center = host.surface.center

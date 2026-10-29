@@ -11,6 +11,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     private var dragged: ShapeHandle?
     private var snapEngine: SnapEngine?
     private var lastSnappedRotation: Double?
+    var isInteracting: Bool { draft != nil }
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init(frame: .zero)
@@ -98,6 +99,8 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             source = shape; draft = shape; dragged = button.handle
             snapEngine = model.snapEngine(excluding: [shape.id]); lastSnappedRotation = nil
             model.cancelMaintenance(); model.movingObjects = true
+            host.canvas.panGestureRecognizer.isEnabled = false
+            if let page = model.page { host.diagramPreview?.start(page: page, moving: [shape.id]) }
             host.surface.hiddenObjectID = shape.id; host.foregroundObjects.update(host); host.paperDetail.update(from: host)
         }
         guard let source, let dragged else { return }
@@ -131,6 +134,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             }
         }
         if value.hasValidOptions { draft = value }
+        host.diagramPreview?.update(objects: [source.id: ConnectorObject(shape: value)])
         host.snapGuides?.show(guides); update()
         if gesture.state == .ended {
             let result = draft; reset()
@@ -147,10 +151,12 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     func reset() {
         if draft != nil {
             model?.movingObjects = false
+            host?.diagramPreview?.reset()
             if let host { host.surface.hiddenObjectID = nil; host.foregroundObjects.update(host); host.paperDetail.update(from: host) }
         }
         draft = nil; source = nil; dragged = nil; setNeedsDisplay()
         snapEngine = nil; lastSnappedRotation = nil; host?.snapGuides?.show([])
+        if let host { PaperInk.configureNavigation(host.canvas, fingerDrawing: model?.fingerDrawing ?? false) }
     }
     @objc private func editVertex(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, let host, let model, let shape = selectedShape,

@@ -11,7 +11,14 @@ public struct StudyTape: Codable, Equatable, Identifiable, Sendable {
 }
 
 public extension PageSnapshot {
-    var objectIDs: [UUID] { images.map(\.id) + (shapes ?? []).map(\.id) + texts.map(\.id) + (tapes ?? []).map(\.id) + (connectors ?? []).map(\.id) }
+    var objectIDs: [UUID] {
+        var result = images.map(\.id)
+        result.append(contentsOf: (shapes ?? []).map(\.id))
+        result.append(contentsOf: texts.map(\.id))
+        result.append(contentsOf: (tapes ?? []).map(\.id))
+        result.append(contentsOf: (connectors ?? []).map(\.id))
+        return result
+    }
     var orderedObjectIDs: [UUID] {
         let valid = Set(objectIDs); var seen = Set<UUID>()
         return ((objectOrder ?? []) + objectIDs).filter { valid.contains($0) && seen.insert($0).inserted }

@@ -32,9 +32,7 @@ extension EditorViewModel {
     @discardableResult
     func copySelection(maximumBytes: Int = 32 * 1024 * 1024) -> Bool {
         guard var copy = page, !selectedIDs.isEmpty || selectionIncludesInk else { return false }
-        copy.texts.removeAll { !selectedIDs.contains($0.id) }; copy.images.removeAll { !selectedIDs.contains($0.id) }
-        copy.shapes = copy.shapes?.filter { selectedIDs.contains($0.id) }
-        copy.tapes = copy.tapes?.filter { selectedIDs.contains($0.id) }; copy.pruneObjectReferences()
+        copy = copy.selectingObjects(selectedIDs, objects: DiagramObjects.make(copy))
         let drawing: PKDrawing
         if let selectedStrokeIndices { drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
         else { drawing = canvas.drawing }
@@ -80,6 +78,11 @@ extension EditorViewModel {
             for var tape in copy.tapes ?? [] {
                 tape.x += 20; tape.y += 20
                 var tapes = page?.tapes ?? []; tapes.append(tape); page?.tapes = tapes; ids.insert(tape.id)
+            }
+            let edges = (copy.connectors ?? []).map { $0.transformed(dx: 20, dy: 20) }
+            if !edges.isEmpty {
+                var values = page?.connectors ?? []; values.append(contentsOf: edges); page?.connectors = values
+                ids.formUnion(edges.map(\.id))
             }
             if let copied = copiedDrawing {
                 let strokes = copied.strokes.enumerated().map { index, stroke in

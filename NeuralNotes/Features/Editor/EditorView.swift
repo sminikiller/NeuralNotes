@@ -7,7 +7,7 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, study, crop, pages, practice, storage, paper, workspace, shapeStyle
+    case elements, audio, search, study, crop, pages, practice, storage, paper, workspace, shapeStyle, connectorStyle
     var id: String { rawValue }
 }
 
@@ -61,6 +61,7 @@ struct EditorView: View {
                 .onChange(of: model.lensPanelRequest) { _, _ in lensPanelRequested() }
                 .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
                 .onChange(of: model.shapeStyleRequest) { _, _ in panel = .shapeStyle }
+                .onChange(of: model.connectorStyleRequest) { _, _ in panel = .connectorStyle }
                 .onChange(of: model.imageStraightenRequest) { _, _ in openImageCrop(straighten: true) }
                 .onChange(of: model.searchRequest) { _, _ in panel = .search }
                 .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
@@ -323,6 +324,7 @@ struct EditorView: View {
 
     @ViewBuilder private func panelSheet(_ item: EditorPanel) -> some View {
         switch item {
+        case .connectorStyle: ConnectorStylePanel(model: model)
         case .shapeStyle: ShapeStylePanel(model: model)
         case .workspace: WorkspacePanel(model: model)
         case .paper: PageTemplatePanel(model: model)

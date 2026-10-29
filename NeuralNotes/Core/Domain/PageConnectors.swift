@@ -1,7 +1,9 @@
 import Foundation
 
 public extension PageSnapshot {
-    var connectorTargetIDs: Set<UUID> { Set(texts.map(\.id) + images.map(\.id) + (shapes ?? []).map(\.id)) }
+    var connectorTargetIDs: Set<UUID> {
+        var ids = Set(texts.map(\.id)); ids.formUnion(images.map(\.id)); ids.formUnion((shapes ?? []).map(\.id)); return ids
+    }
     mutating func detachMissingConnectorTargets() {
         let valid = connectorTargetIDs
         guard var values = connectors else { return }
@@ -42,6 +44,14 @@ public extension PageSnapshot {
             if let a = value.from.objectID, let b = value.to.objectID, ids.contains(a), ids.contains(b) { result.insert(value.id) }
         }
         return result
+    }
+    func selectingObjects(_ ids: Set<UUID>, objects: [UUID: ConnectorObject]) -> Self {
+        let selected = includingInternalConnectors(ids)
+        var copy = self; copy.refreshConnectorFallbacks(objects: objects)
+        copy.texts.removeAll { !selected.contains($0.id) }; copy.images.removeAll { !selected.contains($0.id) }
+        copy.shapes = copy.shapes?.filter { selected.contains($0.id) }; copy.tapes = copy.tapes?.filter { selected.contains($0.id) }
+        copy.connectors = copy.connectors?.filter { selected.contains($0.id) }; copy.pruneObjectReferences()
+        return copy
     }
 }
 

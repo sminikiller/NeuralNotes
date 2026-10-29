@@ -20,12 +20,12 @@ final class VisiblePaperDetail: UIView {
         isHidden = z <= 1 || rect.isNull || rect.isEmpty
         guard !isHidden else { return }
         let at = CGPoint(x: (rect.minX - host.surface.frame.minX) / z, y: (rect.minY - host.surface.frame.minY) / z)
-        let changed = frame != rect || page != host.surface.page || package != host.surface.package || zoom != z || origin != at || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.replayHiddenObjectIDs
+        let changed = frame != rect || page != host.surface.page || package != host.surface.package || zoom != z || origin != at || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs
         frame = rect; isUserInteractionEnabled = false
         let budget = sqrt(8_000_000 / max(1, rect.width * rect.height))
         contentScaleFactor = min(host.window?.screen.scale ?? UIScreen.main.scale, budget)
         page = host.surface.page; package = host.surface.package; zoom = z; origin = at; hiddenTextID = host.surface.hiddenTextID
-        hiddenObjectIDs = host.surface.replayHiddenObjectIDs
+        hiddenObjectIDs = host.surface.allHiddenObjectIDs
         hiddenObjectID = host.surface.hiddenObjectID
         if changed { setNeedsDisplay() }
     }

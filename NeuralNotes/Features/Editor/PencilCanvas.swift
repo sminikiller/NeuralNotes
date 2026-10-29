@@ -28,6 +28,8 @@ final class CanvasHost: UIView {
     var pencilControls: PencilControls?
     var shapeHandles: ShapeHandlesOverlay?
     var snapGuides: SnapGuidesView?
+    var diagramHandles: DiagramHandlesOverlay?
+    var diagramPreview: DiagramDragPreview?
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
     private let inputShield = PendingPageInputShield()
@@ -60,6 +62,7 @@ final class CanvasHost: UIView {
         addSubview(laserPointer)
         addSubview(lensBar)
         let guides = SnapGuidesView(host: self); snapGuides = guides; addSubview(guides)
+        let preview = DiagramDragPreview(host: self); diagramPreview = preview; addSubview(preview)
     }
     required init?(coder: NSCoder) { return nil }
 
@@ -94,6 +97,10 @@ final class CanvasHost: UIView {
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         if let model, bounds.contains(point), model.loading || model.navigating { return inputShield }
+        if let hit = super.hitTest(point, with: event) {
+            if let handles = diagramHandles, hit.isDescendant(of: handles), hit !== handles { return hit }
+            if let handles = shapeHandles, hit.isDescendant(of: handles), hit !== handles { return hit }
+        }
         if let model, !model.laserActive, let flow, flow.enabled, let touch = event?.allTouches?.first(where: { touch in
             let at = touch.location(in: self)
             return touch.phase == .began && hypot(at.x - point.x, at.y - point.y) < 2
@@ -111,6 +118,7 @@ final class CanvasHost: UIView {
             CATransaction.begin(); CATransaction.setDisableActions(true)
             interaction?.resetForPageChange()
             shapeHandles?.reset()
+            diagramHandles?.cancel(); diagramPreview?.reset(); surface.interactionHiddenObjectIDs = []
             snapGuides?.show([])
             surface.layer.contents = nil
             surface.hiddenTextID = nil; surface.hiddenObjectID = nil
@@ -216,7 +224,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); shapeHandles?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); shapeHandles?.update(); diagramHandles?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
@@ -270,6 +278,8 @@ struct PencilCanvas: UIViewRepresentable {
         host.pencilControls = PencilControls(host: host, model: model)
         let shapeHandles = ShapeHandlesOverlay(host: host, model: model)
         host.shapeHandles = shapeHandles; host.addSubview(shapeHandles)
+        let diagramHandles = DiagramHandlesOverlay(host: host, model: model)
+        host.diagramHandles = diagramHandles; host.addSubview(diagramHandles)
         PaperInk.configureNavigation(model.canvas, fingerDrawing: model.fingerDrawing)
         return host
     }

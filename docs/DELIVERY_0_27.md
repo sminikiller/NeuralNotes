@@ -1,6 +1,6 @@
 # NeuralNotes 0.27 — Diagrammi e connettori
 
-**In sviluppo, non consegnata e non verificata con SDK Apple.** Ultima beta caricata: 1.0.0 (135), fase 0.26. Nessuna modifica a firma, identità o servizi esterni.
+**In sviluppo, non consegnata.** Primo collaudo Core Apple superato; build app da correggere e ripetere. Ultima beta caricata: 1.0.0 (135), fase 0.26. Nessuna modifica a firma, identità o servizi esterni.
 
 ## Base implementata
 - Modelli opzionali e validazione di connettori, etichette nelle forme e riferimenti alle fonti. Decodifica tollerante del tracciato; riferimenti mancanti risolti come estremi liberi.
@@ -17,3 +17,5 @@
 
 ## Prove attuali
 Controllo strutturale e grammaticale superato: 564 oggetti di progetto, 374 file Swift, 518 metodi XCTest presenti. **Questi controlli non compilano Swift né eseguono i test.** Aggiunti otto test Core per contorni ruotati, magnete, distacco, percorsi ortogonali, curve, identità, dati malformati e disposizione dei blocchi. Il collaudo Apple preliminare va eseguito prima di attribuire risultati a questi test.
+
+Primo pre-collaudo [40945883449](https://github.com/sminikiller/NeuralNotes/actions/runs/40945883449), sorgenti `046b731`: **327 test Core Apple senza fallimenti**. La build app è fallita per isolamento MainActor del lookup di rendering; Playgrounds ha segnalato un’espressione troppo complessa nei parametri delle forme. Correzioni preparate: isolamento esplicito, suddivisione dei controlli e costruzione incrementale degli ID al posto di concatenazioni di cinque array. Da verificare nella revisione successiva, insieme ai nuovi gesti e ai test nativi.

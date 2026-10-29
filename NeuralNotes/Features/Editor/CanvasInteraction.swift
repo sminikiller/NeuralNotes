@@ -86,6 +86,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func resetForPageChange() {
+        host?.diagramPreview?.reset()
         dragPreview?.removeFromSuperlayer(); dragPreview = nil
         for layer in [outline, handle, marquee, wordHighlight] {
             layer.path = nil; layer.setAffineTransform(.identity)
@@ -123,7 +124,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         outline.path = path.cgPath
         if model.selectedIDs.count == 1, !model.selectionIncludesInk, let id = model.selectedObjectID,
-           model.page?.shapes?.contains(where: { $0.id == id }) != true, let rect = objectRect(id) {
+           model.page?.shapes?.contains(where: { $0.id == id }) != true,
+           model.page?.connectors?.contains(where: { $0.id == id }) != true,
+           model.page?.texts.first(where: { $0.id == id })?.lensNote?.isCollapsed != true, let rect = objectRect(id) {
             let display = host.surface.convert(rect, to: host)
             handle.path = UIBezierPath(ovalIn: CGRect(x: display.maxX - 7, y: display.maxY - 7, width: 14, height: 14)).cgPath
         } else { handle.path = nil }
@@ -154,6 +157,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         if let handles = host?.shapeHandles, let touched = touch.view,
+           touched !== handles, touched.isDescendant(of: handles) { return false }
+        if let handles = host?.diagramHandles, let touched = touch.view,
            touched !== handles, touched.isDescendant(of: handles) { return false }
         if touch.type == .pencil, gesture is UITapGestureRecognizer,
            model?.tool == .pen || model?.tool == .marker || model?.tool == .eraser { return false }
@@ -230,6 +235,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         if gesture.state == .cancelled || gesture.state == .failed {
             if let before { model.page = before.page; if let data = before.drawing, let restored = try? PKDrawing(data: data) { model.canvas.drawing = restored } }
             endPreview(host: host)
+            host.diagramPreview?.reset()
             model.movingObjects = false; marquee.path = nil; wordHighlight.path = nil
             snapEngine = nil; originalVisualBounds = nil; host.snapGuides?.show([])
             before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
@@ -257,11 +263,14 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
             if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
+            model.selectedIDs = page.includingInternalConnectors(model.selectedIDs)
             for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
             if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
             if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
                 resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
                 if let id = original.keys.first, page.shapes?.contains(where: { $0.id == id }) == true { resizing = false }
+                if let id = original.keys.first, page.connectors?.contains(where: { $0.id == id }) == true { resizing = false }
+                if let id = original.keys.first, page.texts.first(where: { $0.id == id })?.lensNote?.isCollapsed == true { resizing = false }
             } else { resizing = false }
         }
         // One object moving: a picture of it follows the finger and the page changes once, on release.
@@ -269,6 +278,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             startPreview(id, page: page, host: host)
         }
         snapEngine = model.snapEngine(excluding: model.selectedIDs)
+        if !original.isEmpty { host.diagramPreview?.start(page: page, moving: Set(original.keys)) }
         originalVisualBounds = original.keys.compactMap { $0 == inkID ? original[$0] : objectRect($0) }.reduce(nil as CGRect?) { $0?.union($1) ?? $1 }
     }
 
@@ -380,6 +390,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             }
             host.snapGuides?.show(guides)
         }
+        host.diagramPreview?.updateMoving(frames: original, dx: dx, dy: dy, resizing: resizing, keepRatio: keepRatio)
         if dragPreview != nil, gesture.state != .ended {
             if resizing, let group {
                 let sx = max(24, group.width + dx) / max(1, group.width)
@@ -424,6 +435,12 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                     changed.tapes?[i].width = max(10, min(page.width - x, w + dx))
                     changed.tapes?[i].height = max(10, min(page.height - y, h + dy))
                 } else { changed.tapes?[i].x = x + dx; changed.tapes?[i].y = y + dy }
+            } else if let i = page.connectors?.firstIndex(where: { $0.id == id }),
+                      let source = before?.page.connectors?.first(where: { $0.id == id }) {
+                var edge = source.transformed(dx: dx, dy: dy)
+                if let target = edge.from.objectID, !model.selectedIDs.contains(target) { edge.from.objectID = nil }
+                if let target = edge.to.objectID, !model.selectedIDs.contains(target) { edge.to.objectID = nil }
+                changed.connectors?[i] = edge
             }
         }
         model.page = changed
@@ -441,6 +458,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }
         refresh()
         if gesture.state == .ended {
+            host.diagramPreview?.reset()
             model.movingObjects = false; model.drawingChanged()
             var label = resizing ? "Ridimensiona" : "Sposta selezione"
             if movingLensNote != nil { label = "Sposta nota della Lente" }

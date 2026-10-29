@@ -121,6 +121,10 @@ struct EditorQuickToolbar: View {
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
                 SelectionAlignmentMenu(model: model)
+                if model.selectedConnector != nil { ConnectorStyleMenu(model: model) }
+                if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {
+                    Button { model.editDiagramLabel(id) } label: { Image(systemName: "textformat") }.accessibilityLabel("Testo nella forma")
+                }
                 Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
                 Button { model.shapeStyleRequest += 1 } label: { Image(systemName: "paintbrush.pointed") }
                     .accessibilityLabel("Stile forme").accessibilityIdentifier("selectionShapeStyle").disabled(model.selectedShapes.isEmpty)

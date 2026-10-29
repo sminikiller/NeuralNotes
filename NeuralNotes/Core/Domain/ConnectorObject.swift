@@ -41,7 +41,16 @@ public struct ConnectorObject: Sendable {
         return .init(x: min(1, max(0, (p.x - rect.x) / rect.width)), y: min(1, max(0, (p.y - rect.y) / rect.height)))
     }
     public var connectionPoints: [StrokeSample] {
-        if let shape { return ShapeGeometry.connectionPoints(shape) }
+        if let shape {
+            let values = ShapeGeometry.connectionPoints(shape)
+            if values.count == 4 || shape.kind.isOpen { return values }
+            var unlocked = self; unlocked.locked = false
+            let anchors: [ShapeEndpoint] = [.init(x: 0.5, y: 0), .init(x: 1, y: 0.5), .init(x: 0.5, y: 1), .init(x: 0, y: 0.5)]
+            return anchors.map { anchor in
+                let candidate = point(at: anchor)
+                return unlocked.closest(candidate, zoom: 1, magnet: false)?.point ?? candidate
+            }
+        }
         let anchors: [ShapeEndpoint] = [.init(x: 0.5, y: 0), .init(x: 1, y: 0.5), .init(x: 0.5, y: 1), .init(x: 0, y: 0.5)]
         return anchors.map { point(at: $0) }
     }

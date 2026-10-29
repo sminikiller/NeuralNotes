@@ -7,9 +7,10 @@ extension EditorViewModel {
     func moveSelection(to pageID: UUID) async {
         finishInkGesture(); endTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id else { return }
-        let ids = selectedIDs.subtracting(origin.lockedObjects ?? [])
+        let ids = origin.includingInternalConnectors(selectedIDs.subtracting(origin.lockedObjects ?? []))
         let selectedInk = selectionIncludesInk ? Set(selectedStrokeIndices ?? Set(canvas.drawing.strokes.indices)) : []
         guard !ids.isEmpty || !selectedInk.isEmpty else { return }
+        selectedIDs = ids
         let bounds = selectionBounds
         guard !bounds.isNull, !bounds.isEmpty, [bounds.minX, bounds.minY, bounds.width, bounds.height].allSatisfy(\.isFinite) else { return }
         navigating = true
@@ -20,16 +21,16 @@ extension EditorViewModel {
             var destination = try await workspace.pageSnapshot(pageID)
             let destinationBytes = try await workspace.drawing(destination)
             let originalInk = canvas.drawing, destinationInk = try destinationBytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
+            let sourceObjects = DiagramObjects.make(source)
+            source.refreshConnectorFallbacks(objects: sourceObjects)
             let before = [EditorContentState(page: source, drawing: originalInk.dataRepresentation()), EditorContentState(page: destination, drawing: destinationInk.dataRepresentation())]
             let mx: CGFloat = min(24, CGFloat(destination.width) * 0.05), my: CGFloat = min(24, CGFloat(destination.height) * 0.05)
             let scale: CGFloat = min(1, (CGFloat(destination.width) - mx * 2) / bounds.width, (CGFloat(destination.height) - my * 2) / bounds.height)
             guard scale >= 0.05 else { throw WorkspaceFailure.oversizedImport }
             let transform = CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY)
                 .concatenating(CGAffineTransform(scaleX: scale, y: scale)).concatenating(CGAffineTransform(translationX: mx, y: my))
-            var moving = source
-            moving.texts.removeAll { !ids.contains($0.id) }; moving.images.removeAll { !ids.contains($0.id) }
-            moving.shapes = moving.shapes?.filter { ids.contains($0.id) }; moving.tapes = moving.tapes?.filter { ids.contains($0.id) }
-            moving.pruneObjectReferences(); moving.renewObjectIDs()
+            var moving = source.selectingObjects(ids, objects: sourceObjects)
+            moving.renewObjectIDs()
             for i in moving.texts.indices {
                 let value = moving.texts[i], point = CGPoint(x: value.x, y: value.y).applying(transform)
                 moving.texts[i].x = point.x; moving.texts[i].y = point.y; moving.texts[i].width *= Double(scale)
@@ -57,11 +58,16 @@ extension EditorViewModel {
                     tapes[i].x = point.x; tapes[i].y = point.y; tapes[i].width *= Double(scale); tapes[i].height *= Double(scale)
                 }; moving.tapes = tapes
             }
+            moving.connectors = moving.connectors?.map { edge in
+                edge.transformed(scale: Double(scale), dx: Double(mx - bounds.minX * scale), dy: Double(my - bounds.minY * scale))
+            }
             source.texts.removeAll { ids.contains($0.id) }; source.images.removeAll { ids.contains($0.id) }
             source.shapes?.removeAll { ids.contains($0.id) }; source.tapes?.removeAll { ids.contains($0.id) }; source.pruneObjectReferences()
+            source.connectors?.removeAll { ids.contains($0.id) }; source.pruneObjectReferences()
             destination.texts += moving.texts; destination.images += moving.images
             destination.shapes = (destination.shapes ?? []) + (moving.shapes ?? [])
             destination.tapes = (destination.tapes ?? []) + (moving.tapes ?? [])
+            destination.connectors = (destination.connectors ?? []) + (moving.connectors ?? [])
             destination.objectOrder = destination.orderedObjectIDs.filter { !moving.objectIDs.contains($0) } + moving.orderedObjectIDs
             destination.aboveInkObjects = (destination.aboveInkObjects ?? []) + (moving.aboveInkObjects ?? [])
             let keptIndices = originalInk.strokes.indices.filter { !selectedInk.contains($0) }
