@@ -134,9 +134,7 @@ extension EditorViewModel {
               current.pdfIndex == restored.pdfIndex, current.width == restored.width, current.height == restored.height,
               current.images == restored.images else { return false }
         guard let drawing else { return true }
-        let original = PKDrawing(strokes: canvas.drawing.strokes.filter { $0.ink.inkType != .marker })
-        let replacement = PKDrawing(strokes: drawing.strokes.filter { $0.ink.inkType != .marker })
-        return original.dataRepresentation() == replacement.dataRepresentation()
+        return NativeInkComparison.equal(canvas.drawing, drawing, ignoringMarkers: true)
     }
 
     func reorder(_ ids: [UUID]) async {

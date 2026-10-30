@@ -99,7 +99,7 @@ extension EditorViewModel {
                 if copy {
                     path = PKStrokePath(controlPoints: Array(stroke.path), creationDate: Date(timeIntervalSince1970: freshDate)); freshDate += 0.001
                 } else { path = stroke.path }
-                return PKStroke(ink: stroke.ink, path: path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
+                return PKStroke(ink: stroke.ink, path: path, transform: stroke.transform.concatenating(transform), mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
             let oldSignatures = EditorInkSignatures.make(originalInk), keptSignatures = EditorInkSignatures.make(remaining), appendedSignatures = EditorInkSignatures.make(appended)
             let anchors = Dictionary(grouping: source.anchors, by: \.signature)

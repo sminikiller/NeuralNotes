@@ -45,11 +45,11 @@ final class DiskEditorHistoryTests: XCTestCase {
             await model.performUndo()
             XCTAssertNil(model.error); XCTAssertEqual(model.page?.images, original.images)
             XCTAssertEqual(try Data(contentsOf: removed), data)
-            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), ink)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: ink)))
             XCTAssertFalse(model.canUndo); XCTAssertTrue(model.canRedo)
             await model.performRedo()
             XCTAssertNil(model.error); XCTAssertTrue(model.page?.images.isEmpty == true)
-            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), ink)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: ink)))
         }
     }
     @MainActor func testInitialDiskEditRefusesARevisionChangedAfterPreparation() async throws {

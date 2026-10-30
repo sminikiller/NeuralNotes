@@ -147,9 +147,9 @@ final class MarkerAndRecognitionTests: XCTestCase {
             erasing.append([.init(x: target.rect.midX, y: target.rect.midY)])
             model.drawingShape = false; erasing.finish(cancelled: false)
             XCTAssertNil(model.eraserCompositionToken)
-            XCTAssertNotEqual(model.canvas.drawing.dataRepresentation(), markerBeforeErase)
+            XCTAssertFalse(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: markerBeforeErase)))
             XCTAssertTrue(index.isReady(page), "La gomma solo evidenziatore deve conservare l’OCR anche dopo la fine del gesto.")
-            await model.performUndo(); XCTAssertEqual(model.canvas.drawing.dataRepresentation(), markerBeforeErase)
+            await model.performUndo(); XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: markerBeforeErase)))
             XCTAssertTrue(index.isReady(page))
             model.chooseTool(.pen); model.editShapePreferences { $0.mode = .off }
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [stroke([.init(x: 60, y: 400), .init(x: 220, y: 400)])])
@@ -175,7 +175,7 @@ final class MarkerAndRecognitionTests: XCTestCase {
             XCTAssertTrue(index.isReady(page))
             model.chooseTool(.marker); XCTAssertTrue(model.markerWordsActive)
             await model.performUndo()
-            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), fullInk.dataRepresentation())
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, fullInk))
             XCTAssertFalse(index.isReady(page), "Ripristinare parti della penna deve invalidare l’OCR anche se le date dei tratti sono identiche.")
             XCTAssertFalse(model.markerWordsActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
         }
@@ -191,5 +191,20 @@ final class MarkerAndRecognitionTests: XCTestCase {
             let data = buffer.bindMemory(to: UInt8.self)
             return stride(from: 0, to: data.count, by: 4).filter { data[$0] < 30 && data[$0 + 1] < 30 && data[$0 + 2] < 30 }.count
         }
+    }
+    @MainActor func testNativeInkComparisonIgnoresContainerIdentityButDetectsMasksTransformsAndSeeds() {
+        let pen = stroke([CGPoint(x: 10, y: 20), CGPoint(x: 100, y: 80)])
+        let original = PKDrawing(strokes: [pen])
+        XCTAssertTrue(NativeInkComparison.equal(original, PKDrawing(strokes: [pen])))
+        XCTAssertTrue(NativeInkComparison.equal(PKDrawing(), PKDrawing()))
+        var transformed = pen; transformed.transform = CGAffineTransform(translationX: 2, y: 0)
+        XCTAssertFalse(NativeInkComparison.equal(original, PKDrawing(strokes: [transformed])))
+        var masked = pen; masked.mask = UIBezierPath(rect: CGRect(x: 10, y: 20, width: 20, height: 20))
+        XCTAssertFalse(NativeInkComparison.equal(original, PKDrawing(strokes: [masked])))
+        var randomized = pen; randomized.randomSeed = pen.randomSeed ^ 1
+        XCTAssertFalse(NativeInkComparison.equal(original, PKDrawing(strokes: [randomized])))
+        let marker = stroke([CGPoint(x: 10, y: 20), CGPoint(x: 100, y: 80)], marker: true)
+        XCTAssertTrue(NativeInkComparison.equal(original, PKDrawing(strokes: [pen, marker]), ignoringMarkers: true))
+        XCTAssertFalse(NativeInkComparison.equal(original, PKDrawing(strokes: [pen, marker])))
     }
 }

@@ -30,7 +30,7 @@ enum SelectiveInkEraser {
                 ?? CGPath(rect: stroke.renderBounds.applying(inverse).insetBy(dx: -2, dy: -2), transform: nil)
             guard !base.intersection(cut, using: .winding).isEmpty else { result.append(stroke); continue }
             let remaining = base.subtracting(cut, using: .winding); changed = true
-            if !remaining.isEmpty { result.append(PKStroke(ink: stroke.ink, path: stroke.path, transform: t, mask: UIBezierPath(cgPath: remaining))) }
+            if !remaining.isEmpty { result.append(PKStroke(ink: stroke.ink, path: stroke.path, transform: t, mask: UIBezierPath(cgPath: remaining), randomSeed: stroke.randomSeed)) }
         }
         return (changed ? PKDrawing(strokes: result) : drawing, changed)
     }

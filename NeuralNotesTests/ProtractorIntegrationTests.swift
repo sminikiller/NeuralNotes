@@ -34,7 +34,7 @@ final class ProtractorIntegrationTests: XCTestCase {
             let ink = model.canvas.drawing.dataRepresentation()
             XCTAssertTrue(model.canUndo); await model.performUndo()
             XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertFalse(model.canUndo)
-            await model.performRedo(); XCTAssertEqual(model.canvas.drawing.dataRepresentation(), ink)
+            await model.performRedo(); XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: ink)))
         }
     }
     @MainActor func testRayAlwaysHasOneStraightDirectionAndRespectsThinMarkerWidth() async throws {
@@ -62,7 +62,7 @@ final class ProtractorIntegrationTests: XCTestCase {
                 session.move([CGPoint(x: point.x, y: point.y)]); session.finish(cancelled: false)
             }
             XCTAssertEqual(model.guideReadout, "Angolo 45°"); XCTAssertEqual(model.protractorRays.count, 2)
-            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), before); XCTAssertFalse(model.canUndo)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: before))); XCTAssertFalse(model.canUndo)
             XCTAssertFalse(model.hasActiveStroke)
         }
     }
