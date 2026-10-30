@@ -10,8 +10,8 @@ import shutil
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".verification/ipad-0.27.0/NeuralNotes.swiftpm"
-ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.27.0.zip"
+OUTPUT = ROOT / ".verification/ipad-0.28.0/NeuralNotes.swiftpm"
+ARCHIVE = ROOT / ".verification/NeuralNotes-iPad-0.28.0.zip"
 MANIFEST = '''// swift-tools-version: 5.9
 import PackageDescription
 import AppleProductTypes
@@ -24,7 +24,7 @@ let package = Package(
         .iOSApplication(
             name: "NeuralNotes",
             targets: ["AppModule"],
-            displayVersion: "0.27.0",
+            displayVersion: "0.28.0",
             bundleVersion: "55",
             appIcon: .asset("AppIcon"),
             supportedDeviceFamilies: [.pad],

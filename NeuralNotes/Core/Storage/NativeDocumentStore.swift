@@ -29,6 +29,7 @@ public struct NativeDocumentStore: Sendable {
             // A damaged journal belongs to one notebook. Keep it for diagnosis;
             // opening that notebook reports the error without hiding the library.
             try? PageBatchRecovery.recover(in: package)
+            try? PageEditRecovery.recover(in: package)
         }
     }
 
@@ -69,6 +70,7 @@ public struct NativeDocumentStore: Sendable {
 
     public func read(documentID: UUID, notebookID: UUID) throws -> DocumentManifest {
         try PageBatchRecovery.recover(in: packageURL(for: documentID))
+        try PageEditRecovery.recover(in: packageURL(for: documentID))
         let file = packageURL(for: documentID).appendingPathComponent("manifest.json")
         guard (try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
         let data = try Data(contentsOf: file)

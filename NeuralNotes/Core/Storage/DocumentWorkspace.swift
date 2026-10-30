@@ -34,7 +34,8 @@ public actor DocumentWorkspace {
     func markPendingPageBatch() { pageBatchSettled = false }
     func settlePageBatch() throws {
         guard !pageBatchSettled else { return }
-        try PageBatchRecovery.recover(in: package); pageBatchSettled = true
+        try PageBatchRecovery.recover(in: package)
+        try PageEditRecovery.recover(in: package); pageBatchSettled = true
     }
     private var ocrCacheURL: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]

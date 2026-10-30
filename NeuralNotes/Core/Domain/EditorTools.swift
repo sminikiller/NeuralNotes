@@ -111,18 +111,28 @@ public extension ShapeElement {
 /// Bounded chronological history. Call acknowledge only after the disk/model
 /// operation succeeds, so a failed undo can be retried without losing its entry.
 public struct EditHistory<Event> {
-    public struct Entry { public let event: Event; public let label: String; public let cost: Int }
+    public struct Entry { public let event: Event; public let label: String; public let cost: Int; public let diskCost: Int64 }
     private var past: [Entry] = [], future: [Entry] = []
     private let maximumCount: Int, maximumBytes: Int
-    public init(maximumCount: Int = 60, maximumBytes: Int = 48 * 1024 * 1024) {
+    private let maximumDiskBytes: Int64
+    public init(maximumCount: Int = 60, maximumBytes: Int = 48 * 1024 * 1024, maximumDiskBytes: Int64 = 512 * 1024 * 1024) {
         self.maximumCount = max(1, maximumCount); self.maximumBytes = max(1, maximumBytes)
+        self.maximumDiskBytes = max(1, maximumDiskBytes)
     }
     public var undo: Entry? { past.last }
     public var redo: Entry? { future.last }
-    public mutating func record(_ event: Event, label: String, cost: Int = 0) {
+    public mutating func record(_ event: Event, label: String, cost: Int = 0, diskCost: Int64 = 0) {
         guard cost <= maximumBytes else { clear(); return }
-        future = []; past.append(Entry(event: event, label: label, cost: max(0, cost)))
-        while past.count > maximumCount || (past.count > 1 && past.reduce(0, { $0 + $1.cost }) > maximumBytes) { past.removeFirst() }
+        future = []; past.append(Entry(event: event, label: label, cost: max(0, cost), diskCost: max(0, diskCost)))
+        while past.count > maximumCount || (past.count > 1 && (past.reduce(0, { $0 + $1.cost }) > maximumBytes || exceedsDiskBudget())) { past.removeFirst() }
+    }
+    private func exceedsDiskBudget() -> Bool {
+        var total: Int64 = 0
+        for entry in past {
+            if entry.diskCost > maximumDiskBytes - total { return true }
+            total += entry.diskCost
+        }
+        return false
     }
     public mutating func didUndo() { if let item = past.popLast() { future.append(item) } }
     public mutating func didRedo() { if let item = future.popLast() { past.append(item) } }

@@ -4,7 +4,7 @@ extension NativeDocumentStore {
     /// A document copy gets fresh entity identities. Media names are package scoped
     /// and may be reused verbatim; no source file is ever changed.
     public func clone(from source: URL, documentID: UUID, notebookID: UUID) throws {
-        guard !FileManager.default.fileExists(atPath: source.appendingPathComponent(PageBatchRecovery.path).path) else {
+        guard ![PageBatchRecovery.path, PageEditRecovery.path].contains(where: { FileManager.default.fileExists(atPath: source.appendingPathComponent($0).path) }) else {
             throw LibraryFailure.recoveryRequired("Apri il quaderno per completare lo spostamento prima di duplicarlo.")
         }
         let destination = packageURL(for: documentID)

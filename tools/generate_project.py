@@ -100,7 +100,7 @@ def make_project():
             "PRODUCT_NAME": "$(TARGET_NAME)", "PRODUCT_BUNDLE_IDENTIFIER": "com.lorenzominichilli.neuralnotes" + target.removeprefix("NeuralNotes"),
             "TARGETED_DEVICE_FAMILY": "2", "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
             "SUPPORTS_MACCATALYST": "NO", "CODE_SIGN_STYLE": "Automatic", "DEVELOPMENT_TEAM": "64R668842U",
-            "MARKETING_VERSION": "0.27.0", "CURRENT_PROJECT_VERSION": "55",
+            "MARKETING_VERSION": "0.28.0", "CURRENT_PROJECT_VERSION": "56",
             "GENERATE_INFOPLIST_FILE": "YES", "SWIFT_EMIT_LOC_STRINGS": "YES",
         }
         if target == "NeuralNotes":
