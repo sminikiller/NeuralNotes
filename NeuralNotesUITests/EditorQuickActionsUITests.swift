@@ -243,16 +243,19 @@ final class EditorQuickActionsUITests: XCTestCase {
         }
     }
     @MainActor
-    func testDoubleTapAndFitButtonReturnFromZoomToTheWholePage() {
+    func testDoubleTapAndFitButtonReturnFromZoomToTheWholePage() async {
         let app = XCUIApplication(); openEditor(app)
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        func waitForSettledViewport(_ value: String, line: UInt = #line) -> Bool {
+        func waitForSettledViewport(_ value: String, line: UInt = #line) async -> Bool {
             // The viewport reports "Zoom in corso" until UIKit's animation or
             // pinch ends. Do not send the next double tap on an intermediate frame.
             let settled = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@ AND isHittable == true", value), object: canvas)
-            let completed = XCTWaiter.wait(for: [settled], timeout: 15) == .completed
+            // Yield the MainActor while XCTest obtains remote AX snapshots.
+            // A synchronous waiter can block publication of the UIKit state.
+            // Keep the same timeout and both state/hittability requirements.
+            let completed = await XCTWaiter.fulfillment(of: [settled], timeout: 15) == .completed
             if !completed {
                 let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
                 screenshot.lifetime = .keepAlways; add(screenshot)
@@ -262,22 +265,22 @@ final class EditorQuickActionsUITests: XCTestCase {
             XCTAssertTrue(completed, "Viewport did not settle at \(value); actual: \(String(describing: canvas.value))", line: line)
             return completed
         }
-        guard waitForSettledViewport("Pagina intera") else { return }
+        guard await waitForSettledViewport("Pagina intera") else { return }
         // Xcode 26 synthesizes a scale-2 pinch with less than ten points of
         // travel per finger, below UIKit's gesture slop on this simulator.
         // Use a clear spread; the same zoom/double-tap assertions remain below.
         canvas.pinch(withScale: 4, velocity: 2)
-        guard waitForSettledViewport("Ingrandita") else { return }
+        guard await waitForSettledViewport("Ingrandita") else { return }
         canvas.doubleTap()
-        guard waitForSettledViewport("Pagina intera") else { return }
+        guard await waitForSettledViewport("Pagina intera") else { return }
         canvas.doubleTap()
-        guard waitForSettledViewport("Ingrandita") else { return }
+        guard await waitForSettledViewport("Ingrandita") else { return }
         canvas.doubleTap()
-        guard waitForSettledViewport("Pagina intera") else { return }
+        guard await waitForSettledViewport("Pagina intera") else { return }
         canvas.doubleTap()
-        guard waitForSettledViewport("Ingrandita") else { return }
+        guard await waitForSettledViewport("Ingrandita") else { return }
         app.buttons["editorFitPage"].tap()
-        _ = waitForSettledViewport("Pagina intera")
+        _ = await waitForSettledViewport("Pagina intera")
     }
 
     @MainActor
