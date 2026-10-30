@@ -63,6 +63,9 @@ final class PageWordIndex {
         return digital.isEmpty ? cache[key(page)] ?? [] : digital
     }
     func isPDFMarkerReady(_ page: PageSnapshot) -> Bool { digitalWords[key(page)] != nil }
+    func hasRecognizedScanWords(_ page: PageSnapshot) -> Bool {
+        page.pdfFile != nil && digitalWords[key(page)]?.isEmpty != false && cache[key(page)]?.isEmpty == false
+    }
     /// The marker needs the immutable digital layer only, without starting OCR
     /// of a large scanned PDF while the user is trying to write.
     func preparePDFMarker(_ page: PageSnapshot, model: EditorViewModel) {

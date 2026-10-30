@@ -128,7 +128,13 @@ enum RoadmapDiagnostics {
         let source = SourceReference(documentID: document, pageID: page)
         let artifact = AIArtifact(text: "Lezione\nPrimo concetto [1]\nSecondo concetto", references: [source], provider: "Controllo locale", task: .outline)
         guard let map = MindMapLayout.page(from: artifact) else { throw Failure.assertion("Mappa non creata.") }
-        try require(map.texts.count == 3 && map.shapes?.count == 2 && map.texts[1].pageLink?.pageID == page, "Mappa o fonte non modificabili.")
+        let nodes = map.shapes ?? [], edges = map.connectors ?? []
+        try require(nodes.count == 3 && edges.count == 2 && nodes[0].label == "Lezione" &&
+                    nodes[1].pageLink?.pageID == page && nodes[1].pageLink?.documentID == document,
+                    "Mappa o fonte non modificabili.")
+        try require(edges.allSatisfy { edge in
+            edge.from.objectID == nodes[0].id && nodes.dropFirst().contains { $0.id == edge.to.objectID }
+        }, "Collegamenti della mappa non agganciati ai blocchi.")
         try PageValidation.validate(map)
     }
     static func editor(root: URL) async throws {

@@ -136,6 +136,16 @@ final class MarkerAndRecognitionTests: XCTestCase {
             session.move([.init(x: target.rect.midX, y: target.rect.midY)]); session.finish(cancelled: false)
             XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
             XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive, "Evidenziare una parola non deve far dimenticare le altre.")
+            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive)
+            await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive)
+            model.chooseTool(.pen); model.editShapePreferences { $0.mode = .off }
+            model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [stroke([.init(x: 60, y: 400), .init(x: 220, y: 400)])])
+            model.strokeEnded(); model.finishInkGesture()
+            XCTAssertFalse(index.isReady(page), "Il nuovo inchiostro deve rendere obsoleto l’OCR precedente.")
+            model.chooseTool(.marker)
+            XCTAssertFalse(model.markerWordsActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
         }
     }
     @MainActor private func blackPixels(_ image: UIImage) -> Int {

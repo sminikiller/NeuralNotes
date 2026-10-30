@@ -252,16 +252,19 @@ final class EditorViewModel {
         if tool == .marker, writingOptions.markerSnapWords != false, let page { PageWordIndex.shared.preparePDFMarker(page, model: self) }
     }
 
-    func drawingChanged() {
+    func drawingChanged(preservingRecognizedWords: Bool = false) {
         guard !loading else { return }
         guard !movingObjects else { return }
         inkDisplayGeneration = UUID()
         (canvas.superview as? CanvasHost)?.markerReadability.update(canvas.superview as? CanvasHost)
         if tool == .eraser && drawingShape { return }
         if let page {
-            let preserve = tool == .marker || (tool == .eraser && writingOptions.markerOnly)
+            let markerGesture = !applyingHistory && ((tool == .marker && (usingInkTool || finishingInkGesture)) ||
+                (tool == .eraser && writingOptions.markerOnly && (usingInkTool || drawingShape)))
+            let preserve = preservingRecognizedWords || markerGesture
             PageWordIndex.shared.invalidate(page, preservingRecognizedWords: preserve)
         }
+        if tool == .marker, !hasActiveStroke { configureTool() }
         if editBeforeGesture != nil && !usingInkTool && !finishingInkGesture { scheduleInkCommit() }
         dirty = true; status = "Modifiche da salvare"
         debounce?.cancel()

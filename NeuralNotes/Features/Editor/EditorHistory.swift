@@ -68,6 +68,7 @@ extension EditorViewModel {
             do {
                 let target = undo ? before : after
                 let ink = try target.drawing.map { try PKDrawing(data: $0) }
+                let preserveWords = scanWordsUnchanged(from: current, to: target.page, drawing: ink)
                 applyingHistory = true; defer { applyingHistory = false }
                 var restored = target.page
                 restored.revision = current.revision; restored.drawingFile = current.drawingFile
@@ -76,7 +77,7 @@ extension EditorViewModel {
                 if let ink { replaceInkSession(with: ink) }
                 selectedObjectID = nil
                 if undo { history.didUndo() } else { history.didRedo() }
-                drawingChanged()
+                drawingChanged(preservingRecognizedWords: preserveWords)
                 status = "\(undo ? "Annullato" : "Ripristinato"): \(immediate.label)"
             } catch { self.error = error.localizedDescription }
             return
@@ -120,6 +121,19 @@ extension EditorViewModel {
             if undo { history.didUndo() } else { history.didRedo() }
             status = "\(undo ? "Annullato" : "Ripristinato"): \(entry.label)"
         } catch { self.error = error.localizedDescription }
+    }
+
+    /// Comparing ordinary ink is needed only for a cached scan, once per undo.
+    /// A marker-only undo keeps its recognized words; undoing pen/image edits
+    /// invalidates them even when the currently selected tool is the marker.
+    private func scanWordsUnchanged(from current: PageSnapshot, to restored: PageSnapshot, drawing: PKDrawing?) -> Bool {
+        guard PageWordIndex.shared.hasRecognizedScanWords(current), current.pdfFile == restored.pdfFile,
+              current.pdfIndex == restored.pdfIndex, current.width == restored.width, current.height == restored.height,
+              current.images == restored.images else { return false }
+        guard let drawing else { return true }
+        let original = PKDrawing(strokes: canvas.drawing.strokes.filter { $0.ink.inkType != .marker })
+        let replacement = PKDrawing(strokes: drawing.strokes.filter { $0.ink.inkType != .marker })
+        return EditorInkSignatures.make(original) == EditorInkSignatures.make(replacement)
     }
 
     func reorder(_ ids: [UUID]) async {
