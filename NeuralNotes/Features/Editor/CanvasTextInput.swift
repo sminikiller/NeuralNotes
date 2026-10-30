@@ -88,6 +88,8 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         case .black: formatting?.foreground(.black)
         case .blue: formatting?.foreground(.systemBlue)
         case .red: formatting?.foreground(.systemRed)
+        case .indent: formatting?.increaseIndent()
+        case .outdent: formatting?.decreaseIndent()
         }
     }
     func refresh() {

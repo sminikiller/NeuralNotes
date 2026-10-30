@@ -35,5 +35,5 @@ final class DocumentRenderCache {
         crops.setObject(value, forKey: key, cost: cut.width * cut.height * 4)
         return value
     }
-    func clear() { pdfs.removeAllObjects(); images.removeAllObjects(); crops.removeAllObjects() }
+    func clear() { pdfs.removeAllObjects(); images.removeAllObjects(); crops.removeAllObjects(); DiagramObjects.clear(); DiagramLabels.clear() }
 }

@@ -34,8 +34,15 @@ final class InkReplayOverlay: UIImageView {
             guard let anchor = shape.audioAnchor, anchor.audioSessionID == sessionID, anchor.seconds > audio.playback else { return nil }
             return shape.id
         })
-        if hiddenShapes != host.surface.replayHiddenObjectIDs {
-            host.surface.replayHiddenObjectIDs = hiddenShapes; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
+        let hiddenEdges = Set((page.connectors ?? []).compactMap { edge -> UUID? in
+            let future = edge.audioAnchor.map { $0.audioSessionID == sessionID && $0.seconds > audio.playback } ?? false
+            let hiddenStart = edge.from.objectID.map { hiddenShapes.contains($0) } ?? false
+            let hiddenEnd = edge.to.objectID.map { hiddenShapes.contains($0) } ?? false
+            return future || hiddenStart || hiddenEnd ? edge.id : nil
+        })
+        let hiddenObjects = hiddenShapes.union(hiddenEdges)
+        if hiddenObjects != host.surface.replayHiddenObjectIDs {
+            host.surface.replayHiddenObjectIDs = hiddenObjects; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
         }
         let generation = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)|\(sessionID)"
         if key != generation {
@@ -46,7 +53,12 @@ final class InkReplayOverlay: UIImageView {
         let visible = AudioReplay.visible(signatures: signatures, anchors: page.anchors, sessionID: sessionID, seconds: audio.playback)
         if visible != previousVisible {
             let filtered = PKDrawing(strokes: visible.map { drawing.strokes[$0] })
-            image = PaperInk.image(filtered, from: CGRect(x: 0, y: 0, width: page.width, height: page.height), scale: min(2, 2048 / max(page.width, page.height)))
+            let box = CGRect(x: 0, y: 0, width: page.width, height: page.height)
+            let format = UIGraphicsImageRendererFormat(); format.scale = min(2, 2048 / max(page.width, page.height))
+            image = UIGraphicsImageRenderer(bounds: box, format: format).image { renderer in
+                PageRenderer.draw(page, package: host.surface.package, in: renderer.cgContext, hidingObjectIDs: hiddenObjects)
+                LegibleInkRenderer.draw(filtered, in: renderer.cgContext, bounds: box, scale: format.scale)
+            }
             previousVisible = visible
         }
         frame = host.surface.frame; isHidden = false; active = true

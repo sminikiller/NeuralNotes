@@ -114,7 +114,9 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
         let colorActions = colors.map { name, color in UIAction(title: name, image: UIImage(systemName: "circle.fill")?.withTintColor(color, renderingMode: .alwaysOriginal)) { [weak self] _ in self?.foreground(color) } }
         let highlights: [(String, UIColor?)] = [("Nessuna", nil), ("Giallo", .systemYellow), ("Verde", .systemGreen), ("Arancione", .systemOrange), ("Rosa", .systemPink)]
         let highlightActions = highlights.map { name, color in UIAction(title: name) { [weak self] _ in self?.highlight(color) } }
-        let extra: [UIAction] = [UIAction(title: "Elenco puntato") { [weak self] _ in self?.bullet() }, UIAction(title: "Elenco numerato") { [weak self] _ in self?.numbered() }, UIAction(title: "Checklist") { [weak self] _ in self?.checklist() }, UIAction(title: "Apice") { [weak self] _ in self?.superscript() }, UIAction(title: "Pedice") { [weak self] _ in self?.subscriptText() }, UIAction(title: "Testo normale") { [weak self] _ in self?.normalBaseline() }, UIAction(title: "Dizionario") { [weak self] _ in self?.dictionary() }]
+        var extra: [UIAction] = [UIAction(title: "Elenco puntato") { [weak self] _ in self?.bullet() }, UIAction(title: "Elenco numerato") { [weak self] _ in self?.numbered() }, UIAction(title: "Checklist") { [weak self] _ in self?.checklist() }, UIAction(title: "Apice") { [weak self] _ in self?.superscript() }, UIAction(title: "Pedice") { [weak self] _ in self?.subscriptText() }, UIAction(title: "Testo normale") { [weak self] _ in self?.normalBaseline() }, UIAction(title: "Dizionario") { [weak self] _ in self?.dictionary() }]
+        extra.insert(UIAction(title: "Aumenta rientro") { [weak self] _ in self?.increaseIndent() }, at: 3)
+        extra.insert(UIAction(title: "Riduci rientro") { [weak self] _ in self?.decreaseIndent() }, at: 4)
         let menu = UIMenu(children: [UIMenu(title: "Stile", children: styles), UIMenu(title: "Colore", children: colorActions),
             UIMenu(title: "Evidenzia", children: highlightActions), UIMenu(title: "Elenchi e altro", children: extra)])
         bar.items?.append(UIBarButtonItem(title: "Aa", image: nil, primaryAction: nil, menu: menu))
@@ -203,15 +205,38 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
     @objc func bullet() { prefix("• ") }
     @objc func numbered() { prefix("1. ") }
     @objc func checklist() { prefix("☐ ") }
+    @objc func increaseIndent() { changeIndent(by: 20) }
+    @objc func decreaseIndent() { changeIndent(by: -20) }
+    private func changeIndent(by delta: CGFloat) {
+        guard let view else { return }
+        let selected = view.selectedRange, value = NSMutableAttributedString(attributedString: view.attributedText)
+        guard selected.location <= value.length, NSMaxRange(selected) <= value.length else { return }
+        let range = (value.string as NSString).paragraphRange(for: selected)
+        func shifted(_ current: NSParagraphStyle?) -> NSMutableParagraphStyle {
+            let style = current?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+            let first = min(200, max(0, style.firstLineHeadIndent + delta)), applied = first - style.firstLineHeadIndent
+            style.firstLineHeadIndent = first; style.headIndent = max(0, style.headIndent + applied)
+            style.tabStops = style.tabStops.map { NSTextTab(textAlignment: $0.alignment, location: max(0, $0.location + applied), options: $0.options) }
+            return style
+        }
+        let typing = shifted(view.typingAttributes[.paragraphStyle] as? NSParagraphStyle)
+        if range.length > 0 {
+            value.enumerateAttribute(.paragraphStyle, in: range) { old, subrange, _ in value.addAttribute(.paragraphStyle, value: shifted(old as? NSParagraphStyle), range: subrange) }
+            view.attributedText = value; view.selectedRange = selected
+        }
+        var attributes = view.typingAttributes; attributes[.paragraphStyle] = typing; view.typingAttributes = attributes; didChange?()
+    }
 }
 
 @MainActor
 struct RichTextEditor: UIViewRepresentable {
     @Binding var text: TextElement
     var paperColor: UIColor? = nil
+    var defaultColor: UIColor = .black
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView(); view.delegate = context.coordinator; view.allowsEditingTextAttributes = true
-        view.attributedText = RichText.attributed(text); view.accessibilityLabel = "Testo formattato"
+        view.attributedText = RichText.attributed(text, color: defaultColor); view.accessibilityLabel = "Testo formattato"
+        if text.text.isEmpty { view.typingAttributes = [.font: UIFont.systemFont(ofSize: text.fontSize), .foregroundColor: defaultColor] }
         context.coordinator.shown = text
         view.backgroundColor = paperColor ?? .clear
         if paperColor != nil { view.overrideUserInterfaceStyle = .light }
@@ -226,7 +251,8 @@ struct RichTextEditor: UIViewRepresentable {
         view.backgroundColor = paperColor ?? .clear
         if view.markedTextRange == nil, view.text != text.text || context.coordinator.shown.rtf != text.rtf || context.coordinator.shown.fontSize != text.fontSize {
             let selected = view.selectedRange
-            view.attributedText = RichText.attributed(text)
+            view.attributedText = RichText.attributed(text, color: defaultColor)
+            if text.text.isEmpty { view.typingAttributes = [.font: UIFont.systemFont(ofSize: text.fontSize), .foregroundColor: defaultColor] }
             let location = min(selected.location, view.attributedText.length)
             view.selectedRange = NSRange(location: location, length: min(selected.length, view.attributedText.length - location))
             context.coordinator.shown = text

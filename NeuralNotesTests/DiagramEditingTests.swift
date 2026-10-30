@@ -81,6 +81,52 @@ final class DiagramEditingTests: XCTestCase {
             await model.performUndo(); XCTAssertEqual(model.page?.shapes?.first, shape)
         }
     }
+    @MainActor func testEndpointDragReattachesAndUndoRestoresItsPreviousTarget() async throws {
+        try await fixture { model in
+            model.addShape(.rectangle); let first = try XCTUnwrap(model.selectedObjectID)
+            let second = try XCTUnwrap(model.createDiagramBlock(from: first, side: .right))
+            let third = ShapeElement(kind: .ellipse, x: 300, y: 600, width: 120, height: 100)
+            model.mutatePage("Terzo blocco") { $0.shapes?.append(third) }
+            let original = try XCTUnwrap(model.page?.connectors?.first)
+            model.chooseTool(.objects); model.selectedObjectID = original.id
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let overlay = DiagramHandlesOverlay(host: host, model: model); host.diagramHandles = overlay; host.addSubview(overlay)
+            let session = try XCTUnwrap(DiagramHandleSession(overlay: overlay, handle: .to))
+            overlay.session = session; model.movingObjects = true
+            model.canvas.panGestureRecognizer.isEnabled = false
+            session.move(.init(x: 360, y: 650), suspended: false)
+            XCTAssertEqual(session.targetID, third.id)
+            PaperInk.configureNavigation(model.canvas, fingerDrawing: false)
+            XCTAssertFalse(model.canvas.panGestureRecognizer.isEnabled)
+            session.finish()
+            XCTAssertEqual(model.page?.connectors?.first?.to.objectID, third.id)
+            XCTAssertFalse(model.movingObjects); XCTAssertTrue(model.canvas.panGestureRecognizer.isEnabled)
+            await model.performUndo(); XCTAssertEqual(model.page?.connectors?.first, original)
+            XCTAssertEqual(model.page?.connectors?.first?.to.objectID, second)
+        }
+    }
+    @MainActor func testSlowContinuousDragDoesNotBecomeAHeldFreeEndpoint() async throws {
+        try await fixture { model in
+            model.addShape(.rectangle); model.chooseTool(.objects)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let overlay = DiagramHandlesOverlay(host: host, model: model); host.diagramHandles = overlay; host.addSubview(overlay)
+            let session = try XCTUnwrap(DiagramHandleSession(overlay: overlay, handle: .create(.right)))
+            overlay.session = session; model.movingObjects = true
+            let origin = session.lastPoint, scale = max(0.05, host.canvas.zoomScale)
+            for step in 1...8 {
+                session.move(.init(x: origin.x + Double(step) / scale, y: origin.y), suspended: false)
+                try await Task.sleep(for: .milliseconds(110))
+                XCTAssertFalse(session.heldFree, "La sosta si misura dallo spostamento cumulativo, non dall’ultimo campione.")
+            }
+            try await Task.sleep(for: .milliseconds(600))
+            XCTAssertTrue(session.heldFree); XCTAssertNil(session.targetID)
+            let before = model.page; overlay.cancel()
+            XCTAssertFalse(model.movingObjects); XCTAssertEqual(model.page, before)
+            XCTAssertTrue(host.surface.interactionHiddenObjectIDs.isEmpty)
+        }
+    }
     @MainActor private func bluePixels(_ image: UIImage) -> Int {
         guard let source = image.cgImage else { return 0 }
         let width = source.width, height = source.height

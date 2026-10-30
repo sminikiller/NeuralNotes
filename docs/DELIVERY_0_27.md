@@ -1,21 +1,20 @@
-# NeuralNotes 0.27 ‚Äî Diagrammi e connettori
+# NeuralNotes 0.27 ó Diagrammi, connettori e correzioni di scrittura
 
-**In sviluppo, non consegnata.** Primo collaudo Core Apple superato; build app da correggere e ripetere. Ultima beta caricata: 1.0.0 (135), fase 0.26. Nessuna modifica a firma, identit√† o servizi esterni.
+**In collaudo, non consegnata.** Ultima beta caricata: 1.0.0 (135), fase 0.26. Nessuna modifica a firma, identit‡ o servizi esterni.
 
-## Base implementata
-- Modelli opzionali e validazione di connettori, etichette nelle forme e riferimenti alle fonti. Decodifica tollerante del tracciato; riferimenti mancanti risolti come estremi liberi.
-- Geometria condivisa per contorni ruotati, estremi che seguono gli oggetti, curve, gomiti con uscita perpendicolare e percorso intorno ai due blocchi collegati, selezione del tracciato e punte.
-- Impaginazione delle etichette RTF centrata e contenuta, con riduzione facoltativa del carattere e percorso condiviso per schermo/PDF/ricerca delle parole.
-- Le mappe AI usano blocchi arrotondati con etichette e connettori curvi, mantenendo le fonti. Il limite preesistente di otto rami √® conservato.
-- Prima integrazione di selezione, doppio tocco per le etichette e annulla. Base per duplicazione collegata con distanza di 48 punti e controllo dello spazio.
+## Implementato
+- Quattro punti blu per duplicare un blocco e collegarlo in un solo annulla, con distanza di 48 punti e controllo dello spazio. Trascinamento su contorni ruotati, estremi liberi con sosta, riaggancio e maniglia di curvatura.
+- Connettori dritti, curvi e ortogonali che seguono gli oggetti anche nellíanteprima di trascinamento, ridimensionamento e rotazione, senza scritture su disco durante il gesto. Oggetto eliminato: estremo libero nellíultima posizione.
+- Etichette RTF centrate e contenute, riduzione facoltativa del carattere, elenchi e rientri. Mappe AI con blocchi e collegamenti modificabili e fonti conservate.
+- Selezione lungo il tracciato reale, frecce comprese; copia, spostamento, trasformazioni, replay, ricerca, PDF e backup includono collegamenti ed etichette. Clone nativo rimappa fonti e ancore audio.
+- Evidenziatore da 1 a 80 punti reali, recenti separati, composizione moltiplica con PDF e penna sopra. Aggancio alle parole digitali del PDF riusa la geometria della Lente, senza avviare OCR delle scansioni. Originali e disegni PK conservati.
+- Riconoscimento confermato fino al rilascio; reset esplicito della sessione nativa dopo la conversione per evitare ricomparsa del tratto grezzo. Regressioni per movimento minimo, tratto successivo, annulla e ripristina.
+- Guida e Novit‡, comandi italiani e VoiceOver. I campi aggiunti ai modelli preesistenti sono opzionali.
 
-## Ancora da completare prima della consegna
-- Punti blu e gesti di creazione/modifica dei connettori; anteprima che segue il trascinamento senza riscrivere continuamente il documento.
-- Tutti i percorsi di copia, spostamento, trasformazione, riproduzione audio e import/clone; menu stile e fonti; rifiniture di accessibilit√† e tema.
-- Fixture 0.26, prove native di annulla/PDF/backup e test UI dello schema di sei blocchi; Guida e Novit√†.
-- Verifica completa e successiva build TestFlight dei sorgenti corrispondenti.
+## Prove
+Primo pre-collaudo [40945883449](https://github.com/sminikiller/NeuralNotes/actions/runs/40945883449): 327 Core senza fallimenti; isolamento del renderer ed espressione complessa delle forme corretti dopo gli errori di compilazione.
+Secondo pre-collaudo [40948901500](https://github.com/sminikiller/NeuralNotes/actions/runs/40948901500), sorgenti 99b77d4: 329 Core + 98 Swift Testing superati, pacchetto Playgrounds compilato e avviato; quattro regressioni native dei diagrammi superate. Due asserzioni di un test preesistente conteggiavano anche il nuovo doppio tocco Pencil per le etichette come gesto zoom: ora i due gesti zoom e il gesto etichetta sono verificati separatamente. Un test UI della barra pagine ha osservato il cambio orientamento prima che terminasse: attesa dello stato reale, mantenendo tutti i limiti di dimensioni.
+Aggiunte fixture 0.26 e regressioni native PDF/backup, rimappatura fonti/audio, riaggancio, sosta, testo nero leggibile e riconoscimento. Test UI dello schema a sei blocchi e dellíetichetta. Nuovi sorgenti e test attendono il successivo collaudo SDK; il controllo grammaticale locale non li esegue.
 
-## Prove attuali
-Controllo strutturale e grammaticale superato: 564 oggetti di progetto, 374 file Swift, 518 metodi XCTest presenti. **Questi controlli non compilano Swift n√© eseguono i test.** Aggiunti otto test Core per contorni ruotati, magnete, distacco, percorsi ortogonali, curve, identit√†, dati malformati e disposizione dei blocchi. Il collaudo Apple preliminare va eseguito prima di attribuire risultati a questi test.
-
-Primo pre-collaudo [40945883449](https://github.com/sminikiller/NeuralNotes/actions/runs/40945883449), sorgenti `046b731`: **327 test Core Apple senza fallimenti**. La build app √® fallita per isolamento MainActor del lookup di rendering; Playgrounds ha segnalato un‚Äôespressione troppo complessa nei parametri delle forme. Correzioni preparate: isolamento esplicito, suddivisione dei controlli e costruzione incrementale degli ID al posto di concatenazioni di cinque array. Da verificare nella revisione successiva, insieme ai nuovi gesti e ai test nativi.
+## Prima della consegna
+Verifica completa di tutti i job, analisi degli eventuali fallimenti reali, controllo visivo degli screenshot e ZIP esatto compilato. Solo dopo: TestFlight con SHA verificato. Nessuna nuova beta dichiarata disponibile prima della conferma del caricamento. Fluidit‡ e falsi positivi su iPad 10/Pencil fisici restano distinti dalle prove sintetiche e sul simulatore. Lotti 0.28ñ0.31 ancora successivi, non dichiarati conclusi.

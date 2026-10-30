@@ -51,7 +51,20 @@ final class SearchHighlightOverlay: UIView {
         bounds = host.surface.bounds; transform = host.surface.transform; center = host.surface.center
         let key = "\(page.id)|\(page.revision)|\(request.query)"
         guard generation != key else { return }; generation = key; job?.cancel()
-        let boxes = page.texts.flatMap { RichText.matchingRects(request.query, in: $0, pageHeight: page.height) }
+        var combinedBoxes = page.texts.flatMap { RichText.matchingRects(request.query, in: $0, pageHeight: page.height) }
+        var labels: [DiagramLabelLayout] = (page.shapes ?? []).compactMap { DiagramLabels.shape($0, page: page) }
+        if page.connectors?.isEmpty == false {
+            let objects = DiagramObjects.make(page)
+            labels += (page.connectors ?? []).compactMap { DiagramLabels.connector($0, objects: objects, page: page) }
+        }
+        for label in labels {
+            let rects = RichText.matchingRects(request.query, in: label.text, pageHeight: max(page.height, label.box.maxY))
+            for rect in rects {
+                let clipped = rect.intersection(label.box)
+                if !clipped.isNull, !clipped.isEmpty { combinedBoxes.append(clipped.applying(label.transform)) }
+            }
+        }
+        let boxes = combinedBoxes
         if !boxes.isEmpty { show(boxes, host: host) }
         else { highlights.path = nil; isHidden = true }
         job = Task { [weak self, weak host] in

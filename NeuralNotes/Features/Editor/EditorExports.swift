@@ -26,7 +26,10 @@ extension EditorViewModel {
         var blocks: [String] = []
         for (index, page) in pages.enumerated() {
             var lines: [String] = []
-            if !highlightsOnly { lines += page.texts.map(\.text); if !page.recognizedText.isEmpty { lines.append(page.recognizedText) } }
+            if !highlightsOnly {
+                lines += page.texts.map(\.text); lines += (page.shapes ?? []).compactMap(\.label); lines += (page.connectors ?? []).compactMap(\.label)
+                if !page.recognizedText.isEmpty { lines.append(page.recognizedText) }
+            }
             lines += (page.pdfMarkups ?? []).map { "\($0.kind == .highlight ? "Evidenziato" : "Sottolineato"): \($0.text)" }
             if !lines.isEmpty { blocks.append("\(markdown ? "## " : "")Pagina \(index + 1)\n\n" + lines.joined(separator: "\n\n")) }
         }

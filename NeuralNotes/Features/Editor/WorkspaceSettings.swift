@@ -84,7 +84,12 @@ extension EditorViewModel {
         thickness = style?.width ?? palette.recentWidths.first ?? 3
     }
     func chooseInk(_ color: Color) { guard !hasActiveStroke else { return }; ink = color; rememberPalette(); configureTool() }
-    func chooseWidth(_ value: Double) { guard !hasActiveStroke else { return }; thickness = value; rememberPalette(); configureTool() }
+    func chooseWidth(_ value: Double) {
+        guard !hasActiveStroke else { return }
+        thickness = value
+        if tool == .marker { editWriting { $0.markerWidth = min(80, max(1, value * 5)) } }
+        rememberPalette(); configureTool()
+    }
     func rememberPalette() {
         let item = tool.workspaceTool, color = InkColor(ink), width = thickness
         editWorkspace { profile in

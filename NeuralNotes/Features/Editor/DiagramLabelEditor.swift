@@ -9,13 +9,15 @@ struct DiagramLabelEditor: View {
     @State private var draft = TextElement(text: "")
     @State private var autoFit = true
     private var shape: ShapeElement? { model.page?.shapes?.first { $0.id == target.objectID } }
+    private var paper: UIColor { DiagramObjects.paperColor(model.page, shape: shape) }
+    private var ink: UIColor { shape.map { DiagramObjects.labelColor($0, page: model.page) } ?? DiagramObjects.textColor(model.page) }
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Scrivi con Pencil o tastiera. L’etichetta rimane modificabile e segue il blocco.").font(.callout).foregroundStyle(.secondary)
-                RichTextEditor(text: $draft, paperColor: .white)
+                RichTextEditor(text: $draft, paperColor: paper, defaultColor: ink)
                     .accessibilityIdentifier("diagramLabelText").frame(minHeight: 160)
-                    .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 14))
+                    .padding(10).background(Color(uiColor: paper), in: RoundedRectangle(cornerRadius: 14))
                 if shape != nil { Toggle("Riduci il carattere per contenere il testo", isOn: $autoFit) }
                 Text("Usa Aa per elenchi, rientri e formattazione.").font(.caption).foregroundStyle(.secondary)
             }.padding(20).navigationTitle("Etichetta")

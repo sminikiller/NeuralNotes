@@ -50,6 +50,8 @@ extension EditorViewModel {
                 for i in shapes.indices {
                     let point = CGPoint(x: shapes[i].x, y: shapes[i].y).applying(transform)
                     shapes[i].x = point.x; shapes[i].y = point.y; shapes[i].width *= Double(scale); shapes[i].height *= Double(scale); shapes[i].lineWidth *= Double(scale)
+                    shapes[i] = DiagramLabels.scaling(shapes[i], by: Double(scale))
+                    if let radius = shapes[i].cornerRadius { shapes[i].cornerRadius = min(radius * Double(scale), min(shapes[i].width, shapes[i].height) / 2) }
                 }; moving.shapes = shapes
             }
             if var tapes = moving.tapes {
@@ -59,7 +61,8 @@ extension EditorViewModel {
                 }; moving.tapes = tapes
             }
             moving.connectors = moving.connectors?.map { edge in
-                edge.transformed(scale: Double(scale), dx: Double(mx - bounds.minX * scale), dy: Double(my - bounds.minY * scale))
+                let value = edge.transformed(scale: Double(scale), dx: Double(mx - bounds.minX * scale), dy: Double(my - bounds.minY * scale))
+                return DiagramLabels.scaling(value, by: Double(scale))
             }
             source.texts.removeAll { ids.contains($0.id) }; source.images.removeAll { ids.contains($0.id) }
             source.shapes?.removeAll { ids.contains($0.id) }; source.tapes?.removeAll { ids.contains($0.id) }; source.pruneObjectReferences()

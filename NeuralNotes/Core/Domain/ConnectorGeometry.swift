@@ -21,7 +21,8 @@ public enum ConnectorGeometry {
         }
     }
     public static func bounds(_ connector: ConnectorElement, objects: [UUID: ConnectorObject]) -> SnapRect {
-        let points = ShapeGeometry.polylines(path(connector, objects: objects)).flatMap { $0 }
+        let paths = [path(connector, objects: objects)] + arrowPaths(connector, objects: objects)
+        let points = paths.flatMap { ShapeGeometry.polylines($0).flatMap { $0 } }
         guard let first = points.first else { return .init(x: connector.from.x, y: connector.from.y, width: 1, height: 1) }
         var x0 = first.x, x1 = first.x, y0 = first.y, y1 = first.y
         for p in points { x0 = min(x0, p.x); x1 = max(x1, p.x); y0 = min(y0, p.y); y1 = max(y1, p.y) }
@@ -44,8 +45,11 @@ public enum ConnectorGeometry {
     }
     public static func hit(_ point: StrokeSample, connector: ConnectorElement, objects: [UUID: ConnectorObject], zoom: Double) -> Bool {
         let tolerance = 8 / max(0.05, zoom) + (connector.effectiveStyle.width ?? 2) / 2
-        for line in ShapeGeometry.polylines(path(connector, objects: objects)) {
+        let paths = [path(connector, objects: objects)] + arrowPaths(connector, objects: objects)
+        for (index, path) in paths.enumerated() { for line in ShapeGeometry.polylines(path) {
+            if index > 0, connector.effectiveStyle.arrowStyle == .filled, ShapeGeometry.contains(point, polygon: line) { return true }
             for i in 1..<line.count where ShapeGeometry.segmentDistance(point, line[i - 1], line[i]) <= tolerance { return true }
+        }
         }
         return false
     }

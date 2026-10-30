@@ -10,14 +10,20 @@ enum DiagramLabels {
     private static let cache: NSCache<NSUUID, Entry> = {
         let value = NSCache<NSUUID, Entry>(); value.countLimit = 256; value.totalCostLimit = 8 * 1024 * 1024; return value
     }()
+    private final class EdgeEntry {
+        let text: String, rtf: Data?, fontSize: Double, color: UIColor, layout: DiagramLabelLayout
+        init(text: String, rtf: Data?, fontSize: Double, color: UIColor, layout: DiagramLabelLayout) {
+            self.text = text; self.rtf = rtf; self.fontSize = fontSize; self.color = color; self.layout = layout
+        }
+    }
+    private static let edgeCache: NSCache<NSUUID, EdgeEntry> = {
+        let value = NSCache<NSUUID, EdgeEntry>(); value.countLimit = 256; value.totalCostLimit = 8 * 1024 * 1024; return value
+    }()
+    static func clear() { cache.removeAllObjects(); edgeCache.removeAllObjects() }
     static func shape(_ shape: ShapeElement, page: PageSnapshot?) -> DiagramLabelLayout? {
         guard let label = shape.label, !label.isEmpty else { return nil }
         var source = shape; source.x = 0; source.y = 0; source.rotation = nil; source.audioAnchor = nil; source.pageLink = nil
-        var color = DiagramObjects.textColor(page)
-        if let fill = shape.fill, (shape.fillOpacity ?? 0.25) > 0.7 {
-            let luminance = fill.red * 0.2126 + fill.green * 0.7152 + fill.blue * 0.0722
-            color = luminance < 0.45 ? .white : .black
-        }
+        let color = DiagramObjects.labelColor(shape, page: page)
         let local: DiagramLabelLayout
         if let found = cache.object(forKey: shape.id as NSUUID), found.source == source, found.color.isEqual(color) { local = found.layout }
         else {
@@ -35,10 +41,21 @@ enum DiagramLabels {
     }
     static func connector(_ connector: ConnectorElement, objects: [UUID: ConnectorObject], page: PageSnapshot?) -> DiagramLabelLayout? {
         guard let label = connector.label, !label.isEmpty else { return nil }
+        let color = DiagramObjects.textColor(page), fontSize = connector.labelFontSize ?? 16
+        let local: DiagramLabelLayout
+        if let found = edgeCache.object(forKey: connector.id as NSUUID), found.text == label, found.rtf == connector.labelRTF, found.fontSize == fontSize, found.color.isEqual(color) { local = found.layout }
+        else {
+            var proxy = TextElement(text: label); proxy.id = connector.id; proxy.rtf = connector.labelRTF; proxy.fontSize = fontSize
+            let natural = label.count < 1000 ? RichText.attributed(proxy, color: color).size().width + 8 : 240
+            let width = min(240, max(40, ceil(natural)))
+            local = layout(id: connector.id, text: label, rtf: connector.labelRTF, fontSize: fontSize,
+                           region: CGRect(x: -width / 2, y: -100, width: width, height: 200), color: color, autoFit: true)
+            edgeCache.setObject(EdgeEntry(text: label, rtf: connector.labelRTF, fontSize: fontSize, color: color, layout: local),
+                                forKey: connector.id as NSUUID, cost: (connector.labelRTF?.count ?? 0) + label.utf8.count * 4)
+        }
         let point = ConnectorGeometry.midpoint(connector, objects: objects)
-        let region = CGRect(x: point.x - 120, y: point.y - 100, width: 240, height: 200)
-        return layout(id: connector.id, text: label, rtf: connector.labelRTF, fontSize: connector.labelFontSize ?? 16,
-                      region: region, color: DiagramObjects.textColor(page), autoFit: true)
+        var result = local; result.box = local.box.offsetBy(dx: point.x, dy: point.y)
+        result.text.x += point.x; result.text.y += point.y; return result
     }
     private static func layout(id: UUID, text: String, rtf: Data?, fontSize: Double, region: CGRect, color: UIColor, autoFit: Bool) -> DiagramLabelLayout {
         var proxy = TextElement(text: text); proxy.id = id; proxy.fontSize = fontSize; proxy.rtf = rtf; proxy.width = max(1, region.width)

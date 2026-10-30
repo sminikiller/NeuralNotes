@@ -538,13 +538,15 @@ final class EditorIntegrationTests: XCTestCase {
         try await withEditor { model in
             let host = CanvasHost(canvas: model.canvas)
             let interaction = CanvasInteraction(host: host, model: model); host.interaction = interaction
-            let taps = (host.canvas.gestureRecognizers ?? []).compactMap { $0 as? UITapGestureRecognizer }.filter { $0.numberOfTapsRequired == 2 && $0.delegate === interaction }
+            let taps = (host.canvas.gestureRecognizers ?? []).compactMap { $0 as? UITapGestureRecognizer }.filter { $0.numberOfTapsRequired == 2 && $0.delegate === interaction && $0.name == "pageFitGesture" }
             XCTAssertEqual(taps.count, 2)
             for tap in taps {
                 XCTAssertFalse(tap.cancelsTouchesInView)
                 XCTAssertFalse(tap.allowedTouchTypes.contains(NSNumber(value: UITouch.TouchType.pencil.rawValue)))
                 XCTAssertTrue(interaction.gestureRecognizer(tap, shouldRecognizeSimultaneouslyWith: host.canvas.panGestureRecognizer))
             }
+            let label = try XCTUnwrap(host.canvas.gestureRecognizers?.first { $0.name == "diagramLabelGesture" })
+            XCTAssertEqual(label.allowedTouchTypes, [NSNumber(value: UITouch.TouchType.pencil.rawValue)])
         }
     }
     @MainActor

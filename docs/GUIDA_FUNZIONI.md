@@ -411,3 +411,11 @@ Seleziona testo digitale e conserva i riferimenti.
 4. Con due elementi selezionati apri Allinea e distribuisci. Scegli bordo, centro o dimensione; con tre elementi puoi distribuire in orizzontale o verticale. Il lazo tratta lâ€™inchiostro selezionato come un elemento.
 5. Le maniglie delle forme agganciano bordi e griglia; la rotazione usa passi di 15Â° e un richiamo piÃ¹ forte entro 3Â° dagli angoli retti. Mantieni proporzioni conserva il rapporto durante il ridimensionamento.
 6. Gli oggetti bloccati sono esclusi. Gli oggetti ruotati non sono riferimenti di aggancio. Annulla ripristina lâ€™intera operazione in un solo passo.
+
+
+## Diagrammi e connettori — 0.27
+Seleziona una forma con **Oggetti**. I quattro punti blu creano blocchi uguali e già collegati; un trascinamento collega un oggetto esistente. Rilasciando nel vuoto nasce un blocco, mentre trattenendo per mezzo secondo lasci un estremo libero. Gli estremi seguono spostamenti, dimensioni e rotazione. Doppio tocco nel blocco o sul collegamento apre l’etichetta, con testo ricco, elenchi, rientri e riduzione facoltativa del carattere. Nel menu del collegamento scegli tracciato e stile. Copia e sposta conservano i collegamenti tra i blocchi selezionati, con nuove identità per le copie. Le mappe AI diventano diagrammi modificabili, mantenendo i rimandi alle fonti.
+
+## Evidenziatore e riconoscimento — correzioni 0.27
+Tieni premuto **Evidenziatore**: **Larghezza reale** arriva a **1 pt**, senza il vecchio minimo di 12 pt; i tre spessori recenti sono distinti dalla penna. **Aggancia alle parole del PDF** usa il testo digitale come la Lente: passa sulle parole o appena sotto e rilascia. Un annulla elimina tutta la selezione. Senza testo digitale il tratto resta libero. Il colore usa composizione moltiplica sul documento; la penna resta sopra il colore. Schermo, anteprime e PDF condividono la stessa regola. Non viene modificato l’originale PDF.
+Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anche con piccoli movimenti. La conversione chiude la sessione nativa d’inchiostro per evitare che il tratto grezzo ritorni alla scrittura successiva. Annulla prima il nuovo tratto; un ulteriore annulla della correzione recupera il tratto originale al posto della forma.

@@ -32,6 +32,7 @@ struct ToolOptionsPopover: View {
                 }.pickerStyle(.menu)
             }
             ToolPalettePanel(model: model)
+            if tool == .marker { MarkerOptions(model: model) }
             ShapeRecognitionModePicker(model: model).pickerStyle(.menu)
             Button("Forme da riconoscere e risultato", systemImage: "square.on.circle") { recognitionDetails = true }
             if tool == .pen {

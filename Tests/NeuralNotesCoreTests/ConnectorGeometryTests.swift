@@ -2,6 +2,22 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class ConnectorGeometryTests: XCTestCase {
+    func testAreaSelectionIntersectsTheLineButNotTheEmptyCornerOfItsBounds() {
+        let edge = ConnectorElement(from: .init(x: 100, y: 100), to: .init(x: 300, y: 300), routing: .straight)
+        let center: [StrokeSample] = [.init(x: 195, y: 195), .init(x: 205, y: 195), .init(x: 205, y: 205), .init(x: 195, y: 205)]
+        let emptyCorner = center.map { StrokeSample(x: $0.x, y: $0.y - 90) }
+        XCTAssertTrue(ConnectorGeometry.intersects(edge, objects: [:], selection: center))
+        XCTAssertFalse(ConnectorGeometry.intersects(edge, objects: [:], selection: emptyCorner))
+    }
+    func testQuickBlockDirectionFollowsTheRotatedConnectionPoint() throws {
+        let box = SnapRect(x: 300, y: 350, width: 160, height: 160), page = SnapRect(x: 0, y: 0, width: 1024, height: 1024)
+        let direction = StrokeSample(x: -sqrt(0.5), y: -sqrt(0.5))
+        let copy = try XCTUnwrap(QuickDiagramLayout.duplicate(box, direction: direction, page: page, obstacles: [box]))
+        XCTAssertLessThan(copy.midX, box.midX); XCTAssertLessThan(copy.midY, box.midY)
+        XCTAssertEqual((copy.midX - box.midX) / (copy.midY - box.midY), 1, accuracy: 0.001)
+        let projectedGap = hypot(copy.midX - box.midX, copy.midY - box.midY) - sqrt(0.5) * 320
+        XCTAssertEqual(projectedGap, 48, accuracy: 0.001)
+    }
     func testSpatialTargetsAreOrderedAndOversizedObjectsDoNotExpandTheGrid() {
         let base = UUID(), middle = UUID(), top = UUID()
         let boxes = [base: SnapRect(x: 0, y: 0, width: 20_000, height: 20_000),

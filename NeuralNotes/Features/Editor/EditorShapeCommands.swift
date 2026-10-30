@@ -80,7 +80,7 @@ extension EditorViewModel {
         if shapePreferences.output == .ink || tool == .marker {
             let oldSignature = EditorInkSignatures.make(canvas.drawing).last
             let corrected = PreciseStrokeGeometry.stroke(kind: held.kind, points: held.samples, original: original)
-            canvas.drawing = PKDrawing(strokes: previous.strokes + [corrected])
+            installNativeInk(PKDrawing(strokes: previous.strokes + [corrected]))
             if let oldSignature, let signature = EditorInkSignatures.make(canvas.drawing).last {
                 if var anchors = page?.anchors {
                     for i in anchors.indices where anchors[i].signature == oldSignature { anchors[i].signature = signature }
@@ -104,7 +104,7 @@ extension EditorViewModel {
         }
         current.shapes = (current.shapes ?? []) + [shape]
         page = current
-        canvas.drawing = previous
+        installNativeInk(previous)
         return true
     }
     func showRecognitionNotice(_ title: String) {

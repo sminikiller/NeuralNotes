@@ -29,6 +29,7 @@ extension EditorViewModel {
     func transformSelection(scale: CGFloat = 1, degrees: CGFloat = 0) {
         finishInkGesture(); endTextEdit()
         guard hasLease, !interactionBusy, !loading, !navigating, var page, (0.2...5).contains(scale), degrees.isFinite else { return }
+        selectedIDs = page.includingInternalConnectors(selectedIDs)
         let bounds = selectionBounds; guard !bounds.isNull else { return }
         let before = captureEdit(ink: selectionIncludesInk)
         let cx = bounds.midX, cy = bounds.midY
@@ -60,6 +61,7 @@ extension EditorViewModel {
                 shapes[i].lineWidth = min(200, shape.lineWidth * Double(scale)); shapes[i].rotation = (shape.rotation ?? 0) + Double(degrees)
                 let maximumRadius = min(shapes[i].width, shapes[i].height) / 2
                 shapes[i].cornerRadius = shape.cornerRadius.map { min($0 * Double(scale), maximumRadius) }
+                shapes[i] = DiagramLabels.scaling(shapes[i], by: Double(scale))
             }; page.shapes = shapes
         }
         if var tapes = page.tapes {
@@ -71,7 +73,10 @@ extension EditorViewModel {
         }
         page.connectors = page.connectors?.map { edge in
             guard selectedIDs.contains(edge.id) else { return edge }
-            return edge.transformed(scale: Double(scale), radians: Double(degrees) * .pi / 180, origin: .init(x: cx, y: cy))
+            var value = edge.transformed(scale: Double(scale), radians: Double(degrees) * .pi / 180, origin: .init(x: cx, y: cy))
+            if let id = value.from.objectID, !selectedIDs.contains(id) { value.from.objectID = nil }
+            if let id = value.to.objectID, !selectedIDs.contains(id) { value.to.objectID = nil }
+            return DiagramLabels.scaling(value, by: Double(scale))
         }
         self.page = page
         if selectionIncludesInk {

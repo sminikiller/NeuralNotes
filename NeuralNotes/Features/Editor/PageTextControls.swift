@@ -1,7 +1,7 @@
 import SwiftUI
 
 // These are app actions, not UIKit target/action selectors.
-enum PageTextAction { case bold, italic, underline, heading, body, bullet, checklist, black, blue, red }
+enum PageTextAction { case bold, italic, underline, heading, body, bullet, checklist, black, blue, red, indent, outdent }
 
 @MainActor
 struct PageTextControls: View {
@@ -19,6 +19,7 @@ struct PageTextControls: View {
                         Menu("Aa") {
                             Button("Titolo") { input?.format(.heading) }; Button("Corpo") { input?.format(.body) }
                             Button("Elenco") { input?.format(.bullet) }; Button("Checklist") { input?.format(.checklist) }
+                            Button("Aumenta rientro") { input?.format(.indent) }; Button("Riduci rientro") { input?.format(.outdent) }
                             Menu("Colore") {
                                 Button("Nero") { input?.format(.black) }; Button("Blu") { input?.format(.blue) }; Button("Rosso") { input?.format(.red) }
                             }

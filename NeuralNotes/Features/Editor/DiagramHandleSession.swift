@@ -15,6 +15,7 @@ final class DiagramHandleSession {
     var targetID: UUID?
     var freeEnd = false
     var heldFree = false
+    private var holdAnchor = StrokeSample(x: 0, y: 0)
     private var hold: Task<Void, Never>?
     var isCreating: Bool { if case .create = handle { return true }; return false }
     init?(overlay: DiagramHandlesOverlay, handle: DiagramHandle) {
@@ -34,13 +35,14 @@ final class DiagramHandleSession {
         objects = objectMap; index = ConnectorTargetIndex(boxes: boxes, order: page.orderedObjectIDs)
         original = connector; draft = connector
         lastPoint = ConnectorGeometry.resolve(handle == .from ? connector.from : connector.to, objects: objectMap)
+        holdAnchor = lastPoint
         if !isCreating, let host = overlay.host {
             host.surface.interactionHiddenObjectIDs.insert(original.id); host.paperDetail.update(from: host); host.foregroundObjects.update(host)
         }
     }
     func move(_ point: StrokeSample, suspended: Bool) {
         guard let overlay, let host = overlay.host, overlay.model?.page?.id == pageID else { return }
-        let moved = hypot(point.x - lastPoint.x, point.y - lastPoint.y) > 3 / max(0.05, host.canvas.zoomScale)
+        let moved = hypot(point.x - holdAnchor.x, point.y - holdAnchor.y) > 3 / max(0.05, host.canvas.zoomScale)
         lastPoint = point
         if handle == .bend {
             targetID = nil; freeEnd = false
@@ -54,6 +56,7 @@ final class DiagramHandleSession {
             }; return
         }
         if moved {
+            holdAnchor = point
             hold?.cancel(); heldFree = false
             hold = Task { [weak self] in
                 do { try await Task.sleep(for: .milliseconds(550)) } catch { return }

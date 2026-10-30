@@ -6,7 +6,8 @@ import PencilKit
 @MainActor
 enum VectorInkRenderer {
     static func draw(_ drawing: PKDrawing, in context: CGContext) {
-        for stroke in drawing.strokes {
+        let ordered = drawing.strokes.filter { $0.ink.inkType == .marker } + drawing.strokes.filter { $0.ink.inkType != .marker }
+        for stroke in ordered {
             let points = Array(stroke.path.interpolatedPoints(by: .distance(1.5)))
             guard !points.isEmpty else { continue }
             context.saveGState()

@@ -178,14 +178,15 @@ final class EditorQuickActionsUITests: XCTestCase {
             device.orientation = orientation
             let compact = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                 let bar = strip.frame, page = canvas.frame, scrubber = track.frame
+                let orientationReady = orientation == .portrait ? app.frame.height > app.frame.width : app.frame.width > app.frame.height
                 // The material background's AX frame includes the home-indicator
                 // safe area (25 pt on this iPad), not just the 48 pt controls.
-                return abs(scrubber.height - 44) <= 2 && bar.height <= 90
+                return orientationReady && abs(scrubber.height - 44) <= 2 && bar.height <= 90
                     && page.height > app.frame.height * 0.75
                     && abs(bar.minY - page.maxY) <= 2
                     && abs(scrubber.minY - page.maxY - 2) <= 2
             }, object: strip)
-            wait(for: [compact], timeout: 5)
+            wait(for: [compact], timeout: 15)
             XCTAssertGreaterThanOrEqual(app.buttons["editorPageCounter"].frame.height, 44)
             XCTAssertTrue(app.buttons["editorNotebookSwitcher"].exists)
             let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.lifetime = .keepAlways; add(attachment)

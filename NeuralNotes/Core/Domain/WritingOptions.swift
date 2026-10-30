@@ -23,6 +23,13 @@ public struct WritingOptions: Codable, Equatable, Sendable {
     public var markerOnly = false
     public var returnToPen = false
     public var presets: [PenPreset] = []
+    public var markerWidth: Double?
+    public var markerRecentWidths: [Double]?
+    public var markerSnapWords: Bool?
     public init() { }
-    public var isValid: Bool { eraserWidth.isFinite && (4...100).contains(eraserWidth) && presets.count <= 5 && presets.allSatisfy(\.isValid) }
+    public var isValid: Bool {
+        eraserWidth.isFinite && (4...100).contains(eraserWidth) && presets.count <= 5 && presets.allSatisfy(\.isValid) &&
+        markerWidth.map { $0.isFinite && (1...80).contains($0) } != false &&
+        (markerRecentWidths?.count ?? 0) <= 3 && (markerRecentWidths ?? []).allSatisfy { $0.isFinite && (1...80).contains($0) }
+    }
 }

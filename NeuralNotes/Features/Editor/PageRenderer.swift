@@ -123,11 +123,12 @@ final class PageSurfaceView: UIView {
         guard abs(contentScaleFactor - scale) > 0.15 else { return }
         contentScaleFactor = scale; layer.contentsScale = scale; setNeedsDisplay()
     }
-    var hiddenTextID: UUID? { didSet { if oldValue != hiddenTextID { setNeedsDisplay() } } }
+    var hiddenTextID: UUID? { didSet { if oldValue != hiddenTextID { refreshContent() } } }
     /// The object being dragged: only its moving picture is shown until it is dropped.
-    var hiddenObjectID: UUID? { didSet { if oldValue != hiddenObjectID { setNeedsDisplay() } } }
-    var replayHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != replayHiddenObjectIDs { setNeedsDisplay() } } }
-    var interactionHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != interactionHiddenObjectIDs { setNeedsDisplay() } } }
+    var hiddenObjectID: UUID? { didSet { if oldValue != hiddenObjectID { refreshContent() } } }
+    var replayHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != replayHiddenObjectIDs { refreshContent() } } }
+    var interactionHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != interactionHiddenObjectIDs { refreshContent() } } }
+    private func refreshContent() { setNeedsDisplay(); (superview as? CanvasHost)?.markerReadability.setNeedsDisplay() }
     var allHiddenObjectIDs: Set<UUID> { replayHiddenObjectIDs.union(interactionHiddenObjectIDs) }
     var page = PageSnapshot() {
         didSet {

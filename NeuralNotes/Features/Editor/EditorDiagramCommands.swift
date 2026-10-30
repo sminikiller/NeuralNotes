@@ -16,7 +16,7 @@ extension EditorViewModel {
         guard hasLease, !loading, !navigating, !interactionBusy, let page,
               !(page.lockedObjects ?? []).contains(id),
               page.shapes?.contains(where: { $0.id == id }) == true || page.connectors?.contains(where: { $0.id == id }) == true else { return }
-        diagramLabelEditor = .init(pageID: page.id, objectID: id)
+        selectedObjectID = id; diagramLabelEditor = .init(pageID: page.id, objectID: id)
     }
     func saveDiagramLabel(_ target: DiagramLabelEditTarget, text: TextElement, autoFit: Bool) {
         guard page?.id == target.pageID, !(page?.lockedObjects ?? []).contains(target.objectID), text.text.count <= 100_000,
@@ -32,7 +32,9 @@ extension EditorViewModel {
         }
     }
     func changeConnector(_ connector: ConnectorElement, label: String = "Modifica connettore") {
-        guard connector.isValid, !(page?.lockedObjects ?? []).contains(connector.id) else { return }
+        guard hasLease, !loading, !navigating, !interactionBusy, connector.isValid,
+              page?.connectors?.contains(where: { $0.id == connector.id }) == true,
+              !(page?.lockedObjects ?? []).contains(connector.id) else { return }
         mutatePage(label) { value in
             if let index = value.connectors?.firstIndex(where: { $0.id == connector.id }) { value.connectors?[index] = connector }
         }
@@ -43,15 +45,20 @@ extension EditorViewModel {
     }
     @discardableResult
     func createDiagramBlock(from id: UUID, side: DiagramSide, at drop: StrokeSample? = nil) -> UUID? {
-        guard hasLease, !interactionBusy, !loading, !navigating, let page,
-              let source = DiagramObjects.make(page)[id], !source.locked,
+        guard hasLease, !interactionBusy, !loading, !navigating, let page else { return nil }
+        let objects = DiagramObjects.make(page)
+        guard let source = objects[id], !source.locked, source.connectionPoints.indices.contains(side.rawValue),
               page.shapes?.contains(where: { $0.id == id }) == true || page.texts.contains(where: { $0.id == id }) else { return nil }
-        let objects = DiagramObjects.make(page), box = source.bounds
+        let box = source.bounds
         let pageBox = SnapRect(x: 0, y: 0, width: page.width, height: page.height)
         let obstacles = objects.values.map(\.bounds)
         let destination: SnapRect?
         if let drop { destination = QuickDiagramLayout.atDrop(drop, size: box, page: pageBox, obstacles: obstacles) }
-        else { destination = QuickDiagramLayout.duplicate(box, side: side, page: pageBox, obstacles: obstacles) }
+        else {
+            let p = source.connectionPoints[side.rawValue]
+            let direction = StrokeSample(x: p.x - source.rect.midX, y: p.y - source.rect.midY)
+            destination = QuickDiagramLayout.duplicate(box, direction: direction, page: pageBox, obstacles: obstacles)
+        }
         guard let destination else { status = "Non c’è spazio per un nuovo blocco in questa zona."; return nil }
         let dx = destination.x - box.x, dy = destination.y - box.y
         var changed = page
@@ -74,7 +81,8 @@ extension EditorViewModel {
         selectedObjectID = newID; return newID
     }
     func addDiagramConnector(_ connector: ConnectorElement) {
-        guard connector.isValid else { return }
+        guard hasLease, !loading, !navigating, !interactionBusy, let page, connector.isValid,
+              !page.objectIDs.contains(connector.id) else { return }
         var value = connector; value.audioAnchor = newDiagramAnchor(id: value.id, prefix: "connector")
         mutatePage("Crea connettore") { page in
             let order = page.orderedObjectIDs

@@ -22,6 +22,7 @@ struct ToolPalettePanel: View {
                     .onSubmit { applyHex() }
                 Button("Applica") { applyHex() }.disabled(InkColor(hex: hex) == nil)
             }
+            if model.tool != .marker {
             Text("Spessori recenti").font(.caption).foregroundStyle(.secondary)
             HStack {
                 ForEach(widths, id: \.self) { value in
@@ -32,6 +33,7 @@ struct ToolPalettePanel: View {
             }
             Slider(value: Binding(get: { model.thickness }, set: { model.chooseWidth($0) }), in: 0.5...12, step: 0.5)
                 .accessibilityLabel("Spessore personalizzato")
+            }
         }.buttonStyle(.plain).onAppear { hex = InkColor(model.ink).hex }
             .onChange(of: model.ink) { _, _ in hex = InkColor(model.ink).hex }
     }

@@ -66,7 +66,7 @@ public extension ConnectorElement {
         let a = point(from.point), b = point(to.point)
         value.from.x = a.x; value.from.y = a.y; value.to.x = b.x; value.to.y = b.y
         value.controlPoints = controlPoints?.map(point)
-        if var style { style.width = min(200, (style.width ?? 2) * scale); value.style = style }
+        if scale != 1 { var next = effectiveStyle; next.width = min(200, (next.width ?? 2) * scale); value.style = next }
         return value
     }
 }

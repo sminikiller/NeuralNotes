@@ -11,6 +11,7 @@ final class CanvasHost: UIView {
     let paperDetail = VisiblePaperDetail()
     let foregroundObjects = ForegroundObjectsView()
     let inkReplay = InkReplayOverlay()
+    let markerReadability = MarkerReadabilityOverlay()
     let zoomNavigator = ZoomNavigator()
     let laserPointer = LaserPointerOverlay()
     let searchHighlight = SearchHighlightOverlay()
@@ -46,6 +47,7 @@ final class CanvasHost: UIView {
         PaperInk.configureNavigation(canvas, fingerDrawing: false)
         paperDetail.isHidden = true; paperDetail.isUserInteractionEnabled = false
         addSubview(surface); addSubview(paperDetail); addSubview(canvas); addSubview(inkReplay)
+        addSubview(markerReadability)
         foregroundObjects.isUserInteractionEnabled = false; foregroundObjects.isOpaque = false; foregroundObjects.backgroundColor = .clear
         addSubview(foregroundObjects)
         canvas.backgroundColor = .clear; canvas.isOpaque = false
@@ -123,6 +125,7 @@ final class CanvasHost: UIView {
             surface.layer.contents = nil
             surface.hiddenTextID = nil; surface.hiddenObjectID = nil
             paperDetail.resetForPageChange()
+            markerReadability.reset()
             foregroundObjects.layer.contents = nil
             inkReplay.resetForPageChange(self)
             searchHighlight.resetForPageChange()
@@ -224,7 +227,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); shapeHandles?.update(); diagramHandles?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); shapeHandles?.update(); diagramHandles?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)

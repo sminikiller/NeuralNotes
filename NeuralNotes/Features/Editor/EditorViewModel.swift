@@ -67,6 +67,7 @@ final class EditorViewModel {
     @ObservationIgnored var workspaceSettingsDirty = false
     @ObservationIgnored var workspaceSaveTask: Task<Void, Never>?
     @ObservationIgnored weak var drawingAssistant: CanvasDrawingAssistant?
+    @ObservationIgnored var inkDisplayGeneration = UUID()
     @ObservationIgnored var pendingHeldShape: (page: UUID, kind: ShapeKind, samples: [StrokeSample])?
     @ObservationIgnored var pendingShapeRecognition: ShapeRecognitionResult?
     @ObservationIgnored var pendingAutomaticRecognition = false
@@ -231,7 +232,7 @@ final class EditorViewModel {
         PaperInk.configure(canvas)
         switch tool {
         case .pen: canvas.tool = PKInkingTool(writingOptions.pen.native, color: PaperInk.color(ink), width: thickness)
-        case .marker: canvas.tool = PKInkingTool(.marker, color: PaperInk.color(ink), width: max(12, thickness * 5))
+        case .marker: canvas.tool = PKInkingTool(.marker, color: PaperInk.color(ink), width: markerWidth)
         case .eraser: canvas.tool = PKEraserTool(writingOptions.eraser == .partial ? .bitmap : .vector, width: writingOptions.eraserWidth)
         case .lasso: canvas.tool = PKLassoTool()
         case .objects, .audioLink, .text, .shape, .lens: break
@@ -242,14 +243,18 @@ final class EditorViewModel {
         if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = false
         if rulerActive && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
+        if markerWordsActive { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
         if tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
+        if tool == .marker, writingOptions.markerSnapWords != false, let page { PageWordIndex.shared.preparePDFMarker(page, model: self) }
     }
 
     func drawingChanged() {
         guard !loading else { return }
         guard !movingObjects else { return }
+        inkDisplayGeneration = UUID()
+        (canvas.superview as? CanvasHost)?.markerReadability.update(canvas.superview as? CanvasHost)
         if tool == .eraser && drawingShape { return }
         if let page { PageWordIndex.shared.invalidate(page) }
         if editBeforeGesture != nil && !usingInkTool && !finishingInkGesture { scheduleInkCommit() }
@@ -349,6 +354,7 @@ final class EditorViewModel {
         if automatic, shaped, let recognizedTitle { showRecognitionNotice(recognizedTitle) }
         drawingChanged()
         if tool == .eraser && writingOptions.returnToPen { chooseTool(.pen) }
+        if tool == .marker { configureTool() }
     }
 
     @discardableResult
@@ -477,9 +483,20 @@ final class EditorViewModel {
         signaturesBeforeStroke = []
         // Keep the original stroke objects (ink, masks and transforms), but use
         // a fresh drawing container rather than the old native editing timeline.
+        installNativeInk(drawing)
+        canvas.delegate = delegate
+    }
+
+    /// End the native editing timeline as well as replacing its value. Otherwise
+    /// PencilKit may append its previous raw stroke on the next tool gesture.
+    func installNativeInk(_ drawing: PKDrawing) {
+        let delegate = canvas.delegate, enabled = canvas.drawingGestureRecognizer.isEnabled
+        canvas.delegate = nil
+        canvas.drawingGestureRecognizer.isEnabled = false
         canvas.drawing = PKDrawing(strokes: drawing.strokes)
         canvas.undoManager?.removeAllActions()
-        canvas.delegate = delegate
+        canvas.drawingGestureRecognizer.isEnabled = enabled
+        canvas.delegate = delegate; inkDisplayGeneration = UUID()
     }
 
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
@@ -644,6 +661,14 @@ final class EditorViewModel {
             if let anchor = shape.audioAnchor,
                ShapeGeometry.hit(.init(x: point.x, y: point.y), shape: shape, zoom: canvas.zoomScale) {
                 nearest = (anchor, 0); break
+            }
+        }
+        if nearest == nil, page.connectors?.isEmpty == false {
+            let objects = DiagramObjects.make(page)
+            for edge in page.connectors ?? [] {
+                if let anchor = edge.audioAnchor, ConnectorGeometry.hit(.init(x: point.x, y: point.y), connector: edge, objects: objects, zoom: canvas.zoomScale) {
+                    nearest = (anchor, 0); break
+                }
             }
         }
         for (index, stroke) in canvas.drawing.strokes.enumerated() {

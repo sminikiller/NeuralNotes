@@ -48,6 +48,23 @@ final class PageWordIndex {
     /// The text layer or the OCR of the page has been read (possibly finding nothing).
     func isReady(_ page: PageSnapshot) -> Bool { cache[key(page)] != nil }
 
+    func pdfWords(_ page: PageSnapshot) -> [PageWord] { page.pdfFile == nil ? [] : cache[key(page)] ?? [] }
+    /// The marker needs the immutable digital layer only, without starting OCR
+    /// of a large scanned PDF while the user is trying to write.
+    func preparePDFMarker(_ page: PageSnapshot, model: EditorViewModel) {
+        let cacheKey = key(page)
+        guard let file = page.pdfFile, let index = page.pdfIndex, cache[cacheKey] == nil, !running.contains(cacheKey) else { return }
+        running.insert(cacheKey)
+        Task {
+            defer { running.remove(cacheKey) }
+            guard let url = try? await model.workspace.url(file),
+                  let words = try? await PDFTextReader.shared.words(url: url, index: index, pageWidth: page.width, pageHeight: page.height),
+                  model.page?.id == page.id else { return }
+            store(cacheKey, words)
+            if model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
+        }
+    }
+
     func prepare(_ page: PageSnapshot, model: EditorViewModel) {
         let cacheKey = key(page)
         guard cache[cacheKey] == nil, !running.contains(cacheKey) else { return }

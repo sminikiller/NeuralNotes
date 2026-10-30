@@ -217,7 +217,7 @@ enum DocumentServices {
         let format = UIGraphicsImageRendererFormat(); format.scale = min(2, maxDimension / max(bounds.width, bounds.height))
         return UIGraphicsImageRenderer(bounds: bounds, format: format).image { result in
             PageRenderer.draw(page, package: workspace.package, in: result.cgContext)
-            PaperInk.image(drawing, from: bounds, scale: format.scale).draw(in: bounds)
+            LegibleInkRenderer.draw(drawing, in: result.cgContext, bounds: bounds, scale: format.scale)
             PageRenderer.drawForeground(page, package: workspace.package, in: result.cgContext)
         }
     }
@@ -254,8 +254,7 @@ enum DocumentServices {
                 PageRenderer.draw(page, package: workspace.package, in: context)
                 if let file {
                     let drawing = try PKDrawing(data: Data(contentsOf: file))
-                    if vectorInk { VectorInkRenderer.draw(drawing, in: context) }
-                    else { PaperInk.image(drawing, from: box, scale: min(2, 4096 / max(box.width, box.height))).draw(in: box) }
+                    LegibleInkRenderer.draw(drawing, in: context, bounds: box, scale: min(2, 4096 / max(box.width, box.height)), vector: vectorInk)
                 }
                 PageRenderer.drawForeground(page, package: workspace.package, in: context)
             }

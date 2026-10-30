@@ -9,6 +9,21 @@ public enum DiagramSide: Int, CaseIterable, Hashable, Sendable {
 }
 
 public enum QuickDiagramLayout {
+    public static func duplicate(_ source: SnapRect, direction: StrokeSample, page: SnapRect, obstacles: [SnapRect]) -> SnapRect? {
+        let length = hypot(direction.x, direction.y)
+        guard source.valid, page.valid, length.isFinite, length > 0.00001 else { return nil }
+        let nx = direction.x / length, ny = direction.y / length
+        let distance = abs(nx) * source.width + abs(ny) * source.height + 48
+        let perpendicular = abs(ny) * source.width + abs(nx) * source.height + 24
+        for index in [0, 1, -1, 2, -2, 3, -3] {
+            let amount = Double(index) * perpendicular
+            let box = source.offset(x: nx * distance - ny * amount, y: ny * distance + nx * amount)
+            guard box.x >= page.x + 8, box.y >= page.y + 8, box.maxX <= page.maxX - 8, box.maxY <= page.maxY - 8 else { continue }
+            if !obstacles.contains(where: { overlaps(box, $0, gap: 8) }) { return box }
+        }
+        let side: DiagramSide = abs(nx) >= abs(ny) ? (nx >= 0 ? .right : .left) : (ny >= 0 ? .bottom : .top)
+        return duplicate(source, side: side, page: page, obstacles: obstacles)
+    }
     /// Keeps the 48pt edge gap. Try perpendicular offsets when the ideal place
     /// is occupied, then other directions; never place a block outside the page.
     public static func duplicate(_ source: SnapRect, side: DiagramSide, page: SnapRect, obstacles: [SnapRect]) -> SnapRect? {

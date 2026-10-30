@@ -26,7 +26,7 @@ public enum ShapeLabelRegion {
         }
     }
     private static func centered(_ r: SnapRect, width: Double, height: Double) -> SnapRect {
-        .init(x: r.midX - width / 2, y: r.midY - height / 2, width: max(1, width), height: max(1, height))
+        .init(x: r.midX - width / 2, y: r.midY - height / 2, width: width, height: height)
     }
     private static func interior(_ shape: ShapeElement) -> SnapRect {
         var local = shape; local.rotation = nil
@@ -34,14 +34,25 @@ public enum ShapeLabelRegion {
             return .init(x: shape.x, y: shape.y, width: 1, height: 1)
         }
         var point = StrokeSample(x: shape.x + shape.width / 2, y: shape.y + shape.height / 2), radius = 0.0
+        var candidates: [StrokeSample] = []
         for x in 1...9 { for y in 1...9 {
-            let p = StrokeSample(x: shape.x + Double(x) * shape.width / 10, y: shape.y + Double(y) * shape.height / 10)
+            candidates.append(.init(x: shape.x + Double(x) * shape.width / 10, y: shape.y + Double(y) * shape.height / 10))
+        } }
+        // Thin, slanted polygons may fall between all grid samples. Local
+        // triangle centroids provide interior candidates without a dense grid.
+        if outline.count >= 3 {
+            for i in 1..<(outline.count - 1) {
+                candidates.append(.init(x: (outline[0].x + outline[i].x + outline[i + 1].x) / 3,
+                    y: (outline[0].y + outline[i].y + outline[i + 1].y) / 3))
+            }
+        }
+        for p in candidates {
             guard ShapeGeometry.contains(p, polygon: outline) else { continue }
             var distance = Double.infinity
             for i in 1..<outline.count { distance = min(distance, ShapeGeometry.segmentDistance(p, outline[i - 1], outline[i])) }
             if distance > radius { radius = distance; point = p }
-        } }
-        let side = max(1, radius * 1.4)
+        }
+        let side = radius * 1.4
         return .init(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side)
     }
 }

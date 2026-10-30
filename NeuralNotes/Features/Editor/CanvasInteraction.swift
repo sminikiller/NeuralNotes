@@ -45,9 +45,11 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         tap.cancelsTouchesInView = false; tap.delaysTouchesBegan = false
         fitTap.addTarget(self, action: #selector(fitPage(_:)))
         fitTap.numberOfTapsRequired = 2
+        fitTap.name = "pageFitGesture"
         fitTap.numberOfTouchesRequired = model.fingerDrawing ? 2 : 1
         fitTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         pointerFitTap.addTarget(self, action: #selector(fitPage(_:))); pointerFitTap.numberOfTapsRequired = 2
+        pointerFitTap.name = "pageFitGesture"
         pointerFitTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         for gesture in [fitTap, pointerFitTap] {
             gesture.cancelsTouchesInView = false; gesture.delaysTouchesBegan = false
@@ -57,6 +59,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         tap.require(toFail: fitTap)
         tap.require(toFail: pointerFitTap)
         labelTap.addTarget(self, action: #selector(fitPage(_:))); labelTap.numberOfTapsRequired = 2
+        labelTap.name = "diagramLabelGesture"
         labelTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
         labelTap.delegate = self; labelTap.cancelsTouchesInView = false; host.canvas.addGestureRecognizer(labelTap)
         tap.require(toFail: labelTap)
@@ -181,7 +184,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func fitPage(_ gesture: UITapGestureRecognizer) {
-        if let host, let model, model.tool == .objects, let id = hit(gesture.location(in: host.surface)),
+        if let host, let model, model.tool == .objects, let id = diagramLabelHit(gesture.location(in: host.surface)),
            model.page?.shapes?.contains(where: { $0.id == id }) == true || model.page?.connectors?.contains(where: { $0.id == id }) == true {
             model.editDiagramLabel(id); return
         }
@@ -216,6 +219,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         else if let id = hit(point) {
             if id == inkID { refresh(); return }
             if model.selectedObjectID == id, let text = model.page?.texts.first(where: { $0.id == id }), let target = text.pageLink {
+                Task { await model.openPageLink(target) }; return
+            }
+            if model.selectedObjectID == id, let target = model.page?.shapes?.first(where: { $0.id == id })?.pageLink {
                 Task { await model.openPageLink(target) }; return
             }
             if model.selectedObjectID == id, let text = model.page?.texts.first(where: { $0.id == id }),
@@ -340,6 +346,15 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let box = selection.bounds
         let ids = allIDs.filter { id in
             guard let frame = objectRect(id), frame.intersects(box) else { return false }
+            if let page = model.page, let edge = page.connectors?.first(where: { $0.id == id }) {
+                let objects = DiagramObjects.make(page)
+                let polygon: [StrokeSample] = model.selectFreehand ? selectionTrace.map { .init(x: $0.x, y: $0.y) }
+                    : [.init(x: rect.minX, y: rect.minY), .init(x: rect.maxX, y: rect.minY), .init(x: rect.maxX, y: rect.maxY), .init(x: rect.minX, y: rect.maxY)]
+                if ConnectorGeometry.intersects(edge, objects: objects, selection: polygon) { return true }
+                if let label = DiagramLabels.connector(edge, objects: objects, page: page), label.box.intersects(box) {
+                    return !model.selectFreehand || selection.contains(CGPoint(x: label.box.midX, y: label.box.midY))
+                }; return false
+            }
             return !model.selectFreehand || selection.contains(CGPoint(x: frame.midX, y: frame.midY))
         }
         model.selectedIDs = model.multiSelection ? model.selectedIDs.union(ids) : Set(ids)
@@ -546,6 +561,24 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         }) { return id }
         return model.selectionIncludesInk && model.selectedInkBounds.contains(point) ? inkID : nil
     }
+    private func diagramLabelHit(_ point: CGPoint) -> UUID? {
+        guard let model, let host, let page = model.page else { return nil }
+        let tolerance = 8 / max(0.05, host.canvas.zoomScale)
+        for id in allIDs.reversed() {
+            guard objectRect(id)?.insetBy(dx: -tolerance, dy: -tolerance).contains(point) == true else { continue }
+            if let shape = page.shapes?.first(where: { $0.id == id }) {
+                if !shape.kind.isOpen, let outline = ShapeGeometry.polylines(ShapeGeometry.path(for: shape)).first,
+                   ShapeGeometry.contains(.init(x: point.x, y: point.y), polygon: outline) { return id }
+                if ShapeGeometry.hit(.init(x: point.x, y: point.y), shape: shape, zoom: host.canvas.zoomScale) { return id }
+                if let label = DiagramLabels.shape(shape, page: page), label.box.contains(point.applying(label.transform.inverted())) { return id }
+            } else if let edge = page.connectors?.first(where: { $0.id == id }) {
+                let objects = DiagramObjects.make(page)
+                if ConnectorGeometry.hit(.init(x: point.x, y: point.y), connector: edge, objects: objects, zoom: host.canvas.zoomScale) { return id }
+                if let label = DiagramLabels.connector(edge, objects: objects, page: page), label.box.contains(point) { return id }
+            }
+        }
+        return nil
+    }
     private func objectRect(_ id: UUID, visual: Bool = true) -> CGRect? {
         guard let page = model?.page else { return nil }
         if let connector = page.connectors?.first(where: { $0.id == id }) {
@@ -569,7 +602,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             let box = CGRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
             if visual {
                 let frame = ShapeGeometry.bounds(shape)
-                return CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+                var result = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+                if let label = DiagramLabels.shape(shape, page: page) { result = result.union(label.box.applying(label.transform)) }
+                return result
             }
             return box
         }
@@ -612,6 +647,17 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
                 }
             }
             var items: [UIMenuElement] = [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
+            if model.page?.shapes?.contains(where: { $0.id == id }) == true || model.page?.connectors?.contains(where: { $0.id == id }) == true {
+                items.insert(UIAction(title: "Modifica etichetta", image: UIImage(systemName: "textformat")) { _ in model.editDiagramLabel(id) }, at: 1)
+            }
+            if let target = model.page?.shapes?.first(where: { $0.id == id })?.pageLink {
+                items.insert(UIAction(title: "Apri la fonte", image: UIImage(systemName: "arrow.up.forward.app")) { _ in Task { await model.openPageLink(target) } }, at: 1)
+            }
+            if model.selectedConnector != nil {
+                let routes = ConnectorRouting.allCases.map { routing in UIAction(title: routing.title) { _ in model.setConnectorRouting(routing) } }
+                items.insert(UIMenu(title: "Tracciato", children: routes), at: 1)
+                items.insert(UIAction(title: "Stile del connettore", image: UIImage(systemName: "paintbrush.pointed")) { _ in model.connectorStyleRequest += 1 }, at: 1)
+            }
             if model.arrangementCount >= 2 {
                 let actions = SelectionArrangement.allCases.map { action in
                     UIAction(title: action.title, attributes: model.arrangementCount < action.minimumCount ? .disabled : []) { _ in model.arrangeSelection(action) }

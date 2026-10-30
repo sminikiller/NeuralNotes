@@ -29,6 +29,7 @@ struct ConnectorStylePanel: View {
                     ColorPicker("Colore", selection: color, supportsOpacity: false)
                     Text("Spessore · \(style.width ?? 2, specifier: "%.1f") pt")
                     Slider(value: width, in: 0.5...40).accessibilityLabel("Spessore del connettore")
+                    Slider(value: opacity, in: 0...1) { Text("Opacità del connettore") }
                     Picker("Tratto", selection: dash) { ForEach(ShapeDash.allCases, id: \.self) { Text($0.title).tag($0) } }
                     Picker("Punte", selection: heads) { ForEach(ArrowHeads.allCases, id: \.self) { Text($0.title).tag($0) } }
                     Picker("Stile punta", selection: arrowStyle) { ForEach(ArrowStyle.allCases, id: \.self) { Text($0.title).tag($0) } }
@@ -46,6 +47,7 @@ struct ConnectorStylePanel: View {
     }
     private var color: Binding<Color> { Binding(get: { (style.color ?? .blue).color }, set: { color in edit { $0.color = InkColor(color) } }) }
     private var width: Binding<Double> { Binding(get: { style.width ?? 2 }, set: { width in edit { $0.width = width } }) }
+    private var opacity: Binding<Double> { Binding(get: { style.strokeOpacity ?? 1 }, set: { opacity in edit { $0.strokeOpacity = opacity } }) }
     private var dash: Binding<ShapeDash> { Binding(get: { style.dash ?? .solid }, set: { dash in edit { $0.dash = dash } }) }
     private var heads: Binding<ArrowHeads> { Binding(get: { style.arrowHeads ?? .end }, set: { heads in edit { $0.arrowHeads = heads } }) }
     private var arrowStyle: Binding<ArrowStyle> { Binding(get: { style.arrowStyle ?? .open }, set: { arrow in edit { $0.arrowStyle = arrow } }) }

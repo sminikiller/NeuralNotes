@@ -224,6 +224,15 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Dal menu di inserimento scegli Nastro per il ripasso per aggiungere una copertura sul foglio.",
             "Posiziona e ridimensiona il nastro sopra il testo da nascondere usando lo strumento Oggetti.",
             "Usa il controllo del nastro per mostrare o nascondere il contenuto mentre ripassi. Puoi spostarlo o eliminarlo dal menu della selezione." ]),
+        .init("diagrams", .writing, "Diagrammi con i punti blu", "point.topleft.down.curvedto.point.bottomright.up", "Blocchi collegati, con testo modificabile.", [
+            "Disegna una forma e selezionala con Oggetti: compaiono quattro punti blu. Tocca un punto per creare un blocco uguale collegato, a 48 punti di distanza se c’è spazio.",
+            "Trascina un punto su un altro oggetto per collegarlo. Nel vuoto nasce un blocco; trattieni circa mezzo secondo per lasciare invece un estremo libero. Gli estremi seguono spostamenti, dimensioni e rotazione.",
+            "Fai doppio tocco dentro un blocco o su un connettore per scrivere. Usa Aa per elenchi e rientri; puoi ridurre il carattere automaticamente. Dal menu del connettore scegli Dritto, Curvo, A gomito e lo stile.",
+            "Copia più blocchi per includere anche i collegamenti interni. Le mappe create da uno schema AI si modificano con gli stessi strumenti. Annulla torna indietro di un’operazione." ], tools: [.objects]),
+        .init("marker-words", .writing, "Evidenziatore sottile e parole PDF", "highlighter", "Larghezza reale e parole agganciate, senza coprire il testo.", [
+            "Tieni premuto Evidenziatore: Larghezza reale scende fino a 1 punto. Questo valore è lo spessore effettivo sulla pagina, indipendente dallo zoom.",
+            "Attiva Aggancia alle parole del PDF. Scorri sulle parole o appena sotto, come con la Lente: l’evidenziazione si adatta alle parole selezionate. Per un PDF scansionato senza testo digitale resta disponibile il tratto libero.",
+            "Il colore viene composto con il foglio e il PDF senza schiarire le lettere nere; l’inchiostro della penna resta sopra. Lo stesso criterio si usa nelle anteprime e nell’esportazione. Un solo annulla rimuove l’intera evidenziazione." ], tools: [.marker]),
         .init("pdf-highlight", .pages, "Testo ed evidenziazioni del PDF", "highlighter", "Seleziona testo digitale e conserva i riferimenti.", [
             "Apri lo studio PDF e un documento con testo selezionabile. I PDF composti soltanto da scansioni possono richiedere OCR.",
             "Seleziona le righe da copiare o evidenziare con i controlli PDF disponibili; usa l’indice per raggiungere una sezione.",
