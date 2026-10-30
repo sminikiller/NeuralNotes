@@ -55,6 +55,12 @@ final class MarkerReadabilityOverlay: UIView {
         let delta = appendOnly ? PKDrawing(strokes: Array(drawing.strokes.dropFirst(baseDrawing.strokes.count))) : PKDrawing()
         var hiddenIDs = host.surface.allHiddenObjectIDs
         if let id = host.surface.hiddenObjectID { hiddenIDs.insert(id) }
+        if let token = model.eraserCompositionToken {
+            composition.drawReplacingInk(page: page, drawing: drawing, token: token, package: host.surface.package,
+                bounds: visible, scale: max(0.1, contentScaleFactor * zoom), hiddenIDs: hiddenIDs,
+                hiddenTextID: host.surface.hiddenTextID, in: context)
+            return
+        }
         composition.draw(page: page, baseline: baseDrawing, token: appendOnly ? model.inkGestureGeneration : model.inkDisplayGeneration,
             delta: delta, package: host.surface.package, bounds: visible, scale: max(0.1, contentScaleFactor * zoom),
             hiddenIDs: hiddenIDs, hiddenTextID: host.surface.hiddenTextID, in: context)

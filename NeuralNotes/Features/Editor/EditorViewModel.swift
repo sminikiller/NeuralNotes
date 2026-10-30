@@ -76,6 +76,7 @@ final class EditorViewModel {
     @ObservationIgnored var inkDisplayGeneration = UUID()
     @ObservationIgnored var inkGestureGeneration = UUID()
     @ObservationIgnored var inkGestureBaseline: PKDrawing?
+    @ObservationIgnored var eraserCompositionToken: UUID?
     @ObservationIgnored var pendingHeldShape: (page: UUID, kind: ShapeKind, samples: [StrokeSample])?
     @ObservationIgnored var pendingShapeRecognition: ShapeRecognitionResult?
     @ObservationIgnored var pendingAutomaticRecognition = false

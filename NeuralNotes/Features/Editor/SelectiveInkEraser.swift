@@ -51,6 +51,7 @@ final class MarkerEraseSession {
     init(model: EditorViewModel) {
         self.model = model; before = model.captureEdit(ink: true); original = model.canvas.drawing; pageID = model.page?.id
         width = model.writingOptions.eraserWidth; whole = model.writingOptions.eraser == .stroke
+        model.eraserCompositionToken = UUID()
     }
     func append(_ samples: [StrokeSample]) {
         queued += samples
@@ -68,10 +69,15 @@ final class MarkerEraseSession {
     }
     func finish(cancelled: Bool) {
         frame?.cancel(); frame = nil
-        guard let model, model.page?.id == pageID else { return }
-        if cancelled { model.canvas.drawing = original; return }
+        guard let model else { return }
+        defer { model.eraserCompositionToken = nil }
+        guard model.page?.id == pageID else { return }
+        if cancelled { model.installNativeInk(original); return }
         process()
-        if changed { model.recordEdit(before, label: "Cancella evidenziatore"); model.drawingChanged() }
+        if changed {
+            model.installNativeInk(model.canvas.drawing)
+            model.recordEdit(before, label: "Cancella evidenziatore"); model.drawingChanged(preservingRecognizedWords: true)
+        }
         if model.writingOptions.returnToPen { model.chooseTool(.pen) }
     }
 }

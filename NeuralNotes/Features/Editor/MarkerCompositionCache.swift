@@ -16,6 +16,13 @@ final class MarkerCompositionCache {
     private var pens: UIImage?
     private(set) var builds = 0
     func clear() { token = nil; page = nil; base = nil; pens = nil }
+    /// Erasing changes existing native masks, so only the document background
+    /// is cached. Reuse that one viewport while compositing the current ink.
+    func drawReplacingInk(page: PageSnapshot, drawing: PKDrawing, token: UUID, package: URL,
+                          bounds: CGRect, scale: CGFloat, hiddenIDs: Set<UUID>, hiddenTextID: UUID?, in context: CGContext) {
+        draw(page: page, baseline: PKDrawing(), token: token, delta: drawing, package: package,
+             bounds: bounds, scale: scale, hiddenIDs: hiddenIDs, hiddenTextID: hiddenTextID, in: context)
+    }
     func draw(page: PageSnapshot, baseline: PKDrawing, token: UUID, delta: PKDrawing, package: URL,
               bounds: CGRect, scale: CGFloat, hiddenIDs: Set<UUID>, hiddenTextID: UUID?, in context: CGContext) {
         let limitedScale = max(0.05, min(scale, sqrt(2_000_000 / max(1, bounds.width * bounds.height))))

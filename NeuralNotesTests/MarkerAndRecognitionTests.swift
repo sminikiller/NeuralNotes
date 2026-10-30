@@ -140,6 +140,17 @@ final class MarkerAndRecognitionTests: XCTestCase {
             XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive)
             await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
             XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive)
+            model.chooseTool(.eraser); model.editWriting { $0.markerOnly = true; $0.eraser = .partial; $0.eraserWidth = 12 }
+            let markerBeforeErase = model.canvas.drawing.dataRepresentation()
+            model.drawingShape = true
+            let erasing = MarkerEraseSession(model: model)
+            erasing.append([.init(x: target.rect.midX, y: target.rect.midY)])
+            model.drawingShape = false; erasing.finish(cancelled: false)
+            XCTAssertNil(model.eraserCompositionToken)
+            XCTAssertNotEqual(model.canvas.drawing.dataRepresentation(), markerBeforeErase)
+            XCTAssertTrue(index.isReady(page), "La gomma solo evidenziatore deve conservare l’OCR anche dopo la fine del gesto.")
+            await model.performUndo(); XCTAssertEqual(model.canvas.drawing.dataRepresentation(), markerBeforeErase)
+            XCTAssertTrue(index.isReady(page))
             model.chooseTool(.pen); model.editShapePreferences { $0.mode = .off }
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [stroke([.init(x: 60, y: 400), .init(x: 220, y: 400)])])
             model.strokeEnded(); model.finishInkGesture()

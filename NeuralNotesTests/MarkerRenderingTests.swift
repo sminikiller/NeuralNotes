@@ -54,6 +54,26 @@ final class MarkerRenderingTests: XCTestCase {
             XCTAssertGreaterThan(pixelCount(crop, white: false), 30, "I riquadri devono coprire i glifi reali anche a \(rotation)°.")
         }
     }
+    @MainActor func testTwelveEraserUpdatesReuseOnePaperImageAndKeepWhiteInk() throws {
+        var page = PageSnapshot(); page.width = 300; page.height = 200; page.appearance = .init(tone: .slate)
+        var drawing = PKDrawing(strokes: [ink(.marker, color: .yellow, y: 70, width: 24), ink(.pen, color: .white, y: 70, width: 4)])
+        let cache = MarkerCompositionCache(), token = UUID(), bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
+        let format = UIGraphicsImageRendererFormat(); format.scale = 2
+        let renderer = UIGraphicsImageRenderer(size: bounds.size, format: format)
+        var rendered = UIImage()
+        for index in 0..<12 {
+            drawing = SelectiveInkEraser.erase(drawing, samples: [.init(x: 50 + Double(index) * 12, y: 70)], width: 8, wholeStroke: false).0
+            rendered = renderer.image { item in
+                cache.drawReplacingInk(page: page, drawing: drawing, token: token, package: URL(fileURLWithPath: "/"),
+                    bounds: bounds, scale: 2, hiddenIDs: [], hiddenTextID: nil, in: item.cgContext)
+            }
+        }
+        XCTAssertEqual(cache.builds, 1, "Cambiare le maschere dell’evidenziatore non deve ridisegnare PDF e carta dodici volte.")
+        XCTAssertEqual(drawing.strokes.last?.ink.inkType, .pen)
+        let image = try XCTUnwrap(rendered.cgImage)
+        let strip = try XCTUnwrap(image.cropping(to: CGRect(x: 100, y: 134, width: 360, height: 12)))
+        XCTAssertGreaterThan(pixelCount(strip, white: true), 80)
+    }
     @MainActor private func pixelCount(_ image: CGImage, white: Bool) -> Int {
         let width = image.width, height = image.height
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
