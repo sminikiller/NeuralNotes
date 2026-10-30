@@ -18,7 +18,10 @@ final class ProtractorInkSession {
               let page = model.page, let mode = model.protractorGuide.mode(at: start, zoom: Double(host.canvas.zoomScale)),
               !model.protractorMeasure || mode == .ray else { return nil }
         self.host = host; self.model = model; pageID = page.id; guide = model.protractorGuide; self.mode = mode
-        before = model.canvas.drawing; measuring = model.protractorMeasure
+        // PencilKit may begin before our simultaneous touch monitor. Use its
+        // pre-gesture value so a tiny native dot can never survive the guide.
+        before = model.inkGestureBaseline ?? model.canvas.drawing; measuring = model.protractorMeasure
+        model.cancelGuidedInk(before)
         if !measuring { model.strokeBegan() }
         model.protractorDrawing = true; model.drawingShape = true; model.configureTool()
         preview.fillColor = nil; preview.lineCap = .round; preview.lineJoin = .round

@@ -54,6 +54,7 @@ final class EditorViewModel {
     var lensSubject = ""
     var searchRequest = 0
     var focusRequest = 0
+    var selectionImageShareRequest = 0
     var objectEditorRequest = 0
     var imageStraightenRequest = 0
     var ink = Color.black

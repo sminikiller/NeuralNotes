@@ -122,4 +122,22 @@ final class SelectionTransferTests: XCTestCase {
             await model.performRedo(); XCTAssertEqual(model.page?.connectors, copied.connectors)
         }
     }
+    @MainActor func testNewPageAtTheEndIsIndependentOfTheCurrentPagePosition() async throws {
+        try await fixture { model in
+            model.addStickyNote("Da spostare alla fine")
+            let first = try XCTUnwrap(model.page)
+            await model.addPage(); await model.addPage()
+            await model.select(first)
+            let order = model.pages.map(\.id), text = try XCTUnwrap(model.page?.texts.first)
+            model.selectedIDs = [text.id]; model.history.clear()
+            await model.transferSelection(to: nil, copy: false, newPageAtEnd: true)
+            XCTAssertNil(model.error); XCTAssertEqual(model.pages.count, 4)
+            let destinationID = try XCTUnwrap(model.page?.id)
+            XCTAssertEqual(model.pages.map(\.id), order + [destinationID])
+            XCTAssertEqual(model.page?.texts.first?.text, text.text)
+            await model.performUndo(); XCTAssertEqual(model.pages.map(\.id), order)
+            XCTAssertEqual(model.page?.texts, [text]); XCTAssertFalse(model.canUndo)
+            await model.performRedo(); XCTAssertEqual(model.pages.map(\.id), order + [destinationID])
+        }
+    }
 }

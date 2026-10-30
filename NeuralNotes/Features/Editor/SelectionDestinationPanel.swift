@@ -35,10 +35,10 @@ struct SelectionDestinationPanel: View {
                     Text("Sposta").tag(false); Text("Copia").tag(true)
                 }.pickerStyle(.segmented).padding(.horizontal).disabled(busy)
                 HStack {
-                    Button("Nuova prima", systemImage: "doc.badge.plus") { transfer(nil, after: false) }
-                        .accessibilityIdentifier("selectionNewPageBefore")
                     Button("Nuova dopo", systemImage: "doc.badge.plus") { transfer(nil, after: true) }
                         .accessibilityIdentifier("selectionNewPageAfter")
+                    Button("Nuova alla fine", systemImage: "doc.badge.plus") { transfer(nil, atEnd: true) }
+                        .accessibilityIdentifier("selectionNewPageAtEnd")
                 }.buttonStyle(.bordered).disabled(busy || model.pages.count >= DocumentWorkspace.maximumPageEditPages)
                 if busy { ProgressView(copy ? "Copia della selezione…" : "Spostamento della selezione…") }
                 ScrollView {
@@ -68,10 +68,10 @@ struct SelectionDestinationPanel: View {
             }.padding(8).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(.plain).accessibilityIdentifier("selectionDestination-\(row.id)")
     }
-    private func transfer(_ id: UUID?, after: Bool = true) {
+    private func transfer(_ id: UUID?, after: Bool = true, atEnd: Bool = false) {
         guard !busy else { return }; busy = true; model.error = nil
         Task {
-            await model.transferSelection(to: id, copy: copy, newPageAfter: after)
+            await model.transferSelection(to: id, copy: copy, newPageAfter: after, newPageAtEnd: atEnd)
             busy = false
             if model.error == nil { dismiss() }
         }

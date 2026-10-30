@@ -142,7 +142,8 @@ struct EditorQuickToolbar: View {
                     Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
                     Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }
                     Button("Converti in testo", systemImage: "text.viewfinder") { Task { await model.convertSelectionToText() } }
-                    Button("Copia area come immagine", systemImage: "photo.on.rectangle") { model.copySelectionImage() }
+                    Button("Copia come immagine", systemImage: "photo.on.rectangle") { model.copySelectionImage() }
+                    Button("Condividi immagine", systemImage: "square.and.arrow.up") { model.selectionImageShareRequest += 1 }
                     Button("Porta dietro", systemImage: "square.3.layers.3d.bottom.filled") { model.arrangeSelection(front: false) }
                     Button("Blocca oggetti", systemImage: "lock") { model.lockSelection() }
                     Button("Sblocca tutti gli oggetti", systemImage: "lock.open") { model.unlockObjects() }

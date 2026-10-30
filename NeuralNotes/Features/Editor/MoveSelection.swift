@@ -5,7 +5,7 @@ import NeuralNotesCore
 @MainActor
 extension EditorViewModel {
     func moveSelection(to pageID: UUID) async { await transferSelection(to: pageID, copy: false) }
-    func transferSelection(to pageID: UUID?, copy: Bool, newPageAfter: Bool = true) async {
+    func transferSelection(to pageID: UUID?, copy: Bool, newPageAfter: Bool = true, newPageAtEnd: Bool = false) async {
         finishInkGesture(); endTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id, pageID != nil || pages.count < DocumentWorkspace.maximumPageEditPages else { return }
         let ids = origin.includingInternalConnectors(selectedIDs.subtracting(origin.lockedObjects ?? []))
@@ -27,7 +27,8 @@ extension EditorViewModel {
                 destination = PageSnapshot(); destination.width = source.width; destination.height = source.height
                 destination.paper = source.paper; destination.appearance = source.appearance
                 guard let index = oldOrder.firstIndex(of: source.id) else { throw WorkspaceFailure.staleRevision }
-                newOrder.insert(destination.id, at: index + (newPageAfter ? 1 : 0))
+                let insertion = newPageAtEnd ? oldOrder.endIndex : index + (newPageAfter ? 1 : 0)
+                newOrder.insert(destination.id, at: insertion)
             }
             let destinationBytes = try await workspace.drawing(destination)
             let originalInk = canvas.drawing, destinationInk = try destinationBytes.map { try PKDrawing(data: $0) } ?? PKDrawing()

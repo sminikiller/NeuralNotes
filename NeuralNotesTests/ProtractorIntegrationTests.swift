@@ -98,4 +98,18 @@ final class ProtractorIntegrationTests: XCTestCase {
             XCTAssertFalse(model.canUndo); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
         }
     }
+    @MainActor func testNativeTouchArrivingFirstCannotLeaveARawDotBesideTheGuidedRay() async throws {
+        try await fixture { model, host in
+            model.strokeBegan()
+            let controls = [CGPoint(x: 300, y: 400), CGPoint(x: 301, y: 400)].enumerated().map { index, point in
+                PKStrokePoint(location: point, timeOffset: Double(index) * 0.01, size: CGSize(width: 3, height: 3), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+            }
+            model.canvas.drawing = PKDrawing(strokes: [PKStroke(ink: PKInk(.pen, color: .black), path: PKStrokePath(controlPoints: controls, creationDate: Date()))])
+            let session = try XCTUnwrap(ProtractorInkSession(host: host, model: model, start: .init(x: 300, y: 400)))
+            session.move([CGPoint(x: 400, y: 300)]); session.finish(cancelled: false)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertEqual(model.canvas.drawing.strokes[0].path.count, 2)
+            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertFalse(model.canUndo)
+        }
+    }
 }

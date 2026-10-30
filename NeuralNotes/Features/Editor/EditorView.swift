@@ -65,6 +65,7 @@ struct EditorView: View {
                 .onChange(of: model.imageStraightenRequest) { _, _ in openImageCrop(straighten: true) }
                 .onChange(of: model.searchRequest) { _, _ in panel = .search }
                 .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
+                .onChange(of: model.selectionImageShareRequest) { _, _ in Task { await exportExtra("selection") } }
                 .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
                 .onChange(of: model.lensHighlight) { _, _ in model.refreshLensOverlays() }
                 .onChange(of: model.lensNoteFocus) { _, _ in model.refreshLensOverlays() }

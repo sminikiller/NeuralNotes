@@ -26,7 +26,7 @@ extension EditorViewModel {
         let before = captureEdit(ink: true)
         let (drawing, changed) = SelectiveInkEraser.erase(canvas.drawing, samples: samples, width: writingOptions.eraserWidth, wholeStroke: writingOptions.eraser == .stroke)
         guard changed else { return }
-        canvas.drawing = drawing; recordEdit(before, label: "Cancella evidenziatore"); drawingChanged()
+        installNativeInk(drawing); recordEdit(before, label: "Cancella evidenziatore"); drawingChanged(preservingRecognizedWords: true)
         if writingOptions.returnToPen { chooseTool(.pen) }
     }
 }
