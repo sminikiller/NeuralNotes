@@ -12,6 +12,7 @@ extension CanvasHost {
             (UIKeyCommand.inputRightArrow, [], "Pagina successiva"), (UIKeyCommand.inputPageUp, [], "Pagina precedente"),
             (UIKeyCommand.inputPageDown, [], "Pagina successiva"), ("p", [], "Penna"), ("e", [], "Gomma"),
             ("h", [], "Evidenziatore"), ("l", [], "Lazo"), ("t", [], "Testo"), ("s", [], "Forme"),
+            ("g", [], "Goniometro"), ("r", [], "Righello"),
             ("1", [], "Penna preferita 1"), ("2", [], "Penna preferita 2"), ("3", [], "Penna preferita 3"),
             ("4", [], "Penna preferita 4"), ("5", [], "Penna preferita 5")
         ]
@@ -46,6 +47,8 @@ extension CanvasHost {
             case "l": model.chooseTool(.lasso)
             case "t": model.chooseTool(.text)
             case "s": model.chooseTool(.rectangle)
+            case "g": model.chooseTool(.protractor)
+            case "r": model.chooseTool(.ruler)
             default:
                 if let index = Int(input), model.writingOptions.presets.indices.contains(index - 1) { model.usePreset(model.writingOptions.presets[index - 1]) }
             }

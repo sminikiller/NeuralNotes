@@ -83,6 +83,8 @@ struct ToolOptionsPopover: View {
                 Slider(value: Binding(get: { model.rulerGuide.length }, set: { model.rulerGuide.length = $0 }), in: 240...1800)
                 Button("Penna", systemImage: "pencil.tip") { model.chooseTool(.pen) }
                 Button("Evidenziatore", systemImage: "highlighter") { model.chooseTool(.marker) }
+            } else if tool == .protractor {
+                ProtractorOptions(model: model)
             } else if tool == .text {
                 Text("Scrivi con Pencil o tastiera. I comandi nel piccolo overlay sul foglio contengono stile, elenchi e tastiera.").font(.callout)
                 Button("Nuova casella", systemImage: "text.badge.plus") { model.beginTextEdit(at: CGPoint(x: 48, y: 64)) }

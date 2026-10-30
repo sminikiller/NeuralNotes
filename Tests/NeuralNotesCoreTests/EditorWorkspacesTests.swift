@@ -3,6 +3,25 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class EditorWorkspacesTests: XCTestCase {
+    func testFutureToolsAreFilteredWithoutDuplicatingFallbackPensOrLosingPreferences() throws {
+        let source = EditorWorkspace(name: "Fisica", favorites: [.marker, .protractor, .pen])
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(source)) as? [String: Any])
+        json["favorites"] = ["futureInk", "marker", "protractor", "marker", "futureTool", "pen"]
+        json["focusTools"] = ["futureInk", "protractor", "pen", "pen"]
+        json["protractorKind"] = "futureGeometry"
+        let read = try JSONDecoder().decode(EditorWorkspace.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertEqual(read.favorites, [.marker, .protractor, .pen]); XCTAssertEqual(read.focusTools, [.protractor, .pen])
+        XCTAssertEqual(read.protractorKind, .semicircle); XCTAssertTrue(read.isValid)
+        XCTAssertEqual(try JSONDecoder().decode(EditorWorkspace.self, from: JSONEncoder().encode(read)), read)
+    }
+    func testLegacyMinimalWorkspaceDefaultsAndUnknownPaletteDoNotPreventOpening() throws {
+        var json: [String: Any] = ["id": UUID().uuidString, "name": "Personale", "favorites": ["unavailable"]]
+        let palette = try JSONSerialization.jsonObject(with: JSONEncoder().encode(ToolPalette.standard(for: .pen)))
+        json["palettes"] = ["pen": palette, "futureInk": palette]
+        let read = try JSONDecoder().decode(EditorWorkspace.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertEqual(read.favorites, [.pen]); XCTAssertNil(read.focusTools); XCTAssertNil(read.protractorKind)
+        XCTAssertEqual(read.palettes.count, 1); XCTAssertTrue(read.showPages); XCTAssertTrue(read.isValid)
+    }
     func testHeldTriangleAndArrowPreserveGeometryAndRejectOpenTriangle() {
         func samples(_ vertices: [StrokeSample]) -> [StrokeSample] {
             var result: [StrokeSample] = []

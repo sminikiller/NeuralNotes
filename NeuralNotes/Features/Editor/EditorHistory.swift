@@ -15,6 +15,7 @@ enum EditorEdit {
     case content(EditorContentState, EditorContentState)
     case order([UUID], [UUID], UUID?, UUID?)
     case pages([EditorContentState], [EditorContentState], UUID, UUID)
+    case disk(EditorDiskChange)
 }
 
 @MainActor
@@ -117,6 +118,8 @@ extension EditorViewModel {
                 try await workspace.applyPageBatch(changes)
                 pages = try await workspace.pages()
                 if let target = pages.first(where: { $0.id == (undo ? beforeID : afterID) }) { try await load(target) }
+            case .disk(let change):
+                try await restoreDiskChange(change, undo: undo)
             }
             if undo { history.didUndo() } else { history.didRedo() }
             status = "\(undo ? "Annullato" : "Ripristinato"): \(entry.label)"
@@ -133,7 +136,7 @@ extension EditorViewModel {
         guard let drawing else { return true }
         let original = PKDrawing(strokes: canvas.drawing.strokes.filter { $0.ink.inkType != .marker })
         let replacement = PKDrawing(strokes: drawing.strokes.filter { $0.ink.inkType != .marker })
-        return EditorInkSignatures.make(original) == EditorInkSignatures.make(replacement)
+        return original.dataRepresentation() == replacement.dataRepresentation()
     }
 
     func reorder(_ ids: [UUID]) async {

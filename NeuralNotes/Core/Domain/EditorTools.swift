@@ -121,6 +121,7 @@ public struct EditHistory<Event> {
     }
     public var undo: Entry? { past.last }
     public var redo: Entry? { future.last }
+    public func accepts(cost: Int) -> Bool { cost >= 0 && cost <= maximumBytes }
     public mutating func record(_ event: Event, label: String, cost: Int = 0, diskCost: Int64 = 0) {
         guard cost <= maximumBytes else { clear(); return }
         future = []; past.append(Entry(event: event, label: label, cost: max(0, cost), diskCost: max(0, diskCost)))

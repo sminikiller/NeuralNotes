@@ -6,7 +6,7 @@ import NeuralNotesCore
 extension EditorViewModel {
     var markerWidth: Double { writingOptions.markerWidth ?? max(1, min(80, thickness * 5)) }
     var markerWordsActive: Bool {
-        tool == .marker && !rulerActive && writingOptions.markerSnapWords != false &&
+        tool == .marker && !rulerActive && !protractorActive && writingOptions.markerSnapWords != false &&
         page.map { $0.pdfFile != nil && !PageWordIndex.shared.markerWords($0).isEmpty } == true
     }
     var markerCustomInput: Bool {

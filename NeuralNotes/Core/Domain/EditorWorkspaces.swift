@@ -19,7 +19,8 @@ public struct InkColor: Codable, Equatable, Hashable, Sendable {
 }
 
 public enum WorkspaceTool: String, Codable, CaseIterable, Sendable {
-    case pen, marker, eraser, lasso, objects, text, audioLink, line, arrow, ellipse, rectangle, triangle, ruler, lens
+    case pen, marker, eraser, lasso, objects, text, audioLink, line, arrow, ellipse, rectangle, triangle, ruler, protractor, lens
+    public init(from decoder: Decoder) throws { self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .pen }
 }
 
 public struct ToolPalette: Codable, Equatable, Sendable {
@@ -60,9 +61,39 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     public var focusTools: [WorkspaceTool]?
     public var shapes: ShapePreferences?
     public var snapping: SnapPreferences?
+    public var protractorKind: ProtractorGuide.Kind?
     public static let maximumFocusTools = 5
     public var effectiveFocusTools: [WorkspaceTool] { focusTools ?? Array(favorites.prefix(3)) }
     public init(name: String, favorites: [WorkspaceTool]) { self.name = name; self.favorites = favorites }
+    private enum CodingKeys: String, CodingKey {
+        case id, name, favorites, dock, showPages, showStatus, holdShapes, scratchErase, pullNext, palettes, writing, focusTools, shapes, snapping, protractorKind
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id); name = try values.decode(String.self, forKey: .name)
+        func tools(_ key: CodingKeys, maximum: Int) throws -> [WorkspaceTool]? {
+            guard let names = try values.decodeIfPresent([String].self, forKey: key) else { return nil }
+            guard names.count <= 256 else { throw LibraryFailure.corruptDocument }
+            var seen = Set<WorkspaceTool>()
+            return Array(names.compactMap(WorkspaceTool.init(rawValue:)).filter { seen.insert($0).inserted }.prefix(maximum))
+        }
+        let known = try tools(.favorites, maximum: 8) ?? []
+        favorites = known.isEmpty ? [.pen] : known
+        let focus = try tools(.focusTools, maximum: Self.maximumFocusTools)
+        focusTools = focus?.isEmpty == true ? nil : focus
+        dock = try values.decodeIfPresent(ToolbarDock.self, forKey: .dock) ?? .top
+        showPages = try values.decodeIfPresent(Bool.self, forKey: .showPages) ?? true
+        showStatus = try values.decodeIfPresent(Bool.self, forKey: .showStatus) ?? true
+        holdShapes = try values.decodeIfPresent(Bool.self, forKey: .holdShapes) ?? true
+        scratchErase = try values.decodeIfPresent(Bool.self, forKey: .scratchErase) ?? true
+        pullNext = try values.decodeIfPresent(Bool.self, forKey: .pullNext) ?? true
+        palettes = try values.decodeIfPresent([String: ToolPalette].self, forKey: .palettes) ?? [:]
+        palettes = palettes.filter { WorkspaceTool(rawValue: $0.key) != nil }
+        writing = try values.decodeIfPresent(WritingOptions.self, forKey: .writing)
+        shapes = try values.decodeIfPresent(ShapePreferences.self, forKey: .shapes)
+        snapping = try values.decodeIfPresent(SnapPreferences.self, forKey: .snapping)
+        protractorKind = try values.decodeIfPresent(ProtractorGuide.Kind.self, forKey: .protractorKind)
+    }
     public func palette(for tool: WorkspaceTool) -> ToolPalette { palettes[tool.rawValue] ?? .standard(for: tool) }
     public var isValid: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 40 &&
@@ -79,7 +110,7 @@ public struct NotebookWorkspaces: Codable, Equatable, Sendable {
     public var selected: EditorWorkspace { profiles.first { $0.id == selectedID } ?? profiles[0] }
     public static func starter(scratchErase: Bool = true, pullNext: Bool = true) -> Self {
         var profiles = [EditorWorkspace(name: "Scrittura", favorites: [.pen, .marker, .eraser, .lasso, .text, .objects]),
-            EditorWorkspace(name: "Matematica", favorites: [.pen, .ruler, .line, .arrow, .ellipse, .rectangle]),
+            EditorWorkspace(name: "Matematica", favorites: [.pen, .ruler, .protractor, .line, .arrow, .ellipse, .rectangle]),
             EditorWorkspace(name: "Lettura", favorites: [.marker, .pen, .text, .lasso]),
             EditorWorkspace(name: "Disegno", favorites: [.pen, .eraser, .ellipse, .rectangle, .objects])]
         for i in profiles.indices { profiles[i].scratchErase = scratchErase; profiles[i].pullNext = pullNext }

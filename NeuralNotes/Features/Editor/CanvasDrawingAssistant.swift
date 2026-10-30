@@ -19,6 +19,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private var held = false
     private var markerSession: MarkerEraseSession?
     private var wordSession: MarkerWordSession?
+    private var protractorSession: ProtractorInkSession?
     private var guiding = false
     private var guideEdge = 1.0
     private var beganAt = Date()
@@ -41,7 +42,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
-        let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.recognitionMode != .off))
+        let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.protractorActive || model.recognitionMode != .off))
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -58,6 +59,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
         beganAt = Date(); snapHint = nil
+        if let session = ProtractorInkSession(host: host, model: model, start: points[0]) {
+            protractorSession = session; lockPageNavigation(); return
+        }
         if model.markerCustomInput {
             wordSession = MarkerWordSession(host: host, model: model); wordSession?.move([at]); return
         }
@@ -75,6 +79,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             guideEdge = model.rulerGuide.edge(nearest: points[0])
             guard let projected = model.rulerGuide.project(points[0], edge: guideEdge, width: page.width, height: page.height) else { pageID = nil; return }
             points = [projected]; model.strokeBegan(); guiding = true; model.drawingShape = true
+            model.guideReadout = nil
         }
         if model.tool == .shape || model.tool == .eraser { model.drawingShape = true }
         if model.tool == .eraser { markerSession = MarkerEraseSession(model: model); markerSession?.append(points) }
@@ -85,6 +90,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func move(samples: [CGPoint]) {
         guard let host, let model, model.page?.id == pageID, let page = model.page else { return }
+        if let protractorSession { protractorSession.move(samples); return }
         if let wordSession {
             if !held { wordSession.move(samples) }
             if wordSession.selectsWords { return }
@@ -94,6 +100,12 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
                 if let projected = model.rulerGuide.project(StrokeSample(x: point.x, y: point.y), edge: guideEdge, width: page.width, height: page.height) { points.append(projected) }
             }
             if points.count > 2000 { points = points.enumerated().filter { $0.offset % 2 == 0 || $0.offset == points.count - 1 }.map(\.element) }
+            if let first = points.first, let last = points.last {
+                let distance = hypot(last.x - first.x, last.y - first.y)
+                let angle = atan2(last.y - first.y, last.x - first.x) * 180 / .pi
+                model.guideReadout = String(format: "%.2f cm · %.0f°", distance / 72 * 2.54, angle)
+                host.rulerGuide?.update()
+            }
             drawPreview(.line); return
         }
         // Recognition is latched until lift. Coalesced final samples and tiny
@@ -124,6 +136,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func end(cancelled: Bool, modifierActive: Bool? = nil) {
         holdTask?.cancel(); holdTask = nil
         guard let model else { cancel(); return }
+        if let session = protractorSession {
+            protractorSession = nil; session.finish(cancelled: cancelled); cancel(); return
+        }
         if let session = wordSession {
             if !session.selectsWords, !held, !cancelled, model.recognitionMode == .automatic { recognizeAtLift() }
             wordSession = nil; session.finish(cancelled: cancelled); cancel(); return
@@ -216,6 +231,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }
     func cancel() {
+        if let session = protractorSession { protractorSession = nil; session.finish(cancelled: true) }
         if let session = wordSession { wordSession = nil; session.finish(cancelled: true) }
         if guiding { model?.cancelGuidedInk(before); guiding = false }
         markerSession?.finish(cancelled: true); markerSession = nil

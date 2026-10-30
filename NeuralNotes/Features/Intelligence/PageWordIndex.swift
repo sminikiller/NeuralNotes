@@ -7,6 +7,10 @@ import NeuralNotesCore
 @MainActor
 final class PageWordIndex {
     static let shared = PageWordIndex()
+    private let recognize: @Sendable (Data) async throws -> [PageWord]
+    init(recognize: @escaping @Sendable (Data) async throws -> [PageWord] = { try await VisionOCRService().words(image: $0) }) {
+        self.recognize = recognize
+    }
     private var cache: [String: [PageWord]] = [:]
     private var order: [String] = []
     private var running: Set<String> = []
@@ -19,10 +23,19 @@ final class PageWordIndex {
         if page.pdfFile != nil {
             // Digital text is immutable; OCR of a scan can change with ink or
             // images. Highlighting itself must not discard recognized words.
-            if digitalWords[key(page)]?.isEmpty != false, !preservingRecognizedWords { cache[key(page)] = nil }
+            if digitalWords[key(page)]?.isEmpty != false, !preservingRecognizedWords {
+                epochs[page.id] = UUID(); cache[key(page)] = nil
+            }
             return
         }
         epochs[page.id] = UUID()
+    }
+    /// File-backed bulk history does not load page headers onto the UI thread.
+    /// The immutable digital PDF layer remains reusable, while visual OCR expires.
+    func invalidatePage(_ id: UUID) {
+        epochs[id] = UUID()
+        let token = "|\(id)|"
+        for value in Array(cache.keys) where value.contains(token) && digitalWords[value]?.isEmpty != false { cache[value] = nil }
     }
 
     /// Word groups in reading order: the text layer or OCR first, then each typed box.
@@ -55,6 +68,7 @@ final class PageWordIndex {
 
     /// The text layer or the OCR of the page has been read (possibly finding nothing).
     func isReady(_ page: PageSnapshot) -> Bool { cache[key(page)] != nil }
+    func isPreparing(_ page: PageSnapshot) -> Bool { running.contains { $0.contains("|\(page.id)|") } }
 
     func pdfWords(_ page: PageSnapshot) -> [PageWord] { page.pdfFile == nil ? [] : digitalWords[key(page)] ?? [] }
     func markerWords(_ page: PageSnapshot) -> [PageWord] {
@@ -90,21 +104,25 @@ final class PageWordIndex {
         guard cache[cacheKey] == nil, !running.contains(cacheKey) else { return }
         running.insert(cacheKey)
         let ink = model.canvas.drawing
+        let generation = epochs[page.id]
         Task {
-            defer { running.remove(cacheKey) }
+            defer {
+                running.remove(cacheKey)
+                if model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
+            }
             do {
             var words: [PageWord] = []
             if let file = page.pdfFile, let index = page.pdfIndex, let url = try? await model.workspace.url(file) {
                 words = try await PDFTextReader.shared.words(url: url, index: index, pageWidth: page.width, pageHeight: page.height)
                 storeDigital(cacheKey, words)
             }
-            guard model.page?.id == page.id, self.key(page) == cacheKey else { return }
+            guard model.page?.id == page.id, self.key(page) == cacheKey, epochs[page.id] == generation else { return }
             if words.isEmpty {
                 // Handwriting, scans and photos: word boxes from the OCR of the drawn page.
                 var visual = page; visual.texts = []; visual.tapes = []; visual.shapes = []; visual.connectors = []
                 let image = DocumentServices.image(page: visual, drawing: ink, workspace: model.workspace, maxDimension: 2200)
                 if let data = image.pngData() {
-                    let found = try await VisionOCRService().words(image: data)
+                    let found = try await recognize(data)
                     let width = CGFloat(page.width), height = CGFloat(page.height)
                     words = found.map { word in
                         PageWord(text: word.text, rect: CGRect(x: word.rect.minX * width, y: word.rect.minY * height,
@@ -112,9 +130,8 @@ final class PageWordIndex {
                     }
                 }
             }
-            guard model.page?.id == page.id, self.key(page) == cacheKey else { return }
+            guard model.page?.id == page.id, self.key(page) == cacheKey, epochs[page.id] == generation else { return }
             store(cacheKey, words)
-            if model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
             } catch { /* No empty cache on a transient error; the next gesture may retry. */ }
         }
     }

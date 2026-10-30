@@ -146,6 +146,27 @@ final class MarkerAndRecognitionTests: XCTestCase {
             XCTAssertFalse(index.isReady(page), "Il nuovo inchiostro deve rendere obsoleto l’OCR precedente.")
             model.chooseTool(.marker)
             XCTAssertFalse(model.markerWordsActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            // A partial eraser preserves path creation dates. Undo must compare
+            // visible ink, rather than those audio identities, to expire OCR.
+            model.chooseTool(.eraser)
+            let fullInk = model.canvas.drawing, beforeMask = model.captureEdit(ink: true)
+            let clipped = fullInk.strokes.map { stroke -> PKStroke in
+                guard stroke.ink.inkType != .marker else { return stroke }
+                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform,
+                    mask: UIBezierPath(rect: CGRect(x: 60, y: 390, width: 80, height: 20)))
+            }
+            model.canvas.drawing = PKDrawing(strokes: clipped)
+            XCTAssertEqual(EditorInkSignatures.make(model.canvas.drawing), EditorInkSignatures.make(fullInk))
+            model.recordEdit(beforeMask, label: "Cancella parte della penna"); model.drawingChanged()
+            index.prepare(page, model: model)
+            let maskRead = Date().addingTimeInterval(10)
+            while index.isPreparing(page), Date() < maskRead { try await Task.sleep(for: .milliseconds(20)) }
+            XCTAssertTrue(index.isReady(page))
+            model.chooseTool(.marker); XCTAssertTrue(model.markerWordsActive)
+            await model.performUndo()
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), fullInk.dataRepresentation())
+            XCTAssertFalse(index.isReady(page), "Ripristinare parti della penna deve invalidare l’OCR anche se le date dei tratti sono identiche.")
+            XCTAssertFalse(model.markerWordsActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
         }
     }
     @MainActor private func blackPixels(_ image: UIImage) -> Int {

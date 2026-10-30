@@ -94,18 +94,27 @@ struct EditorQuickToolbar: View {
         return Array((palette.recentColors + palette.favorites.filter { !palette.recentColors.contains($0) }).prefix(3))
     }
     private func toolButton(_ item: WorkspaceTool) -> some View {
-        let selected = item == .ruler ? model.rulerActive : item.shape != nil ? model.tool == .shape && model.shapeKind == item.shape : model.tool.workspaceTool == item
+        let selected = isSelected(item)
         return Button { model.chooseTool(item) } label: { Image(systemName: item.icon).frame(width: 44, height: 44) }
             .background(selected ? Brand.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 14))
             .foregroundStyle(selected ? Brand.accent : .primary)
             .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityLabel(item.title).help(item.title).accessibilityIdentifier("tool-\(item.title)")
-            .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
-                model.chooseTool(item); optionsTool = item
+            .highPriorityGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
+                if item == .ruler { if !model.rulerActive { model.chooseTool(item) } }
+                else if item == .protractor { if !model.protractorActive { model.chooseTool(item) } }
+                else { model.chooseTool(item) }
+                optionsTool = item
             })
             .popover(isPresented: Binding(get: { optionsTool == item }, set: { if !$0 { optionsTool = nil } }), arrowEdge: popoverEdge) {
                 ToolOptionsPopover(model: model, tool: item)
             }
+    }
+    private func isSelected(_ item: WorkspaceTool) -> Bool {
+        if item == .ruler { return model.rulerActive }
+        if item == .protractor { return model.protractorActive }
+        if let shape = item.shape { return model.tool == .shape && model.shapeKind == shape }
+        return model.tool.workspaceTool == item
     }
     private func colorButton(_ color: InkColor) -> some View {
         Button { model.chooseInk(color.color) } label: {

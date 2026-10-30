@@ -64,6 +64,12 @@ final class EditorViewModel {
     var shapeKind = ShapeKind.line
     var rulerActive = false
     var rulerGuide = RulerGuide()
+    var protractorActive = false
+    var protractorGuide = ProtractorGuide()
+    var protractorMeasure = false
+    var protractorRays: [Double] = []
+    var guideReadout: String?
+    @ObservationIgnored var protractorDrawing = false
     @ObservationIgnored var workspaceSettingsDirty = false
     @ObservationIgnored var workspaceSaveTask: Task<Void, Never>?
     @ObservationIgnored weak var drawingAssistant: CanvasDrawingAssistant?
@@ -244,7 +250,7 @@ final class EditorViewModel {
         if laserActive { canvas.drawingGestureRecognizer.isEnabled = false }
         if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = false
-        if rulerActive && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
+        if (rulerActive || protractorDrawing) && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
         if markerCustomInput { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
@@ -351,7 +357,7 @@ final class EditorViewModel {
         let automatic = pendingAutomaticRecognition
         let recognizedTitle = pendingHeldShape?.kind.title
         let shaped = applyHeldShapeIfNeeded()
-        let scratched = shaped || rulerActive ? false : eraseScratchIfNeeded()
+        let scratched = shaped || rulerActive || protractorDrawing ? false : eraseScratchIfNeeded()
         drawingAssistant?.finishPreview()
         strokeTime = nil
         editBeforeGesture = nil

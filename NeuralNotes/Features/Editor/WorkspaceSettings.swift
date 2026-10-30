@@ -20,13 +20,13 @@ extension WorkspaceTool {
     var title: String {
         switch self { case .pen: return "Penna"; case .marker: return "Evidenziatore"; case .eraser: return "Gomma"
         case .lasso: return "Lazo"; case .objects: return "Oggetti"; case .text: return "Testo con Pencil"; case .audioLink: return "Ascolta tratto"
-        case .line: return "Linea"; case .arrow: return "Freccia"; case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .triangle: return "Triangolo"; case .ruler: return "Righello"; case .lens: return "Lente AI" }
+        case .line: return "Linea"; case .arrow: return "Freccia"; case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .triangle: return "Triangolo"; case .ruler: return "Righello"; case .protractor: return "Goniometro"; case .lens: return "Lente AI" }
     }
     var icon: String {
         switch self { case .pen: return "pencil.tip"; case .marker: return "highlighter"; case .eraser: return "eraser"
         case .lasso: return "lasso"; case .objects: return "cursorarrow.and.square.on.square.dashed"; case .text: return "character.cursor.ibeam"
         case .audioLink: return "waveform"; case .line: return "line.diagonal"; case .arrow: return "arrow.up.right"
-        case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .triangle: return "triangle"; case .ruler: return "ruler"; case .lens: return "sparkle.magnifyingglass" }
+        case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .triangle: return "triangle"; case .ruler: return "ruler"; case .protractor: return "circle.lefthalf.filled"; case .lens: return "sparkle.magnifyingglass" }
     }
     var shape: ShapeKind? {
         switch self { case .line: return .line; case .arrow: return .arrow; case .ellipse: return .ellipse; case .rectangle: return .rectangle; case .triangle: return .triangle; default: return nil }
@@ -44,8 +44,8 @@ extension EditorViewModel {
     }
     func selectWorkspace(_ id: UUID) {
         guard !interactionBusy, workspaces.profiles.contains(where: { $0.id == id }) else { return }
-        workspaces.selectedID = id; rulerActive = false; canvas.isRulerActive = false
-        chooseTool(currentWorkspace.favorites.first(where: { $0 != .ruler }) ?? .pen)
+        workspaces.selectedID = id; rulerActive = false; protractorActive = false; guideReadout = nil; canvas.isRulerActive = false
+        chooseTool(currentWorkspace.favorites.first(where: { $0 != .ruler && $0 != .protractor }) ?? .pen)
         scheduleWorkspaceSave()
     }
     func duplicateWorkspace(name: String) {
@@ -66,7 +66,13 @@ extension EditorViewModel {
         if item == .lens, tool != .lens { toolBeforeLens = tool }
         if item == .ruler {
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
-            rulerActive.toggle(); configureTool(); return
+            rulerActive.toggle(); protractorActive = false; guideReadout = nil; configureTool(); return
+        }
+        if item == .protractor {
+            if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
+            protractorActive.toggle(); rulerActive = false; guideReadout = nil
+            protractorGuide.kind = currentWorkspace.protractorKind ?? .semicircle
+            configureTool(); return
         }
         if let shape = item.shape { shapeKind = shape; tool = .shape }
         else {

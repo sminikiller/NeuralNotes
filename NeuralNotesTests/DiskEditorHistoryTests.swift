@@ -1,0 +1,55 @@
+import XCTest
+import UIKit
+import PencilKit
+import NeuralNotesCore
+@testable import NeuralNotes
+
+final class DiskEditorHistoryTests: XCTestCase {
+    @MainActor private func fixture(_ body: (EditorViewModel, URL) async throws -> Void) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let writer = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        let model = EditorViewModel(workspace: writer); await model.open()
+        do { try await body(model, root); _ = await model.close() } catch { _ = await model.close(); throw error }
+    }
+    @MainActor private func snapshot(_ page: PageSnapshot, model: EditorViewModel, root: URL, drawing: Data? = nil) async throws -> PageEditSnapshot {
+        let builder = try PageEditSnapshotBuilder(documentID: model.workspace.documentID, parent: root.appendingPathComponent("undo"))
+        try await builder.append(page, drawing: drawing, sourcePackage: model.workspace.package)
+        return try await builder.finish()
+    }
+    @MainActor func testOneUndoRestoresDeletedImageAfterCleanupAndKeepsNativeInkExact() async throws {
+        try await fixture { model, root in
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 20)).image { renderer in
+                UIColor.red.setFill(); renderer.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+            }
+            let data = try XCTUnwrap(image.pngData()), file = try await model.workspace.storeImage(data)
+            let points = [CGPoint(x: 50, y: 100), CGPoint(x: 250, y: 140)].enumerated().map { i, p in
+                PKStrokePoint(location: p, timeOffset: Double(i) * 0.1, size: CGSize(width: 3, height: 3), opacity: 1, force: 0.8, azimuth: 0, altitude: .pi / 2)
+            }
+            model.canvas.drawing = PKDrawing(strokes: [PKStroke(ink: PKInk(.pen, color: .black), path: PKStrokePath(controlPoints: points, creationDate: Date()))])
+            model.page?.images = [ImageElement(file: file, width: 100, height: 100)]; model.drawingChanged()
+            let saved = await model.flush(); XCTAssertTrue(saved); model.history.clear()
+            let original = try XCTUnwrap(model.page), ink = model.canvas.drawing.dataRepresentation()
+            let before = try await snapshot(original, model: model, root: root)
+            var empty = original; empty.images = []
+            let after = try await snapshot(empty, model: model, root: root)
+            let order = model.pages.map(\.id)
+            let change = EditorDiskChange(before: before, after: after, beforeOrder: order, afterOrder: order, beforePage: original.id, afterPage: original.id)
+            try await model.applyDiskChange(change, label: "Elimina immagini")
+            XCTAssertTrue(model.page?.images.isEmpty == true); XCTAssertTrue(model.canUndo)
+            _ = try await model.workspace.cleanUnusedFiles()
+            let removed = try await model.workspace.url(file)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: removed.path))
+            await model.performUndo()
+            XCTAssertNil(model.error); XCTAssertEqual(model.page?.images, original.images)
+            XCTAssertEqual(try Data(contentsOf: removed), data)
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), ink)
+            XCTAssertFalse(model.canUndo); XCTAssertTrue(model.canRedo)
+            await model.performRedo()
+            XCTAssertNil(model.error); XCTAssertTrue(model.page?.images.isEmpty == true)
+            XCTAssertEqual(model.canvas.drawing.dataRepresentation(), ink)
+        }
+    }
+}

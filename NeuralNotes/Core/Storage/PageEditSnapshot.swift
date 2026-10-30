@@ -7,6 +7,7 @@ public final class PageEditSnapshot: Sendable {
     public let directory: URL
     public let pageIDs: [UUID]
     public let byteCount: Int64
+    public var residentCost: Int { 1024 + pageIDs.count * 32 + media.reduce(0) { $0 + $1.utf8.count + 64 } }
     private let drawings: Set<UUID>, media: Set<String>, ids: Set<UUID>
     fileprivate init(documentID: UUID, directory: URL, pageIDs: [UUID], drawings: Set<UUID>, media: Set<String>, bytes: Int64) {
         self.documentID = documentID; self.directory = directory; self.pageIDs = pageIDs

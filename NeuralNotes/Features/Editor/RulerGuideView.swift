@@ -14,6 +14,7 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         self.host = host; self.model = model
         super.init(frame: .zero)
         isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false
+        isAccessibilityElement = true
         accessibilityLabel = "Righello: due dita per spostare e ruotare, pizzica per cambiare lunghezza"; accessibilityIdentifier = "rulerGuide"
         let pan = UIPanGestureRecognizer(target: self, action: #selector(nnHandleRulerPan(_:))); pan.minimumNumberOfTouches = 2; pan.maximumNumberOfTouches = 2
         let rotation = UIRotationGestureRecognizer(target: self, action: #selector(nnHandleRulerRotation(_:)))
@@ -43,6 +44,7 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         transform = .identity; bounds = CGRect(x: 0, y: 0, width: max(240, min(1800, guide.length)), height: guide.thickness)
         center = host.surface.convert(CGPoint(x: guide.x, y: guide.y), to: host)
         transform = CGAffineTransform(rotationAngle: guide.angle).scaledBy(x: host.canvas.zoomScale, y: host.canvas.zoomScale)
+        accessibilityValue = model.guideReadout ?? String(format: "%.0f gradi", guide.angle * 180 / .pi)
         host.bringSubviewToFront(self); setNeedsDisplay()
     }
     override func draw(_ rect: CGRect) {
@@ -55,8 +57,11 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
             context.move(to: CGPoint(x: CGFloat(i), y: 0)); context.addLine(to: CGPoint(x: CGFloat(i), y: length))
             context.move(to: CGPoint(x: CGFloat(i), y: bounds.height)); context.addLine(to: CGPoint(x: CGFloat(i), y: bounds.height - length))
         }; context.strokePath()
-        let title = String(format: "↔ %.0f° · 2 dita: sposta/ruota · pizzica: lunghezza", (model?.rulerGuide.angle ?? 0) * 180 / .pi)
-        (title as NSString).draw(at: CGPoint(x: max(12, bounds.midX - 160), y: bounds.midY - 7), withAttributes: [.font: UIFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: UIColor.label])
+        let title = (model?.guideReadout ?? String(format: "↔ %.0f° · 2 dita: sposta/ruota · pizzica: lunghezza", (model?.rulerGuide.angle ?? 0) * 180 / .pi)) as NSString
+        let zoom = max(0.1, host?.canvas.zoomScale ?? 1)
+        let style: [NSAttributedString.Key: Any] = [.font: UIFont.monospacedDigitSystemFont(ofSize: 11 / zoom, weight: .medium), .foregroundColor: UIColor.label]
+        let size = title.size(withAttributes: style)
+        title.draw(at: CGPoint(x: max(6, bounds.midX - size.width / 2), y: bounds.midY - size.height / 2), withAttributes: style)
     }
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool { model?.hasActiveStroke == false }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
@@ -71,20 +76,20 @@ final class RulerGuideView: UIView, UIGestureRecognizerDelegate {
         let translation = pan.translation(in: host.surface)
         var guide = model.rulerGuide
         guide.x = min(page.width, max(0, original.x + translation.x)); guide.y = min(page.height, max(0, original.y + translation.y))
-        model.rulerGuide = guide; update()
+        model.rulerGuide = guide; model.guideReadout = nil; update()
     }
     @objc private func nnHandleRulerRotation(_ gesture: UIRotationGestureRecognizer) {
         guard let model, !model.hasActiveStroke else { return }
         if gesture.state == .began { original.angle = model.rulerGuide.angle }
         var guide = model.rulerGuide; guide.angle = original.angle + gesture.rotation
         if gesture.state == .ended { guide.snapAngle() }
-        model.rulerGuide = guide; update()
+        model.rulerGuide = guide; model.guideReadout = nil; update()
     }
     @objc private func nnHandleRulerResize(_ gesture: UIPinchGestureRecognizer) {
         guard let model, !model.hasActiveStroke else { return }
         if gesture.state == .began { original.length = model.rulerGuide.length }
         var guide = model.rulerGuide; guide.length = max(240, min(1800, original.length * Double(gesture.scale)))
-        model.rulerGuide = guide; update()
+        model.rulerGuide = guide; model.guideReadout = nil; update()
     }
 
 }

@@ -26,6 +26,7 @@ final class CanvasHost: UIView {
     var textInput: CanvasTextInput?
     var drawingAssistant: CanvasDrawingAssistant?
     var rulerGuide: RulerGuideView?
+    var protractorGuide: ProtractorGuideView?
     var pencilControls: PencilControls?
     var shapeHandles: ShapeHandlesOverlay?
     var snapGuides: SnapGuidesView?
@@ -227,7 +228,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); shapeHandles?.update(); diagramHandles?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
@@ -278,6 +279,7 @@ struct PencilCanvas: UIViewRepresentable {
         host.drawingAssistant = CanvasDrawingAssistant(host: host, model: model)
         model.drawingAssistant = host.drawingAssistant
         host.rulerGuide = RulerGuideView(host: host, model: model)
+        host.protractorGuide = ProtractorGuideView(host: host, model: model)
         host.pencilControls = PencilControls(host: host, model: model)
         let shapeHandles = ShapeHandlesOverlay(host: host, model: model)
         host.shapeHandles = shapeHandles; host.addSubview(shapeHandles)
