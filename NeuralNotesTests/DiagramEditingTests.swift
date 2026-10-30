@@ -127,6 +127,23 @@ final class DiagramEditingTests: XCTestCase {
             XCTAssertTrue(host.surface.interactionHiddenObjectIDs.isEmpty)
         }
     }
+    @MainActor func testPostItConnectionUsesItsVisiblePaddedContourAndFollowsTextHeight() async throws {
+        try await fixture { model in
+            var text = TextElement(text: "Energia\nconservata"); text.x = 100; text.y = 150; text.width = 140; text.fontSize = 18; text.background = .yellow
+            model.mutatePage("Post-it") { $0.texts = [text] }
+            let initial = try XCTUnwrap(model.page), glyphs = RichText.bounds(text, pageHeight: initial.height)
+            let object = try XCTUnwrap(DiagramObjects.make(initial)[text.id])
+            XCTAssertEqual(object.rect.x, glyphs.minX - 8); XCTAssertEqual(object.rect.height, glyphs.height + 16)
+            let copy = try XCTUnwrap(model.createDiagramBlock(from: text.id, side: .right))
+            let edge = try XCTUnwrap(model.page?.connectors?.first)
+            XCTAssertEqual(edge.from.x, glyphs.maxX + 8, accuracy: 0.01)
+            XCTAssertEqual(edge.to.objectID, copy)
+            model.mutatePage("Testo più alto") { $0.texts[0].text += "\nTerza riga\nQuarta riga" }
+            let page = try XCTUnwrap(model.page), moved = ConnectorGeometry.resolve(edge.from, objects: DiagramObjects.make(page))
+            XCTAssertGreaterThan(moved.y, edge.from.y)
+            await model.performUndo(); XCTAssertEqual(model.page?.texts.first, text)
+        }
+    }
     @MainActor private func bluePixels(_ image: UIImage) -> Int {
         guard let source = image.cgImage else { return 0 }
         let width = source.width, height = source.height

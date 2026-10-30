@@ -60,7 +60,8 @@ final class MarkerAndRecognitionTests: XCTestCase {
             }
             await model.importPages(from: file); XCTAssertNil(model.error)
             model.chooseTool(.marker); model.chooseMarkerWidth(1)
-            XCTAssertEqual((model.canvas.tool as? PKInkingTool)?.width, 1)
+            XCTAssertEqual(model.markerWidth, 1); XCTAssertTrue(model.markerCustomInput)
+            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled, "Sotto il minimo nativo il gesto usa i punti vettoriali da 1 pt, non il pennino nativo da 7,5 pt.")
             for _ in 0..<200 where !model.markerWordsActive { try await Task.sleep(for: .milliseconds(10)) }
             XCTAssertTrue(model.markerWordsActive)
             let page = try XCTUnwrap(model.page), words = PageWordIndex.shared.pdfWords(page)
@@ -81,6 +82,24 @@ final class MarkerAndRecognitionTests: XCTestCase {
             let exported = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: exported) }
             XCTAssertEqual(PDFDocument(url: exported)?.pageCount, 2)
+            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+        }
+    }
+    @MainActor func testFreehandMarkerBelowNativeMinimumStoresOnePointWideVectorInkAndUndoesOnce() async throws {
+        try await fixture { model in
+            model.chooseTool(.marker); model.editShapePreferences { $0.mode = .off }; model.chooseMarkerWidth(1)
+            XCTAssertTrue(model.markerCustomInput); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let assistant = CanvasDrawingAssistant(host: host, model: model); host.drawingAssistant = assistant; model.drawingAssistant = assistant
+            assistant.begin(at: .init(x: 100, y: 200))
+            assistant.move(samples: [.init(x: 150, y: 200), .init(x: 220, y: 200)])
+            assistant.end(cancelled: false)
+            let ink = try XCTUnwrap(model.canvas.drawing.strokes.first)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1); XCTAssertEqual(ink.ink.inkType, .marker)
+            XCTAssertTrue(ink.path.allSatisfy { $0.size.width == 1 && $0.size.height == 1 })
+            XCTAssertLessThanOrEqual(ink.renderBounds.height, 3, "Anche il renderer PencilKit deve rispettare il tratto sottile.")
             await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
             await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
         }

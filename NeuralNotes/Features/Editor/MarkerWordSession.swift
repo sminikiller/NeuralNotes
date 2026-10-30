@@ -14,12 +14,17 @@ final class MarkerWordSession {
     private var trace: [CGPoint] = []
     private var picked: [Int] = []
     private let preview = CAShapeLayer()
+    var selectsWords: Bool { !words.isEmpty }
     init?(host: CanvasHost, model: EditorViewModel) {
-        guard let page = model.page, model.markerWordsActive else { return nil }
-        self.host = host; self.model = model; words = PageWordIndex.shared.pdfWords(page)
+        guard let page = model.page, model.markerCustomInput else { return nil }
+        self.host = host; self.model = model; words = model.markerWordsActive ? PageWordIndex.shared.pdfWords(page) : []
         pageID = page.id; before = model.canvas.drawing
         preview.fillColor = PaperInk.color(model.ink).withAlphaComponent(0.18).cgColor
         preview.strokeColor = UIColor.systemBlue.withAlphaComponent(0.7).cgColor; preview.lineWidth = 1
+        if !selectsWords {
+            preview.fillColor = nil; preview.strokeColor = PaperInk.color(model.ink).withAlphaComponent(0.4).cgColor
+            preview.lineWidth = CGFloat(model.markerWidth) * host.canvas.zoomScale; preview.lineCap = .round; preview.lineJoin = .round
+        }
         host.layer.addSublayer(preview)
         model.strokeBegan(); model.drawingShape = true
     }
@@ -29,6 +34,12 @@ final class MarkerWordSession {
         picked = PageWords.pick(trace: trace, in: words, area: false)
         let path = UIBezierPath()
         for i in picked { path.append(UIBezierPath(rect: host.surface.convert(words[i].rect, to: host))) }
+        if !selectsWords {
+            for (i, p) in trace.enumerated() {
+                let at = host.surface.convert(p, to: host)
+                if i == 0 { path.move(to: at) } else { path.addLine(to: at) }
+            }
+        }
         CATransaction.begin(); CATransaction.setDisableActions(true); preview.path = path.cgPath; CATransaction.commit()
     }
     func finish(cancelled: Bool) {

@@ -19,8 +19,12 @@ enum DiagramObjects {
     static func make(_ page: PageSnapshot) -> [UUID: ConnectorObject] {
         if let found = cache.object(forKey: page.id as NSUUID), found.matches(page) { return found.objects }
         var rects: [UUID: SnapRect] = [:]
-        for text in page.texts { rects[text.id] = SnapRect(RichText.bounds(text, pageHeight: page.height)) }
-        let objects = page.connectorObjects(textRects: rects)
+        for text in page.texts { rects[text.id] = SnapRect(textBounds(text, pageHeight: page.height)) }
+        var objects = page.connectorObjects(textRects: rects)
+        let locked = Set(page.lockedObjects ?? [])
+        for text in page.texts where text.background != nil && text.lensNote == nil {
+            if let rect = rects[text.id] { objects[text.id] = textObject(text, rect: rect, locked: locked.contains(text.id)) }
+        }
         var cost = objects.count * 512
         for text in page.texts { cost += text.text.utf8.count + (text.rtf?.count ?? 0) }
         for shape in page.shapes ?? [] { cost += (shape.label?.utf8.count ?? 0) + (shape.labelRTF?.count ?? 0) + (shape.vertices?.count ?? 0) * 32 }
@@ -28,6 +32,18 @@ enum DiagramObjects {
         return objects
     }
     static func clear() { cache.removeAllObjects() }
+    static func textBounds(_ text: TextElement, pageHeight: Double) -> CGRect {
+        let box = RichText.bounds(text, pageHeight: pageHeight)
+        return text.background != nil && text.lensNote == nil ? box.insetBy(dx: -8, dy: -8) : box
+    }
+    static func textObject(_ text: TextElement, rect: SnapRect, locked: Bool = false) -> ConnectorObject {
+        if text.background != nil && text.lensNote == nil {
+            var contour = ShapeElement(kind: .rectangle, x: rect.x, y: rect.y, width: rect.width, height: rect.height)
+            contour.id = text.id; contour.cornerRadius = min(6, min(rect.width, rect.height) / 2); contour.rotation = text.rotation
+            return ConnectorObject(shape: contour, locked: locked)
+        }
+        return ConnectorObject(id: text.id, rect: rect, rotation: text.rotation ?? 0, locked: locked)
+    }
     static func textColor(_ page: PageSnapshot?) -> UIColor {
         page?.pdfFile == nil && page?.appearance?.tone == .slate ? .white : .black
     }

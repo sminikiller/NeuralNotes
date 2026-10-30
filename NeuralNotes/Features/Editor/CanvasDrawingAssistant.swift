@@ -41,7 +41,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
-        let enabled = model.tool == .shape || model.markerWordsActive || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.recognitionMode != .off))
+        let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.recognitionMode != .off))
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -58,7 +58,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         pageID = page.id; before = host.canvas.drawing; anchor = at
         points = [StrokeSample(x: Double(at.x), y: Double(at.y))]
         beganAt = Date(); snapHint = nil
-        if model.markerWordsActive {
+        if model.markerCustomInput {
             wordSession = MarkerWordSession(host: host, model: model); wordSession?.move([at]); return
         }
         var connections: [StrokeSample] = []
@@ -85,7 +85,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func move(samples: [CGPoint]) {
         guard let host, let model, model.page?.id == pageID, let page = model.page else { return }
-        if let wordSession { wordSession.move(samples); return }
+        if let wordSession {
+            if !held { wordSession.move(samples) }
+            if wordSession.selectsWords { return }
+        }
         if guiding {
             for point in samples {
                 if let projected = model.rulerGuide.project(StrokeSample(x: point.x, y: point.y), edge: guideEdge, width: page.width, height: page.height) { points.append(projected) }
@@ -122,6 +125,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         holdTask?.cancel(); holdTask = nil
         guard let model else { cancel(); return }
         if let session = wordSession {
+            if !session.selectsWords, !held, !cancelled, model.recognitionMode == .automatic { recognizeAtLift() }
             wordSession = nil; session.finish(cancelled: cancelled); cancel(); return
         }
         if guiding {
@@ -135,7 +139,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
                 if controls.count > 1 {
                     let ink = PKInk(model.tool == .marker ? .marker : model.writingOptions.pen.native, color: PaperInk.color(model.ink))
                     let stroke = PKStroke(ink: ink, path: PKStrokePath(controlPoints: controls, creationDate: Date()))
-                    model.canvas.drawing = PKDrawing(strokes: before.strokes + [stroke])
+                    model.installNativeInk(PKDrawing(strokes: before.strokes + [stroke]))
                 } else { model.cancelGuidedInk(before) }
                 model.drawingShape = false; model.strokeEnded(); model.finishInkGesture()
             }

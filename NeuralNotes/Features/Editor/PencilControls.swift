@@ -56,7 +56,7 @@ final class PencilControls: NSObject, UIPencilInteractionDelegate {
         guard #available(iOS 17.5, *), let host, let model, UIPencilInteraction.prefersHoverToolPreview, !model.hasActiveStroke,
               gesture.state == .began || gesture.state == .changed else { cursor.path = nil; return }
         let at = gesture.location(in: host)
-        let width = model.tool == .eraser ? model.writingOptions.eraserWidth : model.tool == .marker ? max(12, model.thickness * 5) : model.thickness
+        let width = model.tool == .eraser ? model.writingOptions.eraserWidth : model.tool == .marker ? model.markerWidth : model.thickness
         let diameter = max(4, width * Double(host.canvas.zoomScale))
         cursor.strokeColor = model.tool == .eraser ? UIColor.systemGray.cgColor : PaperInk.color(model.ink).cgColor
         cursor.path = UIBezierPath(ovalIn: CGRect(x: at.x - diameter / 2, y: at.y - diameter / 2, width: diameter, height: diameter)).cgPath

@@ -9,6 +9,9 @@ extension EditorViewModel {
         tool == .marker && !rulerActive && writingOptions.markerSnapWords != false &&
         page.map { $0.pdfFile != nil && !PageWordIndex.shared.pdfWords($0).isEmpty } == true
     }
+    var markerCustomInput: Bool {
+        tool == .marker && !rulerActive && (markerWordsActive || CGFloat(markerWidth) < PKInkingTool.InkType.marker.validWidthRange.lowerBound)
+    }
     func chooseMarkerWidth(_ value: Double) {
         guard value.isFinite, (1...80).contains(value) else { return }
         editWriting {

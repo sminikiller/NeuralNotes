@@ -245,7 +245,7 @@ final class EditorViewModel {
         if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = false
         if rulerActive && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
-        if markerWordsActive { canvas.drawingGestureRecognizer.isEnabled = false }
+        if markerCustomInput { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
         if tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
@@ -654,7 +654,7 @@ final class EditorViewModel {
         usingInkTool = false; editBeforeGesture = nil; strokeTime = nil; drawingShape = false
         inkGestureBaseline = nil
         gestureCommitTask?.cancel(); gestureCommitTask = nil
-        canvas.drawing = drawing
+        installNativeInk(drawing)
     }
 
     func playAudio(at point: CGPoint, tolerance: CGFloat) async {

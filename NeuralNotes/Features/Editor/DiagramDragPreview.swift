@@ -50,7 +50,7 @@ final class DiagramDragPreview: UIView {
                     text.width = max(24, min(page.width - source.x, frame.width + dx))
                     if keepRatio { text = RichText.scaled(source, by: text.width / max(1, source.width)) }
                 } else { text.x += dx; text.y += dy }
-                overrides[id] = ConnectorObject(id: id, rect: SnapRect(RichText.bounds(text, pageHeight: page.height)), rotation: text.rotation ?? 0)
+                overrides[id] = DiagramObjects.textObject(text, rect: SnapRect(DiagramObjects.textBounds(text, pageHeight: page.height)))
             } else if var image = page.images.first(where: { $0.id == id }) {
                 if resizing {
                     let ratio = image.height / max(1, image.width)
