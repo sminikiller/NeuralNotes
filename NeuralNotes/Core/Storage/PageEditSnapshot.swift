@@ -59,7 +59,7 @@ public actor PageEditSnapshotBuilder {
     public init(documentID: UUID, parent: URL? = nil) throws {
         self.documentID = documentID
         let manager = FileManager.default
-        guard let support = parent ?? manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent("NeuralNotesEditHistory") else { throw CocoaError(.fileNoSuchFile) }
+        let support = try parent ?? PageEditHistoryRoot.managed.get()
         let root = support.standardizedFileURL.resolvingSymlinksInPath()
         try manager.createDirectory(at: root, withIntermediateDirectories: true)
         let created = root.appendingPathComponent("edit-\(UUID())", isDirectory: true)
