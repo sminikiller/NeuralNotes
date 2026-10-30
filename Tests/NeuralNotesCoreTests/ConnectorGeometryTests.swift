@@ -136,6 +136,12 @@ final class ConnectorGeometryTests: XCTestCase {
         decoded.connectors?[0].from.x = .infinity; XCTAssertThrowsError(try PageValidation.validate(decoded))
         decoded.connectors = [page.connectors![0], page.connectors![0]]; XCTAssertThrowsError(try PageValidation.validate(decoded))
     }
+    func testVerticalOpenShapeKeepsAReadableCenteredLabelRegion() {
+        let line = ShapeElement(kind: .line, x: 150, y: 100, width: 1, height: 300)
+        let region = ShapeLabelRegion.rect(line)
+        XCTAssertEqual(region.midX, 150.5); XCTAssertEqual(region.midY, 250)
+        XCTAssertEqual(region.width, 80); XCTAssertEqual(region.height, 48)
+    }
     func testQuickBlocksAvoidOverlapAndStayOnPageAndSafeLabelRegionsFit() throws {
         let page = SnapRect(x: 0, y: 0, width: 768, height: 1024), source = SnapRect(x: 40, y: 100, width: 160, height: 100)
         let copy = try XCTUnwrap(QuickDiagramLayout.duplicate(source, side: .right, page: page, obstacles: [source]))

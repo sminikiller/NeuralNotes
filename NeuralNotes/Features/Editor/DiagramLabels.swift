@@ -36,7 +36,8 @@ enum DiagramLabels {
         var result = local; result.box = local.box.offsetBy(dx: shape.x, dy: shape.y)
         result.text.x += shape.x; result.text.y += shape.y
         let cx = shape.x + shape.width / 2, cy = shape.y + shape.height / 2
-        result.transform = CGAffineTransform(translationX: cx, y: cy).rotated(by: (shape.rotation ?? 0) * .pi / 180).translatedBy(x: -cx, y: -cy)
+        let radians = (shape.rotation ?? 0).truncatingRemainder(dividingBy: 360) * .pi / 180
+        result.transform = CGAffineTransform(translationX: cx, y: cy).rotated(by: radians).translatedBy(x: -cx, y: -cy)
         return result
     }
     static func connector(_ connector: ConnectorElement, objects: [UUID: ConnectorObject], page: PageSnapshot?) -> DiagramLabelLayout? {

@@ -6,7 +6,10 @@ public enum ShapeLabelRegion {
     public static func rect(_ shape: ShapeElement) -> SnapRect {
         let r = SnapRect(x: shape.x, y: shape.y, width: shape.width, height: shape.height)
         guard r.valid else { return .init(x: 0, y: 0, width: 1, height: 1) }
-        if shape.kind.isOpen { return .init(x: r.midX - min(140, r.width / 2), y: r.midY - 24, width: min(280, r.width), height: 48) }
+        if shape.kind.isOpen {
+            let width = min(280, max(80, r.width))
+            return .init(x: r.midX - width / 2, y: r.midY - 24, width: width, height: 48)
+        }
         switch shape.kind {
         case .rectangle:
             let desired = max(12, (shape.cornerRadius ?? 0) * 0.3)

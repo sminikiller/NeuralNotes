@@ -73,6 +73,9 @@ final class DiagramEditingTests: XCTestCase {
             model.saveDiagramLabel(.init(pageID: page.id, objectID: shape.id), text: text, autoFit: true)
             let modified = try XCTUnwrap(model.page?.shapes?.first), layout = try XCTUnwrap(DiagramLabels.shape(modified, page: model.page))
             XCTAssertEqual(layout.text.text, label.string); XCTAssertTrue(ShapeLabelRegion.rect(modified).cgRect.contains(layout.box))
+            var manyTurns = modified; manyTurns.rotation = .greatestFiniteMagnitude
+            let transform = try XCTUnwrap(DiagramLabels.shape(manyTurns, page: model.page)).transform
+            XCTAssertTrue([transform.a, transform.b, transform.c, transform.d, transform.tx, transform.ty].allSatisfy(\.isFinite))
             let saved = await model.flush(); XCTAssertTrue(saved)
             let url = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: url) }
