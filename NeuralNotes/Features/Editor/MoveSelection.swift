@@ -4,9 +4,10 @@ import NeuralNotesCore
 
 @MainActor
 extension EditorViewModel {
-    func moveSelection(to pageID: UUID) async {
+    func moveSelection(to pageID: UUID) async { await transferSelection(to: pageID, copy: false) }
+    func transferSelection(to pageID: UUID?, copy: Bool, newPageAfter: Bool = true) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id, pageID != nil || pages.count < PageEditRecovery.maximumPages else { return }
         let ids = origin.includingInternalConnectors(selectedIDs.subtracting(origin.lockedObjects ?? []))
         let selectedInk = selectionIncludesInk ? Set(selectedStrokeIndices ?? Set(canvas.drawing.strokes.indices)) : []
         guard !ids.isEmpty || !selectedInk.isEmpty else { return }
@@ -18,12 +19,24 @@ extension EditorViewModel {
         defer { navigating = false; canvas.isUserInteractionEnabled = interactive }
         guard await flush(), var source = page else { return }
         do {
-            var destination = try await workspace.pageSnapshot(pageID)
+            let oldOrder = pages.map(\.id)
+            var newOrder = oldOrder
+            var destination: PageSnapshot
+            if let pageID { destination = try await workspace.pageSnapshot(pageID) }
+            else {
+                destination = PageSnapshot(); destination.width = source.width; destination.height = source.height
+                destination.paper = source.paper; destination.appearance = source.appearance
+                guard let index = oldOrder.firstIndex(of: source.id) else { throw WorkspaceFailure.staleRevision }
+                newOrder.insert(destination.id, at: index + (newPageAfter ? 1 : 0))
+            }
             let destinationBytes = try await workspace.drawing(destination)
             let originalInk = canvas.drawing, destinationInk = try destinationBytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
+            let beforeBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID)
+            if !copy { try await beforeBuilder.append(source, drawing: originalInk.dataRepresentation(), sourcePackage: workspace.package) }
+            try await beforeBuilder.append(destination, drawing: destinationInk.dataRepresentation(), sourcePackage: workspace.package)
+            let before = try await beforeBuilder.finish()
             let sourceObjects = DiagramObjects.make(source)
             source.refreshConnectorFallbacks(objects: sourceObjects)
-            let before = [EditorContentState(page: source, drawing: originalInk.dataRepresentation()), EditorContentState(page: destination, drawing: destinationInk.dataRepresentation())]
             let mx: CGFloat = min(24, CGFloat(destination.width) * 0.05), my: CGFloat = min(24, CGFloat(destination.height) * 0.05)
             let scale: CGFloat = min(1, (CGFloat(destination.width) - mx * 2) / bounds.width, (CGFloat(destination.height) - my * 2) / bounds.height)
             guard scale >= 0.05 else { throw WorkspaceFailure.oversizedImport }
@@ -64,9 +77,11 @@ extension EditorViewModel {
                 let value = edge.transformed(scale: Double(scale), dx: Double(mx - bounds.minX * scale), dy: Double(my - bounds.minY * scale))
                 return DiagramLabels.scaling(value, by: Double(scale))
             }
+            if !copy {
             source.texts.removeAll { ids.contains($0.id) }; source.images.removeAll { ids.contains($0.id) }
             source.shapes?.removeAll { ids.contains($0.id) }; source.tapes?.removeAll { ids.contains($0.id) }; source.pruneObjectReferences()
             source.connectors?.removeAll { ids.contains($0.id) }; source.pruneObjectReferences()
+            }
             destination.texts += moving.texts; destination.images += moving.images
             destination.shapes = (destination.shapes ?? []) + (moving.shapes ?? [])
             destination.tapes = (destination.tapes ?? []) + (moving.tapes ?? [])
@@ -75,28 +90,35 @@ extension EditorViewModel {
             destination.aboveInkObjects = (destination.aboveInkObjects ?? []) + (moving.aboveInkObjects ?? [])
             let keptIndices = originalInk.strokes.indices.filter { !selectedInk.contains($0) }
             let movedIndices = originalInk.strokes.indices.filter { selectedInk.contains($0) }
-            let remaining = PKDrawing(strokes: keptIndices.map { originalInk.strokes[$0] })
+            let remaining = copy ? originalInk : PKDrawing(strokes: keptIndices.map { originalInk.strokes[$0] })
+            var freshDate = max(Date().timeIntervalSince1970, (originalInk.strokes + destinationInk.strokes).map { $0.path.creationDate.timeIntervalSince1970 }.max() ?? 0) + 1
             let appended = PKDrawing(strokes: destinationInk.strokes + movedIndices.map { i in
                 let stroke = originalInk.strokes[i]
-                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
+                let path: PKStrokePath
+                if copy {
+                    path = PKStrokePath(controlPoints: Array(stroke.path), creationDate: Date(timeIntervalSince1970: freshDate)); freshDate += 0.001
+                } else { path = stroke.path }
+                return PKStroke(ink: stroke.ink, path: path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
             })
             let oldSignatures = EditorInkSignatures.make(originalInk), keptSignatures = EditorInkSignatures.make(remaining), appendedSignatures = EditorInkSignatures.make(appended)
             let anchors = Dictionary(grouping: source.anchors, by: \.signature)
-            source.anchors = keptIndices.enumerated().flatMap { offset, oldIndex in
+            if !copy { source.anchors = keptIndices.enumerated().flatMap { offset, oldIndex in
                 (anchors[oldSignatures[oldIndex]] ?? []).map { anchor in var value = anchor; value.signature = keptSignatures[offset]; return value }
+            }
             }
             for (offset, oldIndex) in movedIndices.enumerated() {
                 destination.anchors += (anchors[oldSignatures[oldIndex]] ?? []).map { anchor in
                     StrokeAnchor(signature: appendedSignatures[destinationInk.strokes.count + offset], audioSessionID: anchor.audioSessionID, seconds: anchor.seconds)
                 }
             }
-            let after = [EditorContentState(page: source, drawing: remaining.dataRepresentation()), EditorContentState(page: destination, drawing: appended.dataRepresentation())]
-            let cost = (before + after).reduce(0) { $0 + ($1.drawing?.count ?? 0) + ((try? JSONEncoder().encode($1.page).count) ?? 0) }
-            guard cost <= 48 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
-            try await workspace.applyPageBatch(after.map { PageMutation(page: $0.page, expectedRevision: $0.page.revision, drawing: $0.drawing!) })
-            history.record(.pages(before, after, source.id, destination.id), label: "Sposta selezione tra pagine", cost: cost)
-            pages = try await workspace.pages()
-            if let target = pages.first(where: { $0.id == pageID }) { try await load(target) }
+            source.recognizedText = ""; destination.recognizedText = ""
+            let afterBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID)
+            if !copy { try await afterBuilder.append(source, drawing: remaining.dataRepresentation(), sourcePackage: workspace.package) }
+            try await afterBuilder.append(destination, drawing: appended.dataRepresentation(), sourcePackage: workspace.package)
+            let after = try await afterBuilder.finish()
+            let change = EditorDiskChange(before: before, after: after, beforeOrder: oldOrder, afterOrder: newOrder,
+                beforePage: source.id, afterPage: destination.id)
+            try await applyDiskChange(change, label: copy ? "Copia selezione tra pagine" : "Sposta selezione tra pagine")
             selectedIDs = Set(moving.objectIDs); selectionIncludesInk = false; selectedStrokeIndices = nil
             scheduleMaintenance()
         } catch { self.error = error.localizedDescription }
@@ -114,15 +136,3 @@ enum EditorInkSignatures {
     }
 }
 
-@MainActor
-struct MoveSelectionMenu: View {
-    @Bindable var model: EditorViewModel
-    var body: some View {
-        Menu {
-            ForEach(Array(model.pages.enumerated()).filter { $0.element.id != model.page?.id }, id: \.element.id) { row in
-                Button(row.element.title.map { "\(row.offset + 1) · \($0)" } ?? "Pagina \(row.offset + 1)") { Task { await model.moveSelection(to: row.element.id) } }
-            }
-        } label: { Label("Sposta in un’altra pagina", systemImage: "doc.on.doc") }
-        .disabled(model.pages.count < 2 || (model.selectedIDs.isEmpty && !model.selectionIncludesInk))
-    }
-}

@@ -105,6 +105,11 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Trascina il corpo con un dito, ruota con due dita e pizzica per ridimensionare. Quando disegni con le dita, usa due dita anche per spostare la guida.",
             "Parti con la penna vicino al bordo per un arco preciso, oppure dal centro per un raggio agganciato ai gradi. Puoi allontanarti dal bordo: il tratto resta guidato fino al rilascio e si annulla in un passo.",
             "In Misura traccia due raggi dal centro e leggi l’angolo; non vengono aggiunti tratti al foglio. Righello e goniometro sono guide visive e non compaiono nei PDF esportati." ], tools: [.protractor]),
+        .init("selection-transfer", .pages, "Copia o sposta la selezione tra pagine", "doc.on.doc", "Scegli una miniatura o crea una nuova pagina, con un solo annulla.", [
+            "Con Oggetti seleziona inchiostro, immagini, testo o forme. Premi Copia o sposta in un’altra pagina nella barra della selezione.",
+            "Scegli Sposta oppure Copia. Tocca la miniatura di destinazione, cercala per numero o titolo, oppure scegli Nuova prima o Nuova dopo rispetto alla pagina di origine.",
+            "La selezione viene proporzionata se lo spazio disponibile è più piccolo. Una sola azione Annulla ripristina origine e destinazione; se hai creato una pagina nuova, la rimuove dall’ordine attivo.",
+            "Per incollare altrove solo gli elementi selezionati, usa Copia area come immagine dal menu Trasforma selezione: il PNG è trasparente e a risoluzione doppia, senza carta o PDF di sfondo." ]),
         .init("workspace", .writing, "Workspace e toolbar personale", "slider.horizontal.3", "Profili per scrittura, matematica, lettura e disegno.", [
             "Apri Workspace dalle opzioni dell’editor e scegli il profilo dell’attività.",
             "Organizza strumenti preferiti, posizione della toolbar, palette e gesti senza cambiare gli altri profili.",

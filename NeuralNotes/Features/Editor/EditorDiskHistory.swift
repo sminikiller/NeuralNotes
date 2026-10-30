@@ -19,14 +19,23 @@ extension EditorViewModel {
     /// The caller prepares both snapshots before any document mutation.
     func applyDiskChange(_ change: EditorDiskChange, label: String) async throws {
         guard history.accepts(cost: change.residentCost) else { throw WorkspaceFailure.oversizedImport }
-        try await restoreDiskChange(change, undo: false)
+        try await restoreDiskChange(change, undo: false, initial: true)
         history.record(.disk(change), label: label, cost: change.residentCost, diskCost: change.diskCost)
     }
-    func restoreDiskChange(_ change: EditorDiskChange, undo: Bool) async throws {
+    func restoreDiskChange(_ change: EditorDiskChange, undo: Bool, initial: Bool = false) async throws {
         let target = undo ? change.before : change.after
         var revisions: [UUID: Int] = [:]
-        for id in target.pageIDs {
-            if let current = try await workspace.retainedPageSnapshot(id) { revisions[id] = current.revision }
+        if initial {
+            let before = change.before, ids = target.pageIDs, existing = Set(change.beforeOrder)
+            revisions = try await Task.detached(priority: .userInitiated) {
+                var values: [UUID: Int] = [:]
+                for id in ids where existing.contains(id) { values[id] = try before.page(id).revision }
+                return values
+            }.value
+        } else {
+            for id in target.pageIDs {
+                if let current = try await workspace.retainedPageSnapshot(id) { revisions[id] = current.revision }
+            }
         }
         try await workspace.applyPageEdit(target, expectedOrder: undo ? change.afterOrder : change.beforeOrder,
             newOrder: undo ? change.beforeOrder : change.afterOrder, expectedRevisions: revisions)

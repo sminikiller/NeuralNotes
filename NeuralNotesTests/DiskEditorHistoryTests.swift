@@ -52,4 +52,23 @@ final class DiskEditorHistoryTests: XCTestCase {
             XCTAssertEqual(model.canvas.drawing.dataRepresentation(), ink)
         }
     }
+    @MainActor func testInitialDiskEditRefusesARevisionChangedAfterPreparation() async throws {
+        try await fixture { model, root in
+            let original = try XCTUnwrap(model.page), ink = model.canvas.drawing.dataRepresentation()
+            let before = try await snapshot(original, model: model, root: root, drawing: ink)
+            var removed = original; removed.texts = []
+            let after = try await snapshot(removed, model: model, root: root, drawing: ink)
+            var external = original; external.revision += 1; external.texts = [TextElement(text: "Modifica arrivata dopo")]
+            let newer = try await model.workspace.save(external, drawing: ink)
+            let order = model.pages.map(\.id)
+            let change = EditorDiskChange(before: before, after: after, beforeOrder: order, afterOrder: order, beforePage: original.id, afterPage: original.id)
+            do {
+                try await model.applyDiskChange(change, label: "Rifiutare")
+                XCTFail("Una revisione obsoleta non deve essere sovrascritta.")
+            } catch WorkspaceFailure.staleRevision { }
+            catch { XCTFail("Errore inatteso: \(error)") }
+            let preserved = try await model.workspace.pageSnapshot(original.id)
+            XCTAssertEqual(preserved, newer); XCTAssertFalse(model.canUndo)
+        }
+    }
 }

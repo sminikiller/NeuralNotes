@@ -215,6 +215,22 @@ final class EditorQuickActionsUITests: XCTestCase {
         app.buttons["tool-Gomma"].press(forDuration: 0.6)
         XCTAssertTrue(app.switches["Solo evidenziatore"].waitForExistence(timeout: 5))
     }
+    @MainActor func testSelectionMovesToANewPageAndOneUndoRemovesThatPage() {
+        let app = XCUIApplication(); openEditor(app)
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 8))
+        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
+            thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
+        app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
+        let transfer = app.buttons["selectionTransfer"]; XCTAssertTrue(transfer.waitForExistence(timeout: 5)); transfer.tap()
+        let newPage = app.buttons["selectionNewPageAfter"]; XCTAssertTrue(newPage.waitForExistence(timeout: 8))
+        let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "selection-new-destination"; screenshot.lifetime = .keepAlways; add(screenshot)
+        newPage.tap(); waitForPage(2, total: 2, in: app)
+        app.buttons["editorUndo"].tap(); waitForPage(1, total: 1, in: app)
+        app.buttons["editorRedo"].tap(); waitForPage(2, total: 2, in: app)
+        XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
+    }
     @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["Inserisci foto o forma"].tap(); app.buttons["Inserisci foto"].tap()

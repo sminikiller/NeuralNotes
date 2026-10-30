@@ -129,6 +129,7 @@ struct EditorQuickToolbar: View {
                 Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
+                MoveSelectionMenu(model: model).labelStyle(.iconOnly)
                 SelectionAlignmentMenu(model: model)
                 if model.selectedConnector != nil { ConnectorStyleMenu(model: model) }
                 if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {
@@ -156,7 +157,6 @@ struct EditorQuickToolbar: View {
                     .accessibilityLabel("Raddrizza immagine").disabled(!selectedImage)
                 Button { model.rotateSelectedImage() } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota immagine").disabled(!selectedImage)
                 Button { model.copySelection() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copia selezione").keyboardShortcut("c", modifiers: .command).disabled(!hasSelection)
-                MoveSelectionMenu(model: model).labelStyle(.iconOnly)
                 Button { Task { await model.pasteSelection() } } label: { Image(systemName: "doc.on.clipboard") }.accessibilityLabel("Incolla").keyboardShortcut("v", modifiers: .command)
                 Button { model.duplicateSelectedObject() } label: { Image(systemName: "plus.square.on.square") }.accessibilityLabel("Duplica selezione").disabled(!hasSelection)
                 Button(role: .destructive) { model.deleteSelectedObject() } label: { Image(systemName: "trash") }.accessibilityLabel("Elimina selezione").disabled(!hasSelection)

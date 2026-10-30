@@ -6,11 +6,12 @@ import NeuralNotesCore
 extension EditorViewModel {
     var selectionBounds: CGRect {
         guard let page else { return .null }
+        let ids = page.includingInternalConnectors(selectedIDs)
         var result = selectionIncludesInk ? selectedInkBounds : .null
-        for text in page.texts where selectedIDs.contains(text.id) {
+        for text in page.texts where ids.contains(text.id) {
             result = result.union(RichText.bounds(text, pageHeight: page.height).applying(RichText.rotation(text, pageHeight: page.height)))
         }
-        for image in page.images where selectedIDs.contains(image.id) {
+        for image in page.images where ids.contains(image.id) {
             let box = CGRect(x: image.x, y: image.y, width: image.width, height: image.height)
             let angle = image.rotation ?? 0, sideways = abs(angle.truncatingRemainder(dividingBy: 180)) == 90
             let size = sideways ? CGSize(width: box.height, height: box.width) : box.size
@@ -18,15 +19,15 @@ extension EditorViewModel {
             let transform = CGAffineTransform(rotationAngle: CGFloat(angle) * .pi / 180).concatenating(.init(translationX: box.midX, y: box.midY))
             result = result.union(local.applying(transform))
         }
-        for tape in page.tapes ?? [] where selectedIDs.contains(tape.id) { result = result.union(CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)) }
-        for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) {
+        for tape in page.tapes ?? [] where ids.contains(tape.id) { result = result.union(CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)) }
+        for shape in page.shapes ?? [] where ids.contains(shape.id) {
             let box = ShapeGeometry.bounds(shape)
             result = result.union(CGRect(x: box.x, y: box.y, width: box.width, height: box.height))
             if let label = DiagramLabels.shape(shape, page: page) { result = result.union(label.box.applying(label.transform)) }
         }
         if page.connectors?.isEmpty == false {
             let objects = DiagramObjects.make(page)
-            for edge in page.connectors ?? [] where selectedIDs.contains(edge.id) {
+            for edge in page.connectors ?? [] where ids.contains(edge.id) {
                 result = result.union(ConnectorGeometry.bounds(edge, objects: objects).cgRect)
                 if let label = DiagramLabels.connector(edge, objects: objects, page: page) { result = result.union(label.box) }
             }
