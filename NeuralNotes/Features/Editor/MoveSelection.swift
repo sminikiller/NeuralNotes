@@ -7,7 +7,7 @@ extension EditorViewModel {
     func moveSelection(to pageID: UUID) async { await transferSelection(to: pageID, copy: false) }
     func transferSelection(to pageID: UUID?, copy: Bool, newPageAfter: Bool = true) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id, pageID != nil || pages.count < PageEditRecovery.maximumPages else { return }
+        guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id, pageID != nil || pages.count < DocumentWorkspace.maximumPageEditPages else { return }
         let ids = origin.includingInternalConnectors(selectedIDs.subtracting(origin.lockedObjects ?? []))
         let selectedInk = selectionIncludesInk ? Set(selectedStrokeIndices ?? Set(canvas.drawing.strokes.indices)) : []
         guard !ids.isEmpty || !selectedInk.isEmpty else { return }

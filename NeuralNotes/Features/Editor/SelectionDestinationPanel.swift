@@ -39,7 +39,7 @@ struct SelectionDestinationPanel: View {
                         .accessibilityIdentifier("selectionNewPageBefore")
                     Button("Nuova dopo", systemImage: "doc.badge.plus") { transfer(nil, after: true) }
                         .accessibilityIdentifier("selectionNewPageAfter")
-                }.buttonStyle(.bordered).disabled(busy || model.pages.count >= PageEditRecovery.maximumPages)
+                }.buttonStyle(.bordered).disabled(busy || model.pages.count >= DocumentWorkspace.maximumPageEditPages)
                 if busy { ProgressView(copy ? "Copia della selezione…" : "Spostamento della selezione…") }
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 120, maximum: 170))], spacing: 16) {

@@ -1,6 +1,7 @@
 import Foundation
 
 public extension DocumentWorkspace {
+    static var maximumPageEditPages: Int { PageEditRecovery.maximumPages }
     /// Retained page headers let redo reuse a newly-created page after undo put
     /// it in the trash, without creating a second identity or losing its media.
     func retainedPageSnapshot(_ id: UUID) throws -> PageSnapshot? {
