@@ -55,7 +55,8 @@ final class ProtractorGuideView: UIView, UIGestureRecognizerDelegate {
         let guide = model.protractorGuide
         let corner = host.surface.convert(CGPoint(x: guide.x - guide.radius, y: guide.y - guide.radius), to: self)
         let diameter = CGFloat(guide.radius * 2) * host.canvas.zoomScale
-        accessibilityFrameInContainerSpace = CGRect(origin: corner, size: CGSize(width: diameter, height: diameter)).intersection(bounds)
+        let accessibleBox = CGRect(origin: corner, size: CGSize(width: diameter, height: diameter)).intersection(bounds)
+        accessibilityFrame = UIAccessibility.convertToScreenCoordinates(accessibleBox, in: self)
         accessibilityValue = model.guideReadout ?? String(format: "%d gradi, rotazione %.0f gradi, raggio %.0f punti", guide.kind == .circle ? 360 : 180, guide.rotation * 180 / .pi, guide.radius)
         host.bringSubviewToFront(self); setNeedsDisplay()
     }

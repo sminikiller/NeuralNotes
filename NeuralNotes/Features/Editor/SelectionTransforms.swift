@@ -10,7 +10,14 @@ extension EditorViewModel {
         for text in page.texts where selectedIDs.contains(text.id) {
             result = result.union(RichText.bounds(text, pageHeight: page.height).applying(RichText.rotation(text, pageHeight: page.height)))
         }
-        for image in page.images where selectedIDs.contains(image.id) { result = result.union(CGRect(x: image.x, y: image.y, width: image.width, height: image.height)) }
+        for image in page.images where selectedIDs.contains(image.id) {
+            let box = CGRect(x: image.x, y: image.y, width: image.width, height: image.height)
+            let angle = image.rotation ?? 0, sideways = abs(angle.truncatingRemainder(dividingBy: 180)) == 90
+            let size = sideways ? CGSize(width: box.height, height: box.width) : box.size
+            let local = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
+            let transform = CGAffineTransform(rotationAngle: CGFloat(angle) * .pi / 180).concatenating(.init(translationX: box.midX, y: box.midY))
+            result = result.union(local.applying(transform))
+        }
         for tape in page.tapes ?? [] where selectedIDs.contains(tape.id) { result = result.union(CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)) }
         for shape in page.shapes ?? [] where selectedIDs.contains(shape.id) {
             let box = ShapeGeometry.bounds(shape)

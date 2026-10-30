@@ -50,7 +50,19 @@ enum PageRenderer {
         for id in page.orderedObjectIDs where above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
             drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
-        for tape in page.tapes ?? [] {
+        drawTapes(page.tapes ?? [], in: context)
+    }
+    /// Draw selected objects with the original page's connector targets and
+    /// paper tone, but without drawing its paper, PDF or other objects.
+    static func drawSelected(_ ids: Set<UUID>, foreground: Bool, page: PageSnapshot, package: URL, in context: CGContext) {
+        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
+        for id in page.orderedObjectIDs where ids.contains(id) && above.contains(id) == foreground {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: nil)
+        }
+        if foreground { drawTapes((page.tapes ?? []).filter { ids.contains($0.id) }, in: context) }
+    }
+    private static func drawTapes(_ tapes: [StudyTape], in context: CGContext) {
+        for tape in tapes {
             let box = CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)
             context.saveGState()
             if tape.revealed {

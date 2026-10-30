@@ -13,6 +13,25 @@ extension EditorViewModel {
     }
     func selectionImage() throws -> UIImage {
         guard let page else { throw WorkspaceFailure.emptyDocument }
+        let bounds = selectionBounds.insetBy(dx: -2, dy: -2)
+        guard !bounds.isNull, !bounds.isEmpty, [bounds.minX, bounds.minY, bounds.width, bounds.height].allSatisfy(\.isFinite),
+              bounds.width * 2 <= 8192, bounds.height * 2 <= 8192, bounds.width * bounds.height * 4 <= 32_000_000 else { throw WorkspaceFailure.oversizedImport }
+        let selected = page.includingInternalConnectors(selectedIDs)
+        let strokes = selectionIncludesInk ? canvas.drawing.strokes.enumerated().filter { selectedStrokeIndices?.contains($0.offset) ?? true }.map(\.element) : []
+        guard !selected.isEmpty || !strokes.isEmpty else { throw WorkspaceFailure.emptyDocument }
+        let ink = PKDrawing(strokes: strokes)
+        let format = UIGraphicsImageRendererFormat(); format.scale = 2; format.opaque = false
+        return UIGraphicsImageRenderer(size: bounds.size, format: format).image { renderer in
+            let context = renderer.cgContext
+            context.translateBy(x: -bounds.minX, y: -bounds.minY)
+            PageRenderer.drawSelected(selected, foreground: false, page: page, package: workspace.package, in: context)
+            LegibleInkRenderer.draw(ink, in: context, bounds: bounds, scale: 2)
+            PageRenderer.drawSelected(selected, foreground: true, page: page, package: workspace.package, in: context)
+        }
+    }
+    /// OCR still receives a white-paper crop, not a transparent clipboard image.
+    func selectionAreaImage() throws -> UIImage {
+        guard let page else { throw WorkspaceFailure.emptyDocument }
         let box = selectionBounds.intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
         guard !box.isNull, box.width > 0, box.height > 0 else { throw WorkspaceFailure.emptyDocument }
         let image = DocumentServices.image(page: page, drawing: canvas.drawing, workspace: workspace, maxDimension: 2048)
@@ -20,7 +39,7 @@ extension EditorViewModel {
         guard let cropped = image.cgImage?.cropping(to: pixels) else { throw CocoaError(.fileReadCorruptFile) }
         return UIImage(cgImage: cropped)
     }
-    func copySelectionImage() { do { UIPasteboard.general.image = try selectionImage(); status = "Area copiata come immagine" } catch { self.error = error.localizedDescription } }
+    func copySelectionImage() { do { UIPasteboard.general.image = try selectionImage(); status = "Selezione copiata come PNG trasparente" } catch { self.error = error.localizedDescription } }
     func exportNotebookText(markdown: Bool = true, highlightsOnly: Bool = false) async throws -> URL {
         let pages = try await workspace.pages(), catalog = try await workspace.catalog()
         var blocks: [String] = []
@@ -48,7 +67,7 @@ extension EditorViewModel {
         navigating = true; defer { navigating = false }
         let before = captureEdit(ink: selectionIncludesInk), selected = selectedIDs, inkIndices = selectedStrokeIndices
         do {
-            let image = try selectionImage()
+            let image = try selectionAreaImage()
             guard let data = image.pngData() else { throw CocoaError(.fileReadCorruptFile) }
             let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { error = "Nessun testo leggibile nella selezione."; return }

@@ -100,6 +100,11 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Attiva Righello dalla toolbar. Spostalo e ruotalo con le dita; usa i controlli disponibili per la dimensione.",
             "Inizia il tratto vicino al bordo con la penna e scorri lungo la guida: l’aggancio mantiene la linea sul bordo.",
             "Disattiva Righello per tornare alla scrittura libera. Usa Annulla se desideri rifare una linea." ], tools: [.ruler]),
+        .init("protractor", .writing, "Goniometro: archi, raggi e misure", "circle.lefthalf.filled", "Una guida da 180 o 360 gradi, alternativa al righello.", [
+            "Scegli Goniometro da Tutti gli strumenti o dal Workspace Matematica. Tieni premuta l’icona per scegliere 180° o 360°, dimensione e modalità Misura.",
+            "Trascina il corpo con un dito, ruota con due dita e pizzica per ridimensionare. Quando disegni con le dita, usa due dita anche per spostare la guida.",
+            "Parti con la penna vicino al bordo per un arco preciso, oppure dal centro per un raggio agganciato ai gradi. Puoi allontanarti dal bordo: il tratto resta guidato fino al rilascio e si annulla in un passo.",
+            "In Misura traccia due raggi dal centro e leggi l’angolo; non vengono aggiunti tratti al foglio. Righello e goniometro sono guide visive e non compaiono nei PDF esportati." ], tools: [.protractor]),
         .init("workspace", .writing, "Workspace e toolbar personale", "slider.horizontal.3", "Profili per scrittura, matematica, lettura e disegno.", [
             "Apri Workspace dalle opzioni dell’editor e scegli il profilo dell’attività.",
             "Organizza strumenti preferiti, posizione della toolbar, palette e gesti senza cambiare gli altri profili.",

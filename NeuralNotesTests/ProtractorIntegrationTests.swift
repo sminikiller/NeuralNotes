@@ -83,7 +83,12 @@ final class ProtractorIntegrationTests: XCTestCase {
     @MainActor func testVoiceOverCanResizeTheActualGuideWithoutEditingTheNotebook() async throws {
         try await fixture { model, host in
             let view = try XCTUnwrap(host.protractorGuide)
-            XCTAssertLessThan(view.accessibilityFrameInContainerSpace.width, host.bounds.width)
+            let window = UIWindow(frame: host.bounds), controller = UIViewController()
+            controller.view = host; window.rootViewController = controller; window.makeKeyAndVisible()
+            defer { window.isHidden = true }
+            view.update()
+            XCTAssertGreaterThan(view.accessibilityFrame.width, 100)
+            XCTAssertLessThan(view.accessibilityFrame.width, host.bounds.width)
             let radius = model.protractorGuide.radius
             view.accessibilityIncrement(); XCTAssertGreaterThan(model.protractorGuide.radius, radius)
             view.accessibilityDecrement(); XCTAssertEqual(model.protractorGuide.radius, radius, accuracy: 0.001)
