@@ -231,7 +231,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Copia più blocchi per includere anche i collegamenti interni. Le mappe create da uno schema AI si modificano con gli stessi strumenti. Annulla torna indietro di un’operazione." ], tools: [.objects]),
         .init("marker-words", .writing, "Evidenziatore sottile e parole PDF", "highlighter", "Larghezza reale e parole agganciate, senza coprire il testo.", [
             "Tieni premuto Evidenziatore: Larghezza reale scende fino a 1 punto. Questo valore è lo spessore effettivo sulla pagina, indipendente dallo zoom.",
-            "Attiva Aggancia alle parole del PDF. Scorri sulle parole o appena sotto, come con la Lente: l’evidenziazione si adatta alle parole selezionate. Per un PDF scansionato senza testo digitale resta disponibile il tratto libero.",
+            "Attiva Aggancia alle parole del PDF. Scorri sulle parole o appena sotto, come con la Lente: l’evidenziazione segue la singola riga. Nelle scansioni usa prima la Lente per riconoscere le parole: poi puoi evidenziarle. Senza parole riconosciute resta disponibile il tratto libero.",
             "Il colore viene composto con il foglio e il PDF senza schiarire le lettere nere; l’inchiostro della penna resta sopra. Lo stesso criterio si usa nelle anteprime e nell’esportazione. Un solo annulla rimuove l’intera evidenziazione." ], tools: [.marker]),
         .init("pdf-highlight", .pages, "Testo ed evidenziazioni del PDF", "highlighter", "Seleziona testo digitale e conserva i riferimenti.", [
             "Apri lo studio PDF e un documento con testo selezionabile. I PDF composti soltanto da scansioni possono richiedere OCR.",

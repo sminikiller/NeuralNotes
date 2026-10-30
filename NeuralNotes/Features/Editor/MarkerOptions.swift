@@ -7,7 +7,7 @@ extension EditorViewModel {
     var markerWidth: Double { writingOptions.markerWidth ?? max(1, min(80, thickness * 5)) }
     var markerWordsActive: Bool {
         tool == .marker && !rulerActive && writingOptions.markerSnapWords != false &&
-        page.map { $0.pdfFile != nil && !PageWordIndex.shared.pdfWords($0).isEmpty } == true
+        page.map { $0.pdfFile != nil && !PageWordIndex.shared.markerWords($0).isEmpty } == true
     }
     var markerCustomInput: Bool {
         tool == .marker && !rulerActive && (markerWordsActive || CGFloat(markerWidth) < PKInkingTool.InkType.marker.validWidthRange.lowerBound)
@@ -38,7 +38,7 @@ struct MarkerOptions: View {
                 .accessibilityLabel("Larghezza reale dell’evidenziatore").accessibilityIdentifier("markerActualWidth")
             Toggle("Aggancia alle parole del PDF", isOn: Binding(get: { model.writingOptions.markerSnapWords != false }, set: { enabled in model.editWriting { $0.markerSnapWords = enabled } }))
                 .accessibilityIdentifier("markerSnapPDFWords")
-            Text("Scorri sulle parole o subito sotto: il colore segue solo quelle selezionate. Senza testo digitale rimane il tratto libero. Il testo resta leggibile anche nel PDF esportato.")
+            Text("Scorri sulle parole o subito sotto: il colore segue quelle selezionate. Sulle scansioni usa prima la Lente per riconoscerle; altrimenti rimane il tratto libero. La larghezza scelta vale per il tratto libero, mentre l’aggancio segue l’altezza delle parole.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

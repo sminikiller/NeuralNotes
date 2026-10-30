@@ -17,7 +17,7 @@ final class MarkerWordSession {
     var selectsWords: Bool { !words.isEmpty }
     init?(host: CanvasHost, model: EditorViewModel) {
         guard let page = model.page, model.markerCustomInput else { return nil }
-        self.host = host; self.model = model; words = model.markerWordsActive ? PageWordIndex.shared.pdfWords(page) : []
+        self.host = host; self.model = model; words = model.markerWordsActive ? PageWordIndex.shared.markerWords(page) : []
         pageID = page.id; before = model.canvas.drawing
         preview.fillColor = PaperInk.color(model.ink).withAlphaComponent(0.18).cgColor
         preview.strokeColor = UIColor.systemBlue.withAlphaComponent(0.7).cgColor; preview.lineWidth = 1

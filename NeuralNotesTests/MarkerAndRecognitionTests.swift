@@ -104,6 +104,40 @@ final class MarkerAndRecognitionTests: XCTestCase {
             await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
         }
     }
+    @MainActor func testMarkerPreparationOfAScannedPDFDoesNotPreventLensOCR() async throws {
+        try await fixture { model in
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("scan-\(UUID()).pdf")
+            defer { try? FileManager.default.removeItem(at: file) }
+            let bounds = CGRect(x: 0, y: 0, width: 600, height: 800)
+            let scan = UIGraphicsImageRenderer(size: bounds.size).image { renderer in
+                UIColor.white.setFill(); renderer.fill(bounds)
+                ("ENERGIA CONSERVATA" as NSString).draw(at: .init(x: 50, y: 150), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 36), .foregroundColor: UIColor.black])
+            }
+            try UIGraphicsPDFRenderer(bounds: bounds).writePDF(to: file) { renderer in renderer.beginPage(); scan.draw(in: bounds) }
+            XCTAssertTrue(PDFDocument(url: file)?.page(at: 0)?.string?.isEmpty ?? true)
+            await model.importPages(from: file); XCTAssertNil(model.error)
+            let page = try XCTUnwrap(model.page), index = PageWordIndex.shared
+            model.chooseTool(.marker)
+            let prepared = Date().addingTimeInterval(5)
+            while !index.isPDFMarkerReady(page), Date() < prepared { try await Task.sleep(for: .milliseconds(20)) }
+            XCTAssertTrue(index.isPDFMarkerReady(page)); XCTAssertFalse(model.markerWordsActive)
+            XCTAssertFalse(index.isReady(page), "Il risultato vuoto del solo testo digitale non deve bloccare l’OCR della Lente.")
+            index.prepare(page, model: model)
+            let recognized = Date().addingTimeInterval(10)
+            while !index.isReady(page), Date() < recognized { try await Task.sleep(for: .milliseconds(20)) }
+            XCTAssertTrue(index.isReady(page))
+            XCTAssertTrue(index.groups(for: page).flatMap { $0 }.contains { $0.text.localizedCaseInsensitiveContains("ENERGIA") })
+            XCTAssertTrue(index.pdfWords(page).isEmpty, "Le parole OCR della scansione non si devono spacciare per testo digitale del PDF.")
+            XCTAssertTrue(model.markerWordsActive)
+            let target = try XCTUnwrap(index.markerWords(page).first { $0.text.localizedCaseInsensitiveContains("ENERGIA") })
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let session = try XCTUnwrap(MarkerWordSession(host: host, model: model))
+            session.move([.init(x: target.rect.midX, y: target.rect.midY)]); session.finish(cancelled: false)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive, "Evidenziare una parola non deve far dimenticare le altre.")
+        }
+    }
     @MainActor private func blackPixels(_ image: UIImage) -> Int {
         guard let image = image.cgImage else { return 0 }
         let width = image.width, height = image.height

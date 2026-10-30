@@ -258,7 +258,10 @@ final class EditorViewModel {
         inkDisplayGeneration = UUID()
         (canvas.superview as? CanvasHost)?.markerReadability.update(canvas.superview as? CanvasHost)
         if tool == .eraser && drawingShape { return }
-        if let page { PageWordIndex.shared.invalidate(page) }
+        if let page {
+            let preserve = tool == .marker || (tool == .eraser && writingOptions.markerOnly)
+            PageWordIndex.shared.invalidate(page, preservingRecognizedWords: preserve)
+        }
         if editBeforeGesture != nil && !usingInkTool && !finishingInkGesture { scheduleInkCommit() }
         dirty = true; status = "Modifiche da salvare"
         debounce?.cancel()

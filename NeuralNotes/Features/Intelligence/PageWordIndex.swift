@@ -10,10 +10,18 @@ final class PageWordIndex {
     private var cache: [String: [PageWord]] = [:]
     private var order: [String] = []
     private var running: Set<String> = []
+    private var digitalWords: [String: [PageWord]] = [:]
+    private var digitalOrder: [String] = []
+    private var digitalRunning = Set<String>()
     private var epochs: [UUID: UUID] = [:]
 
-    func invalidate(_ page: PageSnapshot) {
-        guard page.pdfFile == nil else { return } // The digital PDF layer is immutable.
+    func invalidate(_ page: PageSnapshot, preservingRecognizedWords: Bool = false) {
+        if page.pdfFile != nil {
+            // Digital text is immutable; OCR of a scan can change with ink or
+            // images. Highlighting itself must not discard recognized words.
+            if digitalWords[key(page)]?.isEmpty != false, !preservingRecognizedWords { cache[key(page)] = nil }
+            return
+        }
         epochs[page.id] = UUID()
     }
 
@@ -48,19 +56,28 @@ final class PageWordIndex {
     /// The text layer or the OCR of the page has been read (possibly finding nothing).
     func isReady(_ page: PageSnapshot) -> Bool { cache[key(page)] != nil }
 
-    func pdfWords(_ page: PageSnapshot) -> [PageWord] { page.pdfFile == nil ? [] : cache[key(page)] ?? [] }
+    func pdfWords(_ page: PageSnapshot) -> [PageWord] { page.pdfFile == nil ? [] : digitalWords[key(page)] ?? [] }
+    func markerWords(_ page: PageSnapshot) -> [PageWord] {
+        guard page.pdfFile != nil else { return [] }
+        let digital = pdfWords(page)
+        return digital.isEmpty ? cache[key(page)] ?? [] : digital
+    }
+    func isPDFMarkerReady(_ page: PageSnapshot) -> Bool { digitalWords[key(page)] != nil }
     /// The marker needs the immutable digital layer only, without starting OCR
     /// of a large scanned PDF while the user is trying to write.
     func preparePDFMarker(_ page: PageSnapshot, model: EditorViewModel) {
         let cacheKey = key(page)
-        guard let file = page.pdfFile, let index = page.pdfIndex, cache[cacheKey] == nil, !running.contains(cacheKey) else { return }
-        running.insert(cacheKey)
+        guard let file = page.pdfFile, let index = page.pdfIndex, digitalWords[cacheKey] == nil, !digitalRunning.contains(cacheKey) else { return }
+        digitalRunning.insert(cacheKey)
         Task {
-            defer { running.remove(cacheKey) }
+            defer { digitalRunning.remove(cacheKey) }
             guard let url = try? await model.workspace.url(file),
                   let words = try? await PDFTextReader.shared.words(url: url, index: index, pageWidth: page.width, pageHeight: page.height),
                   model.page?.id == page.id else { return }
-            store(cacheKey, words)
+            storeDigital(cacheKey, words)
+            // An empty digital layer does not mean OCR of the scan completed.
+            // Keep the Lens cache unprepared so it can still recognize the image.
+            if !words.isEmpty, cache[cacheKey] == nil { store(cacheKey, words) }
             if model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
         }
     }
@@ -76,6 +93,7 @@ final class PageWordIndex {
             var words: [PageWord] = []
             if let file = page.pdfFile, let index = page.pdfIndex, let url = try? await model.workspace.url(file) {
                 words = try await PDFTextReader.shared.words(url: url, index: index, pageWidth: page.width, pageHeight: page.height)
+                storeDigital(cacheKey, words)
             }
             guard model.page?.id == page.id, self.key(page) == cacheKey else { return }
             if words.isEmpty {
@@ -93,6 +111,7 @@ final class PageWordIndex {
             }
             guard model.page?.id == page.id, self.key(page) == cacheKey else { return }
             store(cacheKey, words)
+            if model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
             } catch { /* No empty cache on a transient error; the next gesture may retry. */ }
         }
     }
@@ -100,6 +119,10 @@ final class PageWordIndex {
     private func store(_ key: String, _ words: [PageWord]) {
         cache[key] = words; order.removeAll { $0 == key }; order.append(key)
         if order.count > 24 { cache[order.removeFirst()] = nil }
+    }
+    private func storeDigital(_ key: String, _ words: [PageWord]) {
+        digitalWords[key] = words; digitalOrder.removeAll { $0 == key }; digitalOrder.append(key)
+        if digitalOrder.count > 24 { digitalWords[digitalOrder.removeFirst()] = nil }
     }
 
     /// The text layer of a PDF page never changes; the OCR of a drawn page follows its revision.
