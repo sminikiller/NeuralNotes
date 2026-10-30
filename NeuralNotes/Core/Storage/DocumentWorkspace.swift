@@ -439,7 +439,7 @@ public actor DocumentWorkspace {
         }
     }
 
-    private func readPage(_ id: UUID) throws -> PageSnapshot {
+    func readPage(_ id: UUID) throws -> PageSnapshot {
         try Task.checkCancellation()
         try settlePageBatch()
         var page: PageSnapshot = try read("pages/\(id).json")

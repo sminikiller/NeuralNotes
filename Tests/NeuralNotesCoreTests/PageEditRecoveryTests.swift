@@ -66,9 +66,11 @@ final class PageEditRecoveryTests: XCTestCase {
             try Data(contentsOf: writer.package.appendingPathComponent(journal.header(page.id))).write(to: writer.package.appendingPathComponent("pages/\(page.id).json"), options: .atomic)
         }
         let manifestURL = writer.package.appendingPathComponent("manifest.json")
-        var manifest = try JSONDecoder().decode(DocumentManifest.self, from: Data(contentsOf: manifestURL))
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        var manifest = try decoder.decode(DocumentManifest.self, from: Data(contentsOf: manifestURL))
         manifest.pageIDs = journal.newOrder
-        try JSONEncoder().encode(manifest).write(to: manifestURL, options: .atomic)
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(manifest).write(to: manifestURL, options: .atomic)
         try PageEditRecovery.recover(in: writer.package)
         for page in after { XCTAssertEqual(try readPage(page.id, package: writer.package), page) }
         XCTAssertNoThrow(try PageEditRecovery.recover(in: writer.package))
@@ -81,5 +83,18 @@ final class PageEditRecoveryTests: XCTestCase {
         try PageEditRecovery.recover(in: writer.package)
         for page in after { XCTAssertEqual(try readPage(page.id, package: writer.package), page) }
         XCTAssertNoThrow(try NativePackageInspector.inspect(writer.package))
+    }
+    func testPublishedJournalFinishesEvenWhenTheCallingTaskIsCancelled() async throws {
+        let (root, writer, before) = try await fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        var after = before
+        for i in after.indices { after[i].revision += 1; after[i].texts = [] }
+        _ = try await prepare(writer, before: before, after: after)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try PageEditRecovery.recover(in: writer.package)
+        }
+        try await task.value
+        for page in after { XCTAssertEqual(try readPage(page.id, package: writer.package), page) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: writer.package.appendingPathComponent(PageEditRecovery.path).path))
     }
 }

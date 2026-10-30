@@ -31,20 +31,21 @@ enum PageEditRecovery {
         let manifest: DocumentManifest = try read("manifest.json", package: package)
         try validate(journal, manifest: manifest)
         for entry in journal.entries {
-            try Task.checkCancellation()
             let next: PageSnapshot = try read(journal.header(entry.pageID), package: package)
             try validate(entry, next: next, package: package)
         }
         // A crash from here forward leaves the validated pointer in place and
         // accepts a mixture of expected and already-written headers next time.
         for entry in journal.entries {
-            try Task.checkCancellation()
             let source = try NativeArchive.fileURL(journal.header(entry.pageID), in: package)
             let destination = try NativeArchive.fileURL("pages/\(entry.pageID).json", in: package)
             try Data(contentsOf: source).write(to: destination, options: .atomic)
         }
         var updated = manifest; updated.pageIDs = journal.newOrder
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.sortedKeys]
+        if manifest.pageIDs != updated.pageIDs {
+            try encoder.encode(manifest).write(to: NativeArchive.fileURL("manifest.previous.json", in: package), options: .atomic)
+        }
         try encoder.encode(updated).write(to: NativeArchive.fileURL("manifest.json", in: package), options: .atomic)
         try FileManager.default.removeItem(at: pointer)
         // Cleanup failure cannot roll back an edit that already committed.

@@ -12,6 +12,8 @@
 
 ## Verifiche
 
-Aggiunti 17 test per geometria, classificazione, ripristino dopo interruzione, 1.500 pagine, media conservati, errori di snapshot e budget della cronologia. Controllo strutturale e grammaticale locale superato: 606 oggetti di progetto, 401 file Swift, 559 metodi XCTest presenti. Questo controllo **non esegue** i test e non sostituisce la compilazione SDK.
+Aggiunti 22 test per geometria, classificazione, ripristino dopo interruzione, 1.500 pagine, media conservati, errori di snapshot, applicazione/annulla/ripristina tra pagine e budget della cronologia. Controllo strutturale e grammaticale locale superato: 608 oggetti di progetto, 403 file Swift, 564 metodi XCTest presenti. Questo controllo **non esegue** i test e non sostituisce la compilazione SDK.
 
-Collaudo Apple del primo blocco da eseguire. I comandi di selezione/copia tra pagine, gomme selettive, eliminazione estesa e goniometro visibile non sono ancora completati; nessuna di queste basi è dichiarata disponibile nella beta 142.
+Primo collaudo [41106309619](https://github.com/sminikiller/NeuralNotes/actions/runs/41106309619), sorgenti c2dbdf2: compilazione Core riuscita, 350 dei 351 XCTest superati e 98 Swift Testing superati; un solo test di interruzione leggeva la data ISO del manifest con il decoder predefinito per numeri. Corretto il test usando lo stesso formato ISO dell'app, senza modificare il formato dei quaderni. Pacchetto Playgrounds compilato e avviato. Le successive prove includono la pubblicazione atomica di nuove pagine e il completamento di una transazione già pubblicata anche dopo la cancellazione del task.
+
+Nuovo collaudo Apple dei sorgenti aggiornati da eseguire. I comandi di selezione/copia tra pagine, gomme selettive, eliminazione estesa e goniometro visibile non sono ancora completati; nessuna di queste basi è dichiarata disponibile nella beta 142.

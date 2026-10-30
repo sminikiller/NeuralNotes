@@ -61,9 +61,13 @@ public actor PageEditSnapshotBuilder {
         guard let support = parent ?? manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent("NeuralNotesEditHistory") else { throw CocoaError(.fileNoSuchFile) }
         let root = support.standardizedFileURL.resolvingSymlinksInPath()
         try manager.createDirectory(at: root, withIntermediateDirectories: true)
-        directory = root.appendingPathComponent("edit-\(UUID())", isDirectory: true)
-        try manager.createDirectory(at: directory, withIntermediateDirectories: false)
-        for name in ["pages", "ink", "media"] { try manager.createDirectory(at: directory.appendingPathComponent(name), withIntermediateDirectories: false) }
+        let created = root.appendingPathComponent("edit-\(UUID())", isDirectory: true)
+        directory = created
+        try manager.createDirectory(at: created, withIntermediateDirectories: false)
+        var ready = false
+        defer { if !ready { try? manager.removeItem(at: created) } }
+        for name in ["pages", "ink", "media"] { try manager.createDirectory(at: created.appendingPathComponent(name), withIntermediateDirectories: false) }
+        ready = true
     }
     /// Append one state, then release its Data before asking for the next page.
     public func append(_ page: PageSnapshot, drawing: Data?, sourcePackage: URL) throws {
