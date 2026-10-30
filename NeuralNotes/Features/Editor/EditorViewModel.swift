@@ -68,6 +68,8 @@ final class EditorViewModel {
     @ObservationIgnored var workspaceSaveTask: Task<Void, Never>?
     @ObservationIgnored weak var drawingAssistant: CanvasDrawingAssistant?
     @ObservationIgnored var inkDisplayGeneration = UUID()
+    @ObservationIgnored var inkGestureGeneration = UUID()
+    @ObservationIgnored var inkGestureBaseline: PKDrawing?
     @ObservationIgnored var pendingHeldShape: (page: UUID, kind: ShapeKind, samples: [StrokeSample])?
     @ObservationIgnored var pendingShapeRecognition: ShapeRecognitionResult?
     @ObservationIgnored var pendingAutomaticRecognition = false
@@ -291,6 +293,7 @@ final class EditorViewModel {
         rememberPalette()
         usingInkTool = true
         editBeforeGesture = captureEdit(ink: true)
+        inkGestureBaseline = canvas.drawing; inkGestureGeneration = UUID()
         strokeTime = audio?.recordingAnchor
         signaturesBeforeStroke = Set(signatures())
     }
@@ -346,6 +349,7 @@ final class EditorViewModel {
         drawingAssistant?.finishPreview()
         strokeTime = nil
         editBeforeGesture = nil
+        inkGestureBaseline = nil
         if shaped, let raw, before != raw {
             let metadata = (try? JSONEncoder().encode(before.page).count) ?? 0
             history.record(.content(before, raw), label: "Inchiostro", cost: (before.drawing?.count ?? 0) + (raw.drawing?.count ?? 0) + metadata * 2)
@@ -480,6 +484,7 @@ final class EditorViewModel {
         recognitionNoticeTask?.cancel(); recognitionNotice = nil
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         editBeforeGesture = nil; usingInkTool = false; strokeTime = nil
+        inkGestureBaseline = nil
         signaturesBeforeStroke = []
         // Keep the original stroke objects (ink, masks and transforms), but use
         // a fresh drawing container rather than the old native editing timeline.
@@ -647,6 +652,7 @@ final class EditorViewModel {
     }
     func cancelGuidedInk(_ drawing: PKDrawing) {
         usingInkTool = false; editBeforeGesture = nil; strokeTime = nil; drawingShape = false
+        inkGestureBaseline = nil
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         canvas.drawing = drawing
     }

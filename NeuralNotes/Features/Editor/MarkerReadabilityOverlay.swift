@@ -14,9 +14,10 @@ final class MarkerReadabilityOverlay: UIView {
     private var patches: [CGRect] = []
     private var zoom: CGFloat = 1
     private var origin = CGPoint.zero
+    private let composition = MarkerCompositionCache()
     init() { super.init(frame: .zero); isUserInteractionEnabled = false; isOpaque = false; backgroundColor = .clear; isHidden = true }
     required init?(coder: NSCoder) { nil }
-    func reset() { page = nil; generation = nil; patches = []; drawing = PKDrawing(); layer.contents = nil; isHidden = true }
+    func reset() { page = nil; generation = nil; patches = []; drawing = PKDrawing(); composition.clear(); layer.contents = nil; isHidden = true }
     func update(_ host: CanvasHost?) {
         guard let host, let model = host.model else { reset(); return }
         self.host = host
@@ -40,7 +41,7 @@ final class MarkerReadabilityOverlay: UIView {
         if changed { setNeedsDisplay() }
     }
     override func draw(_ rect: CGRect) {
-        guard let host, let page, let context = UIGraphicsGetCurrentContext() else { return }
+        guard let host, let model = host.model, let page, let context = UIGraphicsGetCurrentContext() else { return }
         context.scaleBy(x: zoom, y: zoom); context.translateBy(x: -origin.x, y: -origin.y)
         let visible = CGRect(origin: origin, size: CGSize(width: bounds.width / zoom, height: bounds.height / zoom))
         let clipped = patches.compactMap { patch -> CGRect? in
@@ -48,8 +49,14 @@ final class MarkerReadabilityOverlay: UIView {
         }
         guard !clipped.isEmpty else { return }
         context.addRects(clipped); context.clip()
-        PageRenderer.draw(page, package: host.surface.package, in: context, hidingTextID: host.surface.hiddenTextID,
-            hidingObjectID: host.surface.hiddenObjectID, hidingObjectIDs: host.surface.allHiddenObjectIDs)
-        LegibleInkRenderer.draw(drawing, in: context, bounds: visible, scale: max(0.1, contentScaleFactor * zoom))
+        let baseline = model.inkGestureBaseline
+        let appendOnly = baseline != nil && (model.tool == .pen || model.tool == .marker) && drawing.strokes.count >= (baseline?.strokes.count ?? 0)
+        let baseDrawing = appendOnly ? baseline! : drawing
+        let delta = appendOnly ? PKDrawing(strokes: Array(drawing.strokes.dropFirst(baseDrawing.strokes.count))) : PKDrawing()
+        var hiddenIDs = host.surface.allHiddenObjectIDs
+        if let id = host.surface.hiddenObjectID { hiddenIDs.insert(id) }
+        composition.draw(page: page, baseline: baseDrawing, token: appendOnly ? model.inkGestureGeneration : model.inkDisplayGeneration,
+            delta: delta, package: host.surface.package, bounds: visible, scale: max(0.1, contentScaleFactor * zoom),
+            hiddenIDs: hiddenIDs, hiddenTextID: host.surface.hiddenTextID, in: context)
     }
 }

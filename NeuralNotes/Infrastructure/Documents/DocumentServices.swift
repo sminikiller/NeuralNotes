@@ -56,7 +56,7 @@ actor PDFTextReader {
 
     /// Every word of a notebook page made from a PDF page, in the order of the PDF text
     /// layer, with its box in notebook coordinates (top-left origin). Empty for scanned
-    /// pages without a text layer and for rotated pages.
+    /// pages without a text layer; intrinsic PDF rotation uses the renderer's transform.
     func words(url: URL, index: Int, pageWidth: Double, pageHeight: Double) throws -> [PageWord] {
         try Task.checkCancellation()
         let key = "\(url.path)|\(index)|\(pageWidth)|\(pageHeight)"
@@ -66,18 +66,18 @@ actor PDFTextReader {
             document = PDFDocument(url: url)
         }
         guard let document, !document.isLocked, index >= 0, index < document.pageCount, let page = document.page(at: index),
-              pageWidth > 0, pageHeight > 0, page.rotation == 0 else { return [] }
+              pageWidth > 0, pageHeight > 0, let reference = page.pageRef else { return [] }
         reads += 1
-        let box = page.bounds(for: .cropBox)
-        let sx = box.width / CGFloat(pageWidth), sy = box.height / CGFloat(pageHeight)
-        let words: [PageWord] = autoreleasepool { Self.words(of: page, box: box, sx: sx, sy: sy, pageHeight: CGFloat(pageHeight)) }
+        let transform = reference.getDrawingTransform(.cropBox, rect: CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight), rotate: 0, preserveAspectRatio: true)
+            .concatenating(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: pageHeight))
+        let words: [PageWord] = autoreleasepool { Self.words(of: page, transform: transform) }
         wordCache[key] = words; wordOrder.removeAll { $0 == key }; wordOrder.append(key)
         if wordOrder.count > 40 { wordCache[wordOrder.removeFirst()] = nil }
         return words
     }
 
-    private static func words(of page: PDFPage, box: CGRect, sx: CGFloat, sy: CGFloat, pageHeight: CGFloat) -> [PageWord] {
-        guard let string = page.string, !string.isEmpty, sx > 0, sy > 0 else { return [] }
+    private static func words(of page: PDFPage, transform: CGAffineTransform) -> [PageWord] {
+        guard let string = page.string, !string.isEmpty else { return [] }
         let text = string as NSString
         let tokens = PageWords.tokens(in: string)
         var result: [PageWord] = []
@@ -94,9 +94,7 @@ actor PDFTextReader {
                 let next = tokens[position + 1]
                 joins = PageWords.joinsNext(word, next: text.substring(with: next.range), lineBreak: next.lineBreakBefore)
             }
-            let x = (rect.minX - box.minX) / sx
-            let y = pageHeight - (rect.maxY - box.minY) / sy
-            result.append(PageWord(text: word, rect: CGRect(x: x, y: y, width: rect.width / sx, height: rect.height / sy), hyphenated: joins))
+            result.append(PageWord(text: word, rect: rect.applying(transform), hyphenated: joins))
         }
         return result
     }

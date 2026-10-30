@@ -38,21 +38,25 @@ final class MarkerWordSession {
         guard !cancelled else { model.cancelGuidedInk(before); return }
         var strokes: [PKStroke] = []
         for r in PageWords.lineRects(picked, in: words) {
-            let width = max(1, min(80, r.height))
-            let inset = min(width / 2, r.width / 2)
-            let points = [CGPoint(x: r.minX + inset, y: r.midY), CGPoint(x: r.maxX - inset, y: r.midY)]
-            strokes.append(stroke(points, width: width, model: model))
+            let vertical = r.height > r.width * 1.4
+            let width = max(1, min(80, vertical ? r.width : r.height))
+            let inset = min(width / 2, (vertical ? r.height : r.width) / 2)
+            let points = vertical
+                ? [CGPoint(x: r.midX, y: r.minY + inset), CGPoint(x: r.midX, y: r.maxY - inset)]
+                : [CGPoint(x: r.minX + inset, y: r.midY), CGPoint(x: r.maxX - inset, y: r.midY)]
+            strokes.append(stroke(points, width: width, model: model, mask: r))
         }
         if strokes.isEmpty, trace.count > 1 { strokes = [stroke(trace, width: CGFloat(model.markerWidth), model: model)] }
         guard !strokes.isEmpty else { model.cancelGuidedInk(before); return }
         model.installNativeInk(PKDrawing(strokes: before.strokes + strokes))
         model.strokeEnded(); model.finishInkGesture()
     }
-    private func stroke(_ points: [CGPoint], width: CGFloat, model: EditorViewModel) -> PKStroke {
+    private func stroke(_ points: [CGPoint], width: CGFloat, model: EditorViewModel, mask: CGRect? = nil) -> PKStroke {
         let samples = points.enumerated().map { index, point in
             PKStrokePoint(location: point, timeOffset: Double(index) * 0.01, size: .init(width: width, height: width),
                 opacity: 0.4, force: 1, azimuth: 0, altitude: .pi / 2)
         }
-        return PKStroke(ink: PKInk(.marker, color: PaperInk.color(model.ink)), path: PKStrokePath(controlPoints: samples, creationDate: Date()))
+        return PKStroke(ink: PKInk(.marker, color: PaperInk.color(model.ink)), path: PKStrokePath(controlPoints: samples, creationDate: Date()),
+            mask: mask.map { UIBezierPath(rect: $0) })
     }
 }

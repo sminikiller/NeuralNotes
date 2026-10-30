@@ -18,3 +18,8 @@ Aggiunte fixture 0.26 e regressioni native PDF/backup, rimappatura fonti/audio, 
 
 ## Prima della consegna
 Verifica completa di tutti i job, analisi degli eventuali fallimenti reali, controllo visivo degli screenshot e ZIP esatto compilato. Solo dopo: TestFlight con SHA verificato. Nessuna nuova beta dichiarata disponibile prima della conferma del caricamento. Fluidità e falsi positivi su iPad 10/Pencil fisici restano distinti dalle prove sintetiche e sul simulatore. Lotti 0.28–0.31 ancora successivi, non dichiarati conclusi.
+
+
+### Rifiniture successive al pre-collaudo 6fafef3
+Il compositore dell’evidenziatore mantiene al massimo due immagini dell’area visibile (due milioni di pixel ciascuna) e aggiorna solo l’inchiostro del gesto: nessuna rilettura del PDF per campione. Una prova controlla dodici aggiornamenti con un’unica ricostruzione. Le parole molto strette sono mascherate al loro rettangolo; pagine ruotate usano lo stesso trasformato del rendering, verificato confrontando i riquadri con i glifi rasterizzati a 0/90/180/270 gradi. Nuove prove da eseguire sulla revisione successiva.
+Riferimento tecnico della trasformazione: [CGPDFPage Apple](https://developer.apple.com/documentation/CoreGraphics/CGPDFPage), coerente con la geometria già usata dallo studio PDF.
