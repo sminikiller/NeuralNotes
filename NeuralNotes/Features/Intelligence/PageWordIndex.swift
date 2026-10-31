@@ -116,7 +116,10 @@ final class PageWordIndex {
         Task {
             defer {
                 running.remove(cacheKey)
-                if model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
+                // Reprepare a genuinely newer visual epoch after a stale
+                // result; never recursively retry an unchanged failed read.
+                let changedWhileReading = epochs[page.id] != generation
+                if cache[cacheKey] != nil || changedWhileReading, model.tool == .marker, !model.hasActiveStroke { model.configureTool() }
             }
             do {
             var words: [PageWord] = []
