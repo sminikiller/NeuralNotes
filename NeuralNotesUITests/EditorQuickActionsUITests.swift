@@ -44,8 +44,10 @@ final class EditorQuickActionsUITests: XCTestCase {
         app.buttons["tool-Testo con Pencil"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.4, dy: 0.4)).tap()
         let input = app.textViews["pageTextInput"]; XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap(); input.typeText("Energia conservata")
+        // Read the page position before the software keyboard temporarily
+        // shortens the viewport. Fine returns to this full-page viewport.
         let box = input.frame
+        input.tap(); input.typeText("Energia conservata")
         app.buttons["pageTextDone"].tap(); app.buttons["tool-Evidenziatore"].tap()
         let area = CGRect(x: box.minX - 4, y: box.minY - 4, width: min(160, box.width), height: 45)
         @MainActor func yellowPixels() throws -> Int {
@@ -58,7 +60,12 @@ final class EditorQuickActionsUITests: XCTestCase {
                     bytesPerRow: crop.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
                 context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
             }
-            return stride(from: 0, to: pixels.count, by: 4).filter { pixels[$0] > 200 && pixels[$0 + 1] > 160 && Int(pixels[$0]) - Int(pixels[$0 + 2]) > 20 }.count
+            var count = 0
+            for i in stride(from: 0, to: pixels.count, by: 4) {
+                let red = Int(pixels[i]), green = Int(pixels[i + 1]), blue = Int(pixels[i + 2])
+                if red > 200 && green > 160 && red - blue > 20 { count += 1 }
+            }
+            return count
         }
         let baseline = try yellowPixels(), origin = app.coordinate(withNormalizedOffset: .zero)
         origin.withOffset(.init(dx: box.minX + 4, dy: box.minY + 10)).press(forDuration: 0.05,
