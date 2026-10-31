@@ -2,6 +2,9 @@ import Foundation
 
 public enum PenKind: String, Codable, CaseIterable, Sendable {
     case pen, pencil, monoline, fountainPen, watercolor, crayon
+    public init(from decoder: Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .pen
+    }
     public var title: String {
         switch self { case .pen: return "Penna"; case .pencil: return "Matita"; case .monoline: return "Monolinea"
         case .fountainPen: return "Stilografica"; case .watercolor: return "Acquerello"; case .crayon: return "Pastello" }

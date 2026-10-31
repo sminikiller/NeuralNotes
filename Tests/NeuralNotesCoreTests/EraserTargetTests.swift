@@ -2,6 +2,24 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class EraserTargetTests: XCTestCase {
+    func testWorkspaceWithFuturePenAndPresetStillOpensUsingASafeNativeTool() throws {
+        var profiles = NotebookWorkspaces.starter()
+        var writing = WritingOptions(); writing.pen = .pencil
+        writing.presets = [PenPreset(kind: .pencil, color: .blue, width: 3)]
+        profiles.profiles[0].writing = writing
+        let encoded = try JSONEncoder().encode(profiles)
+        let future = try XCTUnwrap(String(data: encoded, encoding: .utf8)).replacingOccurrences(of: "\"pencil\"", with: "\"future-native-pen\"")
+        XCTAssertNotEqual(future.data(using: .utf8), encoded)
+        let restored = try JSONDecoder().decode(NotebookWorkspaces.self, from: Data(future.utf8))
+        XCTAssertTrue(restored.isValid); XCTAssertEqual(restored.selectedID, profiles.selectedID)
+        XCTAssertEqual(restored.profiles[0].writing?.pen, .pen)
+        XCTAssertEqual(restored.profiles[0].writing?.presets.first?.kind, .pen)
+        XCTAssertEqual(restored.profiles[0].writing?.presets.first?.id, writing.presets.first?.id)
+        XCTAssertEqual(restored.profiles[0].writing?.presets.first?.color, .blue)
+        XCTAssertEqual(restored.profiles[0].writing?.presets.first?.width, 3)
+        XCTAssertEqual(restored.profiles[0].favorites, profiles.profiles[0].favorites)
+        XCTAssertEqual(try JSONDecoder().decode(NotebookWorkspaces.self, from: JSONEncoder().encode(restored)), restored)
+    }
     func testLegacyMarkerOnlyAndFutureTargetDecodeWithoutLosingWritingPreferences() throws {
         var options = WritingOptions(); options.markerOnly = true; options.eraserWidth = 22
         let legacy = try JSONDecoder().decode(WritingOptions.self, from: JSONEncoder().encode(options))
