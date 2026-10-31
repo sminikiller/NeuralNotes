@@ -110,6 +110,11 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Scegli Sposta oppure Copia. Tocca la miniatura di destinazione, cercala per numero o titolo, oppure scegli Nuova dopo la pagina di origine oppure Nuova alla fine del quaderno.",
             "La selezione viene proporzionata se lo spazio disponibile è più piccolo. Una sola azione Annulla ripristina origine e destinazione; se hai creato una pagina nuova, la rimuove dall’ordine attivo.",
             "Per incollare altrove solo gli elementi selezionati, usa Copia come immagine dal menu Trasforma selezione. Condividi immagine apre il foglio di condivisione: il PNG è trasparente e a risoluzione doppia, senza carta o PDF di sfondo." ]),
+        .init("type-deletion", .pages, "Elimina elementi di un tipo", "line.3.horizontal.decrease.circle", "Conteggio preventivo, scelta delle pagine e annulla unico.", [
+            "Dal menu della pagina oppure da Azioni, Documento apri Elimina elementi per tipo. Dalla griglia pagine puoi avviarlo anche sulle pagine selezionate.",
+            "Scegli questa pagina, pagine selezionate o tutto il quaderno. Attendi i conteggi e attiva i tipi desiderati: penna, evidenziatore, forme, connettori, testo, immagini, nastri, note della Lente o collegamenti audio.",
+            "Conferma il numero di elementi. Per tutto il quaderno viene creato prima un backup; se il backup non riesce, la modifica viene rifiutata. Concludi registrazione o compressione prima di procedere.",
+            "Una sola azione Annulla ripristina gli elementi su tutte le pagine. Gli oggetti bloccati sono esclusi; Collegamenti audio rimuove i rimandi, conservando registrazioni e trascrizioni." ]),
         .init("workspace", .writing, "Workspace e toolbar personale", "slider.horizontal.3", "Profili per scrittura, matematica, lettura e disegno.", [
             "Apri Workspace dalle opzioni dell’editor e scegli il profilo dell’attività.",
             "Organizza strumenti preferiti, posizione della toolbar, palette e gesti senza cambiare gli altri profili.",

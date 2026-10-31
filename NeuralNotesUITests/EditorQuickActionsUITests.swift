@@ -236,6 +236,32 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
     }
+    @MainActor func testTypeDeletionCountsTheShapeAndOneUndoRestoresIt() {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(); openEditor(app)
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 8))
+        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
+            thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
+        app.buttons["editorPageActions"].tap(); app.buttons["Elimina elementi per tipo…"].tap()
+        let shapes = app.switches["deleteType-shapes"]; XCTAssertTrue(shapes.waitForExistence(timeout: 8))
+        shapes.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap()
+        let apply = app.buttons["typeDeletionApply"], list = app.collectionViews["typeDeletionList"]
+        for _ in 0..<5 where !(apply.exists && apply.isHittable) { list.swipeUp() }
+        XCTAssertTrue(apply.waitForExistence(timeout: 8))
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: apply)], timeout: 10)
+        XCTAssertTrue(apply.label.contains("1")); apply.tap()
+        let confirm = app.buttons["typeDeletionConfirm"]; XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
+        XCTAssertTrue(app.buttons["editorUndo"].waitForExistence(timeout: 8))
+        app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
+        XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
+        app.buttons["editorUndo"].tap(); app.buttons["Seleziona tutto"].tap()
+        let handle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "shapeHandle-")).firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 5)); XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
+        app.buttons["editorRedo"].tap(); app.buttons["Seleziona tutto"].tap()
+        XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
+    }
     @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
         let app = XCUIApplication(); openEditor(app)
         app.buttons["Inserisci foto o forma"].tap(); app.buttons["Inserisci foto"].tap()

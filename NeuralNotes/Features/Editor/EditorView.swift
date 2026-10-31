@@ -7,7 +7,7 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, study, crop, pages, practice, storage, paper, workspace, shapeStyle, connectorStyle
+    case elements, audio, search, study, crop, pages, practice, storage, paper, workspace, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
     var id: String { rawValue }
 }
 
@@ -255,6 +255,7 @@ struct EditorView: View {
             Button("Cerca nel documento", systemImage: "magnifyingglass") { panel = .search }
             Button("Salva adesso", systemImage: "checkmark.circle") { Task { _ = await model.flush() } }
             Button("Nuova finestra", systemImage: "macwindow.badge.plus") { openNewWindow() }
+            Button("Elimina elementi per tipo…", systemImage: "line.3.horizontal.decrease.circle", role: .destructive) { panel = .deleteNotebookTypes }
         }
     }
 
@@ -325,6 +326,8 @@ struct EditorView: View {
 
     @ViewBuilder private func panelSheet(_ item: EditorPanel) -> some View {
         switch item {
+        case .deleteTypes: TypeDeletionPanel(model: model)
+        case .deleteNotebookTypes: TypeDeletionPanel(model: model, wholeNotebook: true)
         case .connectorStyle: ConnectorStylePanel(model: model)
         case .shapeStyle: ShapeStylePanel(model: model)
         case .workspace: WorkspacePanel(model: model)
@@ -543,6 +546,7 @@ struct EditorView: View {
             Button("Sposta avanti", systemImage: "arrow.forward") { Task { await movePage(1) } }.disabled(pageIndex >= model.pages.count - 1)
             Divider()
             Button("Elimina pagina", systemImage: "trash", role: .destructive) { confirmDelete = true }
+            Button("Elimina elementi per tipo…", systemImage: "line.3.horizontal.decrease.circle", role: .destructive) { panel = .deleteTypes }
         } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
             .accessibilityLabel("Azioni pagina").accessibilityIdentifier("editorPageActions")
     }

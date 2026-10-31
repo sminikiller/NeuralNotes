@@ -19,6 +19,7 @@ struct PageBrowser: View {
     @State private var selected: Set<UUID> = []
     @State private var selecting = false
     @State private var showingTrash = false
+    @State private var typeDeletionPages: Set<UUID>?
 
     private var outline: [(section: NotebookSection, depth: Int)] { NotebookSections.outline(model.sections) }
     private var visible: [PageSnapshot] {
@@ -55,12 +56,18 @@ struct PageBrowser: View {
                     Menu("Organizza", systemImage: "folder") {
                         Button("Sezioni", systemImage: "folder") { managingSections = true }
                         Button("Collegamenti", systemImage: "link") { showingLinks = true }
+                        Button("Elimina elementi per tipo…", systemImage: "line.3.horizontal.decrease.circle", role: .destructive) {
+                            typeDeletionPages = selecting ? selected : Set([model.page?.id].compactMap { $0 })
+                        }.disabled(selecting && selected.isEmpty)
                     }
                 }
             }
             .sheet(isPresented: $managingSections) { SectionsPanel(model: model) }
             .sheet(isPresented: $showingLinks) { PageLinksPanel(model: model) }
             .sheet(isPresented: $showingTrash) { PageTrashPanel(model: model) }
+            .sheet(isPresented: Binding(get: { typeDeletionPages != nil }, set: { if !$0 { typeDeletionPages = nil } })) {
+                if let pages = typeDeletionPages { TypeDeletionPanel(model: model, pages: pages) }
+            }
             .task {
                 do { model.sections = try await model.workspace.catalog().sections ?? [] }
                 catch { model.error = error.localizedDescription }
@@ -140,6 +147,7 @@ struct PageBrowser: View {
                 }
                 Button("Rinomina pagina", systemImage: "pencil") { title = page.title ?? ""; renaming = page }
                 assignmentMenu(page)
+                Button("Elimina elementi per tipo…", systemImage: "line.3.horizontal.decrease.circle", role: .destructive) { typeDeletionPages = [page.id] }
                 Button("Elimina pagina", systemImage: "trash", role: .destructive) { requestDeletion([page.id]) }
             }
             if !selecting {

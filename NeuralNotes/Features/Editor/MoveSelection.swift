@@ -126,7 +126,6 @@ extension EditorViewModel {
     }
 }
 
-@MainActor
 enum EditorInkSignatures {
     static func make(_ drawing: PKDrawing) -> [String] {
         var occurrences: [String: Int] = [:]

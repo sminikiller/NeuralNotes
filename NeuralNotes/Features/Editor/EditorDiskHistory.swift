@@ -40,9 +40,13 @@ extension EditorViewModel {
         try await workspace.applyPageEdit(target, expectedOrder: undo ? change.afterOrder : change.beforeOrder,
             newOrder: undo ? change.beforeOrder : change.afterOrder, expectedRevisions: revisions)
         for id in Set(change.before.pageIDs).union(change.after.pageIDs) { PageWordIndex.shared.invalidatePage(id) }
-        pages = try await workspace.pages()
-        let focus = undo ? change.beforePage : change.afterPage
-        if let selected = pages.first(where: { $0.id == focus }) ?? pages.first { try await load(selected) }
+        // The document is already committed. A subsequent display/read error
+        // must not discard the logical undo or leave its cursor unadvanced.
+        do {
+            pages = try await workspace.pages()
+            let focus = undo ? change.beforePage : change.afterPage
+            if let selected = pages.first(where: { $0.id == focus }) ?? pages.first { try await load(selected) }
+        } catch { self.error = "Modifica salvata. Riapri il quaderno per aggiornare la visualizzazione: \(error.localizedDescription)" }
         scheduleMaintenance()
     }
 }

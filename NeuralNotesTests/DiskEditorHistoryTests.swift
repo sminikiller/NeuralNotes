@@ -71,4 +71,21 @@ final class DiskEditorHistoryTests: XCTestCase {
             XCTAssertEqual(preserved, newer); XCTAssertFalse(model.canUndo)
         }
     }
+    @MainActor func testReadFailureAfterDurableCommitStillKeepsTheUndoEntry() async throws {
+        try await fixture { model, root in
+            let page = try XCTUnwrap(model.page), ink = PKDrawing().dataRepresentation()
+            XCTAssertNil(page.drawingFile)
+            let before = try await snapshot(page, model: model, root: root, drawing: ink)
+            let after = try await snapshot(page, model: model, root: root, drawing: Data([1, 2, 3]))
+            let order = model.pages.map(\.id)
+            let change = EditorDiskChange(before: before, after: after, beforeOrder: order, afterOrder: order, beforePage: page.id, afterPage: page.id)
+            try await model.applyDiskChange(change, label: "Errore di lettura simulato")
+            XCTAssertNotNil(model.error); XCTAssertTrue(model.canUndo, "L’annulla deve esistere anche se la rilettura dopo il commit fallisce.")
+            await model.performUndo()
+            XCTAssertFalse(model.canUndo); XCTAssertTrue(model.canRedo)
+            let restored = try await model.workspace.pageSnapshot(page.id)
+            let data = try await model.workspace.drawing(restored)
+            XCTAssertTrue(try PKDrawing(data: XCTUnwrap(data)).strokes.isEmpty)
+        }
+    }
 }
