@@ -1,4 +1,5 @@
 import UIKit
+import CoreText
 import NeuralNotesCore
 
 /// The words of a page with their boxes, for the Lens: the PDF text layer when there
@@ -14,6 +15,8 @@ final class PageWordIndex {
     private var cache: [String: [PageWord]] = [:]
     private var order: [String] = []
     private var running: Set<String> = []
+    private var readingEpochs: [String: UUID] = [:]
+    private var refreshRequested = Set<String>()
     private var digitalWords: [String: [PageWord]] = [:]
     private var digitalOrder: [String] = []
     private var digitalRunning = Set<String>()
@@ -109,13 +112,25 @@ final class PageWordIndex {
 
     func prepare(_ page: PageSnapshot, model: EditorViewModel) {
         let cacheKey = key(page)
-        guard cache[cacheKey] == nil, !running.contains(cacheKey) else { return }
+        guard cache[cacheKey] == nil else { return }
+        if running.contains(cacheKey) {
+            // A PDF keeps one cache key across edits. Remember an explicit
+            // request for its new epoch instead of silently dropping it.
+            if readingEpochs[cacheKey] != epochs[page.id] { refreshRequested.insert(cacheKey) }
+            return
+        }
         running.insert(cacheKey)
         let ink = model.canvas.drawing
         let generation = epochs[page.id]
+        readingEpochs[cacheKey] = generation
         Task {
             defer {
                 running.remove(cacheKey)
+                readingEpochs[cacheKey] = nil
+                let refresh = refreshRequested.remove(cacheKey) != nil
+                if refresh, let current = model.page, current.id == page.id, model.hasLease {
+                    prepare(current, model: model)
+                }
                 // Reprepare a genuinely newer visual epoch after a stale
                 // result; never recursively retry an unchanged failed read.
                 let changedWhileReading = epochs[page.id] != generation
@@ -184,9 +199,33 @@ final class PageWordIndex {
         container.lineFragmentPadding = 0; storage.addLayoutManager(layout); layout.addTextContainer(container); layout.ensureLayout(for: container)
         let string = value.string as NSString
         var words: [PageWord] = []
+        var fonts: [String: CTFont] = [:]
         for token in PageWords.tokens(in: value.string) {
             let glyphs = layout.glyphRange(forCharacterRange: token.range, actualCharacterRange: nil)
-            let box = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            // TextKit's line box includes the entire ascender/descender band.
+            // With tightly spaced lines its bottom can already be inside the
+            // next line. Use actual glyph ink bounds so an underline selects
+            // its own word, just as it does with the PDF's word rectangles.
+            var box = CGRect.null
+            for i in glyphs.location..<NSMaxRange(glyphs) {
+                let character = layout.characterIndexForGlyph(at: i)
+                guard character < value.length else { continue }
+                let font = value.attribute(.font, at: character, effectiveRange: nil) as? UIFont ?? UIFont.systemFont(ofSize: text.fontSize)
+                let key = "\(font.fontName)|\(font.pointSize)"
+                let native = fonts[key] ?? CTFontCreateWithName(font.fontName as CFString, font.pointSize, nil)
+                fonts[key] = native
+                let index = layout.glyph(at: i)
+                guard index <= UInt16.max else { continue }
+                var glyph = CGGlyph(index)
+                let bounds = CTFontGetBoundingRectsForGlyphs(native, .horizontal, &glyph, nil, 1)
+                guard !bounds.isNull, !bounds.isEmpty else { continue }
+                let line = layout.lineFragmentRect(forGlyphAt: i, effectiveRange: nil)
+                let at = layout.location(forGlyphAt: i)
+                let ink = CGRect(x: line.minX + at.x + bounds.minX, y: line.minY + at.y - bounds.maxY,
+                                 width: bounds.width, height: bounds.height)
+                box = box.union(ink)
+            }
+            if box.isNull { box = layout.boundingRect(forGlyphRange: glyphs, in: container) }
             guard box.width > 0, box.height > 0 else { continue }
             let rotated = box.offsetBy(dx: CGFloat(text.x), dy: CGFloat(text.y)).applying(RichText.rotation(text, pageHeight: pageHeight))
             words.append(PageWord(text: string.substring(with: token.range), rect: rotated))

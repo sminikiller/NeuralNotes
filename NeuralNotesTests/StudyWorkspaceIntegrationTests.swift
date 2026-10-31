@@ -238,7 +238,8 @@ final class StudyWorkspaceIntegrationTests: XCTestCase {
             XCTAssertEqual(model.tool, .marker); XCTAssertEqual(model.thickness, 6)
             XCTAssertEqual(model.lensPick?.text, "fotosintesi"); XCTAssertNotNil(model.lensHighlight)
             XCTAssertNil(model.lensSession); XCTAssertTrue(model.page?.texts.isEmpty == true)
-            XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertTrue(model.markerCustomInput)
+            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled, "Il gesto torna all’evidenziatore Parole, non al pennarello nativo libero.")
             model.configureTool() // The view's delayed onChange must keep the pending bar.
             XCTAssertNotNil(model.lensPick)
             model.chooseTool(.lens); XCTAssertNil(model.lensPick)

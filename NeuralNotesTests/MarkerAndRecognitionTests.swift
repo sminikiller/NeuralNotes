@@ -209,6 +209,26 @@ final class MarkerAndRecognitionTests: XCTestCase {
             try await model.load(try XCTUnwrap(model.page)); XCTAssertEqual(model.page?.pdfMarkups, marks)
         }
     }
+    @MainActor func testTypedWordInkBoundsCoverRenderedGlyphsWithoutExtendingIntoTheNextLine() async throws {
+        try await fixture { model in
+            var text = TextElement(text: "Energia conservata\nSeconda riga")
+            text.x = 60; text.y = 100; text.width = 400; text.fontSize = 24
+            model.page?.texts = [text]
+            let page = try XCTUnwrap(model.page), words = PageWordIndex.typedWords(text, pageHeight: page.height)
+            XCTAssertEqual(words.map(\.text), ["Energia", "conservata", "Seconda", "riga"])
+            XCTAssertLessThan(words[0].rect.maxY + 2, words[2].rect.minY)
+            let image = DocumentServices.image(page: page, drawing: PKDrawing(), workspace: model.workspace)
+            let source = try XCTUnwrap(image.cgImage), scale = CGFloat(source.width) / page.width
+            var enclosed = 0
+            for word in words {
+                let box = word.rect.insetBy(dx: -1, dy: -1).applying(.init(scaleX: scale, y: scale)).integral
+                let crop = try XCTUnwrap(source.cropping(to: box))
+                let pixels = blackPixels(UIImage(cgImage: crop)); XCTAssertGreaterThan(pixels, 20)
+                enclosed += pixels
+            }
+            XCTAssertGreaterThanOrEqual(enclosed, Int(Double(blackPixels(image)) * 0.95), "I riquadri devono coprire i glifi realmente disegnati, non solo passare una prova geometrica")
+        }
+    }
     @MainActor func testWordHighlightsRemainColoredOverPhotosAndSameStyleOverlapsDoNotDarken() async throws {
         try await fixture { model in
             let picture = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200)).image { item in UIColor.white.setFill(); item.fill(CGRect(x: 0, y: 0, width: 200, height: 200)) }
