@@ -9,7 +9,7 @@ enum ElementRendering {
         let rect = CGRect(x: element.x, y: element.y, width: element.width, height: element.height)
         context.saveGState()
         context.translateBy(x: rect.midX, y: rect.midY)
-        let angle = element.rotation ?? 0
+        let angle = (element.rotation ?? 0).truncatingRemainder(dividingBy: 360)
         context.rotate(by: CGFloat(angle) * .pi / 180)
         let sideways = abs(angle.truncatingRemainder(dividingBy: 180)) == 90
         let size = sideways ? CGSize(width: rect.height, height: rect.width) : rect.size

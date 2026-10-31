@@ -665,7 +665,7 @@ final class EditorReliabilityTests: XCTestCase {
             model.canvas.drawing = PKDrawing(strokes: [stroke(.pen), stroke(.marker)])
             let original = model.canvas.drawing
             model.chooseTool(.eraser); model.editWriting { $0.markerOnly = true }
-            let session = MarkerEraseSession(model: model); model.drawingShape = true
+            let session = SelectiveEraseSession(model: model); model.drawingShape = true
             session.append([StrokeSample(x: 140, y: 60), StrokeSample(x: 140, y: 100)])
             try await Task.sleep(for: .milliseconds(80))
             XCTAssertNil(model.canvas.drawing.strokes[0].mask); XCTAssertNotNil(model.canvas.drawing.strokes[1].mask)

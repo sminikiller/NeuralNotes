@@ -35,7 +35,8 @@ enum RichText {
     }
     static func rotation(_ text: TextElement, pageHeight: Double) -> CGAffineTransform {
         let box = bounds(text, pageHeight: pageHeight)
-        return CGAffineTransform(translationX: box.midX, y: box.midY).rotated(by: CGFloat(text.rotation ?? 0) * .pi / 180).translatedBy(x: -box.midX, y: -box.midY)
+        let angle = (text.rotation ?? 0).truncatingRemainder(dividingBy: 360) * .pi / 180
+        return CGAffineTransform(translationX: box.midX, y: box.midY).rotated(by: angle).translatedBy(x: -box.midX, y: -box.midY)
     }
     static func link(at point: CGPoint, text: TextElement, pageHeight: Double) -> URL? {
         guard let index = characterIndex(at: point, text: text, pageHeight: pageHeight) else { return nil }

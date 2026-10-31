@@ -29,16 +29,19 @@ enum PageRenderer {
                 context.move(to: CGPoint(x: 64, y: 0)); context.addLine(to: CGPoint(x: 64, y: rect.height)); context.strokePath()
             }
         }
-        for markup in page.pdfMarkups ?? [] {
+        drawMarkups(page.pdfMarkups ?? [], in: context)
+        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
+        for id in page.orderedObjectIDs where !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+        }
+    }
+    static func drawMarkups(_ markups: [PDFMarkup], in context: CGContext) {
+        for markup in markups {
             let box = CGRect(x: markup.x, y: markup.y, width: markup.width, height: markup.height)
             context.saveGState(); context.setBlendMode(.multiply)
             if markup.kind == .highlight { context.setFillColor(UIColor.systemYellow.withAlphaComponent(0.35).cgColor); context.fill(box) }
             else { context.setStrokeColor(UIColor.systemRed.cgColor); context.setLineWidth(1); context.move(to: CGPoint(x: box.minX, y: box.maxY)); context.addLine(to: CGPoint(x: box.maxX, y: box.maxY)); context.strokePath() }
             context.restoreGState()
-        }
-        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
-        for id in page.orderedObjectIDs where !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
-            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
     }
     /// One object alone, for the picture that follows the finger while it is dragged.
@@ -97,7 +100,7 @@ enum PageRenderer {
             let value = RichText.attributed(text, color: text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black)
             let box = RichText.bounds(text, pageHeight: page.height)
             context.saveGState(); context.translateBy(x: box.midX, y: box.midY)
-            context.rotate(by: CGFloat(text.rotation ?? 0) * .pi / 180)
+            context.rotate(by: CGFloat((text.rotation ?? 0).truncatingRemainder(dividingBy: 360)) * .pi / 180)
             let local = CGRect(x: -box.width / 2, y: -box.height / 2, width: box.width, height: box.height)
             if let color = text.background {
                 context.setFillColor(UIColor(red: color.red, green: color.green, blue: color.blue, alpha: 1).cgColor)

@@ -56,7 +56,7 @@ struct WritingToolsPanel: View {
                 Picker("Cancellazione", selection: option(\.eraser)) { Text("Parziale").tag(EraserKind.partial); Text("Tratto intero").tag(EraserKind.stroke) }
                 Slider(value: option(\.eraserWidth), in: 4...100)
                 Text("Larghezza \(model.writingOptions.eraserWidth, specifier: "%.0f") pt")
-                Toggle("Solo evidenziatore", isOn: option(\.markerOnly))
+                EraserTargetOptions(model: model)
                 Toggle("Torna alla penna dopo aver cancellato", isOn: option(\.returnToPen))
             }
         }.navigationTitle("Penne e gomma")

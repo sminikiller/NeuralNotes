@@ -53,7 +53,7 @@ struct ToolOptionsPopover: View {
             }.pickerStyle(.segmented)
             Slider(value: option(\.eraserWidth), in: 4...100)
             Text("\(model.writingOptions.eraserWidth, specifier: "%.0f") pt").font(.caption.monospacedDigit())
-            Toggle("Solo evidenziatore", isOn: option(\.markerOnly))
+            EraserTargetOptions(model: model)
             Toggle("Torna alla penna", isOn: option(\.returnToPen))
         }
     }

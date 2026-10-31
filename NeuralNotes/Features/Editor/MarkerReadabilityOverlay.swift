@@ -56,7 +56,7 @@ final class MarkerReadabilityOverlay: UIView {
         var hiddenIDs = host.surface.allHiddenObjectIDs
         if let id = host.surface.hiddenObjectID { hiddenIDs.insert(id) }
         if let token = model.eraserCompositionToken {
-            composition.drawReplacingInk(page: page, drawing: drawing, token: token, package: host.surface.package,
+            composition.drawReplacingContent(page: page, drawing: drawing, token: token, package: host.surface.package,
                 bounds: visible, scale: max(0.1, contentScaleFactor * zoom), hiddenIDs: hiddenIDs,
                 hiddenTextID: host.surface.hiddenTextID, in: context)
             return

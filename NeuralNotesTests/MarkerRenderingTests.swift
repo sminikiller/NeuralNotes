@@ -64,7 +64,7 @@ final class MarkerRenderingTests: XCTestCase {
         for index in 0..<12 {
             drawing = SelectiveInkEraser.erase(drawing, samples: [.init(x: 50 + Double(index) * 12, y: 70)], width: 8, wholeStroke: false).0
             rendered = renderer.image { item in
-                cache.drawReplacingInk(page: page, drawing: drawing, token: token, package: URL(fileURLWithPath: "/"),
+                cache.drawReplacingContent(page: page, drawing: drawing, token: token, package: URL(fileURLWithPath: "/"),
                     bounds: bounds, scale: 2, hiddenIDs: [], hiddenTextID: nil, in: item.cgContext)
             }
         }
@@ -74,7 +74,36 @@ final class MarkerRenderingTests: XCTestCase {
         let strip = try XCTUnwrap(image.cropping(to: CGRect(x: 100, y: 134, width: 360, height: 12)))
         XCTAssertGreaterThan(pixelCount(strip, white: true), 80)
     }
-    @MainActor private func pixelCount(_ image: CGImage, white: Bool) -> Int {
+    @MainActor func testErasedObjectsAndMarkupNeverReappearInTheCachedPDFComposition() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("attachments"), withIntermediateDirectories: true)
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
+        try UIGraphicsPDFRenderer(bounds: bounds).writePDF(to: root.appendingPathComponent("attachments/paper.pdf")) { item in
+            item.beginPage(); ("ENERGIA" as NSString).draw(at: CGPoint(x: 30, y: 55), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 20), .foregroundColor: UIColor.black])
+        }
+        var page = PageSnapshot(); page.width = 300; page.height = 200; page.pdfFile = "attachments/paper.pdf"; page.pdfIndex = 0
+        let format = UIGraphicsImageRendererFormat(); format.scale = 2
+        let renderer = UIGraphicsImageRenderer(size: bounds.size, format: format), cache = MarkerCompositionCache(), token = UUID()
+        let baseline = renderer.image { item in PageRenderer.draw(page, package: root, in: item.cgContext) }
+        var shape = ShapeElement(kind: .rectangle, x: 185, y: 50, width: 50, height: 40, red: 1)
+        shape.fill = .red; page.shapes = [shape]
+        page.pdfMarkups = [.init(kind: .highlight, x: 20, y: 110, width: 80, height: 12, text: "Rimuovere")]
+        let drawing = PKDrawing(strokes: [ink(.marker, color: .yellow, y: 70, width: 24)])
+        let before = renderer.image { item in cache.drawReplacingContent(page: page, drawing: drawing, token: token, package: root, bounds: bounds, scale: 2, hiddenIDs: [], hiddenTextID: nil, in: item.cgContext) }
+        page.shapes = []; page.pdfMarkups = []; page.revision += 1
+        let after = renderer.image { item in cache.drawReplacingContent(page: page, drawing: drawing, token: token, package: root, bounds: bounds, scale: 2, hiddenIDs: [], hiddenTextID: nil, in: item.cgContext) }
+        XCTAssertEqual(cache.builds, 1)
+        let redBox = CGRect(x: 380, y: 110, width: 80, height: 60)
+        let markedBox = CGRect(x: 40, y: 220, width: 160, height: 24)
+        let oldShape = try XCTUnwrap(before.cgImage?.cropping(to: redBox)), newShape = try XCTUnwrap(after.cgImage?.cropping(to: redBox))
+        XCTAssertGreaterThan(pixelCount(oldShape, white: false, red: true), 100)
+        XCTAssertEqual(pixelCount(newShape, white: false, red: true), 0)
+        let oldMark = try XCTUnwrap(before.cgImage?.cropping(to: markedBox)), newMark = try XCTUnwrap(after.cgImage?.cropping(to: markedBox))
+        XCTAssertGreaterThan(pixelCount(newMark, white: true), pixelCount(oldMark, white: true) + 100)
+        XCTAssertGreaterThanOrEqual(pixelCount(try XCTUnwrap(after.cgImage), white: false), Int(Double(pixelCount(try XCTUnwrap(baseline.cgImage), white: false)) * 0.98))
+    }
+    @MainActor private func pixelCount(_ image: CGImage, white: Bool, red: Bool = false) -> Int {
         let width = image.width, height = image.height
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
         return bytes.withUnsafeMutableBytes { buffer in
@@ -83,7 +112,8 @@ final class MarkerRenderingTests: XCTestCase {
             context.draw(image, in: .init(x: 0, y: 0, width: width, height: height))
             let p = buffer.bindMemory(to: UInt8.self)
             return stride(from: 0, to: p.count, by: 4).filter { i in
-                white ? p[i] > 235 && p[i + 1] > 235 && p[i + 2] > 235 : p[i] < 30 && p[i + 1] < 30 && p[i + 2] < 30
+                if red { return p[i] > 150 && p[i + 1] < 100 && p[i + 2] < 100 }
+                return white ? p[i] > 235 && p[i + 1] > 235 && p[i + 2] > 235 : p[i] < 30 && p[i + 1] < 30 && p[i + 2] < 30
             }.count
         }
     }

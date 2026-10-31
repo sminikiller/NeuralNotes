@@ -143,7 +143,7 @@ final class MarkerAndRecognitionTests: XCTestCase {
             model.chooseTool(.eraser); model.editWriting { $0.markerOnly = true; $0.eraser = .partial; $0.eraserWidth = 12 }
             let markerBeforeErase = model.canvas.drawing.dataRepresentation()
             model.drawingShape = true
-            let erasing = MarkerEraseSession(model: model)
+            let erasing = SelectiveEraseSession(model: model)
             erasing.append([.init(x: target.rect.midX, y: target.rect.midY)])
             model.drawingShape = false; erasing.finish(cancelled: false)
             XCTAssertNil(model.eraserCompositionToken)

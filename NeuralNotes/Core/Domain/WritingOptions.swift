@@ -26,6 +26,8 @@ public struct WritingOptions: Codable, Equatable, Sendable {
     public var markerWidth: Double?
     public var markerRecentWidths: [Double]?
     public var markerSnapWords: Bool?
+    public var eraserTarget: EraserTarget?
+    public var effectiveEraserTarget: EraserTarget { eraserTarget ?? (markerOnly ? .marker : .all) }
     public init() { }
     public var isValid: Bool {
         eraserWidth.isFinite && (4...100).contains(eraserWidth) && presets.count <= 5 && presets.allSatisfy(\.isValid) &&

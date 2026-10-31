@@ -17,7 +17,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private let previousInk = UIImageView()
     private var before = PKDrawing()
     private var held = false
-    private var markerSession: MarkerEraseSession?
+    private var markerSession: SelectiveEraseSession?
     private var wordSession: MarkerWordSession?
     private var protractorSession: ProtractorInkSession?
     private var guiding = false
@@ -42,7 +42,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
-        let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser && model.writingOptions.markerOnly) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.protractorActive || model.recognitionMode != .off))
+        let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.protractorActive || model.recognitionMode != .off))
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -82,7 +82,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             model.guideReadout = nil
         }
         if model.tool == .shape || model.tool == .eraser { model.drawingShape = true }
-        if model.tool == .eraser { markerSession = MarkerEraseSession(model: model); markerSession?.append(points) }
+        if model.tool == .eraser { markerSession = SelectiveEraseSession(model: model); markerSession?.append(points) }
     }
     func move(_ touch: UITouch, event: UIEvent) {
         guard let host else { return }

@@ -16,12 +16,20 @@ final class MarkerCompositionCache {
     private var pens: UIImage?
     private(set) var builds = 0
     func clear() { token = nil; page = nil; base = nil; pens = nil }
-    /// Erasing changes existing native masks, so only the document background
-    /// is cached. Reuse that one viewport while compositing the current ink.
-    func drawReplacingInk(page: PageSnapshot, drawing: PKDrawing, token: UUID, package: URL,
-                          bounds: CGRect, scale: CGFloat, hiddenIDs: Set<UUID>, hiddenTextID: UUID?, in context: CGContext) {
-        draw(page: page, baseline: PKDrawing(), token: token, delta: drawing, package: package,
-             bounds: bounds, scale: scale, hiddenIDs: hiddenIDs, hiddenTextID: hiddenTextID, in: context)
+    /// Object/markup erasure also changes the document. Cache only immutable
+    /// paper/PDF pixels, then draw the current objects and ink over that base.
+    func drawReplacingContent(page: PageSnapshot, drawing: PKDrawing, token: UUID, package: URL,
+                              bounds: CGRect, scale: CGFloat, hiddenIDs: Set<UUID>, hiddenTextID: UUID?, in context: CGContext) {
+        var paper = PageSnapshot(id: page.id)
+        paper.width = page.width; paper.height = page.height; paper.paper = page.paper; paper.appearance = page.appearance
+        paper.pdfFile = page.pdfFile; paper.pdfIndex = page.pdfIndex
+        draw(page: paper, baseline: PKDrawing(), token: token, delta: PKDrawing(), package: package,
+            bounds: bounds, scale: scale, hiddenIDs: [], hiddenTextID: nil, in: context)
+        PageRenderer.drawMarkups(page.pdfMarkups ?? [], in: context)
+        var ids = Set(page.objectIDs).subtracting(hiddenIDs)
+        if let hiddenTextID { ids.remove(hiddenTextID) }
+        PageRenderer.drawSelected(ids, foreground: false, page: page, package: package, in: context)
+        LegibleInkRenderer.draw(drawing, in: context, bounds: bounds, scale: scale)
     }
     func draw(page: PageSnapshot, baseline: PKDrawing, token: UUID, delta: PKDrawing, package: URL,
               bounds: CGRect, scale: CGFloat, hiddenIDs: Set<UUID>, hiddenTextID: UUID?, in context: CGContext) {

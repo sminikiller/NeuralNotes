@@ -250,7 +250,7 @@ final class EditorViewModel {
         canvas.drawingGestureRecognizer.isEnabled = tool != .objects && tool != .audioLink && tool != .text && tool != .shape
         if tool == .lens { canvas.drawingGestureRecognizer.isEnabled = false }
         if laserActive { canvas.drawingGestureRecognizer.isEnabled = false }
-        if tool == .eraser && writingOptions.markerOnly { canvas.drawingGestureRecognizer.isEnabled = false }
+        if tool == .eraser { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = false
         if (rulerActive || protractorDrawing) && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
         if markerCustomInput { canvas.drawingGestureRecognizer.isEnabled = false }
@@ -268,7 +268,7 @@ final class EditorViewModel {
         if tool == .eraser && drawingShape { return }
         if let page {
             let markerGesture = !applyingHistory && ((tool == .marker && (usingInkTool || finishingInkGesture)) ||
-                (tool == .eraser && writingOptions.markerOnly && (usingInkTool || drawingShape)))
+                (tool == .eraser && writingOptions.effectiveEraserTarget == .marker && (usingInkTool || drawingShape)))
             let preserve = preservingRecognizedWords || markerGesture
             PageWordIndex.shared.invalidate(page, preservingRecognizedWords: preserve)
         }
