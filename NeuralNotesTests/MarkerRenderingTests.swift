@@ -86,8 +86,8 @@ final class MarkerRenderingTests: XCTestCase {
         let format = UIGraphicsImageRendererFormat(); format.scale = 2
         let renderer = UIGraphicsImageRenderer(size: bounds.size, format: format), cache = MarkerCompositionCache(), token = UUID()
         let baseline = renderer.image { item in PageRenderer.draw(page, package: root, in: item.cgContext) }
-        var shape = ShapeElement(kind: .rectangle, x: 185, y: 50, width: 50, height: 40, red: 1)
-        shape.fill = .red; page.shapes = [shape]
+        var shape = ShapeElement(kind: .rectangle, x: 185, y: 50, width: 50, height: 40, red: 1, green: 0, blue: 0)
+        shape.fill = .red; shape.fillOpacity = 1; page.shapes = [shape]
         page.pdfMarkups = [.init(kind: .highlight, x: 20, y: 110, width: 80, height: 12, text: "Rimuovere")]
         let drawing = PKDrawing(strokes: [ink(.marker, color: .yellow, y: 70, width: 24)])
         let before = renderer.image { item in cache.drawReplacingContent(page: page, drawing: drawing, token: token, package: root, bounds: bounds, scale: 2, hiddenIDs: [], hiddenTextID: nil, in: item.cgContext) }

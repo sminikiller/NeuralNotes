@@ -252,7 +252,13 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(apply.waitForExistence(timeout: 8))
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: apply)], timeout: 10)
         XCTAssertTrue(apply.label.contains("1")); apply.tap()
-        let confirm = app.buttons["typeDeletionConfirm"]; XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
+        // SwiftUI exposes both a confirmation button and its nested AX node.
+        // Scope the query to this dialog and resolve that one visible action.
+        let dialog = app.sheets.matching(NSPredicate(format: "label BEGINSWITH %@", "Eliminare 1 elementi")).firstMatch
+        XCTAssertTrue(dialog.waitForExistence(timeout: 5))
+        let confirm = dialog.buttons["typeDeletionConfirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); XCTAssertEqual(confirm.label, "Elimina elementi"); confirm.tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: dialog)], timeout: 8)
         XCTAssertTrue(app.buttons["editorUndo"].waitForExistence(timeout: 8))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
         XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
