@@ -229,6 +229,11 @@ final class EditorQuickActionsUITests: XCTestCase {
         newPage.tap(); waitForPage(2, total: 2, in: app)
         app.buttons["editorUndo"].tap(); waitForPage(1, total: 1, in: app)
         app.buttons["editorRedo"].tap(); waitForPage(2, total: 2, in: app)
+        // History restores page contents, and deliberately clears the active
+        // selection. Select again to verify the restored object is available.
+        app.buttons["Seleziona tutto"].tap()
+        let handle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "shapeHandle-")).firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
     }
     @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
