@@ -14,11 +14,11 @@ final class FocusToolActionsUITests: XCTestCase {
         if focus.waitForExistence(timeout: 10), !app.buttons["editorAddText"].exists { focus.tap() }
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
-        app.buttons["editorAddPage"].tap()
+        tapReady(app.buttons["editorAddPage"])
         let counter = app.buttons["editorPageCounter"]
-        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 2 di 2"), object: counter)], timeout: 10)
-        app.buttons["editorPreviousPage"].tap()
-        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 1 di 2"), object: counter)], timeout: 10)
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 2 di 2"), object: counter)], timeout: 30)
+        tapReady(app.buttons["editorPreviousPage"])
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 1 di 2"), object: counter)], timeout: 30)
         app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.35)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.5)))
@@ -37,5 +37,10 @@ final class FocusToolActionsUITests: XCTestCase {
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "focus-selection-and-tools"; attachment.lifetime = .keepAlways; add(attachment)
         app.buttons["Chiudi miniature di destinazione"].tap(); XCTAssertFalse(app.buttons["selectionPageDrop-2"].exists)
         XCTAssertTrue(app.buttons["editorMiniToolbar"].exists)
+    }
+    @MainActor private func tapReady(_ button: XCUIElement) {
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true AND isHittable == true"), object: button)], timeout: 30)
+        button.tap()
     }
 }

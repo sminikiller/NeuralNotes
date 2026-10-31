@@ -16,8 +16,8 @@ final class SelectionPageDragUITests: XCTestCase {
         if focus.waitForExistence(timeout: 10), !app.buttons["editorAddText"].exists { focus.tap() }
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
-        app.buttons["editorAddPage"].tap(); page(2, in: app)
-        app.buttons["editorPreviousPage"].tap(); page(1, in: app)
+        tapReady(app.buttons["editorAddPage"]); page(2, in: app)
+        tapReady(app.buttons["editorPreviousPage"]); page(1, in: app)
         app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.35)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.5)))
@@ -36,15 +36,22 @@ final class SelectionPageDragUITests: XCTestCase {
         app.buttons["Seleziona tutto"].tap()
         let handle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "shapeHandle-")).firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
-        app.buttons["editorUndo"].tap(); page(1, in: app)
+        tapReady(app.buttons["editorUndo"]); page(1, in: app)
         app.buttons["Seleziona tutto"].tap(); XCTAssertTrue(handle.waitForExistence(timeout: 5))
-        app.buttons["editorRedo"].tap(); page(2, in: app)
+        tapReady(app.buttons["editorRedo"]); page(2, in: app)
         app.buttons["Seleziona tutto"].tap(); XCTAssertTrue(handle.waitForExistence(timeout: 5))
-        app.buttons["editorPreviousPage"].tap(); page(1, in: app)
+        tapReady(app.buttons["editorPreviousPage"]); page(1, in: app)
         app.buttons["Seleziona tutto"].tap(); XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
     }
     @MainActor private func page(_ number: Int, in app: XCUIApplication) {
-        let counter = app.buttons["editorPageCounter"]; XCTAssertTrue(counter.waitForExistence(timeout: 5))
-        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina \(number) di 2"), object: counter)], timeout: 12)
+        let counter = app.buttons["editorPageCounter"]; XCTAssertTrue(counter.waitForExistence(timeout: 15))
+        // Xcode26.6 can take more than12s to obtain an AX snapshot while the
+        // page is already visibly correct. Keep the exact state assertion.
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina \(number) di 2"), object: counter)], timeout: 30)
+    }
+    @MainActor private func tapReady(_ button: XCUIElement) {
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true AND isHittable == true"), object: button)], timeout: 30)
+        button.tap()
     }
 }
