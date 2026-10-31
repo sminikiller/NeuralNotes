@@ -86,4 +86,35 @@ final class DiagramCompatibilityTests: XCTestCase {
             XCTAssertEqual(PDFDocument(url: pdf)?.pageCount, 1)
         }
     }
+    @MainActor func test027FixtureKeepsItsAppearanceAndLegacyMarkerSettingsThroughSavePDFAndNativeImport() async throws {
+        try await fixture { model, store in
+            let base = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/0.27.0")
+            var old = try JSONDecoder().decode(PageSnapshot.self, from: Data(contentsOf: base.appendingPathComponent("page.json")))
+            let profiles = try JSONDecoder().decode(NotebookWorkspaces.self, from: Data(contentsOf: base.appendingPathComponent("workspaces.json")))
+            try PageValidation.validate(old); XCTAssertTrue(profiles.isValid)
+            XCTAssertEqual(profiles.profiles.first?.writing?.effectiveEraserTarget, .marker)
+            XCTAssertNil(profiles.profiles.first?.writing?.eraserTarget)
+            let image = try await model.workspace.url("images/legacy.png")
+            try Data(contentsOf: base.appendingPathComponent("legacy.png")).write(to: image)
+            old.id = try XCTUnwrap(model.page?.id); old.revision = model.page?.revision ?? 0
+            model.page = old; model.workspaces = profiles; model.workspaceSettingsDirty = true; model.drawingChanged()
+            let original = DocumentServices.image(page: old, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 768).pngData()
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            try await model.load(try XCTUnwrap(model.page))
+            XCTAssertEqual(model.page?.texts, old.texts); XCTAssertEqual(model.page?.shapes, old.shapes)
+            XCTAssertEqual(model.page?.connectors, old.connectors); XCTAssertEqual(model.page?.images, old.images)
+            let pdf = try await DocumentServices.exportPDF(workspace: model.workspace)
+            defer { try? FileManager.default.removeItem(at: pdf) }
+            let exported = try XCTUnwrap(PDFDocument(url: pdf))
+            XCTAssertEqual(exported.pageCount, 1); XCTAssertTrue(exported.page(at: 0)?.string?.contains("0.27.0") == true)
+            let copy = try await backupCopy(model, store: store)
+            let pages = try await copy.pages(), restored = try XCTUnwrap(pages.first)
+            try PageValidation.validate(restored)
+            XCTAssertEqual(restored.connectors?.first?.label, "si conserva")
+            XCTAssertEqual(restored.shapes?.first?.label, "Energia")
+            let appearance = DocumentServices.image(page: restored, drawing: model.canvas.drawing, workspace: copy, maxDimension: 768).pngData()
+            XCTAssertNotNil(original); XCTAssertEqual(appearance, original, "Gli ID nuovi del backup non cambiano la pagina visibile")
+            let catalog = try await copy.catalog(); XCTAssertEqual(catalog.editorWorkspaces, profiles)
+        }
+    }
 }

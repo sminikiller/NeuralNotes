@@ -419,3 +419,24 @@ Seleziona una forma con **Oggetti**. I quattro punti blu creano blocchi uguali e
 ## Evidenziatore e riconoscimento — correzioni 0.27
 Tieni premuto **Evidenziatore**: **Larghezza reale** arriva a **1 pt**, senza il vecchio minimo di 12 pt; i tre spessori recenti sono distinti dalla penna. **Aggancia alle parole del PDF** usa il testo digitale come la Lente: passa sulle parole o appena sotto e rilascia. Un annulla elimina tutta la selezione. Nelle scansioni usa prima la Lente per riconoscere le parole: l’evidenziatore riusa poi quei riquadri. Senza parole riconosciute il tratto resta libero. La misura scelta vale per il tratto libero; l’aggancio usa l’altezza delle parole. Il colore usa composizione moltiplica sul documento; la penna resta sopra il colore. Schermo, anteprime e PDF condividono la stessa regola. Non viene modificato l’originale PDF.
 Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anche con piccoli movimenti. La conversione chiude la sessione nativa d’inchiostro per evitare che il tratto grezzo ritorni alla scrittura successiva. Annulla prima il nuovo tratto; un ulteriore annulla della correzione recupera il tratto originale al posto della forma.
+
+## Selezioni, gomme e misure — 0.28 (in collaudo)
+
+### Copia e sposta tra pagine
+1. Seleziona gli elementi con **Oggetti** o **Lazo**. Premi **Copia o sposta in un’altra pagina**.
+2. Scegli **Sposta** o **Copia**, poi una miniatura; puoi cercarla per numero o titolo, creare una pagina dopo questa oppure alla fine. Le copie ricevono identità nuove e una pagina più piccola riduce la selezione in proporzione.
+3. Per trascinare direttamente, premi **Trascina sulle miniature** nella barra della selezione. Tieni premuta la selezione sul foglio, poi trascinala su una miniatura della striscia. Puoi anche toccare la destinazione. Chiudi la striscia per tornare agli spostamenti normali sul foglio.
+4. **Annulla** ripristina origine e destinazione insieme. Conserva foto, inchiostro, note e rimandi audio; i connettori interni seguono la selezione, quelli esterni diventano liberi.
+5. Nel menu **Trasforma selezione**, **Copia come immagine** e **Condividi immagine** producono un PNG trasparente a risoluzione doppia, senza carta o PDF di sfondo.
+
+### Gomma per tipo ed eliminazione estesa
+1. Tieni premuta la gomma e scegli **Cancella**: tutto, evidenziatore, penna, forme e connettori, testo e post-it oppure immagini. La gomma parziale ritaglia l’inchiostro; gli oggetti toccati si eliminano interi. Gli oggetti bloccati restano protetti.
+2. Per un intervento esteso, dal menu della pagina o da **Azioni → Documento** apri **Elimina elementi per tipo**. Nella griglia pagine lo trovi anche sulle pagine selezionate.
+3. Scegli ambito e tipi; attendi i conteggi e conferma. Sull’intero quaderno il backup preventivo è obbligatorio: se non riesce, non viene eliminato nulla. Concludi prima eventuali registrazioni o compressioni.
+4. Una sola azione **Annulla** ripristina tutto. **Collegamenti audio** elimina i rimandi, conservando registrazioni e trascrizioni.
+
+### Goniometro e righello
+1. Scegli **Goniometro** da **Tutti gli strumenti** o dal Workspace Matematica. Tieni premuta l’icona per scegliere semicerchio, cerchio, dimensione e **Misura angolo**.
+2. Sposta il corpo con un dito, ruota con due dita e pizzica per ridimensionare. Se disegni con le dita, usa due dita anche per spostare la guida.
+3. Con la penna parti dal centro per un raggio, oppure vicino al bordo per un arco. L’aggancio resta fino al rilascio; il valore in gradi appare durante il gesto. In **Misura angolo**, due raggi mostrano l’angolo senza aggiungere inchiostro.
+4. Il righello mostra centimetri e inclinazione mentre tracci. **G** e **R** attivano le due guide dalla tastiera; sono alternative e non compaiono nel PDF esportato.

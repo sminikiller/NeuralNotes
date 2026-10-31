@@ -87,6 +87,9 @@ struct EditorView: View {
         .animation(.easeInOut(duration: 0.25), value: focus)
         .overlay { FocusControl(model: model, focus: $focus).allowsHitTesting(!model.navigating && !working && model.hasLease) }
         .overlay(alignment: .topLeading) { recordingBadge }
+        .overlay(alignment: .bottom) {
+            if model.selectionPageDragMode { SelectionPageDropRail(model: model).padding(.horizontal, 12).padding(.bottom, 54) }
+        }
         .toolbar(focus ? .hidden : .visible, for: .navigationBar)
         .statusBarHidden(focus)
         .navigationTitle(notebook.title)

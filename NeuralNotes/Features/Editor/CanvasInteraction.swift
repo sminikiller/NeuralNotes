@@ -151,6 +151,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             return model.hasLease && !model.interactionBusy && host.canvas.zoomScale <= host.canvas.minimumZoomScale * 1.05
         }
         if gesture is UIPanGestureRecognizer {
+            if model.selectionPageDragMode { return false }
             if model.tool == .lens { return true }
             return model.tool == .objects && (model.selectRectangle || model.selectFreehand || hit(gesture.location(in: host.surface)) != nil)
         }
@@ -619,7 +620,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 @MainActor
 extension CanvasInteraction: UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard let host, let model, model.hasLease, model.tool == .objects,
+        guard let host, let model, model.hasLease, model.tool == .objects, !model.selectionPageDragMode,
               !model.interactionBusy, !model.navigating, !model.loading,
               let id = hit(host.surface.convert(location, from: host)), id != inkID else { return nil }
         if !model.selectedIDs.contains(id) { model.selectedObjectID = id }; refresh()

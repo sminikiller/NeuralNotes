@@ -105,6 +105,11 @@ final class EditorViewModel {
     var editingTextID: UUID?
     @ObservationIgnored var textEditBefore: EditorContentState?
     var selectedIDs: Set<UUID> = []
+    var selectionPageDragMode = false { didSet { configureTool() } }
+    var selectionDragCopy = false
+    var selectionDropPending = false
+    @ObservationIgnored let selectionDragOwner = UUID()
+    @ObservationIgnored var activeSelectionPageDrag: SelectionPageDragRecord?
     var selectionIncludesInk = false
     var selectedStrokeIndices: Set<Int>?
     var selectedInkBounds: CGRect {
@@ -251,6 +256,7 @@ final class EditorViewModel {
         if tool == .lens { canvas.drawingGestureRecognizer.isEnabled = false }
         if laserActive { canvas.drawingGestureRecognizer.isEnabled = false }
         if tool == .eraser { canvas.drawingGestureRecognizer.isEnabled = false }
+        if selectionPageDragMode { canvas.drawingGestureRecognizer.isEnabled = false }
         canvas.isRulerActive = false
         if (rulerActive || protractorDrawing) && (tool == .pen || tool == .marker) { canvas.drawingGestureRecognizer.isEnabled = false }
         if markerCustomInput { canvas.drawingGestureRecognizer.isEnabled = false }

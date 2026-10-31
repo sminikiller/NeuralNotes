@@ -130,6 +130,8 @@ struct EditorQuickToolbar: View {
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
                 Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
                 MoveSelectionMenu(model: model).labelStyle(.iconOnly)
+                Button { model.selectionPageDragMode.toggle() } label: { Image(systemName: "rectangle.grid.1x2") }
+                    .accessibilityLabel("Trascina sulle miniature").accessibilityIdentifier("selectionPageDrag").disabled(!hasSelection)
                 SelectionAlignmentMenu(model: model)
                 if model.selectedConnector != nil { ConnectorStyleMenu(model: model) }
                 if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {

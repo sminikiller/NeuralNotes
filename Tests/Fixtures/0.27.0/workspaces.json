@@ -1,0 +1,41 @@
+{
+  "profiles": [
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "name": "Studio 0.27",
+      "favorites": [
+        "pen",
+        "ruler",
+        "rectangle"
+      ],
+      "dock": "leading",
+      "showPages": true,
+      "showStatus": true,
+      "holdShapes": true,
+      "scratchErase": true,
+      "pullNext": true,
+      "palettes": {},
+      "snapping": {
+        "objects": false,
+        "grid": true,
+        "guides": false
+      },
+      "writing": {
+        "pen": "pen",
+        "eraser": "partial",
+        "eraserWidth": 18,
+        "markerOnly": true,
+        "returnToPen": false,
+        "presets": [],
+        "markerWidth": 2,
+        "markerRecentWidths": [
+          2,
+          5,
+          10
+        ],
+        "markerSnapWords": true
+      }
+    }
+  ],
+  "selectedID": "66666666-6666-4666-8666-666666666666"
+}

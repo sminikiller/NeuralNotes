@@ -30,7 +30,7 @@ final class DiagramHandlesOverlay: UIView {
         diagramSummary.accessibilityValue = "\(blocks) blocchi, \(page.connectors?.count ?? 0) collegamenti"
         diagramSummary.accessibilityFrameInContainerSpace = CGRect(x: 4, y: 4, width: 1, height: 1)
         if model.movingObjects && session == nil { hideControls(); return }
-        guard model.hasLease, !model.loading, !model.navigating, model.tool == .objects, model.selectedIDs.count == 1, !model.selectionIncludesInk,
+        guard !model.selectionPageDragMode, model.hasLease, !model.loading, !model.navigating, model.tool == .objects, model.selectedIDs.count == 1, !model.selectionIncludesInk,
               let id = model.selectedObjectID, !(page.lockedObjects ?? []).contains(id) else { hideControls(); return }
         objects = session?.objects ?? DiagramObjects.make(page)
         var positions: [(DiagramHandle, StrokeSample)] = []

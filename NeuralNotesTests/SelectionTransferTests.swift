@@ -140,4 +140,69 @@ final class SelectionTransferTests: XCTestCase {
             await model.performRedo(); XCTAssertEqual(model.pages.map(\.id), order + [destinationID])
         }
     }
+    @MainActor func testPrivatePageDragMovesOrCopiesWithOneUndoAndRejectsReplay() async throws {
+        for copy in [false, true] {
+            try await fixture { model in
+                let text = TextElement(text: "Trasferimento autentico")
+                model.page?.texts = [text]; model.drawingChanged()
+                let saved = await model.flush(); XCTAssertTrue(saved)
+                let source = try XCTUnwrap(model.page)
+                let destination = try await model.workspace.addPage(PageSnapshot())
+                model.pages = try await model.workspace.pages(); model.history.clear()
+                model.chooseTool(.objects); model.selectedIDs = [text.id]; model.selectionPageDragMode = true
+                let payload = try XCTUnwrap(model.makeSelectionPageDrag())
+                let data = try JSONEncoder().encode(payload)
+                try await model.completeSelectionPageDrop(data, to: destination.id, copy: copy)
+                XCTAssertNil(model.error); XCTAssertEqual(model.page?.id, destination.id)
+                XCTAssertEqual(model.page?.texts.first?.text, text.text)
+                XCTAssertNotEqual(model.page?.texts.first?.id, text.id)
+                let originAfter = try await model.workspace.pageSnapshot(source.id)
+                if copy { XCTAssertEqual(originAfter, source) } else { XCTAssertTrue(originAfter.texts.isEmpty) }
+                XCTAssertNil(model.activeSelectionPageDrag); XCTAssertFalse(model.selectionPageDragMode)
+                do { try await model.completeSelectionPageDrop(data, to: source.id, copy: copy); XCTFail("Un ticket si consuma una sola volta") }
+                catch { XCTAssertTrue(error is SelectionPageDragFailure) }
+                await model.performUndo(); XCTAssertNil(model.error); XCTAssertEqual(model.page?.id, source.id)
+                XCTAssertEqual(model.page?.texts, [text]); XCTAssertFalse(model.canUndo)
+                let cleared = try await model.workspace.pageSnapshot(destination.id); XCTAssertTrue(cleared.texts.isEmpty)
+                await model.performRedo(); XCTAssertEqual(model.page?.id, destination.id)
+                XCTAssertEqual(model.page?.texts.first?.text, text.text)
+            }
+        }
+    }
+    @MainActor func testPageDragRejectsStaleForgedAndCrossWindowPayloadsWithoutWriting() async throws {
+        try await fixture { model in
+            let text = TextElement(text: "Non spostare")
+            model.page?.texts = [text]; model.drawingChanged()
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            let source = try XCTUnwrap(model.page)
+            let target = try await model.workspace.addPage(PageSnapshot())
+            model.pages = try await model.workspace.pages(); model.history.clear(); model.chooseTool(.objects)
+            for scenario in 0..<9 {
+                model.selectedIDs = [text.id]; model.selectionPageDragMode = true
+                let valid = try XCTUnwrap(model.makeSelectionPageDrag())
+                var payload = valid
+                switch scenario {
+                case 0: model.selectedIDs = []
+                case 1: model.inkDisplayGeneration = UUID()
+                case 2: model.selectionPageDragMode = false
+                case 3: payload = .init(ticket: valid.ticket, documentID: UUID(), pageID: valid.pageID, owner: valid.owner, generation: valid.generation, expires: valid.expires)
+                case 4: payload = .init(ticket: valid.ticket, documentID: valid.documentID, pageID: valid.pageID, owner: UUID(), generation: valid.generation, expires: valid.expires)
+                case 5:
+                    payload = .init(ticket: valid.ticket, documentID: valid.documentID, pageID: valid.pageID, owner: valid.owner, generation: valid.generation, expires: 0)
+                    model.activeSelectionPageDrag = .init(payload: payload, objects: [text.id], includesInk: false, strokeIndices: nil)
+                case 6: model.activeSelectionPageDrag = nil
+                case 7: model.selectedStrokeIndices = [0]
+                default: break
+                }
+                let data = scenario == 8 ? Data(repeating: 0, count: 4097) : try JSONEncoder().encode(payload)
+                do { try await model.completeSelectionPageDrop(data, to: target.id, copy: false); XCTFail("Scenario \(scenario) deve rifiutare il trasferimento") }
+                catch { XCTAssertTrue(error is SelectionPageDragFailure) }
+                model.selectedStrokeIndices = nil
+                let unchanged = try await model.workspace.pageSnapshot(source.id)
+                let empty = try await model.workspace.pageSnapshot(target.id)
+                XCTAssertEqual(unchanged, source); XCTAssertEqual(empty, target)
+                XCTAssertFalse(model.canUndo); XCTAssertEqual(model.page?.id, source.id)
+            }
+        }
+    }
 }

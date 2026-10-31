@@ -23,7 +23,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     func update() {
         guard let host, let model else { return }
         frame = host.bounds
-        guard model.tool == .objects || model.tool == .lasso,
+        guard !model.selectionPageDragMode, model.tool == .objects || model.tool == .lasso,
               model.selectedIDs.count == 1, !model.selectionIncludesInk,
               let id = model.selectedObjectID, !(model.page?.lockedObjects ?? []).contains(id),
               let shape = model.page?.shapes?.first(where: { $0.id == id }) else { reset(); isHidden = true; return }

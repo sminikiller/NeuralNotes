@@ -23,6 +23,7 @@ final class CanvasHost: UIView {
     private(set) var viewportAnimationActive = false
     private var viewportAnimationGeneration = 0
     var interaction: CanvasInteraction?
+    var selectionPageDrag: SelectionPageDragController?
     var textInput: CanvasTextInput?
     var drawingAssistant: CanvasDrawingAssistant?
     var rulerGuide: RulerGuideView?
@@ -275,6 +276,7 @@ struct PencilCanvas: UIViewRepresentable {
         model.canvas.delegate = context.coordinator
         context.coordinator.host = host
         host.interaction = CanvasInteraction(host: host, model: model)
+        host.selectionPageDrag = SelectionPageDragController(host: host, model: model)
         host.textInput = CanvasTextInput(host: host, model: model)
         host.drawingAssistant = CanvasDrawingAssistant(host: host, model: model)
         model.drawingAssistant = host.drawingAssistant

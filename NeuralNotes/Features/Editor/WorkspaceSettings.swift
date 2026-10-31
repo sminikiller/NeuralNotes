@@ -62,6 +62,7 @@ extension EditorViewModel {
     func chooseTool(_ item: WorkspaceTool) {
         laserActive = false
         guard !hasActiveStroke else { return }
+        if item != .objects && item != .lasso { selectionPageDragMode = false; activeSelectionPageDrag = nil }
         cancelMaintenance()
         if item == .lens, tool != .lens { toolBeforeLens = tool }
         if item == .ruler {

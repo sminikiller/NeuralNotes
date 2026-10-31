@@ -141,6 +141,7 @@ struct PageBrowser: View {
                 }.padding(8).background(model.page?.id == page.id ? Brand.accent.opacity(0.16) : Brand.surface,
                     in: RoundedRectangle(cornerRadius: 12))
             }.buttonStyle(.plain)
+            .onDrop(of: [SelectionPageDragPayload.type.identifier], delegate: SelectionPageDropDelegate(model: model, pageID: page.id, targeted: .constant(false)))
             .contextMenu {
                 Button(page.isBookmarked == true ? "Rimuovi segnalibro" : "Aggiungi segnalibro", systemImage: "bookmark") {
                     Task { await model.setPageDetails(page, title: page.title, bookmarked: page.isBookmarked != true) }
