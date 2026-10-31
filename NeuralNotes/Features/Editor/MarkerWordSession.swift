@@ -2,39 +2,50 @@ import UIKit
 import PencilKit
 import NeuralNotesCore
 
-/// Digital PDF words share the Lens geometry. Only display changes while the
-/// pointer moves; all selected words form one history/audio transaction at lift.
+/// The Lens and the marker use the same sources, priority and word selection.
+/// In word mode the preview commits vector word rectangles, never raw ink.
 @MainActor
 final class MarkerWordSession {
     weak var host: CanvasHost?
     weak var model: EditorViewModel?
-    private let words: [PageWord]
     private let before: PKDrawing
     private let pageID: UUID
+    private let wordMode: Bool
+    private var groups: [[PageWord]]
+    private var ready: Bool
     private var trace: [CGPoint] = []
-    private var picked: [Int] = []
     private let preview = CAShapeLayer()
-    var selectsWords: Bool { !words.isEmpty }
+    var selectsWords: Bool { wordMode }
     init?(host: CanvasHost, model: EditorViewModel) {
         guard let page = model.page, model.markerCustomInput else { return nil }
-        self.host = host; self.model = model; words = model.markerWordsActive ? PageWordIndex.shared.markerWords(page) : []
-        pageID = page.id; before = model.canvas.drawing
-        preview.fillColor = PaperInk.color(model.ink).withAlphaComponent(0.18).cgColor
-        preview.strokeColor = UIColor.systemBlue.withAlphaComponent(0.7).cgColor; preview.lineWidth = 1
-        if !selectsWords {
+        self.host = host; self.model = model; pageID = page.id; before = model.canvas.drawing
+        wordMode = model.wordHighlightEnabled
+        groups = wordMode ? PageWordIndex.shared.groups(for: page) : []
+        ready = PageWordIndex.shared.isReady(page)
+        preview.fillColor = PaperInk.color(model.ink).withAlphaComponent(0.25).cgColor
+        preview.strokeColor = nil
+        if !wordMode {
             preview.fillColor = nil; preview.strokeColor = PaperInk.color(model.ink).withAlphaComponent(0.4).cgColor
             preview.lineWidth = CGFloat(model.markerWidth) * host.canvas.zoomScale; preview.lineCap = .round; preview.lineJoin = .round
         }
         host.layer.addSublayer(preview)
         model.strokeBegan(); model.drawingShape = true
     }
+    private func refreshWords() {
+        guard wordMode, !ready, let page = model?.page, page.id == pageID, PageWordIndex.shared.isReady(page) else { return }
+        groups = PageWordIndex.shared.groups(for: page); ready = true
+    }
     func move(_ samples: [CGPoint]) {
         guard let host else { return }; trace.append(contentsOf: samples)
         if trace.count > 2000 { trace = trace.enumerated().filter { $0.offset % 2 == 0 || $0.offset == trace.count - 1 }.map(\.element) }
-        picked = PageWords.pick(trace: trace, in: words, area: false)
+        refreshWords()
         let path = UIBezierPath()
-        for i in picked { path.append(UIBezierPath(rect: host.surface.convert(words[i].rect, to: host))) }
-        if !selectsWords {
+        if wordMode, let selected = PageWords.selection(trace: trace, groups: groups) {
+            for rect in PageWords.lineRects(selected.indices, in: selected.words) {
+                let box = host.surface.convert(rect.insetBy(dx: -1.5, dy: -1.5), to: host)
+                path.append(UIBezierPath(roundedRect: box, cornerRadius: 3 * host.canvas.zoomScale))
+            }
+        } else if !wordMode {
             for (i, p) in trace.enumerated() {
                 let at = host.surface.convert(p, to: host)
                 if i == 0 { path.move(to: at) } else { path.addLine(to: at) }
@@ -45,29 +56,29 @@ final class MarkerWordSession {
     func finish(cancelled: Bool) {
         preview.removeFromSuperlayer()
         guard let model, model.page?.id == pageID else { return }
-        model.drawingShape = false
-        guard !cancelled else { model.cancelGuidedInk(before); return }
-        var strokes: [PKStroke] = []
-        for r in PageWords.lineRects(picked, in: words) {
-            let vertical = r.height > r.width * 1.4
-            let width = max(1, min(80, vertical ? r.width : r.height))
-            let inset = min(width / 2, (vertical ? r.height : r.width) / 2)
-            let points = vertical
-                ? [CGPoint(x: r.midX, y: r.minY + inset), CGPoint(x: r.midX, y: r.maxY - inset)]
-                : [CGPoint(x: r.minX + inset, y: r.midY), CGPoint(x: r.maxX - inset, y: r.midY)]
-            strokes.append(stroke(points, width: width, model: model, mask: r))
+        if wordMode {
+            refreshWords()
+            let selected = PageWords.selection(trace: trace, groups: groups)
+            model.cancelGuidedInk(before)
+            guard !cancelled else { return }
+            if let selected { model.highlightWords(selected) }
+            else {
+                model.status = model.page.map { PageWordIndex.shared.isPreparing($0) } == true
+                    ? "Lettura delle parole in corso: ripassa quando sono pronte"
+                    : "Nessuna parola selezionata. Per disegnare scegli Tratto libero"
+                model.prepareMarkerWords()
+            }
+            return
         }
-        if strokes.isEmpty, trace.count > 1 { strokes = [stroke(trace, width: CGFloat(model.markerWidth), model: model)] }
-        guard !strokes.isEmpty else { model.cancelGuidedInk(before); return }
-        model.installNativeInk(PKDrawing(strokes: before.strokes + strokes))
-        model.strokeEnded(); model.finishInkGesture()
-    }
-    private func stroke(_ points: [CGPoint], width: CGFloat, model: EditorViewModel, mask: CGRect? = nil) -> PKStroke {
-        let samples = points.enumerated().map { index, point in
+        model.drawingShape = false
+        guard !cancelled, trace.count > 1 else { model.cancelGuidedInk(before); return }
+        let width = CGFloat(model.markerWidth)
+        let samples = trace.enumerated().map { index, point in
             PKStrokePoint(location: point, timeOffset: Double(index) * 0.01, size: .init(width: width, height: width),
                 opacity: 0.4, force: 1, azimuth: 0, altitude: .pi / 2)
         }
-        return PKStroke(ink: PKInk(.marker, color: PaperInk.color(model.ink)), path: PKStrokePath(controlPoints: samples, creationDate: Date()),
-            mask: mask.map { UIBezierPath(rect: $0) })
+        let stroke = PKStroke(ink: PKInk(.marker, color: PaperInk.color(model.ink)), path: PKStrokePath(controlPoints: samples, creationDate: Date()))
+        model.installNativeInk(PKDrawing(strokes: before.strokes + [stroke]))
+        model.strokeEnded(); model.finishInkGesture()
     }
 }

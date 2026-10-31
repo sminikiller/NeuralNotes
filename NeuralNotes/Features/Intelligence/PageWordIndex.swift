@@ -20,6 +20,7 @@ final class PageWordIndex {
     private var epochs: [UUID: UUID] = [:]
 
     func invalidate(_ page: PageSnapshot, preservingRecognizedWords: Bool = false) {
+        if preservingRecognizedWords { return }
         if page.pdfFile != nil {
             // Digital text is immutable; OCR of a scan can change with ink or
             // images. Highlighting itself must not discard recognized words.
@@ -29,6 +30,13 @@ final class PageWordIndex {
             return
         }
         epochs[page.id] = UUID()
+    }
+    /// A save advances the storage revision, not the visual content. Keep the
+    /// current epoch's words so highlighting does not repeatedly restart OCR.
+    func didSave(_ previous: PageSnapshot, as saved: PageSnapshot) {
+        guard previous.id == saved.id, previous.pdfFile == nil, saved.pdfFile == nil,
+              let words = cache[key(previous)] else { return }
+        store(key(saved), words)
     }
     /// File-backed bulk history does not load page headers onto the UI thread.
     /// The immutable digital PDF layer remains reusable, while visual OCR expires.
@@ -132,6 +140,11 @@ final class PageWordIndex {
             }
             guard model.page?.id == page.id, self.key(page) == cacheKey, epochs[page.id] == generation else { return }
             store(cacheKey, words)
+            // OCR may finish after a metadata-only autosave. A real content
+            // edit changes the epoch and was rejected by the guard above.
+            if let current = model.page, current.id == page.id, epochs[page.id] == generation {
+                store(key(current), words)
+            }
             } catch { /* No empty cache on a transient error; the next gesture may retry. */ }
         }
     }

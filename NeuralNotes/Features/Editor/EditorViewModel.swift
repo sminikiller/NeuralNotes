@@ -263,7 +263,7 @@ final class EditorViewModel {
         canvas.drawingPolicy = fingerDrawing ? .anyInput : .pencilOnly
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
         if tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
-        if tool == .marker, writingOptions.markerSnapWords != false, let page { PageWordIndex.shared.preparePDFMarker(page, model: self) }
+        if tool == .marker { prepareMarkerWords() }
     }
 
     func drawingChanged(preservingRecognizedWords: Bool = false) {
@@ -412,6 +412,10 @@ final class EditorViewModel {
                     guard let self else { return true }
                     if self.page?.id == saved.id {
                         self.recoveredFromPrevious = false
+                        if let previous = self.page {
+                            var advanced = previous; advanced.revision = saved.revision
+                            PageWordIndex.shared.didSave(previous, as: advanced)
+                        }
                         self.page?.revision = saved.revision
                         self.page?.drawingFile = saved.drawingFile
                         self.page?.previousDrawingFile = saved.previousDrawingFile

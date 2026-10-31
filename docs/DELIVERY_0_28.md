@@ -27,10 +27,15 @@
 
 [41166474906](https://github.com/sminikiller/NeuralNotes/actions/runs/41166474906), commit 46d9f26 con sorgenti dell’app identici a db52fc4: **prova UI completa del trascinamento superata**. Controlla rilascio sulla seconda pagina, forma effettivamente trasferita, annulla unico che torna all’origine, ripristina, origine vuota e spazio del canvas invariato. Schermata della striscia ispezionata.
 
-**Verifica completa in corso: [41167040132](https://github.com/sminikiller/NeuralNotes/actions/runs/41167040132), sorgenti 46d9f260dca80009c8da972d13de4068be0a5908.** Include tutti i test, aggiornamento conservando il quaderno, Playgrounds e archivio. Non è ancora una consegna e non è stata pubblicata una nuova beta TestFlight.
+**Verifica completa superata: [41167040132](https://github.com/sminikiller/NeuralNotes/actions/runs/41167040132), sorgenti 46d9f260dca80009c8da972d13de4068be0a5908.** Tutti i sei job verdi, comprese 41 prove UI, aggiornamento conservando il quaderno, Playgrounds e archivio. Non ancora pubblicata: le correzioni successive richieste dall’utente devono essere verificate sugli stessi sorgenti da consegnare.
 
 Aggiunte prove per trasferimento tramite ticket, rifiuto dei dati obsoleti, gesto UI diretto sulle miniature e fixture 0.27 (apertura/salvataggio, diagrammi, immagine, preferenze pregresse, PDF e backup nativo). Controlli locali: struttura del progetto, grammatica Swift, integrità e risorse del pacchetto ZIP. **Non sono esecuzioni SDK**.
 
-Restano il completamento della suite completa, l’aggiornamento da versione precedente, l’archivio e la consegna. Nessun tempo fisico di fluidità o prova Apple Pencil reale viene dedotto dal simulatore. Il compasso era facoltativo e non è incluso.
+Restano la verifica delle correzioni successive e la consegna dei sorgenti aggiornati. Nessun tempo fisico di fluidità o prova Apple Pencil reale viene dedotto dal simulatore. Il compasso era facoltativo e non è incluso.
 
 Nessuna modifica a identità, firma, segreti, corsia TestFlight o servizi esterni. Nessuna migrazione distruttiva dei quaderni.
+
+
+## Correzioni richieste dopo il primo collaudo completo
+
+Implementate, in attesa di SDK e prove UI: interruttore esplicito per includere gli oggetti nella gomma, overlay Annulla/Ripristina in alto a sinistra anche in Solo foglio, selettore Parole/Tratto libero dell’evidenziatore. Parole usa lo stesso percorso di selezione della Lente su tutte le sue sorgenti e registra rettangoli vettoriali, senza aggiungere tratti sintetici. Passate ripetute non sovrappongono l’opacità; letture OCR conservate durante salvataggi e modifiche al solo evidenziatore. Aggiunti test di selezione, assenza di segni accidentali, annulla, rendering su foto/PDF, import nativo, selettività e cronologia visibile. Non sono ancora dichiarati passati.

@@ -18,6 +18,15 @@ public struct PageWord: Equatable, Sendable {
 /// Word geometry for the Lens: the word under a tap, the words a highlighter
 /// stroke covers, the words inside a lasso, and every match of a search.
 public enum PageWords {
+    /// Shared by the Lens and the word highlighter. Groups retain the source
+    /// priority (PDF/OCR, then typed boxes/labels); never bridge unrelated boxes.
+    public static func selection(trace: [CGPoint], groups: [[PageWord]], area: Bool = false) -> (words: [PageWord], indices: [Int])? {
+        for words in groups {
+            let indices = pick(trace: trace, in: words, area: area)
+            if !indices.isEmpty { return (words, indices) }
+        }
+        return nil
+    }
     /// Words separated by spaces and line breaks, punctuation kept ("12-3", "critico?"),
     /// as UTF-16 ranges, the unit used by PDFKit and TextKit.
     public static func tokens(in text: String) -> [(range: NSRange, lineBreakBefore: Bool)] {

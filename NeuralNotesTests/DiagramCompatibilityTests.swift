@@ -25,6 +25,23 @@ final class DiagramCompatibilityTests: XCTestCase {
         _ = try NativeImport.copy(from: backup, into: store, documentID: documentID, notebookID: notebookID)
         return DocumentWorkspace(package: store.packageURL(for: documentID), documentID: documentID, notebookID: notebookID)
     }
+    @MainActor func testWordHighlightColorAndLegacyMarksSurviveNativeBackupAndPDFExport() async throws {
+        try await fixture { model, store in
+            let legacy = PDFMarkup(kind: .underline, x: 60, y: 80, width: 100, height: 15, text: "Vecchio")
+            let words = [PageWord(text: "Energia", rect: CGRect(x: 60, y: 100, width: 100, height: 20))]
+            let marks = try WordHighlights.appending(words: words, indices: [0], to: [legacy], color: .green, width: 600, height: 800)
+            model.page?.pdfMarkups = marks; model.drawingChanged(preservingRecognizedWords: true)
+            let copy = try await backupCopy(model, store: store)
+            let pages = try await copy.pages(), restored = try XCTUnwrap(pages.first)
+            XCTAssertEqual(restored.pdfMarkups, marks); try PageValidation.validate(restored)
+            let pdf = try await DocumentServices.exportPDF(workspace: copy)
+            defer { try? FileManager.default.removeItem(at: pdf) }
+            XCTAssertEqual(PDFDocument(url: pdf)?.pageCount, 1)
+            let original = DocumentServices.image(page: try XCTUnwrap(model.page), drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 768).pngData()
+            let imported = DocumentServices.image(page: restored, drawing: model.canvas.drawing, workspace: copy, maxDimension: 768).pngData()
+            XCTAssertNotNil(original); XCTAssertEqual(imported, original)
+        }
+    }
     @MainActor func test026FixtureOpensSavesReopensExportsPDFAndImportsBackupWithSnapPreferences() async throws {
         try await fixture { model, store in
             let base = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/0.26.0")

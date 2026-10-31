@@ -86,7 +86,11 @@ struct EditorView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: focus)
         .overlay { FocusControl(model: model, focus: $focus).allowsHitTesting(!model.navigating && !working && model.hasLease) }
-        .overlay(alignment: .topLeading) { recordingBadge }
+        .overlay(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 4) { QuickHistoryOverlay(model: model); recordingBadge }
+                .padding(.leading, !focus && model.currentWorkspace.dock == .leading ? 80 : 12)
+                .padding(.top, historyTopInset)
+        }
         .overlay(alignment: .bottom) {
             if model.selectionPageDragMode { SelectionPageDropRail(model: model).padding(.horizontal, 12).padding(.bottom, 54) }
         }
@@ -101,6 +105,10 @@ struct EditorView: View {
         EditorSaveStatus(message: model.status, dirty: model.dirty, busy: working || model.saving || model.navigating) {
             Task { _ = await model.flush() }
         }
+    }
+    private var historyTopInset: CGFloat {
+        guard !focus, model.currentWorkspace.dock == .top else { return 12 }
+        return model.tool == .objects || model.tool == .lens ? 144 : 82
     }
 
     @ViewBuilder private var recordingBadge: some View {

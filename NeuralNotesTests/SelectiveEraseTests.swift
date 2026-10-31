@@ -59,6 +59,37 @@ final class SelectiveEraseTests: XCTestCase {
             }
         }
     }
+    @MainActor func testObjectTogglePreservesObjectsWhileErasingInkThenErasesObjectsWithOneUndo() async throws {
+        try await fixture { model in
+            let drawing = PKDrawing(strokes: [stroke([.init(x: 50, y: 80), .init(x: 250, y: 80)])])
+            var image = ImageElement(file: try await imageFile(model), width: 100, height: 40); image.x = 100; image.y = 100
+            let shape = ShapeElement(kind: .rectangle, x: 100, y: 160, width: 100, height: 60)
+            let locked = ShapeElement(kind: .rectangle, x: 100, y: 240, width: 100, height: 40)
+            model.page?.images = [image]; model.page?.shapes = [shape, locked]; model.page?.lockedObjects = [locked.id]
+            model.installNativeInk(drawing); model.history.clear(); model.chooseTool(.eraser)
+            model.editWriting { $0.eraserTarget = .all; $0.eraseObjects = false; $0.eraser = .stroke; $0.eraserWidth = 8 }
+            XCTAssertFalse(model.writingOptions.erasesObjects)
+            let inkOnly = SelectiveEraseSession(model: model)
+            inkOnly.append([.init(x: 150, y: 30), .init(x: 150, y: 300)]); inkOnly.finish(cancelled: false)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertEqual(model.page?.images, [image]); XCTAssertEqual(model.page?.shapes, [shape, locked])
+            await model.performUndo(); XCTAssertFalse(model.canUndo); XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, drawing))
+            model.editWriting { $0.eraseObjects = true }
+            let all = SelectiveEraseSession(model: model)
+            all.append([.init(x: 150, y: 30), .init(x: 150, y: 300)]); all.finish(cancelled: false)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertTrue(model.page?.images.isEmpty == true)
+            XCTAssertEqual(model.page?.shapes, [locked])
+            await model.performUndo(); XCTAssertFalse(model.canUndo)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, drawing)); XCTAssertEqual(model.page?.images, [image]); XCTAssertEqual(model.page?.shapes, [shape, locked])
+            let word = PageWord(text: "Energia", rect: CGRect(x: 100, y: 320, width: 100, height: 20))
+            model.page?.pdfMarkups = try WordHighlights.appending(words: [word], indices: [0], to: [], color: .yellow, width: 600, height: 800)
+            let marks = model.page?.pdfMarkups; model.history.clear()
+            model.editWriting { $0.eraserTarget = .marker; $0.eraseObjects = false }
+            let marker = SelectiveEraseSession(model: model); marker.append([.init(x: 150, y: 330)]); marker.finish(cancelled: false)
+            XCTAssertTrue(model.page?.pdfMarkups?.isEmpty == true); XCTAssertEqual(model.page?.images, [image])
+            await model.performUndo(); XCTAssertEqual(model.page?.pdfMarkups, marks)
+        }
+    }
     @MainActor func testEmptyInteriorOfInkAndUnfilledEllipseIsNotAnEraserHit() async throws {
         try await fixture { model in
             let points = (0...100).map { i -> CGPoint in let a = Double(i) * .pi * 2 / 100; return CGPoint(x: 200 + cos(a) * 80, y: 200 + sin(a) * 80) }

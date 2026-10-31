@@ -16,6 +16,34 @@ private actor DeferredWordReader {
 }
 
 final class WordIndexInvalidationTests: XCTestCase {
+    @MainActor func testMetadataSaveRetainsNoteOCRButNewInkEpochCannotReuseIt() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let model = EditorViewModel(workspace: DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID))
+        await model.open()
+        let gate = DeferredWordReader(); defer { Task { await gate.release() } }
+        let index = PageWordIndex { data in await gate.read(data) }
+        let page = try XCTUnwrap(model.page)
+        index.prepare(page, model: model)
+        let startedDeadline = Date().addingTimeInterval(10)
+        while !(await gate.started), Date() < startedDeadline { try await Task.sleep(for: .milliseconds(20)) }
+        let started = await gate.started; XCTAssertTrue(started)
+        // Simulate a disk revision advancing while OCR is still running.
+        var saved = page; saved.revision += 1; model.page = saved
+        index.didSave(page, as: saved); await gate.release()
+        let done = Date().addingTimeInterval(10)
+        while index.isPreparing(page), Date() < done { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertTrue(index.isReady(saved)); XCTAssertEqual(index.groups(for: saved).first?.first?.text, "VECCHIO")
+        index.invalidate(saved, preservingRecognizedWords: true)
+        var next = saved; next.revision += 1; index.didSave(saved, as: next)
+        XCTAssertTrue(index.isReady(next)); XCTAssertEqual(index.groups(for: next).first?.first?.text, "VECCHIO")
+        index.invalidate(next); XCTAssertFalse(index.isReady(next))
+        var changed = next; changed.revision += 1; index.didSave(next, as: changed)
+        XCTAssertFalse(index.isReady(changed))
+        _ = await model.close()
+    }
     @MainActor func testLateScanOCRCannotPublishWordsAfterInkWasChanged() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -3,17 +3,17 @@ import NeuralNotesCore
 
 @MainActor
 enum EraserObjectGeometry {
-    static func regions(page: PageSnapshot, target: EraserTarget) -> [UUID: CGPath] {
+    static func regions(page: PageSnapshot, target: EraserTarget, includeObjects: Bool = true) -> [UUID: CGPath] {
         let locked = Set(page.lockedObjects ?? []), objects = page.connectors?.isEmpty == false ? DiagramObjects.make(page) : [:]
         var regions: [UUID: CGPath] = [:]
-        if target == .all || target == .text {
+        if includeObjects && (target == .all || target == .text) {
             for text in page.texts where !locked.contains(text.id) && (target == .all || text.lensNote == nil) {
                 let box = text.lensNote?.isCollapsed == true ? LensNotes.badge(x: text.x, y: text.y) : DiagramObjects.textBounds(text, pageHeight: page.height)
                 var transform = text.lensNote?.isCollapsed == true ? CGAffineTransform.identity : RichText.rotation(text, pageHeight: page.height)
                 regions[text.id] = CGPath(rect: box, transform: &transform)
             }
         }
-        if target == .all || target == .images {
+        if includeObjects && (target == .all || target == .images) {
             for image in page.images where !locked.contains(image.id) {
                 let box = CGRect(x: image.x, y: image.y, width: image.width, height: image.height)
                 let angle = (image.rotation ?? 0).truncatingRemainder(dividingBy: 360), sideways = abs(angle.truncatingRemainder(dividingBy: 180)) == 90
@@ -22,11 +22,11 @@ enum EraserObjectGeometry {
                 regions[image.id] = CGPath(rect: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height), transform: &transform)
             }
         }
-        if target == .all || target == .shapes {
+        if includeObjects && (target == .all || target == .shapes) {
             for shape in page.shapes ?? [] where !locked.contains(shape.id) { regions[shape.id] = shapeRegion(shape, page: page) }
             for edge in page.connectors ?? [] where !locked.contains(edge.id) { regions[edge.id] = connectorRegion(edge, objects: objects, page: page) }
         }
-        if target == .all {
+        if includeObjects && target == .all {
             for tape in page.tapes ?? [] where !locked.contains(tape.id) {
                 let box = CGPath(rect: CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height), transform: nil)
                 regions[tape.id] = tape.revealed ? box.copy(strokingWithWidth: 1, lineCap: .round, lineJoin: .round, miterLimit: 1) : box

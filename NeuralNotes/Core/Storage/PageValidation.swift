@@ -2,6 +2,8 @@ import Foundation
 
 public enum PageValidation {
     public static func validate(_ page: PageSnapshot) throws {
+        let wordMarks = (page.pdfMarkups ?? []).filter { $0.wordHighlight == true }
+        guard wordMarks.count <= 20_000, Set(wordMarks.map(\.id)).count == wordMarks.count else { throw LibraryFailure.corruptDocument }
         guard (0...1_000_000_000).contains(page.revision), page.width.isFinite, page.height.isFinite,
               (0...20000).contains(page.width), (0...20000).contains(page.height), page.width > 0, page.height > 0,
               page.appearance?.isValid != false, page.tapes?.allSatisfy(\.isValid) != false,

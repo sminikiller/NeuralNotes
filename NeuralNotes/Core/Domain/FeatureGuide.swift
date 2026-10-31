@@ -69,12 +69,12 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Tieni premuto lo strumento per regolare lo spessore; passa sopra gli appunti per evidenziarli.",
             "Per togliere solo il colore usa la gomma con Solo evidenziatore: l’inchiostro della penna viene conservato." ], tools: [.marker]),
         .init("eraser", .writing, "Gomma e scarabocchio", "eraser", "Cancella parti di inchiostro o tratti con un gesto.", [
-            "Tieni premuta la gomma, anche nella mini toolbar di Solo foglio. In Cancella scegli Tutto, Solo evidenziatore, Solo penna, Solo forme e connettori, Solo testo e post-it oppure Solo immagini. Regola dimensione e modalità parziale o tratto intero.",
+            "Tieni premuta la gomma, anche nella mini toolbar di Solo foglio. In Cancella scegli Tutto, Solo evidenziatore, Solo penna, Solo forme e connettori, Solo testo e post-it oppure Solo immagini. Con Cancella anche gli oggetti includi o proteggi foto, testi e forme. Regola dimensione e modalità parziale o tratto intero.",
             "La modalità parziale ritaglia soltanto l’inchiostro; gli oggetti toccati vengono eliminati interi. I blocchi proteggono gli oggetti e ogni passata si annulla in un passo.",
             "Per cancellare con la penna abilita Scarabocchio nel workspace e fai passate ravvicinate sopra i tratti da eliminare.",
             "Usa Annulla in caso di errore. Il testo convertito usa invece i gesti Scribble di iPadOS quando disponibili." ], tools: [.eraser]),
         .init("undo", .writing, "Annulla e ripristina", "arrow.uturn.backward", "Cronologia di inchiostro, testo, immagini e pagine.", [
-            "Dopo aver concluso un tratto o una modifica premi la freccia Annulla nella toolbar.",
+            "Premi Annulla nell’overlay in alto a sinistra del foglio: le due frecce sono disponibili anche in Solo foglio e non riducono lo spazio della pagina.",
             "Ripristina riapplica l’azione annullata. Una nuova modifica dopo Annulla scarta il ramo da ripristinare.",
             "Le modifiche della pagina corrente appaiono subito e poi vengono salvate. Le operazioni fra pagine attendono anche il disco; controlla l’icona di stato." ]),
         .init("lasso", .writing, "Seleziona con il lazo", "lasso", "Muovi, ruota, ridimensiona e ricolora una selezione.", [
@@ -248,7 +248,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Copia più blocchi per includere anche i collegamenti interni. Le mappe create da uno schema AI si modificano con gli stessi strumenti. Annulla torna indietro di un’operazione." ], tools: [.objects]),
         .init("marker-words", .writing, "Evidenziatore sottile e parole PDF", "highlighter", "Larghezza reale e parole agganciate, senza coprire il testo.", [
             "Tieni premuto Evidenziatore: Larghezza reale scende fino a 1 punto. Questo valore è lo spessore effettivo sulla pagina, indipendente dallo zoom.",
-            "Attiva Aggancia alle parole del PDF. Scorri sulle parole o appena sotto, come con la Lente: l’evidenziazione segue la singola riga. Nelle scansioni usa prima la Lente per riconoscere le parole: poi puoi evidenziarle. Senza parole riconosciute resta disponibile il tratto libero.",
+            "Scegli Parole: sottolinea come con la Lente per evidenziare singole parole di PDF, testi inseriti, etichette e scansioni. Attendi la lettura iniziale di grafia e scansioni; se non è pronta ripassa dopo il messaggio. Una passata vuota non aggiunge segni. Per disegnare liberamente scegli Tratto libero, con larghezza minima di 1 pt.",
             "Il colore viene composto con il foglio e il PDF senza schiarire le lettere nere; l’inchiostro della penna resta sopra. Lo stesso criterio si usa nelle anteprime e nell’esportazione. Un solo annulla rimuove l’intera evidenziazione." ], tools: [.marker]),
         .init("pdf-highlight", .pages, "Testo ed evidenziazioni del PDF", "highlighter", "Seleziona testo digitale e conserva i riferimenti.", [
             "Apri lo studio PDF e un documento con testo selezionabile. I PDF composti soltanto da scansioni possono richiedere OCR.",

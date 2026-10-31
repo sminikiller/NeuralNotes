@@ -23,6 +23,8 @@ final class SelectiveEraseUITests: XCTestCase {
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
         app.buttons["tool-Gomma"].press(forDuration: 0.6)
+        let objects = app.switches["eraserIncludesObjects"]; XCTAssertTrue(objects.waitForExistence(timeout: 5))
+        XCTAssertEqual(objects.label, "Cancella anche gli oggetti")
         let target = app.buttons["eraserTarget"]; XCTAssertTrue(target.waitForExistence(timeout: 5)); target.tap()
         let shapes = app.buttons["Solo forme e connettori"]; XCTAssertTrue(shapes.waitForExistence(timeout: 5)); shapes.tap()
         app.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.8)).tap()

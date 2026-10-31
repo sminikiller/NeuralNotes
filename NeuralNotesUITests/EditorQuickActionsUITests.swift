@@ -2,6 +2,83 @@ import XCTest
 import UIKit
 
 final class EditorQuickActionsUITests: XCTestCase {
+    @MainActor func testFloatingHistoryRestoresActualObjectsAndStaysAvailableInFocusWithoutResizingCanvas() {
+        let device = XCUIDevice.shared, previous = device.orientation
+        device.orientation = .portrait; defer { device.orientation = previous }
+        let app = XCUIApplication(); openEditor(app)
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 8)); let original = canvas.frame
+        let undo = app.buttons["quickUndo"], redo = app.buttons["quickRedo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5)); XCTAssertFalse(undo.isEnabled); XCTAssertFalse(redo.isEnabled)
+        XCTAssertLessThan(undo.frame.midX, app.frame.width * 0.25)
+        XCTAssertLessThan(undo.frame.midY, canvas.frame.minY + canvas.frame.height * 0.3)
+        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
+            thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)], timeout: 10)
+        undo.tap()
+        app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
+        XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
+        XCTAssertTrue(redo.isEnabled); redo.tap(); app.buttons["Seleziona tutto"].tap()
+        let handle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "shapeHandle-")).firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 8)); XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
+        XCTAssertEqual(canvas.frame.height, original.height, accuracy: 2); XCTAssertEqual(canvas.frame.width, original.width, accuracy: 2)
+        app.buttons["editorFocus"].tap()
+        XCTAssertTrue(undo.waitForExistence(timeout: 5)); XCTAssertTrue(undo.isHittable); XCTAssertTrue(redo.exists)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "floating-history-focus"; shot.lifetime = .keepAlways; add(shot)
+    }
+    @MainActor func testMarkerUnderlinesTypedWordsWithoutRawInkAndQuickUndoRestoresTheirOriginalAppearance() async throws {
+        let device = XCUIDevice.shared, previous = device.orientation
+        device.orientation = .portrait; defer { device.orientation = previous }
+        let app = XCUIApplication(); openEditor(app)
+        app.buttons["editorWorkspace"].tap()
+        let gestures = app.buttons["Gesti e automatismi"], list = app.collectionViews["workspaceList"]
+        for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
+        XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
+        let finger = app.switches["Scrittura con il dito"]; XCTAssertTrue(finger.waitForExistence(timeout: 5))
+        finger.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap()
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: finger)], timeout: 5)
+        app.navigationBars["Gesti e automatismi"].buttons["Workspace"].tap(); app.buttons["Fine"].tap()
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 8))
+        app.buttons["tool-Testo con Pencil"].tap()
+        canvas.coordinate(withNormalizedOffset: .init(dx: 0.4, dy: 0.4)).tap()
+        let input = app.textViews["pageTextInput"]; XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("Energia conservata")
+        let box = input.frame
+        app.buttons["pageTextDone"].tap(); app.buttons["tool-Evidenziatore"].tap()
+        let area = CGRect(x: box.minX - 4, y: box.minY - 4, width: min(160, box.width), height: 45)
+        @MainActor func yellowPixels() throws -> Int {
+            let source = try XCTUnwrap(XCUIScreen.main.screenshot().image.cgImage)
+            let scale = CGFloat(source.width) / app.frame.width
+            let crop = try XCTUnwrap(source.cropping(to: area.applying(.init(scaleX: scale, y: scale))))
+            var pixels = [UInt8](repeating: 255, count: crop.width * crop.height * 4)
+            try pixels.withUnsafeMutableBytes { data in
+                let context = try XCTUnwrap(CGContext(data: data.baseAddress, width: crop.width, height: crop.height, bitsPerComponent: 8,
+                    bytesPerRow: crop.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+            }
+            return stride(from: 0, to: pixels.count, by: 4).filter { pixels[$0] > 200 && pixels[$0 + 1] > 160 && Int(pixels[$0]) - Int(pixels[$0 + 2]) > 20 }.count
+        }
+        let baseline = try yellowPixels(), origin = app.coordinate(withNormalizedOffset: .zero)
+        origin.withOffset(.init(dx: box.minX + 4, dy: box.minY + 10)).press(forDuration: 0.05,
+            thenDragTo: origin.withOffset(.init(dx: box.minX + 30, dy: box.minY + 10)))
+        let deadline = Date().addingTimeInterval(8)
+        var marked = try yellowPixels()
+        while marked <= baseline + 30, Date() < deadline { try await Task.sleep(for: .milliseconds(100)); marked = try yellowPixels() }
+        XCTAssertGreaterThan(marked, baseline + 30)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "word-highlight-typed-text"; shot.lifetime = .keepAlways; add(shot)
+        app.buttons["quickUndo"].tap()
+        let undoneDeadline = Date().addingTimeInterval(8)
+        var undone = try yellowPixels()
+        while undone > baseline + 10, Date() < undoneDeadline { try await Task.sleep(for: .milliseconds(100)); undone = try yellowPixels() }
+        XCTAssertLessThanOrEqual(undone, baseline + 10)
+        app.buttons["quickRedo"].tap()
+        let restoredDeadline = Date().addingTimeInterval(8)
+        var restored = try yellowPixels()
+        while restored <= baseline + 30, Date() < restoredDeadline { try await Task.sleep(for: .milliseconds(100)); restored = try yellowPixels() }
+        XCTAssertGreaterThan(restored, baseline + 30)
+    }
     @MainActor func testFeatureGuideSearchStepsAndCompletionPersist() {
         continueAfterFailure = false
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()

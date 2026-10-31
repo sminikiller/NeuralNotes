@@ -130,9 +130,10 @@ extension EditorViewModel {
     /// A marker-only undo keeps its recognized words; undoing pen/image edits
     /// invalidates them even when the currently selected tool is the marker.
     private func scanWordsUnchanged(from current: PageSnapshot, to restored: PageSnapshot, drawing: PKDrawing?) -> Bool {
-        guard PageWordIndex.shared.hasRecognizedScanWords(current), current.pdfFile == restored.pdfFile,
+        guard current.pdfFile == restored.pdfFile,
               current.pdfIndex == restored.pdfIndex, current.width == restored.width, current.height == restored.height,
-              current.images == restored.images else { return false }
+              current.images == restored.images, current.paper == restored.paper,
+              current.appearance == restored.appearance else { return false }
         guard let drawing else { return true }
         return NativeInkComparison.equal(canvas.drawing, drawing, ignoringMarkers: true)
     }

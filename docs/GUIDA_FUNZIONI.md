@@ -60,7 +60,7 @@ Cancella parti di inchiostro o tratti con un gesto.
 
 Cronologia di inchiostro, testo, immagini e pagine.
 
-1. Dopo aver concluso un tratto o una modifica premi la freccia Annulla nella toolbar.
+1. Dopo aver concluso un tratto o una modifica premi Annulla nel piccolo overlay in alto a sinistra del foglio, disponibile anche in Solo foglio. Le frecce restano anche nella toolbar.
 2. Ripristina riapplica l’azione annullata. Una nuova modifica dopo Annulla scarta il ramo da ripristinare.
 3. Le modifiche della pagina corrente appaiono subito e poi vengono salvate. Le operazioni fra pagine attendono anche il disco; controlla l’icona di stato.
 
@@ -417,7 +417,7 @@ Seleziona testo digitale e conserva i riferimenti.
 Seleziona una forma con **Oggetti**. I quattro punti blu creano blocchi uguali e già collegati; un trascinamento collega un oggetto esistente. Rilasciando nel vuoto nasce un blocco, mentre trattenendo per mezzo secondo lasci un estremo libero. Gli estremi seguono spostamenti, dimensioni e rotazione. Doppio tocco nel blocco o sul collegamento apre l’etichetta, con testo ricco, elenchi, rientri e riduzione facoltativa del carattere. Nel menu del collegamento scegli tracciato e stile. Copia e sposta conservano i collegamenti tra i blocchi selezionati, con nuove identità per le copie. Le mappe AI diventano diagrammi modificabili, mantenendo i rimandi alle fonti.
 
 ## Evidenziatore e riconoscimento — correzioni 0.27
-Tieni premuto **Evidenziatore**: **Larghezza reale** arriva a **1 pt**, senza il vecchio minimo di 12 pt; i tre spessori recenti sono distinti dalla penna. **Aggancia alle parole del PDF** usa il testo digitale come la Lente: passa sulle parole o appena sotto e rilascia. Un annulla elimina tutta la selezione. Nelle scansioni usa prima la Lente per riconoscere le parole: l’evidenziatore riusa poi quei riquadri. Senza parole riconosciute il tratto resta libero. La misura scelta vale per il tratto libero; l’aggancio usa l’altezza delle parole. Il colore usa composizione moltiplica sul documento; la penna resta sopra il colore. Schermo, anteprime e PDF condividono la stessa regola. Non viene modificato l’originale PDF.
+Tieni premuto **Evidenziatore** e scegli **Parole** o **Tratto libero**. In **Parole** sottolinea o passa sulle parole come con la Lente: viene usato lo stesso selettore per PDF, testo inserito, etichette, scansioni e grafia riconosciuta. Il riconoscimento parte selezionando lo strumento; se non è pronto appare un messaggio e puoi ripassare quando termina. Una passata senza parole non lascia segni liberi accidentali. Le evidenziazioni sono rettangoli vettoriali per parola, separati dall’inchiostro; ripassare con lo stesso colore non scurisce. Un annulla rimuove la passata intera. In **Tratto libero** la larghezza arriva a **1 pt**, con tre spessori recenti indipendenti dalla penna. Il colore non schiarisce il nero del PDF e la penna nativa resta sopra. Anteprime e PDF esportati condividono il rendering; l’originale PDF rimane intatto.
 Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anche con piccoli movimenti. La conversione chiude la sessione nativa d’inchiostro per evitare che il tratto grezzo ritorni alla scrittura successiva. Annulla prima il nuovo tratto; un ulteriore annulla della correzione recupera il tratto originale al posto della forma.
 
 ## Selezioni, gomme e misure — 0.28 (in collaudo)
@@ -432,7 +432,7 @@ Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anch
 In **Solo foglio**, espandi la mini toolbar. La pressione prolungata sugli strumenti apre le stesse opzioni; con **Oggetti** attivo, **Azioni sulla selezione** offre copia/spostamento, miniature e PNG senza uscire dalla vista. Con la toolbar laterale, attivare le miniature chiude prima il pop-up della selezione.
 
 ### Gomma per tipo ed eliminazione estesa
-1. Tieni premuta la gomma e scegli **Cancella**: tutto, evidenziatore, penna, forme e connettori, testo e post-it oppure immagini. La gomma parziale ritaglia l’inchiostro; gli oggetti toccati si eliminano interi. Gli oggetti bloccati restano protetti.
+1. Tieni premuta la gomma e scegli **Cancella**: tutto, evidenziatore, penna, forme e connettori, testo e post-it oppure immagini. **Cancella anche gli oggetti** permette di includere o proteggere foto, testi e forme con un interruttore. La gomma parziale ritaglia l’inchiostro; gli oggetti toccati si eliminano interi. Gli oggetti bloccati restano protetti.
 2. Per un intervento esteso, dal menu della pagina o da **Azioni → Documento** apri **Elimina elementi per tipo**. Nella griglia pagine lo trovi anche sulle pagine selezionate.
 3. Scegli ambito e tipi; attendi i conteggi e conferma. Sull’intero quaderno il backup preventivo è obbligatorio: se non riesce, non viene eliminato nulla. Concludi prima eventuali registrazioni o compressioni.
 4. Una sola azione **Annulla** ripristina tutto. **Collegamenti audio** elimina i rimandi, conservando registrazioni e trascrizioni.

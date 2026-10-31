@@ -8,7 +8,7 @@ import NeuralNotesCore
 final class SelectiveEraseSession {
     private weak var model: EditorViewModel?
     private let before: EditorContentState?, original: PKDrawing, originalPage: PageSnapshot?
-    private let pageID: UUID?, target: EraserTarget, width: Double, whole: Bool
+    private let pageID: UUID?, target: EraserTarget, width: Double, whole: Bool, includeObjects: Bool
     private var native: [UUID: PKStroke] = [:], visible: [UUID: CGPath] = [:]
     private var order: [UUID] = [], originalIndices: [UUID: Int] = [:]
     private var objectRegions: [UUID: CGPath] = [:], boxes: [UUID: SnapRect] = [:]
@@ -21,7 +21,8 @@ final class SelectiveEraseSession {
     init(model: EditorViewModel) {
         self.model = model; before = model.captureEdit(ink: true); original = model.canvas.drawing; originalPage = model.page; pageID = model.page?.id
         target = model.writingOptions.effectiveEraserTarget; width = model.writingOptions.eraserWidth; whole = model.writingOptions.eraser == .stroke
-        if let page = model.page { objectRegions = EraserObjectGeometry.regions(page: page, target: target) }
+        includeObjects = model.writingOptions.erasesObjects
+        if let page = model.page { objectRegions = EraserObjectGeometry.regions(page: page, target: target, includeObjects: includeObjects) }
         for (id, path) in objectRegions { boxes[id] = SnapRect(path.boundingBoxOfPath.insetBy(dx: -0.5, dy: -0.5)) }
         for (offset, stroke) in original.strokes.enumerated() {
             var id = UUID(); while boxes[id] != nil || native[id] != nil { id = UUID() }
@@ -67,7 +68,7 @@ final class SelectiveEraseSession {
             // Detaching an end can change its route. Refresh object geometry
             // only after a deletion, not for every coalesced pointer sample.
             for id in objectRegions.keys { boxes[id] = nil }
-            objectRegions = EraserObjectGeometry.regions(page: page, target: target)
+            objectRegions = EraserObjectGeometry.regions(page: page, target: target, includeObjects: includeObjects)
             for (id, region) in objectRegions { boxes[id] = SnapRect(region.boundingBoxOfPath.insetBy(dx: -0.5, dy: -0.5)) }
             index = EraserSpatialIndex(boxes: boxes)
         }

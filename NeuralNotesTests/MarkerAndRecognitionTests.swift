@@ -61,7 +61,7 @@ final class MarkerAndRecognitionTests: XCTestCase {
             await model.importPages(from: file); XCTAssertNil(model.error)
             model.chooseTool(.marker); model.chooseMarkerWidth(1)
             XCTAssertEqual(model.markerWidth, 1); XCTAssertTrue(model.markerCustomInput)
-            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled, "Sotto il minimo nativo il gesto usa i punti vettoriali da 1 pt, non il pennino nativo da 7,5 pt.")
+            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled, "La modalità Parole intercetta il gesto senza aggiungere pennarello nativo.")
             for _ in 0..<200 where !model.markerWordsActive { try await Task.sleep(for: .milliseconds(10)) }
             XCTAssertTrue(model.markerWordsActive)
             let page = try XCTUnwrap(model.page), words = PageWordIndex.shared.pdfWords(page)
@@ -71,10 +71,12 @@ final class MarkerAndRecognitionTests: XCTestCase {
             host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
             let session = try XCTUnwrap(MarkerWordSession(host: host, model: model))
             session.move([CGPoint(x: target.rect.midX, y: target.rect.midY)]); session.finish(cancelled: false)
-            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
-            let marker = try XCTUnwrap(model.canvas.drawing.strokes.first)
-            XCTAssertLessThanOrEqual(marker.renderBounds.maxY, words.first(where: { $0.text == "Seconda" })?.rect.minY ?? 0)
-            let marked = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            let marker = try XCTUnwrap(model.page?.pdfMarkups?.first)
+            XCTAssertEqual(model.page?.pdfMarkups?.count, 1); XCTAssertEqual(marker.wordHighlight, true)
+            XCTAssertEqual(marker.text, "Energia"); XCTAssertEqual(marker.color, InkColor(model.ink))
+            XCTAssertLessThanOrEqual(marker.y + marker.height, Double(words.first(where: { $0.text == "Seconda" })?.rect.minY ?? 0))
+            let marked = DocumentServices.image(page: try XCTUnwrap(model.page), drawing: model.canvas.drawing, workspace: model.workspace)
             XCTAssertGreaterThan(blackPixels(baseline), 100)
             XCTAssertGreaterThanOrEqual(blackPixels(marked), Int(Double(blackPixels(baseline)) * 0.98), "Il colore non deve schiarire i glifi neri del PDF.")
             XCTAssertFalse(host.markerReadability.isUserInteractionEnabled)
@@ -82,12 +84,14 @@ final class MarkerAndRecognitionTests: XCTestCase {
             let exported = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: exported) }
             XCTAssertEqual(PDFDocument(url: exported)?.pageCount, 2)
-            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
-            await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            await model.performUndo(); XCTAssertTrue(model.page?.pdfMarkups?.isEmpty ?? true)
+            await model.performRedo(); XCTAssertEqual(model.page?.pdfMarkups?.count, 1)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
         }
     }
     @MainActor func testFreehandMarkerBelowNativeMinimumStoresOnePointWideVectorInkAndUndoesOnce() async throws {
         try await fixture { model in
+            model.editWriting { $0.markerSnapWords = false }
             model.chooseTool(.marker); model.editShapePreferences { $0.mode = .off }; model.chooseMarkerWidth(1)
             XCTAssertTrue(model.markerCustomInput); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
             let host = CanvasHost(canvas: model.canvas); host.model = model
@@ -118,11 +122,7 @@ final class MarkerAndRecognitionTests: XCTestCase {
             await model.importPages(from: file); XCTAssertNil(model.error)
             let page = try XCTUnwrap(model.page), index = PageWordIndex.shared
             model.chooseTool(.marker)
-            let prepared = Date().addingTimeInterval(5)
-            while !index.isPDFMarkerReady(page), Date() < prepared { try await Task.sleep(for: .milliseconds(20)) }
-            XCTAssertTrue(index.isPDFMarkerReady(page)); XCTAssertFalse(model.markerWordsActive)
-            XCTAssertFalse(index.isReady(page), "Il risultato vuoto del solo testo digitale non deve bloccare l’OCR della Lente.")
-            index.prepare(page, model: model)
+            // Choosing word highlighting starts the same scan OCR as the Lens.
             let recognized = Date().addingTimeInterval(10)
             while !index.isReady(page), Date() < recognized { try await Task.sleep(for: .milliseconds(20)) }
             XCTAssertTrue(index.isReady(page))
@@ -134,11 +134,11 @@ final class MarkerAndRecognitionTests: XCTestCase {
             host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
             let session = try XCTUnwrap(MarkerWordSession(host: host, model: model))
             session.move([.init(x: target.rect.midX, y: target.rect.midY)]); session.finish(cancelled: false)
-            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertEqual(model.page?.pdfMarkups?.count, 1)
             XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive, "Evidenziare una parola non deve far dimenticare le altre.")
-            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            await model.performUndo(); XCTAssertTrue(model.page?.pdfMarkups?.isEmpty ?? true)
             XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive)
-            await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            await model.performRedo(); XCTAssertEqual(model.page?.pdfMarkups?.count, 1)
             XCTAssertTrue(index.isReady(page)); XCTAssertTrue(model.markerWordsActive)
             model.chooseTool(.eraser); model.editWriting { $0.markerOnly = true; $0.eraser = .partial; $0.eraserWidth = 12 }
             let markerBeforeErase = model.canvas.drawing.dataRepresentation()
@@ -147,16 +147,18 @@ final class MarkerAndRecognitionTests: XCTestCase {
             erasing.append([.init(x: target.rect.midX, y: target.rect.midY)])
             model.drawingShape = false; erasing.finish(cancelled: false)
             XCTAssertNil(model.eraserCompositionToken)
-            XCTAssertFalse(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: markerBeforeErase)))
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: markerBeforeErase)))
+            XCTAssertTrue(model.page?.pdfMarkups?.isEmpty == true)
             XCTAssertTrue(index.isReady(page), "La gomma solo evidenziatore deve conservare l’OCR anche dopo la fine del gesto.")
             await model.performUndo(); XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, try PKDrawing(data: markerBeforeErase)))
+            XCTAssertEqual(model.page?.pdfMarkups?.count, 1)
             XCTAssertTrue(index.isReady(page))
             model.chooseTool(.pen); model.editShapePreferences { $0.mode = .off }
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: model.canvas.drawing.strokes + [stroke([.init(x: 60, y: 400), .init(x: 220, y: 400)])])
             model.strokeEnded(); model.finishInkGesture()
             XCTAssertFalse(index.isReady(page), "Il nuovo inchiostro deve rendere obsoleto l’OCR precedente.")
             model.chooseTool(.marker)
-            XCTAssertFalse(model.markerWordsActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertFalse(model.markerWordsActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
             // A partial eraser preserves path creation dates. Undo must compare
             // visible ink, rather than those audio identities, to expire OCR.
             model.chooseTool(.eraser)
@@ -177,8 +179,64 @@ final class MarkerAndRecognitionTests: XCTestCase {
             await model.performUndo()
             XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, fullInk))
             XCTAssertFalse(index.isReady(page), "Ripristinare parti della penna deve invalidare l’OCR anche se le date dei tratti sono identiche.")
-            XCTAssertFalse(model.markerWordsActive); XCTAssertTrue(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertFalse(model.markerWordsActive); XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
         }
+    }
+    @MainActor func testTypedWordsUseLensSelectionRepeatCancelEmptyStrokeAndOneUndoWithoutRawInk() async throws {
+        try await fixture { model in
+            var text = TextElement(text: "Energia conservata\nSeconda riga")
+            text.x = 60; text.y = 100; text.width = 400; text.fontSize = 24
+            model.page?.texts = [text]; model.history.clear()
+            model.chooseTool(.marker)
+            let page = try XCTUnwrap(model.page), groups = PageWordIndex.shared.groups(for: page)
+            let word = try XCTUnwrap(groups.first?.first)
+            let trace = [CGPoint(x: word.rect.minX + 2, y: word.rect.maxY + 2), CGPoint(x: word.rect.maxX - 2, y: word.rect.maxY + 2)]
+            let lens = try XCTUnwrap(PageWords.selection(trace: trace, groups: groups))
+            XCTAssertEqual(lens.indices, [0]); XCTAssertEqual(PageWords.text(lens.indices, in: lens.words), "Energia")
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = .init(x: 0, y: 0, width: 768, height: 1024); host.synchronizePage(); host.layoutIfNeeded()
+            let first = try XCTUnwrap(MarkerWordSession(host: host, model: model)); first.move(trace); first.finish(cancelled: false)
+            let marks = try XCTUnwrap(model.page?.pdfMarkups); XCTAssertEqual(marks.map(\.text), ["Energia"])
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertTrue(model.canUndo)
+            let duplicate = try XCTUnwrap(MarkerWordSession(host: host, model: model)); duplicate.move(trace); duplicate.finish(cancelled: false)
+            XCTAssertEqual(model.page?.pdfMarkups, marks)
+            let empty = try XCTUnwrap(MarkerWordSession(host: host, model: model)); empty.move([.init(x: 500, y: 600), .init(x: 550, y: 600)]); empty.finish(cancelled: false)
+            let cancelled = try XCTUnwrap(MarkerWordSession(host: host, model: model)); cancelled.move(trace); cancelled.finish(cancelled: true)
+            XCTAssertEqual(model.page?.pdfMarkups, marks); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            await model.performUndo(); XCTAssertTrue(model.page?.pdfMarkups?.isEmpty ?? true); XCTAssertFalse(model.canUndo)
+            await model.performRedo(); XCTAssertEqual(model.page?.pdfMarkups, marks)
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            try await model.load(try XCTUnwrap(model.page)); XCTAssertEqual(model.page?.pdfMarkups, marks)
+        }
+    }
+    @MainActor func testWordHighlightsRemainColoredOverPhotosAndSameStyleOverlapsDoNotDarken() async throws {
+        try await fixture { model in
+            let picture = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200)).image { item in UIColor.white.setFill(); item.fill(CGRect(x: 0, y: 0, width: 200, height: 200)) }
+            let file = try await model.workspace.storeImage(try XCTUnwrap(picture.pngData()))
+            var page = try XCTUnwrap(model.page); page.paper = .plain
+            var image = ImageElement(file: file, width: 200, height: 200); image.x = 0; image.y = 0; page.images = [image]
+            let words = [PageWord(text: "Prima", rect: CGRect(x: 30, y: 30, width: 70, height: 20)),
+                         PageWord(text: "Seconda", rect: CGRect(x: 65, y: 30, width: 70, height: 20))]
+            page.pdfMarkups = try WordHighlights.appending(words: words, indices: [0, 1], to: [], color: .yellow, width: page.width, height: page.height)
+            let rendered = DocumentServices.image(page: page, drawing: PKDrawing(), workspace: model.workspace)
+            let a = try pixel(rendered, at: CGPoint(x: 45, y: 40)), overlap = try pixel(rendered, at: CGPoint(x: 80, y: 40))
+            XCTAssertLessThan(a[2], a[0] - 20, "Il giallo deve vedersi sopra la foto opaca")
+            for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(a[channel] - overlap[channel]), 1, "L’intersezione viene dipinta una volta sola") }
+            let baseline = DocumentServices.image(page: page, drawing: PKDrawing(strokes: [stroke([.init(x: 35, y: 40), .init(x: 95, y: 40)])]), workspace: model.workspace)
+            XCTAssertGreaterThan(blackPixels(baseline), 10)
+        }
+    }
+    @MainActor private func pixel(_ image: UIImage, at point: CGPoint) throws -> [Int] {
+        let source = try XCTUnwrap(image.cgImage)
+        let scale = CGFloat(source.width) / image.size.width
+        let cropped = try XCTUnwrap(source.cropping(to: CGRect(x: point.x * scale, y: point.y * scale, width: 1, height: 1)))
+        var bytes = [UInt8](repeating: 255, count: 4)
+        try bytes.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        return bytes.map(Int.init)
     }
     @MainActor private func blackPixels(_ image: UIImage) -> Int {
         guard let image = image.cgImage else { return 0 }

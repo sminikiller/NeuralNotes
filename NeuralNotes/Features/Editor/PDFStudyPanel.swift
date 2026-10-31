@@ -46,7 +46,12 @@ final class PDFStudyController: NSObject {
             for markup in page.pdfMarkups ?? [] {
                 let box = CGRect(x: markup.x, y: markup.y, width: markup.width, height: markup.height).applying(inverse)
                 let annotation = PDFAnnotation(bounds: box, forType: markup.kind == .highlight ? .highlight : .underline, withProperties: nil)
-                annotation.userName = annotationOwner; annotation.color = markup.kind == .highlight ? .systemYellow : .systemRed; source.addAnnotation(annotation)
+                annotation.userName = annotationOwner
+                if markup.wordHighlight == true {
+                    let color = markup.color ?? .yellow
+                    annotation.color = UIColor(red: color.red, green: color.green, blue: color.blue, alpha: markup.opacity ?? 0.25)
+                } else { annotation.color = markup.kind == .highlight ? .systemYellow : .systemRed }
+                source.addAnnotation(annotation)
             }
         }
     }

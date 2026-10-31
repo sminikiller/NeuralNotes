@@ -295,13 +295,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private func lensStroke(_ gesture: UIPanGestureRecognizer, point: CGPoint, page: PageSnapshot, host: CanvasHost, model: EditorViewModel) {
         selectionTrace.append(point)
         let mode = LensSettings.mode
-        var picked: (words: [PageWord], indices: [Int])?
-        if mode != .image {
-            for words in PageWordIndex.shared.groups(for: page) {
-                let indices = PageWords.pick(trace: selectionTrace, in: words, area: mode == .area)
-                if !indices.isEmpty { picked = (words, indices); break }
-            }
-        }
+        let picked = mode == .image ? nil : PageWords.selection(trace: selectionTrace, groups: PageWordIndex.shared.groups(for: page), area: mode == .area)
         var transform = host.surface.transform; transform.tx = host.surface.frame.minX; transform.ty = host.surface.frame.minY
         let trace = UIBezierPath(); trace.move(to: start)
         for point in selectionTrace.dropFirst() { trace.addLine(to: point) }

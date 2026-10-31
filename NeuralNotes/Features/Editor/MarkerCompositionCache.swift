@@ -25,10 +25,11 @@ final class MarkerCompositionCache {
         paper.pdfFile = page.pdfFile; paper.pdfIndex = page.pdfIndex
         draw(page: paper, baseline: PKDrawing(), token: token, delta: PKDrawing(), package: package,
             bounds: bounds, scale: scale, hiddenIDs: [], hiddenTextID: nil, in: context)
-        PageRenderer.drawMarkups(page.pdfMarkups ?? [], in: context)
+        PageRenderer.drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight != true }, in: context)
         var ids = Set(page.objectIDs).subtracting(hiddenIDs)
         if let hiddenTextID { ids.remove(hiddenTextID) }
         PageRenderer.drawSelected(ids, foreground: false, page: page, package: package, in: context)
+        PageRenderer.drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight == true }, in: context)
         LegibleInkRenderer.draw(drawing, in: context, bounds: bounds, scale: scale)
     }
     func draw(page: PageSnapshot, baseline: PKDrawing, token: UUID, delta: PKDrawing, package: URL,

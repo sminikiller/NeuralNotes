@@ -29,21 +29,39 @@ enum PageRenderer {
                 context.move(to: CGPoint(x: 64, y: 0)); context.addLine(to: CGPoint(x: 64, y: rect.height)); context.strokePath()
             }
         }
-        drawMarkups(page.pdfMarkups ?? [], in: context)
+        drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight != true }, in: context)
         let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
         for id in page.orderedObjectIDs where !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
             drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
+        // Photo/scanned words must stay visible on top of their opaque image.
+        // Multiply preserves black printed/typed glyphs; native pen ink is
+        // composited above this surface, including white ink on dark paper.
+        drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight == true }, in: context)
     }
     static func drawMarkups(_ markups: [PDFMarkup], in context: CGContext) {
-        for markup in markups {
+        for markup in markups where markup.wordHighlight != true {
             let box = CGRect(x: markup.x, y: markup.y, width: markup.width, height: markup.height)
             context.saveGState(); context.setBlendMode(.multiply)
             if markup.kind == .highlight { context.setFillColor(UIColor.systemYellow.withAlphaComponent(0.35).cgColor); context.fill(box) }
             else { context.setStrokeColor(UIColor.systemRed.cgColor); context.setLineWidth(1); context.move(to: CGPoint(x: box.minX, y: box.maxY)); context.addLine(to: CGPoint(x: box.maxX, y: box.maxY)); context.strokePath() }
             context.restoreGState()
         }
+        // Fill a combined path once per style: overlapping passes must not
+        // stack opacity or produce darker seams between recognized words.
+        var groups: [WordMarkStyle: [CGRect]] = [:], order: [WordMarkStyle] = []
+        for mark in markups where mark.wordHighlight == true {
+            let style = WordMarkStyle(color: mark.color ?? .yellow, opacity: mark.opacity ?? 0.25)
+            if groups[style] == nil { order.append(style) }
+            groups[style, default: []].append(CGRect(x: mark.x, y: mark.y, width: mark.width, height: mark.height))
+        }
+        for style in order {
+            context.saveGState(); context.setBlendMode(.multiply); context.setAlpha(style.opacity)
+            context.setFillColor(UIColor(red: style.color.red, green: style.color.green, blue: style.color.blue, alpha: 1).cgColor)
+            context.addRects(groups[style] ?? []); context.fillPath(); context.restoreGState()
+        }
     }
+    private struct WordMarkStyle: Hashable { let color: InkColor; let opacity: Double }
     /// One object alone, for the picture that follows the finger while it is dragged.
     static func drawSingle(_ id: UUID, page: PageSnapshot, package: URL, in context: CGContext) {
         drawObject(id, objects: ObjectLookup(page), page: page, package: package, context: context, hidingTextID: nil)
