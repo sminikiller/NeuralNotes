@@ -75,9 +75,25 @@ extension EditorViewModel {
 final class SelectionPageDragController: NSObject, UIDragInteractionDelegate {
     private weak var host: CanvasHost?
     private weak var model: EditorViewModel?
+    private let source = UIView()
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init()
-        let interaction = UIDragInteraction(delegate: self); interaction.isEnabled = true; host.addInteraction(interaction)
+        source.backgroundColor = .clear; source.isOpaque = false; source.isHidden = true
+        source.isAccessibilityElement = true; source.accessibilityIdentifier = "selectionDragSource"
+        source.accessibilityLabel = "Selezione da trascinare"
+        source.accessibilityHint = "Tieni premuto e trascina su una miniatura. Puoi anche toccare direttamente la destinazione."
+        // PencilKit has its own drag interaction. A source above the selected
+        // area receives this deliberate gesture without competing with it.
+        let interaction = UIDragInteraction(delegate: self); interaction.isEnabled = true
+        source.addInteraction(interaction); host.addSubview(source)
+    }
+    func update() {
+        guard let host, let model, model.selectionPageDragMode, !model.loading, !model.navigating,
+              !model.selectionDropPending, model.hasLease, !model.selectionBounds.isNull, !model.selectionBounds.isEmpty else {
+            source.isHidden = true; return
+        }
+        source.frame = host.surface.convert(model.selectionBounds, to: host)
+        source.isHidden = false; host.bringSubviewToFront(source)
     }
     func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem] {
         guard let host, let model, model.selectionBounds.contains(session.location(in: host.surface)),

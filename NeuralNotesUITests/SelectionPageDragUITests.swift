@@ -28,7 +28,9 @@ final class SelectionPageDragUITests: XCTestCase {
         XCTAssertTrue(destination.waitForExistence(timeout: 5)); XCTAssertTrue(destination.isHittable)
         XCTAssertEqual(canvas.frame, frame, "La striscia deve sovrapporsi senza ridurre lo spazio del foglio")
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "selection-drag-rail"; attachment.lifetime = .keepAlways; add(attachment)
-        canvas.coordinate(withNormalizedOffset: .init(dx: 0.47, dy: 0.42)).press(forDuration: 0.8,
+        let source = app.descendants(matching: .any)["selectionDragSource"].firstMatch
+        XCTAssertTrue(source.waitForExistence(timeout: 5)); XCTAssertTrue(source.isHittable)
+        source.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: 0.5)).press(forDuration: 0.8,
             thenDragTo: destination.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.3)
         page(2, in: app)
         app.buttons["Seleziona tutto"].tap()

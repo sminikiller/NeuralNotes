@@ -11,7 +11,7 @@ struct FocusControl: View {
     @State private var expanded = false
     var body: some View {
         GeometryReader { geometry in
-            let toolsWidth = CGFloat(model.currentWorkspace.effectiveFocusTools.count * 48 + 192)
+            let toolsWidth = CGFloat(model.currentWorkspace.effectiveFocusTools.count * 48 + 192 + (model.tool == .objects ? 48 : 0))
             let width: CGFloat = min(max(48, geometry.size.width - 24), !focus ? 48 : expanded ? toolsWidth : 102)
             let right = max(width + 12, min(geometry.size.width - 12, geometry.size.width - 12 + CGFloat(savedX) + translation.width))
             let y = max(36, min(geometry.size.height - 36, 36 + CGFloat(savedY) + translation.height))
@@ -21,9 +21,9 @@ struct FocusControl: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 4) {
                         ForEach(model.currentWorkspace.effectiveFocusTools, id: \.self) { item in
-                            Button { model.chooseTool(item) } label: { Image(systemName: item.icon).frame(width: 44, height: 44) }
-                                .accessibilityLabel(item.title).accessibilityIdentifier("focusTool-\(item.rawValue)")
+                            FocusToolButton(model: model, item: item)
                         }
+                        if model.tool == .objects { FocusSelectionActions(model: model) }
                         Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 44) }
                             .disabled(!model.canUndo).accessibilityLabel("Annulla")
                         FocusToolsMenu(model: model)

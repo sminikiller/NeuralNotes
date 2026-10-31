@@ -429,6 +429,8 @@ Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anch
 4. **Annulla** ripristina origine e destinazione insieme. Conserva foto, inchiostro, note e rimandi audio; i connettori interni seguono la selezione, quelli esterni diventano liberi.
 5. Nel menu **Trasforma selezione**, **Copia come immagine** e **Condividi immagine** producono un PNG trasparente a risoluzione doppia, senza carta o PDF di sfondo.
 
+In **Solo foglio**, espandi la mini toolbar. La pressione prolungata sugli strumenti apre le stesse opzioni; con **Oggetti** attivo, **Azioni sulla selezione** offre copia/spostamento, miniature e PNG senza uscire dalla vista. Con la toolbar laterale, attivare le miniature chiude prima il pop-up della selezione.
+
 ### Gomma per tipo ed eliminazione estesa
 1. Tieni premuta la gomma e scegli **Cancella**: tutto, evidenziatore, penna, forme e connettori, testo e post-it oppure immagini. La gomma parziale ritaglia l’inchiostro; gli oggetti toccati si eliminano interi. Gli oggetti bloccati restano protetti.
 2. Per un intervento esteso, dal menu della pagina o da **Azioni → Documento** apri **Elimina elementi per tipo**. Nella griglia pagine lo trovi anche sulle pagine selezionate.

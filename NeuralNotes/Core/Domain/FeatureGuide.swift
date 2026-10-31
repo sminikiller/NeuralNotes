@@ -69,7 +69,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Tieni premuto lo strumento per regolare lo spessore; passa sopra gli appunti per evidenziarli.",
             "Per togliere solo il colore usa la gomma con Solo evidenziatore: l’inchiostro della penna viene conservato." ], tools: [.marker]),
         .init("eraser", .writing, "Gomma e scarabocchio", "eraser", "Cancella parti di inchiostro o tratti con un gesto.", [
-            "Tieni premuta la gomma. In Cancella scegli Tutto, Solo evidenziatore, Solo penna, Solo forme e connettori, Solo testo e post-it oppure Solo immagini. Regola dimensione e modalità parziale o tratto intero.",
+            "Tieni premuta la gomma, anche nella mini toolbar di Solo foglio. In Cancella scegli Tutto, Solo evidenziatore, Solo penna, Solo forme e connettori, Solo testo e post-it oppure Solo immagini. Regola dimensione e modalità parziale o tratto intero.",
             "La modalità parziale ritaglia soltanto l’inchiostro; gli oggetti toccati vengono eliminati interi. I blocchi proteggono gli oggetti e ogni passata si annulla in un passo.",
             "Per cancellare con la penna abilita Scarabocchio nel workspace e fai passate ravvicinate sopra i tratti da eliminare.",
             "Usa Annulla in caso di errore. Il testo convertito usa invece i gesti Scribble di iPadOS quando disponibili." ], tools: [.eraser]),
@@ -109,7 +109,7 @@ public struct FeatureGuide: Identifiable, Sendable {
         .init("selection-transfer", .pages, "Copia o sposta la selezione tra pagine", "doc.on.doc", "Scegli una miniatura o crea una nuova pagina, con un solo annulla.", [
             "Con Oggetti seleziona inchiostro, immagini, testo o forme. Premi Copia o sposta in un’altra pagina nella barra della selezione.",
             "Scegli Sposta oppure Copia. Tocca la miniatura di destinazione, cercala per numero o titolo, oppure scegli Nuova dopo la pagina di origine oppure Nuova alla fine del quaderno.",
-            "Per trascinare senza aprire finestre premi Trascina sulle miniature nella barra della selezione. Tieni premuta la selezione sul foglio e trascinala sopra una miniatura; scegli prima Sposta o Copia. Puoi anche toccare la miniatura, oppure chiudere la striscia per tornare a muovere normalmente gli oggetti.",
+            "Per trascinare senza aprire finestre premi Trascina sulle miniature nella barra della selezione. In Solo foglio apri gli strumenti essenziali e Azioni sulla selezione. Tieni premuta la selezione sul foglio e trascinala sopra una miniatura; scegli prima Sposta o Copia. Puoi anche toccare la miniatura, oppure chiudere la striscia per tornare a muovere normalmente gli oggetti.",
             "La selezione viene proporzionata se lo spazio disponibile è più piccolo. Una sola azione Annulla ripristina origine e destinazione; se hai creato una pagina nuova, la rimuove dall’ordine attivo.",
             "Per incollare altrove solo gli elementi selezionati, usa Copia come immagine dal menu Trasforma selezione. Condividi immagine apre il foglio di condivisione: il PNG è trasparente e a risoluzione doppia, senza carta o PDF di sfondo." ]),
         .init("type-deletion", .pages, "Elimina elementi di un tipo", "line.3.horizontal.decrease.circle", "Conteggio preventivo, scelta delle pagine e annulla unico.", [
