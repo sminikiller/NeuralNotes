@@ -259,6 +259,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         let confirm = dialog.buttons["typeDeletionConfirm"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); XCTAssertEqual(confirm.label, "Elimina elementi"); confirm.tap()
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: dialog)], timeout: 8)
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: apply)], timeout: 12)
         XCTAssertTrue(app.buttons["editorUndo"].waitForExistence(timeout: 8))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
         XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
