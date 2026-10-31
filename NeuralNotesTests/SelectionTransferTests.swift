@@ -2,9 +2,14 @@ import XCTest
 import UIKit
 import PencilKit
 import NeuralNotesCore
+import UniformTypeIdentifiers
 @testable import NeuralNotes
 
 final class SelectionTransferTests: XCTestCase {
+    @MainActor func testSelectionDragTypeIsDeclaredAndConformsToDataInTheInstalledApp() {
+        XCTAssertTrue(SelectionPageDragPayload.type.isDeclared)
+        XCTAssertTrue(SelectionPageDragPayload.type.conforms(to: .data))
+    }
     @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

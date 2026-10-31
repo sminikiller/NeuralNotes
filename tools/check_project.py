@@ -121,6 +121,11 @@ def check_structure():
     playground_info = plistlib.loads((ROOT / "NeuralNotes/App/PlaygroundInfo.plist").read_bytes())
     assert playground_info["UIApplicationSceneManifest"]["UIApplicationSupportsMultipleScenes"] is True
     assert playground_info["UIBackgroundModes"] == ["audio"]
+    for metadata in (info, playground_info):
+        drag_type = next((item for item in metadata.get("UTExportedTypeDeclarations", [])
+                          if item.get("UTTypeIdentifier") == "com.lorenzominichilli.neuralnotes.selection-drag"), None)
+        assert drag_type is not None, "Missing declared in-app selection drag type"
+        assert "public.data" in drag_type["UTTypeConformsTo"]
     privacy = plistlib.loads((ROOT / "NeuralNotes/Resources/PrivacyInfo.xcprivacy").read_bytes())
     assert privacy["NSPrivacyTracking"] is False
     collected = privacy["NSPrivacyCollectedDataTypes"]

@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>UTExportedTypeDeclarations</key>
+    <array><dict>
+        <key>UTTypeIdentifier</key><string>com.lorenzominichilli.neuralnotes.selection-drag</string>
+        <key>UTTypeDescription</key><string>Selezione NeuralNotes nella stessa finestra</string>
+        <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+    </dict></array>
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>CFBundleDevelopmentRegion</key><string>it</string>

@@ -99,7 +99,10 @@ final class SelectionPageDragController: NSObject, UIDragInteractionDelegate {
         guard let host, let model, model.selectionBounds.contains(session.location(in: host.surface)),
               let payload = model.makeSelectionPageDrag(), let data = try? JSONEncoder().encode(payload) else { return [] }
         let provider = NSItemProvider()
-        provider.registerDataRepresentation(forTypeIdentifier: SelectionPageDragPayload.type.identifier, visibility: .ownProcess) { completion in completion(data, nil); return nil }
+        // UIKit's drag service must be able to advertise this representation
+        // to SwiftUI's destination. It contains only a short-lived ticket,
+        // never notebook contents, and the session cannot leave this app.
+        provider.registerDataRepresentation(forTypeIdentifier: SelectionPageDragPayload.type.identifier, visibility: .all) { completion in completion(data, nil); return nil }
         let item = UIDragItem(itemProvider: provider); item.localObject = payload
         if let image = try? model.selectionImage() {
             let preview = UIImageView(image: image), factor = min(1, 240 / max(image.size.width, image.size.height))
