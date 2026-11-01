@@ -133,7 +133,7 @@ final class EditorInteractionRegressionTests: XCTestCase {
             var shape = ShapeElement(kind: .rectangle, x: 100, y: 100, width: 200, height: 150)
             shape.fill = .red; shape.fillOpacity = 1; model.page?.paper = .plain; model.page?.shapes = [shape]
             host.synchronizePage(); host.layoutIfNeeded()
-            func redPixels() throws -> Int {
+            @MainActor func redPixels() throws -> Int {
                 host.emptyInkCover.layer.displayIfNeeded()
                 let format = UIGraphicsImageRendererFormat(); format.scale = 1
                 let image = UIGraphicsImageRenderer(size: host.emptyInkCover.bounds.size, format: format).image { host.emptyInkCover.layer.render(in: $0.cgContext) }
