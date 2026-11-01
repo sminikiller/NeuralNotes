@@ -156,6 +156,39 @@ final class EditorInteractionRegressionTests: XCTestCase {
             host.surface.hiddenObjectID = nil; XCTAssertGreaterThan(try redPixels(), 100)
         }
     }
+    @MainActor func testLiveMarkerKeepsAnObjectBroughtInFrontVisibleBeforeLift() async throws {
+        try await fixture { model, host in
+            model.chooseTool(.marker); model.editWriting { $0.markerSnapWords = false }; model.editShapePreferences { $0.mode = .off }
+            var shape = ShapeElement(kind: .rectangle, x: 100, y: 150, width: 200, height: 100)
+            shape.fill = .blue; shape.fillOpacity = 1
+            model.page?.paper = .plain; model.page?.shapes = [shape]; model.page?.aboveInkObjects = [shape.id]
+            host.synchronizePage(); host.layoutIfNeeded(); host.emptyInkCover.layer.displayIfNeeded(); host.foregroundObjects.layer.displayIfNeeded()
+            @MainActor func bluePixels() throws -> Int {
+                let format = UIGraphicsImageRendererFormat(); format.scale = 1
+                let image = UIGraphicsImageRenderer(size: host.bounds.size, format: format).image { host.layer.render(in: $0.cgContext) }
+                let source = try XCTUnwrap(image.cgImage)
+                var bytes = [UInt8](repeating: 0, count: source.width * source.height * 4)
+                return try bytes.withUnsafeMutableBytes { buffer in
+                    let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: source.width, height: source.height, bitsPerComponent: 8,
+                        bytesPerRow: source.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                    context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
+                    let pixels = buffer.bindMemory(to: UInt8.self)
+                    var count = 0
+                    for i in stride(from: 0, to: pixels.count, by: 4) { if pixels[i] < 80 && pixels[i + 1] < 180 && pixels[i + 2] > 180 { count += 1 } }
+                    return count
+                }
+            }
+            let baseline = try bluePixels(); XCTAssertGreaterThan(baseline, 100)
+            model.chooseMarkerWidth(60)
+            let session = try XCTUnwrap(MarkerWordSession(host: host, model: model))
+            session.move([CGPoint(x: 80, y: 200), CGPoint(x: 330, y: 200)])
+            let preview = try XCTUnwrap(host.subviews.compactMap { $0 as? LiveMarkerPreview }.first)
+            preview.layer.displayIfNeeded(); XCTAssertFalse(preview.isHidden)
+            XCTAssertEqual(try bluePixels(), baseline, "Live marker must respect the same front-object order as saved ink")
+            session.finish(cancelled: true)
+            XCTAssertEqual(model.page?.aboveInkObjects, [shape.id]); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+        }
+    }
     @MainActor func testFreehandMarkerShowsItsFootprintBeforeLiftAndUsesWordOpacityAtEveryWidth() async throws {
         try await fixture { model, host in
             model.chooseTool(.marker); model.editWriting { $0.markerSnapWords = false }; model.editShapePreferences { $0.mode = .off }

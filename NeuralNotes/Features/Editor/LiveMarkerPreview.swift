@@ -15,7 +15,9 @@ final class LiveMarkerPreview: UIView {
         super.init(frame: .zero)
         backgroundColor = .clear; isOpaque = false; isUserInteractionEnabled = false
         accessibilityIdentifier = "liveMarkerPreview"
-        host.addSubview(self)
+        // Match committed ink: front objects, study tape and drawing guides
+        // must remain above a live stroke as well as after the Pencil lifts.
+        host.insertSubview(self, belowSubview: host.foregroundObjects)
     }
     required init?(coder: NSCoder) { nil }
     func update(path: CGPath) {
