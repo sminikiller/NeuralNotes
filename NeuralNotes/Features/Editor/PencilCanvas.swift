@@ -132,6 +132,8 @@ final class CanvasHost: UIView {
             inkReplay.resetForPageChange(self)
             searchHighlight.resetForPageChange()
             lensNotes.layer.contents = nil
+            laserPointer.layer.contents = nil
+            canvas.layer.removeAllAnimations()
             zoomNavigator.resetForPageChange()
             CATransaction.commit()
         }
@@ -143,6 +145,15 @@ final class CanvasHost: UIView {
         }
         interaction?.refresh(); textInput?.refresh(); alignSurface()
         pencilControls?.trackTool()
+    }
+
+    /// An empty native drawing needs no visible ink layer. Keep its touch input
+    /// alive, but never expose stale PencilKit tiles from the preceding page.
+    /// The first drawing callback makes new ink visible immediately.
+    func updateNativeInkVisibility() {
+        guard drawingAssistant?.hasRecognizedPreview != true,
+              !(model?.audio?.replayInk == true && model?.audio?.playingSessionID != nil) else { return }
+        canvas.layer.opacity = canvas.drawing.strokes.isEmpty ? 0 : 1
     }
 
     func resetPage() {
@@ -229,7 +240,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
-        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update(); selectionPageDrag?.update() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update(); selectionPageDrag?.update(); updateNativeInkVisibility() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)

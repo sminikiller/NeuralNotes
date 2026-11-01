@@ -28,6 +28,12 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("drawing-squares", .writing, "Squadre da disegno", "triangle", "Traccia lungo un bordo a 45° oppure 30°/60°.", [
+            "Apri Tutti gli strumenti e scegli Squadra 45° oppure Squadra 30°/60°. Il pulsante opzioni e la pressione prolungata funzionano anche senza aggiungerla ai preferiti.",
+            "Trascina il corpo con un dito per spostarlo. Ruota con due dita e pizzica per ridimensionare. Con scrittura a dito attiva, usa due dita anche per spostare la guida.",
+            "Con la penna parti vicino al lato desiderato e traccia. Quel lato resta agganciato fino al rilascio anche se ti allontani; Annulla rimuove l’intero tratto in un passo."
+        ], tools: [.square45, .square60]),
+
         .init("snap-align", .writing, "Aggancio e allineamento", "align.horizontal.left", "Sposta con precisione e distribuisci gli oggetti.", [
             "Nel Workspace apri Aggancio. Scegli oggetti, griglia, linee guida e Mantieni proporzioni. Le opzioni sono separate per attività.",
             "Con Oggetti trascina vicino a bordi, centri, margini o griglia. Le guide sottili indicano gli allineamenti; due segni = mostrano spaziature uguali tra oggetti.",

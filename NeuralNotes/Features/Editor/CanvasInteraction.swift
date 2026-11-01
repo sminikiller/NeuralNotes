@@ -248,7 +248,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             before = nil; original = [:]; originalDrawing = nil; movingLensNote = nil; refresh(); return
         }
         if model.tool == .lens && movingLensNote == nil { lensStroke(gesture, point: point, page: page, host: host, model: model); return }
-        if model.selectRectangle || model.selectFreehand { selectArea(gesture, point: point, host: host, model: model); return }
+        if (model.selectRectangle || model.selectFreehand) && original.isEmpty { selectArea(gesture, point: point, host: host, model: model); return }
         moveObjects(gesture, point: point, page: page, host: host, model: model)
     }
 
@@ -268,7 +268,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             model.lensPick = nil
             if !PageWordIndex.shared.isReady(page) { model.prepareLensWords() }
         }
-        if !model.selectRectangle && !model.selectFreehand && model.tool != .lens {
+        if model.tool != .lens && ((!model.selectRectangle && !model.selectFreehand) || hit(point).map { model.selectedIDs.contains($0) || ($0 == inkID && model.selectionIncludesInk) } == true) {
             if let id = hit(point), id != inkID, !model.selectedIDs.contains(id) { model.selectedObjectID = id }
             model.selectedIDs = page.includingInternalConnectors(model.selectedIDs)
             for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
@@ -338,17 +338,26 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         display.apply(transform); marquee.path = display.cgPath
         guard gesture.state == .ended else { return }
         model.movingObjects = false
+        selectDocumentArea(selection, polygonPoints: model.selectFreehand ? selectionTrace : [
+            CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY)])
+    }
+
+    func selectDocumentArea(_ selection: UIBezierPath, polygonPoints: [CGPoint]) {
+        guard let model else { return }
         let box = selection.bounds
         let ids = allIDs.filter { id in
             guard let frame = objectRect(id), frame.intersects(box) else { return false }
             if let page = model.page, let edge = page.connectors?.first(where: { $0.id == id }) {
                 let objects = DiagramObjects.make(page)
-                let polygon: [StrokeSample] = model.selectFreehand ? selectionTrace.map { .init(x: $0.x, y: $0.y) }
-                    : [.init(x: rect.minX, y: rect.minY), .init(x: rect.maxX, y: rect.minY), .init(x: rect.maxX, y: rect.maxY), .init(x: rect.minX, y: rect.maxY)]
+                let polygon = polygonPoints.map { StrokeSample(x: $0.x, y: $0.y) }
                 if ConnectorGeometry.intersects(edge, objects: objects, selection: polygon) { return true }
                 if let label = DiagramLabels.connector(edge, objects: objects, page: page), label.box.intersects(box) {
                     return !model.selectFreehand || selection.contains(CGPoint(x: label.box.midX, y: label.box.midY))
                 }; return false
+            }
+            if let shape = model.page?.shapes?.first(where: { $0.id == id }) {
+                return ShapeGeometry.intersects(shape, selection: polygonPoints.map { .init(x: $0.x, y: $0.y) })
             }
             return !model.selectFreehand || selection.contains(CGPoint(x: frame.midX, y: frame.midY))
         }
@@ -361,7 +370,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let previous = model.selectionIncludesInk ? (model.selectedStrokeIndices ?? Set(model.canvas.drawing.strokes.indices)) : []
         model.selectedStrokeIndices = model.multiSelection ? previous.union(strokes) : strokes
         model.selectionIncludesInk = !(model.selectedStrokeIndices?.isEmpty ?? true)
-        model.selectRectangle = false; model.selectFreehand = false; marquee.path = nil; before = nil; originalDrawing = nil; refresh()
+        marquee.path = nil; before = nil; originalDrawing = nil; refresh()
     }
 
     private func moveObjects(_ gesture: UIPanGestureRecognizer, point: CGPoint, page: PageSnapshot, host: CanvasHost, model: EditorViewModel) {
@@ -625,7 +634,7 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
             let edit = UIAction(title: "Modifica", image: UIImage(systemName: "slider.horizontal.3")) { _ in
                 if let text = model.page?.texts.first(where: { model.selectedIDs.contains($0.id) }) {
                     model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: text.x + 2, y: text.y + 2))
-                } else { model.objectEditorRequest += 1 }
+                } else { model.editSelection() }
             }
             let front = UIAction(title: "Porta davanti", image: UIImage(systemName: "square.3.layers.3d.top.filled")) { _ in model.arrangeSelection(front: true) }
             let back = UIAction(title: "Porta dietro", image: UIImage(systemName: "square.3.layers.3d.bottom.filled")) { _ in model.arrangeSelection(front: false) }

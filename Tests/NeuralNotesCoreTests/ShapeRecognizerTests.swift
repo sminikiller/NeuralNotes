@@ -84,4 +84,30 @@ final class ShapeRecognizerTests: XCTestCase {
         // Generous CI regression budget; the iPad 10 frame budget needs physical measurement.
         XCTAssertLessThan(Date().timeIntervalSince(start) / 20, 0.016)
     }
+    func testRoundedImperfectClosedShapesDoNotBecomeFreePolygons() throws {
+        let outlines: [(ShapeKind, [StrokeSample])] = [
+            (.rectangle, [.init(x: 110, y: 110), .init(x: 280, y: 119), .init(x: 289, y: 125), .init(x: 286, y: 267), .init(x: 279, y: 276), .init(x: 111, y: 269), .init(x: 103, y: 260), .init(x: 104, y: 119), .init(x: 110, y: 110)]),
+            (.rectangle, [.init(x: 110, y: 110), .init(x: 278, y: 120), .init(x: 286, y: 127), .init(x: 295, y: 360), .init(x: 288, y: 369), .init(x: 113, y: 363), .init(x: 104, y: 355), .init(x: 102, y: 121), .init(x: 110, y: 110)]),
+            (.triangle, [.init(x: 120, y: 320), .init(x: 213, y: 108), .init(x: 222, y: 103), .init(x: 230, y: 113), .init(x: 328, y: 319), .init(x: 324, y: 327), .init(x: 130, y: 326), .init(x: 120, y: 320)])
+        ]
+        for (kind, outline) in outlines {
+            var trace: [StrokeSample] = []
+            for i in 1..<outline.count {
+                let a = outline[i - 1], b = outline[i]
+                for step in 0..<20 {
+                    let t = Double(step) / 20, jitter = sin(Double(step) * 1.7) * 1.3
+                    trace.append(.init(x: a.x + (b.x - a.x) * t + jitter, y: a.y + (b.y - a.y) * t - jitter))
+                }
+            }
+            trace.append(outline[0])
+            // Starting on a side must not create an extra vertex at the seam.
+            let cut = 9; trace = Array(trace[cut...]) + Array(trace.prefix(cut + 1))
+            for mode in [ShapeRecognitionMode.hold, .automatic] {
+                let result = try XCTUnwrap(ShapeRecognizer.recognize(trace, mode: mode))
+                XCTAssertEqual(result.shape.kind, kind, "\(kind) / \(mode)")
+                if kind == .rectangle { XCTAssertNil(result.shape.vertices) }
+            }
+        }
+    }
+
 }

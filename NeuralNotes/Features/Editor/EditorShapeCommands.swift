@@ -38,22 +38,31 @@ extension EditorViewModel {
         mutatePage("Traccia \(kind.title)") { $0.shapes = ($0.shapes ?? []) + [shape] }
         selectedObjectID = shape.id; rememberPalette()
     }
+    func editSelection() {
+        guard !interactionBusy, !loading, !navigating else { return }
+        if !selectedShapes.isEmpty { shapeStyleRequest += 1 }
+        else if selectedConnector != nil { connectorStyleRequest += 1 }
+        else { objectEditorRequest += 1 }
+    }
     var selectedShapes: [ShapeElement] { (page?.shapes ?? []).filter { selectedIDs.contains($0.id) } }
     func applyShapeStyle(_ style: NeuralNotesCore.ShapeStyle) {
         guard style.isValid else { return }
         let ids = selectedIDs
         mutatePage("Stile forme") { page in
-            page.shapes = page.shapes?.map { ids.contains($0.id) ? style.applying(to: $0) : $0 }
+            let locked = Set(page.lockedObjects ?? [])
+            page.shapes = page.shapes?.map { ids.contains($0.id) && !locked.contains($0.id) ? style.applying(to: $0) : $0 }
         }
     }
     func applyShapeStyleAndParameters(_ style: NeuralNotesCore.ShapeStyle, template: ShapeElement?) {
         guard style.isValid else { return }
         let ids = selectedIDs
         mutatePage("Stile e parametri forme") { page in
+            let locked = Set(page.lockedObjects ?? [])
             page.shapes = page.shapes?.map { source in
-                guard ids.contains(source.id) else { return source }
+                guard ids.contains(source.id), !locked.contains(source.id) else { return source }
                 var value = style.applying(to: source)
                 if let template, source.kind == template.kind {
+                    if source.sides != template.sides, source.kind == .polygon || source.kind == .star { value.vertices = nil }
                     value.sides = template.sides; value.innerRatio = template.innerRatio
                     value.arcSweep = template.arcSweep
                 }
@@ -64,9 +73,11 @@ extension EditorViewModel {
     func updateShapeParameters(_ template: ShapeElement) {
         let ids = selectedIDs
         mutatePage("Parametri forma") { page in
+            let locked = Set(page.lockedObjects ?? [])
             page.shapes = page.shapes?.map { source in
-                guard ids.contains(source.id), source.kind == template.kind else { return source }
-                var value = source; value.sides = template.sides; value.innerRatio = template.innerRatio
+                guard ids.contains(source.id), source.kind == template.kind, !locked.contains(source.id) else { return source }
+                var value = source; if source.sides != template.sides, source.kind == .polygon || source.kind == .star { value.vertices = nil }
+                    value.sides = template.sides; value.innerRatio = template.innerRatio
                 return value
             }
         }

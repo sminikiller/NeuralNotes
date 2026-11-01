@@ -32,6 +32,16 @@ final class MarkerCompositionCache {
         PageRenderer.drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight == true }, in: context)
         LegibleInkRenderer.draw(drawing, in: context, bounds: bounds, scale: scale)
     }
+    func drawLiveMarker(page: PageSnapshot, baseline: PKDrawing, token: UUID, footprint: CGPath,
+                        color: UIColor, package: URL, bounds: CGRect, scale: CGFloat, in context: CGContext) {
+        draw(page: page, baseline: baseline, token: token, delta: PKDrawing(), package: package,
+            bounds: bounds, scale: scale, hiddenIDs: [], hiddenTextID: nil, in: context)
+        context.saveGState(); context.setBlendMode(.multiply)
+        context.setFillColor(color.withAlphaComponent(0.25).cgColor); context.addPath(footprint); context.fillPath()
+        context.restoreGState()
+        // Existing ordinary ink, including white writing on dark paper, stays above the color.
+        pens?.draw(in: bounds)
+    }
     func draw(page: PageSnapshot, baseline: PKDrawing, token: UUID, delta: PKDrawing, package: URL,
               bounds: CGRect, scale: CGFloat, hiddenIDs: Set<UUID>, hiddenTextID: UUID?, in context: CGContext) {
         let limitedScale = max(0.05, min(scale, sqrt(2_000_000 / max(1, bounds.width * bounds.height))))

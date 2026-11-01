@@ -6,6 +6,7 @@ struct ToolOptionsPopover: View {
     @Bindable var model: EditorViewModel
     let tool: WorkspaceTool
     @State private var recognitionDetails = false
+    @State private var defaultStyleOpen = false
     var body: some View {
         ScrollView { VStack(alignment: .leading, spacing: 12) {
             Label(tool.title, systemImage: tool.icon).font(.headline)
@@ -17,6 +18,7 @@ struct ToolOptionsPopover: View {
         }.padding(18) }.frame(width: 340).frame(maxHeight: 620)
             .accessibilityIdentifier("toolOptions-\(tool.rawValue)")
             .presentationCompactAdaptation(.popover)
+            .onChange(of: model.rulerGuide) { _, _ in model.refreshDrawingGuides() }
             .sheet(isPresented: $recognitionDetails) {
                 NavigationStack {
                     ShapeRecognitionPanel(model: model)
@@ -58,11 +60,17 @@ struct ToolOptionsPopover: View {
         }
     }
     private var shapeOptions: some View {
-        ShapeToolOptions(model: model)
+        VStack(alignment: .leading, spacing: 12) {
+            ShapeToolOptions(model: model)
+            Button("Stile per le nuove forme", systemImage: "paintbrush.pointed") { defaultStyleOpen = true }
+            if !model.selectedShapes.isEmpty {
+                Button("Modifica la forma selezionata", systemImage: "slider.horizontal.3") { model.editSelection() }
+            }
+        }.sheet(isPresented: $defaultStyleOpen) { NewShapeStylePanel(model: model) }
     }
     private var selectionOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Button("Lazo PencilKit", systemImage: "lasso") { model.chooseTool(.lasso) }
+            Button("Solo inchiostro (PencilKit)", systemImage: "pencil.tip") { model.tool = .lasso; model.configureTool() }
             Button("Lazo libero: inchiostro e oggetti", systemImage: "lasso.and.sparkles") { model.chooseTool(.objects); model.selectRectangle = false; model.selectFreehand = true }
             Button("Area: inchiostro e oggetti", systemImage: "rectangle.dashed") { model.chooseTool(.objects); model.selectFreehand = false; model.selectRectangle = true }
             Toggle("Aggiungi alla selezione", isOn: $model.multiSelection)
@@ -76,11 +84,13 @@ struct ToolOptionsPopover: View {
     }
     private var otherOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if tool == .ruler {
-                Text("Con il righello attivo la penna segue sempre il bordo scelto all’inizio del tratto, anche se la punta si allontana. Sposta e ruota con due dita, pizzica per allungare; vicino a 0°, 45° e 90° l’angolo si aggancia.").font(.caption).foregroundStyle(.secondary)
-                Toggle("Righello visibile", isOn: Binding(get: { model.rulerActive }, set: { value in if value != model.rulerActive { model.chooseTool(.ruler) } }))
-                Text("Lunghezza del righello")
-                Slider(value: Binding(get: { model.rulerGuide.length }, set: { model.rulerGuide.length = $0 }), in: 240...1800)
+            if tool.draftingKind != nil {
+                Text("La penna segue il bordo scelto all’inizio del tratto, anche se la punta si allontana. Trascina con un dito, ruota con due dita e pizzica per ridimensionare. Con Disegna con il dito attivo, usa due dita anche per spostare.").font(.caption).foregroundStyle(.secondary)
+                Toggle("Guida visibile", isOn: Binding(get: { model.rulerActive && model.rulerGuide.kind == tool.draftingKind }, set: { value in
+                    if value != (model.rulerActive && model.rulerGuide.kind == tool.draftingKind) { model.chooseTool(tool) }
+                }))
+                Text("Dimensione della guida")
+                Slider(value: Binding(get: { model.rulerGuide.length }, set: { model.rulerGuide.length = $0 }), in: 160...1800)
                 Button("Penna", systemImage: "pencil.tip") { model.chooseTool(.pen) }
                 Button("Evidenziatore", systemImage: "highlighter") { model.chooseTool(.marker) }
             } else if tool == .protractor {

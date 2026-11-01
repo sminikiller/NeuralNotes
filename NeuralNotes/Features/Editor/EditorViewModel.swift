@@ -264,12 +264,14 @@ final class EditorViewModel {
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
         if tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
         if tool == .marker { prepareMarkerWords() }
+        refreshDrawingGuides()
     }
 
     func drawingChanged(preservingRecognizedWords: Bool = false) {
         guard !loading else { return }
         guard !movingObjects else { return }
         inkDisplayGeneration = UUID()
+        (canvas.superview as? CanvasHost)?.updateNativeInkVisibility()
         (canvas.superview as? CanvasHost)?.markerReadability.update(canvas.superview as? CanvasHost)
         if tool == .eraser && drawingShape { return }
         if let page {
@@ -512,17 +514,24 @@ final class EditorViewModel {
         signaturesBeforeStroke = []
         // Keep the original stroke objects (ink, masks and transforms), but use
         // a fresh drawing container rather than the old native editing timeline.
-        installNativeInk(drawing)
+        installNativeInk(drawing, clearingPresentation: true)
         canvas.delegate = delegate
     }
 
     /// End the native editing timeline as well as replacing its value. Otherwise
     /// PencilKit may append its previous raw stroke on the next tool gesture.
-    func installNativeInk(_ drawing: PKDrawing) {
+    func installNativeInk(_ drawing: PKDrawing, clearingPresentation: Bool = false) {
         let delegate = canvas.delegate, enabled = canvas.drawingGestureRecognizer.isEnabled
         canvas.delegate = nil
         canvas.drawingGestureRecognizer.isEnabled = false
-        canvas.drawing = PKDrawing(strokes: drawing.strokes)
+        UIView.performWithoutAnimation {
+            // An empty value first invalidates PencilKit's old tile contents,
+            // even when both pages have the same size and stroke count.
+            if clearingPresentation { canvas.drawing = PKDrawing() }
+            canvas.drawing = PKDrawing(strokes: drawing.strokes)
+            if clearingPresentation { canvas.setNeedsLayout(); canvas.layoutIfNeeded() }
+            canvas.setNeedsDisplay()
+        }
         canvas.undoManager?.removeAllActions()
         canvas.drawingGestureRecognizer.isEnabled = enabled
         canvas.delegate = delegate; inkDisplayGeneration = UUID()

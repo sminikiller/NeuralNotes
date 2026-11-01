@@ -44,7 +44,8 @@ final class AboutAndShapesUITests: XCTestCase {
         let a = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.4))
         let b = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.62))
         a.press(forDuration: 0.05, thenDragTo: b)
-        app.buttons["tool-Oggetti"].tap()
+        app.buttons["tool-Lazo"].tap()
+        XCTAssertTrue(app.buttons["Seleziona tutto"].waitForExistence(timeout: 5)); app.buttons["Seleziona tutto"].tap()
         let style = app.buttons["selectionShapeStyle"]
         XCTAssertTrue(style.waitForExistence(timeout: 5))
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: style)

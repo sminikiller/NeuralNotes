@@ -65,7 +65,7 @@ enum ShapeRecognitionMath {
             changed = false
             for index in result.indices {
                 let previous = result[(index + result.count - 1) % result.count], at = result[index], next = result[(index + 1) % result.count]
-                if distance(previous, at) < span * 0.06 || ShapeGeometry.segmentDistance(at, previous, next) < span * 0.025 {
+                if distance(previous, at) < span * 0.06 || ShapeGeometry.segmentDistance(at, previous, next) < span * max(0.025, min(0.045, tolerance * 0.7)) {
                     result.remove(at: index); changed = true; break
                 }
             }

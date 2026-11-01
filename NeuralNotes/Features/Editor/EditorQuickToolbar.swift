@@ -11,6 +11,7 @@ struct EditorQuickToolbar: View {
     @State private var selectionOpen = false
     @State private var lensOpen = false
     @State private var optionsTool: WorkspaceTool?
+    @State private var allToolsOpen = false
     private var vertical: Bool { model.currentWorkspace.dock.vertical }
     private var popoverEdge: Edge {
         switch model.currentWorkspace.dock { case .trailing: return .trailing; case .leading: return .leading; case .bottom: return .bottom; case .top: return .top }
@@ -25,12 +26,11 @@ struct EditorQuickToolbar: View {
                 let layout = vertical ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 4))
                 layout {
                     ForEach(model.currentWorkspace.favorites, id: \.self) { item in toolButton(item) }
-                    Menu {
-                        ForEach(WorkspaceTool.allCases, id: \.self) { item in
-                            Button(item.title, systemImage: item.icon) { model.chooseTool(item) }
+                    Button { allToolsOpen = true } label: { Image(systemName: "plus.circle").frame(width: 44, height: 44) }
+                        .accessibilityLabel("Tutti gli strumenti").accessibilityIdentifier("allWritingTools")
+                        .popover(isPresented: $allToolsOpen, arrowEdge: popoverEdge) {
+                            ToolCatalogPanel(model: model)
                         }
-                    } label: { Image(systemName: "plus.circle").frame(width: 44, height: 44) }
-                        .accessibilityLabel("Tutti gli strumenti")
                     Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) }
                         .disabled(!model.canUndo).keyboardShortcut("z", modifiers: .command).accessibilityLabel("Annulla").accessibilityIdentifier("editorUndo")
                     Button { Task { await model.performRedo() } } label: { Image(systemName: "arrow.uturn.forward").frame(width: 44, height: 44) }
@@ -101,9 +101,7 @@ struct EditorQuickToolbar: View {
             .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityLabel(item.title).help(item.title).accessibilityIdentifier("tool-\(item.title)")
             .highPriorityGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
-                if item == .ruler { if !model.rulerActive { model.chooseTool(item) } }
-                else if item == .protractor { if !model.protractorActive { model.chooseTool(item) } }
-                else { model.chooseTool(item) }
+                model.openToolOptions(item)
                 optionsTool = item
             })
             .popover(isPresented: Binding(get: { optionsTool == item }, set: { if !$0 { optionsTool = nil } }), arrowEdge: popoverEdge) {
@@ -111,7 +109,9 @@ struct EditorQuickToolbar: View {
             }
     }
     private func isSelected(_ item: WorkspaceTool) -> Bool {
-        if item == .ruler { return model.rulerActive }
+        if let kind = item.draftingKind { return model.rulerActive && model.rulerGuide.kind == kind }
+        if item == .lasso { return model.tool == .lasso || (model.tool == .objects && model.selectFreehand) }
+        if item == .objects { return model.tool == .objects && !model.selectFreehand }
         if item == .protractor { return model.protractorActive }
         if let shape = item.shape { return model.tool == .shape && model.shapeKind == shape }
         return model.tool.workspaceTool == item
@@ -125,6 +125,10 @@ struct EditorQuickToolbar: View {
     private var selectionBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 18) {
+                Button { model.editSelection() } label: { Label(model.selectedShapes.isEmpty ? "Modifica" : "Stile forma", systemImage: "slider.horizontal.3") }
+                    .accessibilityLabel(model.selectedShapes.isEmpty ? "Modifica selezione" : "Stile forme")
+                    .accessibilityIdentifier("selectionShapeStyle").disabled(!hasSelection)
+
                 Toggle(isOn: $model.multiSelection) { Image(systemName: "checkmark.circle") }.toggleStyle(.button).accessibilityLabel("Selezione multipla")
                 Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
@@ -133,13 +137,9 @@ struct EditorQuickToolbar: View {
                 Button { selectionOpen = false; model.selectionPageDragMode.toggle() } label: { Image(systemName: "rectangle.grid.1x2") }
                     .accessibilityLabel("Trascina sulle miniature").accessibilityIdentifier("selectionPageDrag").disabled(!hasSelection)
                 SelectionAlignmentMenu(model: model)
-                if model.selectedConnector != nil { ConnectorStyleMenu(model: model) }
                 if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {
                     Button { model.editDiagramLabel(id) } label: { Image(systemName: "textformat") }.accessibilityLabel("Testo nella forma").accessibilityIdentifier("selectionDiagramLabel")
                 }
-                Button(action: edit) { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Modifica selezione")
-                Button { model.shapeStyleRequest += 1 } label: { Image(systemName: "paintbrush.pointed") }
-                    .accessibilityLabel("Stile forme").accessibilityIdentifier("selectionShapeStyle").disabled(model.selectedShapes.isEmpty)
                 Menu {
                     Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
                     Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }

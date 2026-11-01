@@ -18,7 +18,9 @@ enum VectorInkRenderer {
             context.setBlendMode(stroke.ink.inkType == .marker ? .multiply : .normal)
             context.setAlpha(min(1, max(0, color.cgColor.alpha * opacity)))
             context.beginTransparencyLayer(auxiliaryInfo: nil)
-            context.setAlpha(1); context.setFillColor(color.withAlphaComponent(1).cgColor)
+            // Composite a whole stroke once. Overlapping disks/segments inside
+            // the group must not multiply against one another.
+            context.setBlendMode(.normal); context.setAlpha(1); context.setFillColor(color.withAlphaComponent(1).cgColor)
             for point in points {
                 let size = point.size
                 context.fillEllipse(in: CGRect(x: point.location.x - size.width / 2, y: point.location.y - size.height / 2,

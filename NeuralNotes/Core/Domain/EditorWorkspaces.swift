@@ -19,7 +19,7 @@ public struct InkColor: Codable, Equatable, Hashable, Sendable {
 }
 
 public enum WorkspaceTool: String, Codable, CaseIterable, Sendable {
-    case pen, marker, eraser, lasso, objects, text, audioLink, line, arrow, ellipse, rectangle, triangle, ruler, protractor, lens
+    case pen, marker, eraser, lasso, objects, text, audioLink, line, arrow, ellipse, rectangle, triangle, ruler, protractor, lens, square45, square60
     public init(from decoder: Decoder) throws { self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .pen }
 }
 

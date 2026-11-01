@@ -14,7 +14,7 @@ enum LegibleInkRenderer {
         }
         if !markers.isEmpty {
             context.saveGState(); context.setBlendMode(.multiply)
-            PaperInk.image(PKDrawing(strokes: markers), from: bounds, scale: scale).draw(in: bounds, blendMode: .multiply, alpha: 1)
+            VectorInkRenderer.draw(PKDrawing(strokes: markers), in: context)
             context.restoreGState()
         }
         if !pens.isEmpty { PaperInk.image(PKDrawing(strokes: pens), from: bounds, scale: scale).draw(in: bounds) }

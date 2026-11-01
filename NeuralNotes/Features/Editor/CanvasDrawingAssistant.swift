@@ -17,11 +17,13 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private let previousInk = UIImageView()
     private var before = PKDrawing()
     private var held = false
+    var hasRecognizedPreview: Bool { held }
     private var markerSession: SelectiveEraseSession?
     private var wordSession: MarkerWordSession?
     private var protractorSession: ProtractorInkSession?
     private var guiding = false
     private var guideEdge = 1.0
+    private var activeGuide = RulerGuide()
     private var beganAt = Date()
     private var connectionIndex = ShapeConnectionIndex()
     private var shapeSnapEngine: SnapEngine?
@@ -76,8 +78,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
            let snapped = connection(near: points[0]) { points[0] = snapped }
         if model.tool == .shape { points[0] = shapeEndpoint(points[0]).0 }
         if model.rulerActive && (model.tool == .pen || model.tool == .marker) {
-            guideEdge = model.rulerGuide.edge(nearest: points[0])
-            guard let projected = model.rulerGuide.project(points[0], edge: guideEdge, width: page.width, height: page.height) else { pageID = nil; return }
+            activeGuide = model.rulerGuide
+            guideEdge = activeGuide.edge(nearest: points[0])
+            guard let projected = activeGuide.project(points[0], edge: guideEdge, width: page.width, height: page.height) else { pageID = nil; return }
             points = [projected]; model.strokeBegan(); guiding = true; model.drawingShape = true
             model.guideReadout = nil
         }
@@ -97,7 +100,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         }
         if guiding {
             for point in samples {
-                if let projected = model.rulerGuide.project(StrokeSample(x: point.x, y: point.y), edge: guideEdge, width: page.width, height: page.height) { points.append(projected) }
+                if let projected = activeGuide.project(StrokeSample(x: point.x, y: point.y), edge: guideEdge, width: page.width, height: page.height) { points.append(projected) }
             }
             if points.count > 2000 { points = points.enumerated().filter { $0.offset % 2 == 0 || $0.offset == points.count - 1 }.map(\.element) }
             if let first = points.first, let last = points.last {
@@ -149,7 +152,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
                 let width = model.tool == .marker ? model.markerWidth : model.thickness
                 let controls = points.enumerated().map { index, point in
                     PKStrokePoint(location: CGPoint(x: point.x, y: point.y), timeOffset: Double(index) * 0.01,
-                        size: CGSize(width: width, height: width), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+                        size: CGSize(width: width, height: width), opacity: model.tool == .marker ? 0.25 : 1, force: 1, azimuth: 0, altitude: .pi / 2)
                 }
                 if controls.count > 1 {
                     let ink = PKInk(model.tool == .marker ? .marker : model.writingOptions.pen.native, color: PaperInk.color(model.ink))
@@ -215,6 +218,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             snapHint = hint
             preview.fillColor = shape.fill.map { UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: shape.fillOpacity ?? 0.25).cgColor }
             preview.lineDashPattern = (shape.dash ?? .solid).lengths(width: shape.lineWidth * host.canvas.zoomScale).map { NSNumber(value: $0) }
+        } else if held, let shape = model.pendingShapeRecognition?.shape {
+            path = UIBezierPath(cgPath: ShapePathRendering.path(ShapeGeometry.path(for: shape)))
+            for arrow in ShapeGeometry.arrowPaths(for: shape) { path.append(UIBezierPath(cgPath: ShapePathRendering.path(arrow))) }
+            preview.fillColor = UIColor.clear.cgColor; preview.lineDashPattern = nil
         } else { path = PreciseStrokeGeometry.path(kind: kind, points: samples); preview.fillColor = UIColor.clear.cgColor; preview.lineDashPattern = nil }
         let converted = UIBezierPath(cgPath: path.cgPath)
         var transform = CGAffineTransform(scaleX: host.canvas.zoomScale, y: host.canvas.zoomScale)
@@ -222,7 +229,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         converted.apply(transform)
         preview.path = converted.cgPath; preview.strokeColor = PaperInk.color(model.ink).cgColor
         preview.lineWidth = CGFloat(model.tool == .marker ? model.markerWidth : model.thickness) * host.canvas.zoomScale
-        preview.opacity = model.tool == .marker ? 0.4 : 1
+        preview.opacity = model.tool == .marker ? 0.25 : 1
         if preview.superlayer == nil { host.layer.addSublayer(preview) }
     }
     func finishPreview() {

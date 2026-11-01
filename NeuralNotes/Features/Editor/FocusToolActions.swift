@@ -10,9 +10,7 @@ struct FocusToolButton: View {
         Button { model.chooseTool(item) } label: { Image(systemName: item.icon).frame(width: 44, height: 44) }
             .accessibilityLabel(item.title).accessibilityIdentifier("focusTool-\(item.rawValue)")
             .highPriorityGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
-                if item == .ruler { if !model.rulerActive { model.chooseTool(item) } }
-                else if item == .protractor { if !model.protractorActive { model.chooseTool(item) } }
-                else { model.chooseTool(item) }
+                model.openToolOptions(item)
                 options = true
             })
             // The floating bar can be moved to any edge. Let UIKit choose
@@ -29,6 +27,9 @@ struct FocusSelectionActions: View {
     var body: some View {
         Menu {
             Button("Seleziona tutto", systemImage: "checkmark.square") { model.selectAll() }
+            if !model.selectedShapes.isEmpty {
+                Button("Stile forme", systemImage: "slider.horizontal.3") { model.editSelection() }
+            }
             Section {
                 Button("Copia o sposta in un’altra pagina", systemImage: "doc.on.doc") { transfer = true }
                 Button("Trascina sulle miniature", systemImage: "rectangle.grid.1x2") { model.selectionPageDragMode.toggle() }

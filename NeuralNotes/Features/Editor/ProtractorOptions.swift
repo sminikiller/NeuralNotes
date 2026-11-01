@@ -21,6 +21,7 @@ struct ProtractorOptions: View {
                 guard !model.hasActiveStroke else { return }; model.protractorRays = []; model.guideReadout = nil
             }
             Text("Con Pencil parti vicino al bordo per un arco, dal centro per un raggio. Il gesto resta agganciato fino al rilascio. Trascina il corpo con un dito; due dita ruotano e il pizzico cambia dimensione. Con scrittura a dito, sposta con due dita.").font(.caption).foregroundStyle(.secondary)
-        }
+        }.onChange(of: model.protractorGuide) { _, _ in model.refreshDrawingGuides() }
+            .onChange(of: model.protractorMeasure) { _, _ in model.refreshDrawingGuides() }
     }
 }

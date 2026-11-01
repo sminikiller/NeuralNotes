@@ -52,6 +52,15 @@ public enum ShapeRecognizer {
         if sharp, let fitted, fitted.shape.kind == .polygon || fitted.shape.kind == .star {
             return accepted(fitted.shape, fitted.confidence)
         }
+        if sharp, fitted == nil || fitted?.shape.kind == .freePolygon {
+            for tolerance in [0.04, 0.055, 0.07] {
+                let simple = ShapeRecognitionMath.corners(sampled, span: span, tolerance: tolerance)
+                guard (3...4).contains(simple.count),
+                      let candidate = ShapePolygonRecognition.recognize(simple, samples: sampled, span: span),
+                      candidate.shape.kind == .rectangle || candidate.shape.kind == .triangle || candidate.shape.kind == .diamond else { continue }
+                if let result = accepted(candidate.shape, candidate.confidence) { return result }
+            }
+        }
         if let ellipse = ellipse(sampled) { return accepted(ellipse.shape, ellipse.confidence) }
         if let fitted { return accepted(fitted.shape, fitted.confidence) }
         return nil

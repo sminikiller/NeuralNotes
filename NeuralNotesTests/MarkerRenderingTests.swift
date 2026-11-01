@@ -103,6 +103,52 @@ final class MarkerRenderingTests: XCTestCase {
         XCTAssertGreaterThan(pixelCount(newMark, white: true), pixelCount(oldMark, white: true) + 100)
         XCTAssertGreaterThanOrEqual(pixelCount(try XCTUnwrap(after.cgImage), white: false), Int(Double(pixelCount(try XCTUnwrap(baseline.cgImage), white: false)) * 0.98))
     }
+    @MainActor func testLiveWordAndFreehandMarkerHaveTheSameColorAndPreserveThePDFText() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("attachments"), withIntermediateDirectories: true)
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
+        try UIGraphicsPDFRenderer(bounds: bounds).writePDF(to: root.appendingPathComponent("attachments/text.pdf")) { item in
+            item.beginPage(); ("Energia" as NSString).draw(at: CGPoint(x: 40, y: 55), withAttributes: [.font: UIFont.systemFont(ofSize: 20), .foregroundColor: UIColor.black])
+        }
+        var page = PageSnapshot(); page.width = 300; page.height = 200; page.paper = .plain
+        page.pdfFile = "attachments/text.pdf"; page.pdfIndex = 0
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: bounds.size, format: format)
+        let path = UIBezierPath(rect: CGRect(x: 30, y: 50, width: 230, height: 35)).cgPath
+        let color = UIColor(red: InkColor.yellow.red, green: InkColor.yellow.green, blue: InkColor.yellow.blue, alpha: 1)
+        let cache = MarkerCompositionCache(), token = UUID()
+        let preview = renderer.image { item in cache.drawLiveMarker(page: page, baseline: PKDrawing(), token: token, footprint: path,
+            color: color, package: root, bounds: bounds, scale: 1, in: item.cgContext) }
+        let controls = [CGPoint(x: 30, y: 67.5), CGPoint(x: 260, y: 67.5)].enumerated().map { i, point in
+            PKStrokePoint(location: point, timeOffset: Double(i) * 0.1, size: .init(width: 35, height: 35), opacity: 0.25, force: 1, azimuth: 0, altitude: .pi / 2)
+        }
+        let drawing = PKDrawing(strokes: [PKStroke(ink: PKInk(.marker, color: color), path: PKStrokePath(controlPoints: controls, creationDate: Date()))])
+        let free = renderer.image { item in PageRenderer.draw(page, package: root, in: item.cgContext); LegibleInkRenderer.draw(drawing, in: item.cgContext, bounds: bounds, scale: 1) }
+        var mark = PDFMarkup(kind: .highlight, x: 30, y: 50, width: 230, height: 35, text: "Energia")
+        mark.wordHighlight = true; mark.color = .yellow; mark.opacity = 0.25; page.pdfMarkups = [mark]
+        let words = renderer.image { PageRenderer.draw(page, package: root, in: $0.cgContext) }
+        func pixel(_ image: UIImage) throws -> [UInt8] {
+            let source = try XCTUnwrap(image.cgImage?.cropping(to: CGRect(x: 200, y: 65, width: 1, height: 1)))
+            var rgba = [UInt8](repeating: 0, count: 4)
+            try rgba.withUnsafeMutableBytes { buffer in
+                let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                context.draw(source, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            }; return rgba
+        }
+        let liveColor = try pixel(preview), freeColor = try pixel(free), wordColor = try pixel(words)
+        for channel in 0..<3 {
+            XCTAssertEqual(Double(liveColor[channel]), Double(freeColor[channel]), accuracy: 2)
+            XCTAssertEqual(Double(wordColor[channel]), Double(freeColor[channel]), accuracy: 2)
+        }
+        let blackBefore = pixelCount(try XCTUnwrap(words.cgImage), white: false)
+        XCTAssertGreaterThan(blackBefore, 100)
+        // Black glyphs are preserved in both preview and saved freehand pixels.
+        XCTAssertGreaterThanOrEqual(pixelCount(try XCTUnwrap(free.cgImage), white: false), Int(Double(blackBefore) * 0.98))
+        XCTAssertGreaterThanOrEqual(pixelCount(try XCTUnwrap(preview.cgImage), white: false), Int(Double(blackBefore) * 0.98))
+        XCTAssertEqual(cache.builds, 1)
+    }
     @MainActor private func pixelCount(_ image: CGImage, white: Bool, red: Bool = false) -> Int {
         let width = image.width, height = image.height
         var bytes = [UInt8](repeating: 0, count: width * height * 4)

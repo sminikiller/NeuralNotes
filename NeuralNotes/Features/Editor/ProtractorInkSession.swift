@@ -56,7 +56,7 @@ final class ProtractorInkSession {
         preview.path = path.cgPath
         preview.strokeColor = measuring ? UIColor.systemOrange.cgColor : PaperInk.color(model.ink).cgColor
         preview.lineWidth = CGFloat(measuring ? 2 : model.tool == .marker ? model.markerWidth : model.thickness) * host.canvas.zoomScale
-        preview.opacity = model.tool == .marker && !measuring ? 0.4 : 1
+        preview.opacity = model.tool == .marker && !measuring ? 0.25 : 1
         preview.removeFromSuperlayer(); host.layer.addSublayer(preview); CATransaction.commit()
     }
     func finish(cancelled: Bool) {
@@ -77,7 +77,7 @@ final class ProtractorInkSession {
         let width = model.tool == .marker ? model.markerWidth : model.thickness
         let controls = points.enumerated().map { index, point in
             PKStrokePoint(location: CGPoint(x: point.x, y: point.y), timeOffset: Double(index) * 0.01,
-                size: CGSize(width: width, height: width), opacity: model.tool == .marker ? 0.4 : 1,
+                size: CGSize(width: width, height: width), opacity: model.tool == .marker ? 0.25 : 1,
                 force: 1, azimuth: 0, altitude: .pi / 2)
         }
         let ink = PKInk(model.tool == .marker ? .marker : model.writingOptions.pen.native, color: PaperInk.color(model.ink))

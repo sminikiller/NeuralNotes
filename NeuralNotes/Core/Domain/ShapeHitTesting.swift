@@ -1,6 +1,29 @@
 import Foundation
 
 public extension ShapeGeometry {
+    /// Selection follows the visible contour, including open arcs and arrowheads.
+    /// A bounding-box centre alone misses a lasso crossing only part of an arc.
+    static func intersects(_ shape: ShapeElement, selection: [StrokeSample]) -> Bool {
+        guard selection.count >= 3, selection.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return false }
+        func crosses(_ a: StrokeSample, _ b: StrokeSample, _ c: StrokeSample, _ d: StrokeSample) -> Bool {
+            func cross(_ p: StrokeSample, _ q: StrokeSample, _ r: StrokeSample) -> Double {
+                (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+            }
+            guard max(a.x, b.x) >= min(c.x, d.x), max(c.x, d.x) >= min(a.x, b.x),
+                  max(a.y, b.y) >= min(c.y, d.y), max(c.y, d.y) >= min(a.y, b.y) else { return false }
+            return cross(a, b, c) * cross(a, b, d) <= 0 && cross(c, d, a) * cross(c, d, b) <= 0
+        }
+        for contour in [path(for: shape)] + arrowPaths(for: shape) {
+            for line in polylines(contour, steps: 64) {
+                if line.contains(where: { contains($0, polygon: selection) }) { return true }
+                if !shape.kind.isOpen, selection.contains(where: { contains($0, polygon: line) }) { return true }
+                for index in 1..<line.count {
+                    for edge in selection.indices where crosses(line[index - 1], line[index], selection[edge], selection[(edge + 1) % selection.count]) { return true }
+                }
+            }
+        }
+        return false
+    }
     static func connectionPoints(_ shape: ShapeElement) -> [StrokeSample] {
         var local = shape; local.rotation = nil
         guard let outline = polylines(path(for: local)).first, outline.count >= 2 else { return [] }

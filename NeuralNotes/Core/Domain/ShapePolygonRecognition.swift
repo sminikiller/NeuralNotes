@@ -76,7 +76,7 @@ enum ShapePolygonRecognition {
             let p = points[i], q = points[(i + 1) % 4], r = points[(i + 2) % 4]
             let cosine = abs((q.x - p.x) * (r.x - q.x) + (q.y - p.y) * (r.y - q.y))
             let product = max(1, ShapeRecognitionMath.distance(p, q) * ShapeRecognitionMath.distance(q, r))
-            if cosine / product > sin(8 * .pi / 180) { rectangular = false }
+            if cosine / product > sin(16 * .pi / 180) { rectangular = false }
         }
         let cx = points.reduce(0.0) { $0 + $1.x } / 4, cy = points.reduce(0.0) { $0 + $1.y } / 4
         if rectangular {

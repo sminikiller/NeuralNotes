@@ -442,3 +442,12 @@ In **Solo foglio**, espandi la mini toolbar. La pressione prolungata sugli strum
 2. Sposta il corpo con un dito, ruota con due dita e pizzica per ridimensionare. Se disegni con le dita, usa due dita anche per spostare la guida.
 3. Con la penna parti dal centro per un raggio, oppure vicino al bordo per un arco. L’aggancio resta fino al rilascio; il valore in gradi appare durante il gesto. In **Misura angolo**, due raggi mostrano l’angolo senza aggiungere inchiostro.
 4. Il righello mostra centimetri e inclinazione mentre tracci. **G** e **R** attivano le due guide dalla tastiera; sono alternative e non compaiono nel PDF esportato.
+
+
+## Correzioni editor 0.28.1 — in verifica
+
+- **Lazo:** seleziona sia tratti sia forme, foto e testi. Per il lazo nativo limitato ai tratti, tieni premuto Lazo e scegli Solo inchiostro (PencilKit).
+- **Stile forma:** seleziona la forma e usa il primo pulsante Stile forma nella barra della selezione. Tutti i parametri vengono applicati con Applica e si annullano insieme. Per cambiare i valori delle prossime forme, tieni premuto uno strumento forma e apri Stile per le nuove forme.
+- **Strumenti non nei preferiti:** premi + nella toolbar. Tieni premuto un elemento o premi il suo pulsante opzioni; non serve aggiungerlo al Workspace.
+- **Righello e squadre:** trascina con un dito, ruota con due, pizzica per cambiare dimensione. Se scrivi col dito, usa due dita anche per lo spostamento. Parti con Pencil dal lato desiderato: l’aggancio rimane su quel lato fino al rilascio. Le squadre 45° e 30°/60° sono nell’elenco Guide da disegno.
+- **Evidenziatore:** Parole seleziona le parole come la Lente; Tratto libero segue la punta anche prima del rilascio. Colore e trasparenza sono uniformi nelle due modalità. Gli appunti e il testo del PDF rimangono leggibili.

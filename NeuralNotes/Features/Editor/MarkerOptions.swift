@@ -10,7 +10,7 @@ extension EditorViewModel {
         wordHighlightEnabled && page.map { !PageWordIndex.shared.groups(for: $0).isEmpty } == true
     }
     var markerCustomInput: Bool {
-        tool == .marker && !rulerActive && !protractorActive && (wordHighlightEnabled || CGFloat(markerWidth) < PKInkingTool.InkType.marker.validWidthRange.lowerBound)
+        tool == .marker && !rulerActive && !protractorActive && true
     }
     func prepareMarkerWords() {
         guard wordHighlightEnabled, let page else { return }

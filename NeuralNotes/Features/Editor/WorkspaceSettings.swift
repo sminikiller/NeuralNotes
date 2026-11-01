@@ -20,13 +20,16 @@ extension WorkspaceTool {
     var title: String {
         switch self { case .pen: return "Penna"; case .marker: return "Evidenziatore"; case .eraser: return "Gomma"
         case .lasso: return "Lazo"; case .objects: return "Oggetti"; case .text: return "Testo con Pencil"; case .audioLink: return "Ascolta tratto"
-        case .line: return "Linea"; case .arrow: return "Freccia"; case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .triangle: return "Triangolo"; case .ruler: return "Righello"; case .protractor: return "Goniometro"; case .lens: return "Lente AI" }
+        case .line: return "Linea"; case .arrow: return "Freccia"; case .ellipse: return "Cerchio"; case .rectangle: return "Rettangolo"; case .triangle: return "Triangolo"; case .ruler: return "Righello"; case .protractor: return "Goniometro"; case .lens: return "Lente AI"; case .square45: return "Squadra 45°"; case .square60: return "Squadra 30°/60°" }
     }
     var icon: String {
         switch self { case .pen: return "pencil.tip"; case .marker: return "highlighter"; case .eraser: return "eraser"
         case .lasso: return "lasso"; case .objects: return "cursorarrow.and.square.on.square.dashed"; case .text: return "character.cursor.ibeam"
         case .audioLink: return "waveform"; case .line: return "line.diagonal"; case .arrow: return "arrow.up.right"
-        case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .triangle: return "triangle"; case .ruler: return "ruler"; case .protractor: return "circle.lefthalf.filled"; case .lens: return "sparkle.magnifyingglass" }
+        case .ellipse: return "circle"; case .rectangle: return "rectangle"; case .triangle: return "triangle"; case .ruler: return "ruler"; case .protractor: return "circle.lefthalf.filled"; case .lens: return "sparkle.magnifyingglass"; case .square45, .square60: return "triangle" }
+    }
+    var draftingKind: RulerGuide.Kind? {
+        switch self { case .ruler: return .ruler; case .square45: return .square45; case .square60: return .square60; default: return nil }
     }
     var shape: ShapeKind? {
         switch self { case .line: return .line; case .arrow: return .arrow; case .ellipse: return .ellipse; case .rectangle: return .rectangle; case .triangle: return .triangle; default: return nil }
@@ -65,9 +68,10 @@ extension EditorViewModel {
         if item != .objects && item != .lasso { selectionPageDragMode = false; activeSelectionPageDrag = nil }
         cancelMaintenance()
         if item == .lens, tool != .lens { toolBeforeLens = tool }
-        if item == .ruler {
+        if let kind = item.draftingKind {
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
-            rulerActive.toggle(); protractorActive = false; guideReadout = nil; configureTool(); return
+            rulerActive = !(rulerActive && rulerGuide.kind == kind); rulerGuide.kind = kind
+            protractorActive = false; guideReadout = nil; configureTool(); return
         }
         if item == .protractor {
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
@@ -78,11 +82,23 @@ extension EditorViewModel {
         if let shape = item.shape { shapeKind = shape; tool = .shape }
         else {
             switch item { case .pen: tool = .pen; case .marker: tool = .marker; case .eraser: tool = .eraser
-            case .lasso: tool = .lasso; case .objects: tool = .objects; case .text: tool = .text; case .audioLink: tool = .audioLink; case .lens: tool = .lens; default: break }
+            case .lasso: tool = .objects; selectRectangle = false; selectFreehand = true
+            case .objects: tool = .objects; selectRectangle = false; selectFreehand = false; case .text: tool = .text; case .audioLink: tool = .audioLink; case .lens: tool = .lens; default: break }
         }
         restoreToolPalette(); configureTool()
         lensPick = nil; lensHighlight = nil
         if tool == .lens { prepareLensWords() }
+    }
+    func refreshDrawingGuides() {
+        guard let host = canvas.superview as? CanvasHost else { return }
+        host.rulerGuide?.update(); host.protractorGuide?.update()
+    }
+    func openToolOptions(_ item: WorkspaceTool) {
+        if let kind = item.draftingKind {
+            if !rulerActive || rulerGuide.kind != kind { chooseTool(item) }
+        } else if item == .protractor {
+            if !protractorActive { chooseTool(item) }
+        } else { chooseTool(item) }
     }
     func restoreToolPalette() {
         let palette = activePalette
@@ -90,10 +106,16 @@ extension EditorViewModel {
         ink = (style?.color ?? palette.recentColors.first ?? palette.favorites.first ?? .black).color
         thickness = style?.width ?? palette.recentWidths.first ?? 3
     }
-    func chooseInk(_ color: Color) { guard !hasActiveStroke else { return }; ink = color; rememberPalette(); configureTool() }
+    func chooseInk(_ color: Color) {
+        guard !hasActiveStroke else { return }
+        ink = color
+        if tool == .shape { editShapePreferences { settings in var style = settings.style ?? .standard; style.color = InkColor(color); settings.style = style } }
+        rememberPalette(); configureTool()
+    }
     func chooseWidth(_ value: Double) {
         guard !hasActiveStroke else { return }
         thickness = value
+        if tool == .shape { editShapePreferences { settings in var style = settings.style ?? .standard; style.width = value; settings.style = style } }
         if tool == .marker { editWriting { $0.markerWidth = min(80, max(1, value * 5)) } }
         rememberPalette(); configureTool()
     }
