@@ -66,6 +66,10 @@ struct NewShapeStylePanel: View {
                         }
                     }
                 }
-        }.task { style = model.shapePreferences.style ?? .standard }
+        }.task {
+            style = model.shapePreferences.style ?? .standard
+            if style.color == nil { style.color = InkColor(model.ink) }
+            if style.width == nil { style.width = model.thickness }
+        }
     }
 }

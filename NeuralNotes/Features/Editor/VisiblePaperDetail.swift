@@ -15,9 +15,9 @@ final class VisiblePaperDetail: UIView {
     func resetForPageChange() {
         page = nil; hiddenTextID = nil; layer.contents = nil; isHidden = true
     }
-    func update(from host: CanvasHost) {
+    func update(from host: CanvasHost, force: Bool = false) {
         let z = host.canvas.zoomScale, rect = host.surface.frame.intersection(host.bounds)
-        isHidden = z <= 1 || rect.isNull || rect.isEmpty
+        isHidden = (!force && z <= 1) || rect.isNull || rect.isEmpty
         guard !isHidden else { return }
         let at = CGPoint(x: (rect.minX - host.surface.frame.minX) / z, y: (rect.minY - host.surface.frame.minY) / z)
         let changed = frame != rect || page != host.surface.page || package != host.surface.package || zoom != z || origin != at || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs

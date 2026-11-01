@@ -69,13 +69,15 @@ extension EditorViewModel {
         cancelMaintenance()
         if item == .lens, tool != .lens { toolBeforeLens = tool }
         if let kind = item.draftingKind {
+            let wasWriting = tool == .pen || tool == .marker
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
-            rulerActive = !(rulerActive && rulerGuide.kind == kind); rulerGuide.kind = kind
+            rulerActive = !(wasWriting && rulerActive && rulerGuide.kind == kind); rulerGuide.kind = kind
             protractorActive = false; guideReadout = nil; configureTool(); return
         }
         if item == .protractor {
+            let wasWriting = tool == .pen || tool == .marker
             if tool != .pen && tool != .marker { tool = .pen; restoreToolPalette() }
-            protractorActive.toggle(); rulerActive = false; guideReadout = nil
+            protractorActive = !wasWriting || !protractorActive; rulerActive = false; guideReadout = nil
             protractorGuide.kind = currentWorkspace.protractorKind ?? .semicircle
             configureTool(); return
         }
@@ -95,9 +97,9 @@ extension EditorViewModel {
     }
     func openToolOptions(_ item: WorkspaceTool) {
         if let kind = item.draftingKind {
-            if !rulerActive || rulerGuide.kind != kind { chooseTool(item) }
+            if !rulerActive || rulerGuide.kind != kind || (tool != .pen && tool != .marker) { chooseTool(item) }
         } else if item == .protractor {
-            if !protractorActive { chooseTool(item) }
+            if !protractorActive || (tool != .pen && tool != .marker) { chooseTool(item) }
         } else { chooseTool(item) }
     }
     func restoreToolPalette() {

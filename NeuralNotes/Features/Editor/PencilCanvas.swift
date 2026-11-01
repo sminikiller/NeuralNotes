@@ -9,6 +9,7 @@ final class CanvasHost: UIView {
     override func didMoveToWindow() { super.didMoveToWindow(); if window != nil, model?.editingTextID == nil { becomeFirstResponder() } }
     let surface = PageSurfaceView()
     let paperDetail = VisiblePaperDetail()
+    let emptyInkCover = VisiblePaperDetail()
     let foregroundObjects = ForegroundObjectsView()
     let inkReplay = InkReplayOverlay()
     let markerReadability = MarkerReadabilityOverlay()
@@ -48,7 +49,9 @@ final class CanvasHost: UIView {
         PaperInk.configure(canvas)
         PaperInk.configureNavigation(canvas, fingerDrawing: false)
         paperDetail.isHidden = true; paperDetail.isUserInteractionEnabled = false
-        addSubview(surface); addSubview(paperDetail); addSubview(canvas); addSubview(inkReplay)
+        emptyInkCover.isHidden = true; emptyInkCover.isUserInteractionEnabled = false
+        emptyInkCover.isOpaque = false; emptyInkCover.backgroundColor = .clear
+        addSubview(surface); addSubview(paperDetail); addSubview(canvas); addSubview(emptyInkCover); addSubview(inkReplay)
         addSubview(markerReadability)
         foregroundObjects.isUserInteractionEnabled = false; foregroundObjects.isOpaque = false; foregroundObjects.backgroundColor = .clear
         addSubview(foregroundObjects)
@@ -127,6 +130,7 @@ final class CanvasHost: UIView {
             surface.layer.contents = nil
             surface.hiddenTextID = nil; surface.hiddenObjectID = nil
             paperDetail.resetForPageChange()
+            emptyInkCover.resetForPageChange()
             markerReadability.reset()
             foregroundObjects.layer.contents = nil
             inkReplay.resetForPageChange(self)
@@ -147,13 +151,20 @@ final class CanvasHost: UIView {
         pencilControls?.trackTool()
     }
 
-    /// An empty native drawing needs no visible ink layer. Keep its touch input
-    /// alive, but never expose stale PencilKit tiles from the preceding page.
-    /// The first drawing callback makes new ink visible immediately.
+    /// Cover stale native tiles with the current page, without changing the
+    /// canvas opacity/alpha: UIKit must keep dispatching the first touch and
+    /// scrolling gestures to the live canvas even when its drawing is empty.
     func updateNativeInkVisibility() {
         guard drawingAssistant?.hasRecognizedPreview != true,
-              !(model?.audio?.replayInk == true && model?.audio?.playingSessionID != nil) else { return }
-        canvas.layer.opacity = canvas.drawing.strokes.isEmpty ? 0 : 1
+              !(model?.audio?.replayInk == true && model?.audio?.playingSessionID != nil) else {
+            emptyInkCover.resetForPageChange(); return
+        }
+        canvas.layer.opacity = 1
+        if canvas.drawing.strokes.isEmpty {
+            emptyInkCover.update(from: self, force: true)
+            // The cover already renders the visible PDF/text at screen resolution.
+            paperDetail.isHidden = true; paperDetail.layer.contents = nil
+        } else { emptyInkCover.resetForPageChange() }
     }
 
     func resetPage() {

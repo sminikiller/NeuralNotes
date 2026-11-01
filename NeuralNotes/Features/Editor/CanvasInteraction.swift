@@ -545,7 +545,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let visualOrder = ordered.filter { !above.contains($0) && !tapes.contains($0) } + ordered.filter { above.contains($0) && !tapes.contains($0) } + ordered.filter { tapes.contains($0) }
         return visualOrder.filter { !locked.contains($0) }
     }
-    private func hit(_ point: CGPoint) -> UUID? {
+    func hit(_ point: CGPoint) -> UUID? {
         guard let host, let model else { return nil }
         let margin = 14 / max(host.canvas.zoomScale, 0.1)
         if model.selectedIDs.count == 1, let id = model.selectedObjectID,
@@ -559,7 +559,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if let shape = model.page?.shapes?.first(where: { $0.id == id }) {
                 if let page = model.page, let label = DiagramLabels.shape(shape, page: page),
                    label.box.contains(point.applying(label.transform.inverted())) { return true }
-                return ShapeGeometry.hit(.init(x: point.x, y: point.y), shape: shape, zoom: host.canvas.zoomScale)
+                let at = StrokeSample(x: point.x, y: point.y)
+                if !shape.kind.isOpen, let outline = ShapeGeometry.polylines(ShapeGeometry.path(for: shape)).first,
+                   ShapeGeometry.contains(at, polygon: outline) { return true }
+                return ShapeGeometry.hit(at, shape: shape, zoom: host.canvas.zoomScale)
             }
             return objectRect(id)?.contains(point) == true
         }) { return id }

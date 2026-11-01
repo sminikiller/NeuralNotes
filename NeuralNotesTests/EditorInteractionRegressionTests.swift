@@ -50,6 +50,21 @@ final class EditorInteractionRegressionTests: XCTestCase {
             XCTAssertEqual(EditorInkSignatures.make(model.canvas.drawing), signatures)
         }
     }
+    @MainActor func testLassoTapSelectsTheInteriorOfUnfilledClosedShapesAndAnArcContour() async throws {
+        try await fixture { model, host in
+            model.chooseTool(.lasso)
+            for kind in [ShapeKind.triangle, .rectangle, .ellipse, .polygon, .star, .freePolygon] {
+                let shape = ShapeElement(kind: kind, x: 100, y: 100, width: 200, height: 200)
+                model.page?.shapes = [shape]; model.selectedObjectID = nil
+                XCTAssertEqual(host.interaction?.hit(CGPoint(x: 200, y: 200)), shape.id, "\(kind)")
+            }
+            var arc = ShapeElement(kind: .arc, x: 100, y: 100, width: 200, height: 200)
+            arc.arcStart = 0; arc.arcSweep = .pi; model.page?.shapes = [arc]; model.selectedObjectID = nil
+            let line = try XCTUnwrap(ShapeGeometry.polylines(ShapeGeometry.path(for: arc)).first)
+            let at = line[line.count / 2]
+            XCTAssertEqual(host.interaction?.hit(CGPoint(x: at.x, y: at.y)), arc.id)
+        }
+    }
     @MainActor func testOpeningGuideOptionsNeverTogglesItOffAndKeepsBothSquaresIndependent() async throws {
         try await fixture { model, host in
             let guide = RulerGuideView(host: host, model: model); host.rulerGuide = guide
@@ -61,11 +76,15 @@ final class EditorInteractionRegressionTests: XCTestCase {
                 XCTAssertEqual(model.rulerGuide.length, length)
                 guide.accessibilityIncrement(); XCTAssertGreaterThan(model.rulerGuide.length, length)
                 guide.accessibilityDecrement(); XCTAssertEqual(model.rulerGuide.length, length, accuracy: 0.001)
+                model.chooseTool(.objects); model.openToolOptions(tool)
+                XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.rulerActive)
                 XCTAssertFalse(guide.isUserInteractionEnabled)
                 XCTAssertTrue(host.gestureRecognizers?.contains { ($0 as? UIPanGestureRecognizer)?.minimumNumberOfTouches == 1 && $0.isEnabled } == true)
             }
             model.openToolOptions(.protractor); model.openToolOptions(.protractor)
             XCTAssertTrue(model.protractorActive); XCTAssertFalse(model.rulerActive)
+            model.chooseTool(.objects); model.openToolOptions(.protractor)
+            XCTAssertEqual(model.tool, .pen); XCTAssertTrue(model.protractorActive)
         }
     }
     @MainActor func testSquareStrokeKeepsChosenEdgeWhenPencilMovesAwayAndUndoesOnce() async throws {
@@ -81,7 +100,9 @@ final class EditorInteractionRegressionTests: XCTestCase {
             XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
             for point in stroke.path {
                 let cross = (Double(point.location.x) - a.x) * (b.y - a.y) - (Double(point.location.y) - a.y) * (b.x - a.x)
-                XCTAssertEqual(cross, 0, accuracy: 0.001)
+                // Cross products have square-point units. Assert the actual
+                // perpendicular distance in page points after PK's Float storage.
+                XCTAssertEqual(cross / hypot(b.x - a.x, b.y - a.y), 0, accuracy: 0.001)
             }
             await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
             await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
@@ -95,13 +116,44 @@ final class EditorInteractionRegressionTests: XCTestCase {
             let old = try XCTUnwrap(model.page)
             await model.addPage()
             XCTAssertNotEqual(model.page?.id, old.id); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
-            XCTAssertEqual(model.canvas.layer.opacity, 0, "The native empty layer must never display an old PencilKit tile")
+            XCTAssertEqual(model.canvas.layer.opacity, 1)
+            XCTAssertFalse(host.emptyInkCover.isHidden, "The current paper covers old tiles without hiding the touch responder")
+            XCTAssertTrue(host.hitTest(CGPoint(x: 500, y: 400), with: nil)?.isDescendant(of: model.canvas) == true)
             XCTAssertEqual(host.surface.page.id, model.page?.id)
             model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [ink()]); model.drawingChanged(); model.strokeEnded(); model.finishInkGesture()
             XCTAssertEqual(model.canvas.layer.opacity, 1); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            XCTAssertTrue(host.emptyInkCover.isHidden)
             let savedOld = try await model.workspace.pageSnapshot(old.id)
             let original = try await model.workspace.drawing(savedOld)
             XCTAssertEqual(try PKDrawing(data: XCTUnwrap(original)).strokes.count, 1)
+        }
+    }
+    @MainActor func testEmptyInkCoverHidesTheOriginalObjectDuringDragWithoutChangingStoredObjects() async throws {
+        try await fixture { model, host in
+            var shape = ShapeElement(kind: .rectangle, x: 100, y: 100, width: 200, height: 150)
+            shape.fill = .red; shape.fillOpacity = 1; model.page?.paper = .plain; model.page?.shapes = [shape]
+            host.synchronizePage(); host.layoutIfNeeded()
+            func redPixels() throws -> Int {
+                host.emptyInkCover.layer.displayIfNeeded()
+                let format = UIGraphicsImageRendererFormat(); format.scale = 1
+                let image = UIGraphicsImageRenderer(size: host.emptyInkCover.bounds.size, format: format).image { host.emptyInkCover.layer.render(in: $0.cgContext) }
+                let source = try XCTUnwrap(image.cgImage)
+                var bytes = [UInt8](repeating: 0, count: source.width * source.height * 4)
+                return try bytes.withUnsafeMutableBytes { buffer in
+                    let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: source.width, height: source.height, bitsPerComponent: 8,
+                        bytesPerRow: source.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                    context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
+                    let pixels = buffer.bindMemory(to: UInt8.self)
+                    var count = 0
+                    for i in stride(from: 0, to: pixels.count, by: 4) { if pixels[i] > 200 && pixels[i + 1] < 80 && pixels[i + 2] < 80 { count += 1 } }
+                    return count
+                }
+            }
+            XCTAssertGreaterThan(try redPixels(), 100)
+            host.surface.hiddenObjectID = shape.id
+            XCTAssertEqual(try redPixels(), 0, "A drag must not leave the source image/shape underneath its moving preview")
+            XCTAssertEqual(model.page?.shapes, [shape])
+            host.surface.hiddenObjectID = nil; XCTAssertGreaterThan(try redPixels(), 100)
         }
     }
     @MainActor func testFreehandMarkerShowsItsFootprintBeforeLiftAndUsesWordOpacityAtEveryWidth() async throws {

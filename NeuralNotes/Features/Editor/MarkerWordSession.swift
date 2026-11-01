@@ -66,7 +66,7 @@ final class MarkerWordSession {
     func finish(cancelled: Bool) {
         defer {
             if let host {
-                host.synchronizePage(); host.surface.layer.displayIfNeeded(); host.paperDetail.layer.displayIfNeeded()
+                host.synchronizePage(); host.surface.layer.displayIfNeeded(); host.paperDetail.layer.displayIfNeeded(); host.emptyInkCover.layer.displayIfNeeded()
                 host.foregroundObjects.layer.displayIfNeeded(); host.markerReadability.layer.displayIfNeeded()
             }
             preview.removeFromSuperview()

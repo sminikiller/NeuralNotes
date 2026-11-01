@@ -161,7 +161,14 @@ final class PageSurfaceView: UIView {
     var hiddenObjectID: UUID? { didSet { if oldValue != hiddenObjectID { refreshContent() } } }
     var replayHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != replayHiddenObjectIDs { refreshContent() } } }
     var interactionHiddenObjectIDs: Set<UUID> = [] { didSet { if oldValue != interactionHiddenObjectIDs { refreshContent() } } }
-    private func refreshContent() { setNeedsDisplay(); (superview as? CanvasHost)?.markerReadability.setNeedsDisplay() }
+    private func refreshContent() {
+        setNeedsDisplay()
+        guard let host = superview as? CanvasHost else { return }
+        host.markerReadability.setNeedsDisplay()
+        // Object/text drag previews hide their source without changing page
+        // metadata until release. The empty-ink cover must mirror that state.
+        if !host.emptyInkCover.isHidden { host.emptyInkCover.update(from: host, force: true) }
+    }
     var allHiddenObjectIDs: Set<UUID> { replayHiddenObjectIDs.union(interactionHiddenObjectIDs) }
     var page = PageSnapshot() {
         didSet {
