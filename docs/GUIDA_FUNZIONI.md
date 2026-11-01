@@ -420,7 +420,7 @@ Seleziona una forma con **Oggetti**. I quattro punti blu creano blocchi uguali e
 Tieni premuto **Evidenziatore** e scegli **Parole** o **Tratto libero**. In **Parole** sottolinea o passa sulle parole come con la Lente: viene usato lo stesso selettore per PDF, testo inserito, etichette, scansioni e grafia riconosciuta. Il riconoscimento parte selezionando lo strumento; se non è pronto appare un messaggio e puoi ripassare quando termina. Una passata senza parole non lascia segni liberi accidentali. Le evidenziazioni sono rettangoli vettoriali per parola, separati dall’inchiostro; ripassare con lo stesso colore non scurisce. Un annulla rimuove la passata intera. In **Tratto libero** la larghezza arriva a **1 pt**, con tre spessori recenti indipendenti dalla penna. Il colore non schiarisce il nero del PDF e la penna nativa resta sopra. Anteprime e PDF esportati condividono il rendering; l’originale PDF rimane intatto.
 Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anche con piccoli movimenti. La conversione chiude la sessione nativa d’inchiostro per evitare che il tratto grezzo ritorni alla scrittura successiva. Annulla prima il nuovo tratto; un ulteriore annulla della correzione recupera il tratto originale al posto della forma.
 
-## Selezioni, gomme e misure — 0.28 (in collaudo)
+## Selezioni, gomme e misure — 0.28
 
 ### Copia e sposta tra pagine
 1. Seleziona gli elementi con **Oggetti** o **Lazo**. Premi **Copia o sposta in un’altra pagina**.
