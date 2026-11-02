@@ -39,7 +39,7 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
     var available: Bool { geometry != nil && !closed && model.page?.id == pageID && model.zoomWritingOpen && model.hasLease && !model.loading && !model.navigating }
     func configureTool() {
         guard !closed, !nativeStrokeActive, !model.drawingShape else { return }
-        if model.tool != .pen && model.tool != .marker && model.tool != .eraser || model.audio?.replayInk == true {
+        if model.tool != .pen && model.tool != .marker && model.tool != .eraser || model.inkReplayActive {
             finishAndClose(); model.zoomWritingOpen = false; return
         }
         let canvas = host.canvas

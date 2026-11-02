@@ -43,6 +43,19 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
             controller.finishAndClose(); XCTAssertFalse(model.zoomWritingOpen)
         }
     }
+    @MainActor func testStoppedReplayPreferenceDoesNotDisableTheWritingWindow() async throws {
+        try await fixture { model in
+            let audio = try XCTUnwrap(model.audio); audio.replayInk = true
+            XCTAssertNil(audio.playingSessionID)
+            model.toggleZoomWriting(); XCTAssertTrue(model.zoomWritingOpen)
+            let controller = ZoomWritingController(model: model); controller.host.frame = CGRect(x: 0, y: 0, width: 700, height: 200)
+            controller.resize(controller.host.bounds.size); XCTAssertTrue(model.zoomWritingOpen)
+            audio.playingSessionID = UUID(); controller.configureTool()
+            XCTAssertFalse(model.zoomWritingOpen); XCTAssertTrue(audio.replayInk)
+            audio.stopPlayback(); model.toggleZoomWriting(); XCTAssertTrue(model.zoomWritingOpen)
+            model.closeZoomWriting()
+        }
+    }
     @MainActor func testWritingWindowKeyboardPageFitTargetsTheAuthoritativeMainViewport() async throws {
         try await fixture { model in
             let parent = CanvasHost(canvas: model.canvas); parent.model = model; model.pagePresenter = parent

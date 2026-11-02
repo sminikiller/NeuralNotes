@@ -71,7 +71,7 @@ struct EditorView: View {
             .onChange(of: model.openNotebookRequest) { _, _ in notebookSwitching?.open() }
             .onChange(of: model.closeNotebookRequest) { _, _ in notebookSwitching?.close(notebook.id) }
             .onChange(of: model.globalSearchDestinationRequest) { _, _ in Task { await model.consumeGlobalSearch() } }
-            .onChange(of: model.audio?.replayInk) { _, replay in if replay == true { model.closeZoomWriting() } }
+            .onChange(of: model.inkReplayActive) { _, active in if active { model.closeZoomWriting() } }
     }
     private var editorEvents: some View {
         editorPresentations

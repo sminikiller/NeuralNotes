@@ -4,9 +4,10 @@ import NeuralNotesCore
 
 @MainActor
 extension EditorViewModel {
+    var inkReplayActive: Bool { audio?.replayInk == true && audio?.playingSessionID != nil }
     func toggleZoomWriting() {
         if zoomWritingOpen { closeZoomWriting(); return }
-        guard hasLease, !loading, !navigating, !interactionBusy, audio?.replayInk != true else { return }
+        guard hasLease, !loading, !navigating, !interactionBusy, !inkReplayActive else { return }
         if tool != .pen && tool != .marker && tool != .eraser { chooseTool(.pen) }
         finishInkGesture(); endTextEdit(); zoomWritingOpen = true; configureTool()
     }
