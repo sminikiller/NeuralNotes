@@ -92,7 +92,7 @@ struct EditorView: View {
                         writingSurface
                         if model.zoomWritingOpen {
                             Divider()
-                            ZoomWritingPanel(model: model).frame(height: max(150, geometry.size.height * 0.3))
+                            ZoomWritingPanel(model: model).frame(height: max(100, geometry.size.height * 0.3))
                         }
                     }
                 }
