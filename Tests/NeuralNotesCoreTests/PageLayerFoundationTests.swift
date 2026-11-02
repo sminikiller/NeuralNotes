@@ -105,4 +105,74 @@ final class PageLayerFoundationTests: XCTestCase {
         XCTAssertEqual(page.texts.first?.layerID, page.layers?.last?.id); XCTAssertEqual(page.anchors.first?.layerID, page.layers?.last?.id)
         XCTAssertEqual(page.anchors.first?.seconds, 10); try PageValidation.validate(page)
     }
+    func testRepeatedSavesRetainSharedLayerInkAndTrashButBoundUnreferencedRevisions() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID)
+        let workspace = DocumentWorkspace(package: package, documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var first = try await workspace.addPage()
+        first.revision += 1; first = try await workspace.save(first, drawing: Data([1]))
+        let shared = try XCTUnwrap(first.drawingFile)
+        var second = PageSnapshot(), layer = PageLayer(name: "Shared hidden ink", isVisible: false, isLocked: true)
+        layer.drawingFile = shared; second.layers = [PageLayer(id: second.id, name: "Base"), layer]
+        second = try await workspace.addPage(second)
+        try await workspace.deletePage(second.id) // Trash is still a durable owner.
+        for revision in 2...40 {
+            first.revision += 1; first = try await workspace.save(first, drawing: Data([UInt8(revision)]))
+            XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(shared)), Data([1]))
+        }
+        let files = try FileManager.default.contentsOfDirectory(at: package.appendingPathComponent("drawings"), includingPropertiesForKeys: nil)
+        XCTAssertEqual(files.count, 3, "Two live revisions plus the shared, hidden, trashed layer; no per-stroke accumulation")
+        let report = try await workspace.storageReport(); XCTAssertFalse(report.unusedFiles.contains(shared))
+        try await workspace.permanentlyRemovePages([second.id])
+        let unowned = try await workspace.storageReport(); XCTAssertTrue(unowned.unusedFiles.contains(shared))
+        _ = try await workspace.cleanUnusedFiles()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: package.appendingPathComponent(shared).path))
+    }
+    func testUnparseableHeaderNeverAuthorizesReleasingAnOldDrawing() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID)
+        let workspace = DocumentWorkspace(package: package, documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = try await workspace.addPage()
+        page.revision += 1; page = try await workspace.save(page, drawing: Data([1]))
+        let first = try XCTUnwrap(page.drawingFile)
+        try Data("unreadable header".utf8).write(to: package.appendingPathComponent("pages/\(UUID()).json"))
+        for revision in 2...4 { page.revision += 1; page = try await workspace.save(page, drawing: Data([UInt8(revision)])) }
+        XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(first)), Data([1]))
+        let report = try await workspace.storageReport(); XCTAssertFalse(report.unreadableHeaders.isEmpty)
+    }
+
+    func testLayerDrawingSaveCommitsOnlyItsPointerAndKeepsTwoRevisionsPerOwner() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID)
+        let workspace = DocumentWorkspace(package: package, documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = try await workspace.addPage(); let layer = PageLayer(name: "Annotazioni")
+        page.layers = [PageLayer(id: page.id, name: "Base"), layer]
+        for n in 1...12 {
+            page.revision += 1; page = try await workspace.save(page, drawing: Data([UInt8(n)]))
+            let base = page.drawingFile
+            page.revision += 1; page = try await workspace.save(page, drawing: Data([UInt8(100 + n)]), layerID: layer.id)
+            XCTAssertEqual(page.drawingFile, base)
+            let baseData = try await workspace.drawing(page), layerData = try await workspace.drawing(page, layerID: layer.id)
+            XCTAssertEqual(baseData, Data([UInt8(n)])); XCTAssertEqual(layerData, Data([UInt8(100 + n)]))
+        }
+        let count = try FileManager.default.contentsOfDirectory(at: package.appendingPathComponent("drawings"), includingPropertiesForKeys: nil).count
+        XCTAssertEqual(count, 4)
+        XCTAssertNoThrow(try NativePackageInspector.inspect(package))
+        let original = page
+        page.layers?[1].isLocked = true; page.revision += 1
+        do { _ = try await workspace.save(page, drawing: Data([99]), layerID: layer.id); XCTFail("Locked layer accepted live ink") }
+        catch { XCTAssertTrue(error is WorkspaceFailure) }
+        let retained = try await workspace.pageSnapshot(page.id); XCTAssertEqual(retained, original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: package.appendingPathComponent("drawings"), includingPropertiesForKeys: nil).count, 4)
+    }
+
 }

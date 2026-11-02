@@ -89,6 +89,7 @@ extension DocumentWorkspace {
     }
 
     public func permanentlyRemovePages(_ ids: [UUID]) throws {
+        defer { invalidateDrawingReachability() }
         let index = try manifest()
         guard Set(ids).isDisjoint(with: index.pageIDs) else { throw WorkspaceFailure.staleRevision }
         guard try storageReport().unreadableHeaders.isEmpty else { throw LibraryFailure.corruptDocument }

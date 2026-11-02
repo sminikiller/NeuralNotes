@@ -30,8 +30,10 @@ public actor DocumentWorkspace {
     }
     public func invalidateDerivedSearch() { searchDirty = true; searchChunks = []; ocrCache = nil; cachedCloudDigest = nil }
     private var ocrCache: [String: AutomaticOCRPage]?
+    var drawingReachability: DrawingReachability?
+    var drawingReferenceScanFailed = false
     private var pageBatchSettled = false
-    func markPendingPageBatch() { pageBatchSettled = false }
+    func markPendingPageBatch() { pageBatchSettled = false; invalidateDrawingReachability() }
     func settlePageBatch() throws {
         guard !pageBatchSettled else { return }
         try PageBatchRecovery.recover(in: package)
@@ -158,8 +160,10 @@ public actor DocumentWorkspace {
         }
     }
 
-    public func drawing(_ page: PageSnapshot) throws -> Data? {
-        guard let file = page.drawingFile else { return nil }
+    public func drawing(_ page: PageSnapshot, layerID: UUID? = nil) throws -> Data? {
+        let target = layerID ?? page.id
+        guard PageLayers.ordered(in: page).contains(where: { $0.id == target }) else { throw LibraryFailure.missingItem }
+        guard let file = PageLayers.drawingFile(for: target, in: page) else { return nil }
         return try Data(contentsOf: url(file))
     }
 
@@ -214,7 +218,7 @@ public actor DocumentWorkspace {
         return try addPage(template.makePage())
     }
 
-    public func save(_ input: PageSnapshot, drawing: Data, recoveredFromPrevious: Bool = false) throws -> PageSnapshot {
+    public func save(_ input: PageSnapshot, drawing: Data, recoveredFromPrevious: Bool = false, layerID: UUID? = nil) throws -> PageSnapshot {
         // Keep newly written files within the same limits as backup/import.
         // Otherwise a successful save could create an unexportable notebook.
         guard drawing.count <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
@@ -222,16 +226,27 @@ public actor DocumentWorkspace {
         guard input.appearance?.isValid != false else { throw LibraryFailure.corruptDocument }
         let current = try readPage(input.id)
         guard input.revision > current.revision else { throw WorkspaceFailure.staleRevision }
+        let target = layerID ?? input.id
+        guard PageLayers.ordered(in: input).contains(where: { $0.id == target }) else { throw LibraryFailure.missingItem }
+        // Explicit layer input is used by the future active-layer adapter. A
+        // hidden/locked layer cannot receive a live drawing through this API.
+        if layerID != nil, !PageLayers.editable(target, page: input) { throw WorkspaceFailure.staleRevision }
+        let oldCurrent = PageLayers.drawingFile(for: target, in: current)
+        let oldPrevious = target == current.id ? current.previousDrawingFile : current.layers?.first(where: { $0.id == target })?.previousDrawingFile
         var page = input
         page.lastEditedAt = Date().timeIntervalSince1970
         let newFile = "drawings/\(page.id)-\(UUID()).drawing"
         try drawing.write(to: url(newFile), options: .atomic)
-        page.drawingFile = newFile
-        page.previousDrawingFile = recoveredFromPrevious ? current.previousDrawingFile : current.drawingFile
+        let previous = recoveredFromPrevious ? oldPrevious : oldCurrent
+        if target == page.id { page.drawingFile = newFile; page.previousDrawingFile = previous }
+        else if let index = page.layers?.firstIndex(where: { $0.id == target }) {
+            page.layers?[index].drawingFile = newFile; page.layers?[index].previousDrawingFile = previous
+        }
         try write(page, "pages/\(page.id).json")
-        // At most two vector snapshots per page; never remove either committed reference.
-        if let old = current.previousDrawingFile, old != page.previousDrawingFile,
-           old != newFile, old.hasPrefix("drawings/\(page.id)-") {
+        // Release only unreachable old revisions. Another page/layer may share
+        // an immutable file, including a page retained in the trash.
+        if let old = oldPrevious, old != previous,
+           old != newFile, old.hasPrefix("drawings/\(page.id)-"), canReleaseDrawing(old) {
             try? FileManager.default.removeItem(at: url(old))
         }
         return page
@@ -483,5 +498,6 @@ public actor DocumentWorkspace {
             }
         }
         try data.write(to: url(path), options: .atomic)
+        if let page = value as? PageSnapshot, path == "pages/\(page.id).json" { drawingReachability?.replace(page) }
     }
 }

@@ -52,3 +52,10 @@ Solo fondazione locale: modello opzionale e validazione, riferimenti media canon
 
 
 Punto bloccante emerso nella ricognizione: DocumentWorkspace.save elimina direttamente il precedente disegno base assumendo proprietà esclusiva del percorso. Con livelli duplicati o uniti i file sono immutabili ma possono essere condivisi. Prima di attivare i livelli occorre un criterio di raggiungibilità canonico (anche fuori dalla pagina corrente), oppure una politica di raccolta differita limitata nello spazio; non basta verificare il prefisso del nome. Non rimuovere quella protezione senza gestire anche l’accumulo di revisioni durante registrazioni/scritture lunghe. Il codice candidato 0.29 non include questo modello sperimentale.
+
+
+## Protezione delle revisioni — candidato locale
+
+L'eliminazione delle vecchie revisioni ora consulta un indice derivato dei soli metadati, inizializzato pigramente prima della prima eliminazione e aggiornato da ogni scrittura serializzata. Include pagine cestinate, livelli nascosti/bloccati e puntatori precedenti. Recuperi con journal invalidano l'indice; un header illeggibile impedisce l'eliminazione senza impedire il salvataggio. Le revisioni senza riferimenti continuano a essere eliminate: il controllo non accumula un nuovo archivio a ogni tratto. Nessun payload PDF/audio/drawing viene caricato per costruire l'indice. Nuovi test sintetici controllano 40 salvataggi, livelli condivisi e cestinati, pulizia e un header corrotto.
+
+API di storage candidata: lettura/salvataggio con layerID esplicito sostituisce atomicamente solo i puntatori di quel livello e conserva due revisioni per proprietario. Il percorso senza layerID resta quello base. Blocco/nascondimento rifiuta l'input esplicito prima di scrivere file. Test alterna 12 salvataggi base/livello, conserva quattro file, verifica il pacchetto e il rifiuto del livello bloccato. Nessuna UI o sostituzione del canvas ancora attivata; test SDK della fase non ancora eseguiti.
