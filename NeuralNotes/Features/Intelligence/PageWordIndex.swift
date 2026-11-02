@@ -146,7 +146,10 @@ final class PageWordIndex {
             if words.isEmpty {
                 // Handwriting, scans and photos: word boxes from the OCR of the drawn page.
                 var visual = page; visual.texts = []; visual.tapes = []; visual.shapes = []; visual.connectors = []
-                let image = DocumentServices.image(page: visual, drawing: ink, workspace: model.workspace, maxDimension: 2200)
+                let prepared = await PDFRasterCache.shared.prepareDetail(page: visual, package: model.workspace.package,
+                    bounds: CGRect(x: 0, y: 0, width: page.width, height: page.height), scale: min(2, 2200 / max(page.width, page.height)))
+                guard prepared, !Task.isCancelled, model.hasLease, model.page?.id == page.id, self.key(page) == cacheKey, epochs[page.id] == generation else { return }
+                let image = DocumentServices.image(page: visual, drawing: ink, workspace: model.workspace, maxDimension: 2200, pdfMode: .interactive)
                 if let data = image.pngData() {
                     let found = try await recognize(data)
                     let width = CGFloat(page.width), height = CGFloat(page.height)

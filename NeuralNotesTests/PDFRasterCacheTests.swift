@@ -3,8 +3,27 @@ import UIKit
 import PDFKit
 import PencilKit
 import CryptoKit
+import ImageIO
 import NeuralNotesCore
 @testable import NeuralNotes
+
+private actor PDFScanReaderProbe {
+    private(set) var calls = 0, blackPixels = 0
+    func read(_ data: Data) -> [PageWord] {
+        calls += 1
+        if let source = CGImageSourceCreateWithData(data as CFData, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            var bytes = [UInt8](repeating: 255, count: image.width * image.height * 4)
+            bytes.withUnsafeMutableBytes { buffer in
+                if let context = CGContext(data: buffer.baseAddress, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue) {
+                    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                }
+            }
+            for i in stride(from: 0, to: bytes.count, by: 4) { if bytes[i] < 50 && bytes[i + 1] < 50 && bytes[i + 2] < 50 { blackPixels += 1 } }
+        }
+        return [PageWord(text: "Energia", rect: CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.05))]
+    }
+}
 
 final class PDFRasterCacheTests: XCTestCase {
     @MainActor private func source(pages: Int = 2, dense: Bool = false) throws -> (URL, [PageSnapshot]) {
@@ -115,6 +134,11 @@ final class PDFRasterCacheTests: XCTestCase {
             XCTAssertGreaterThan(originalBlack, 100)
             XCTAssertGreaterThanOrEqual(rasterBlack, Int(Double(originalBlack) * 0.94), "Glyphs must stay sharp at \(rotation) degrees")
             XCTAssertLessThanOrEqual(rasterBlack, Int(Double(originalBlack) * 1.06) + 20)
+            let originalBounds = try inkBounds(vector), rasterBounds = try inkBounds(raster)
+            XCTAssertEqual(rasterBounds.minX, originalBounds.minX, accuracy: 1.25)
+            XCTAssertEqual(rasterBounds.minY, originalBounds.minY, accuracy: 1.25)
+            XCTAssertEqual(rasterBounds.maxX, originalBounds.maxX, accuracy: 1.25)
+            XCTAssertEqual(rasterBounds.maxY, originalBounds.maxY, accuracy: 1.25)
         }
     }
     @MainActor func testInteractiveMarkerKeepsGlyphsAndColorAndDoesNotDecodeThePDFAgainForNewStrokes() async throws {
@@ -215,6 +239,37 @@ final class PDFRasterCacheTests: XCTestCase {
         XCTAssertGreaterThan(white[0], 220); XCTAssertGreaterThan(white[1], 220); XCTAssertGreaterThan(white[2], 220)
         _ = await model.close()
     }
+    @MainActor func testScannedPDFWordPreparationUsesBackgroundPixelsAndPassesActualContentToOCR() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let model = EditorViewModel(workspace: DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID))
+        await model.open()
+        do {
+            let bounds = CGRect(x: 0, y: 0, width: 600, height: 800), file = root.appendingPathComponent("scan.pdf")
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1
+            let scan = UIGraphicsImageRenderer(bounds: bounds, format: format).image { output in
+                UIColor.white.setFill(); output.fill(bounds)
+                ("Energia conservata" as NSString).draw(at: CGPoint(x: 60, y: 100), withAttributes: [.font: UIFont.systemFont(ofSize: 28), .foregroundColor: UIColor.black])
+            }
+            try UIGraphicsPDFRenderer(bounds: bounds).writePDF(to: file) { output in output.beginPage(); scan.draw(in: bounds) }
+            await model.importPages(from: file)
+            let page = try XCTUnwrap(model.page); XCTAssertNotNil(page.pdfFile)
+            XCTAssertTrue((PDFDocument(url: file)?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let before = DocumentRenderCache.shared.pdfOpens, probe = PDFScanReaderProbe()
+            let index = PageWordIndex { await probe.read($0) }
+            index.prepare(page, model: model)
+            let deadline = Date().addingTimeInterval(10)
+            while index.isPreparing(page), Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+            XCTAssertTrue(index.isReady(page)); XCTAssertEqual(index.groups(for: page).first?.first?.text, "Energia")
+            let calls = await probe.calls, black = await probe.blackPixels
+            XCTAssertEqual(calls, 1); XCTAssertGreaterThan(black, 100, "OCR must receive the scan's content, not a cold blank preview")
+            XCTAssertEqual(DocumentRenderCache.shared.pdfOpens, before, "Selecting the marker on a scan must not synchronously decode its PDF")
+            XCTAssertEqual(PDFRasterCache.shared.mainThreadRasterizations, 0)
+            _ = await model.close()
+        } catch { _ = await model.close(); throw error }
+    }
     @MainActor private func pixel(_ image: UIImage, at point: CGPoint) throws -> [UInt8] {
         let source = try XCTUnwrap(image.cgImage), scale = image.scale
         let crop = try XCTUnwrap(source.cropping(to: CGRect(x: point.x * scale, y: point.y * scale, width: 1, height: 1)))
@@ -234,6 +289,20 @@ final class PDFRasterCacheTests: XCTestCase {
             context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
             let p = buffer.bindMemory(to: UInt8.self)
             return stride(from: 0, to: p.count, by: 4).filter { p[$0] < 30 && p[$0 + 1] < 30 && p[$0 + 2] < 30 }.count
+        }
+    }
+    @MainActor private func inkBounds(_ image: UIImage) throws -> CGRect {
+        let source = try XCTUnwrap(image.cgImage)
+        var bytes = [UInt8](repeating: 0, count: source.width * source.height * 4)
+        return try bytes.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: source.width, height: source.height, bitsPerComponent: 8,
+                bytesPerRow: source.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
+            let pixels = buffer.bindMemory(to: UInt8.self); var box = CGRect.null
+            for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i] < 128 && pixels[i + 1] < 128 && pixels[i + 2] < 128 {
+                let at = i / 4; box = box.union(CGRect(x: at % source.width, y: at / source.width, width: 1, height: 1))
+            }
+            return box
         }
     }
 }
