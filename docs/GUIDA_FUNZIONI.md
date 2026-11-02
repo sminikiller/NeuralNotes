@@ -444,7 +444,9 @@ In **Solo foglio**, espandi la mini toolbar. La pressione prolungata sugli strum
 4. Il righello mostra centimetri e inclinazione mentre tracci. **G** e **R** attivano le due guide dalla tastiera; sono alternative e non compaiono nel PDF esportato.
 
 
-## Correzioni editor 0.28.1 — in verifica
+## Correzioni editor 0.28.1
+
+Incluse nella beta TestFlight **1.0.0 (165)**, firmata e caricata su Apple il 2 novembre 2026. Versione e build installate si leggono in **Informazioni su NeuralNotes**.
 
 - **Lazo:** seleziona sia tratti sia forme, foto e testi. Per il lazo nativo limitato ai tratti, tieni premuto Lazo e scegli Solo inchiostro (PencilKit).
 - **Stile forma:** seleziona la forma e usa il primo pulsante Stile forma nella barra della selezione. Tutti i parametri vengono applicati con Applica e si annullano insieme. Per cambiare i valori delle prossime forme, tieni premuto uno strumento forma e apri Stile per le nuove forme.

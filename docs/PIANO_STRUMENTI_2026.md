@@ -597,7 +597,7 @@ Scrivimi alla fine di ogni fase, in italiano semplice:
 
 
 ---
-## Stato di esecuzione — aggiornamento 30 ottobre 2026
+## Stato di esecuzione — aggiornamento 2 novembre 2026
 
 Il testo del piano sopra è conservato integralmente.
 
@@ -606,6 +606,7 @@ Il testo del piano sopra è conservato integralmente.
 - ✅ 0.26 — §4 aggancio, griglia e allineamenti: implementata e verificata. [40901219596](https://github.com/sminikiller/NeuralNotes/actions/runs/40901219596), sei job verdi, 33 test UI superati, fixture 0.25/PDF/backup e aggiornamento 0.20.8 conservati. Beta **1.0.0 (135)** firmata e caricata con [40939882142](https://github.com/sminikiller/NeuralNotes/actions/runs/40939882142); elaborazione Apple non confermata. ZIP esatto e prove in docs/DELIVERY_0_26.md.
 - ✅ 0.27 — §5 diagrammi e connettori, più correzioni evidenziatore/riconoscimento: implementata e verificata. [41093624706](https://github.com/sminikiller/NeuralNotes/actions/runs/41093624706), sei job verdi, 507 test nativi (2 saltati, zero errori), 98 Swift Testing e tutti i 35 test UI superati. Beta **1.0.0 (142)** firmata e caricata con [41103296975](https://github.com/sminikiller/NeuralNotes/actions/runs/41103296975); elaborazione Apple non confermata. ZIP esatto e prove in docs/DELIVERY_0_27.md.
 - ✅ 0.28 — §6 selezioni, gomme e goniometro, più correzioni evidenziatore, gomma sugli oggetti e frecce rapide: implementata e verificata. [41248574248](https://github.com/sminikiller/NeuralNotes/actions/runs/41248574248), sei job verdi, 587 XCTest sul simulatore (2 saltati, zero errori), 98 SwiftTesting e43 UI superate. Beta **1.0.0 (159)** firmata e caricata il1 novembre2026 con [41264713554](https://github.com/sminikiller/NeuralNotes/actions/runs/41264713554); elaborazione Apple non confermata. ZIP esatto e prove in docs/DELIVERY_0_28.md. Compasso facoltativo escluso.
+- ✅ 0.28.1 — otto correzioni dell’editor: pagine senza residui, lazo misto, stile diretto, righello e squadre, riconoscimento e anteprima evidenziatore. Suite completa con 44 UI superate, controlli dell’ultimo fix e build Release conclusi; prove e limiti documentati in [DELIVERY_0_28_1.md](DELIVERY_0_28_1.md). Beta **1.0.0 (165)** firmata e caricata il 2 novembre 2026 con [41468355039](https://github.com/sminikiller/NeuralNotes/actions/runs/41468355039); elaborazione Apple non ancora confermata.
 - ❌ 0.29 — §7 testo e finestra di zoom: successiva.
 - ❌ 0.30 — §8 livelli: successiva.
 - ❌ 0.31 — §9 trasformazioni della grafia: successiva.
