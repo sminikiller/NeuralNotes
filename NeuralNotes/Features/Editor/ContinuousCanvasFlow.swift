@@ -163,7 +163,7 @@ final class ContinuousCanvasFlow {
         captureViewport(target: id)
         if let current = model.page {
             let drawing = host.canvas.drawing
-            let image = DocumentServices.image(page: current, drawing: drawing, workspace: model.workspace, maxDimension: 1200)
+            let image = DocumentServices.image(page: current, drawing: drawing, workspace: model.workspace, maxDimension: 1200, pdfMode: .preview)
             let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)
             let points = drawing.strokes.reduce(0) { $0 + $1.path.count }
             let file = current.drawingFile.flatMap { try? NativeArchive.fileURL($0, in: model.workspace.package) }
@@ -243,7 +243,9 @@ final class ContinuousCanvasFlow {
                 let bytes = try await workspace.drawing(page)
                 try Task.checkCancellation()
                 let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
-                let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: CGFloat(PreviewBudget.previewDimension))
+                await PDFRasterCache.shared.preparePreview(page: page, package: workspace.package)
+                try Task.checkCancellation()
+                let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: CGFloat(PreviewBudget.previewDimension), pdfMode: .preview)
                 try Task.checkCancellation()
                 guard self.tokens[page.id] == token,
                       self.model?.pages.first(where: { $0.id == page.id }) == page else { return }

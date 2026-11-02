@@ -4,13 +4,15 @@ import NeuralNotesCore
 
 @MainActor
 enum PageRenderer {
-    static func draw(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil, hidingObjectIDs: Set<UUID> = []) {
+    static func draw(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil, hidingObjectIDs: Set<UUID> = [], pdfMode: PDFRenderMode = .vector) {
         let rect = CGRect(x: 0, y: 0, width: page.width, height: page.height)
         let appearance = page.appearance ?? PaperAppearance(spacing: page.paper == .ruled ? 32 : 24)
         let rgb = appearance.tone.rgb
         let paperColor = page.pdfFile == nil ? UIColor(red: rgb.0, green: rgb.1, blue: rgb.2, alpha: 1) : UIColor.white
         context.setFillColor(paperColor.cgColor); context.fill(rect)
-        if let file = page.pdfFile, let index = page.pdfIndex,
+        if page.pdfFile != nil, page.pdfIndex != nil, pdfMode != .vector {
+            PDFRasterCache.shared.draw(page: page, package: package, in: context, detailed: pdfMode == .interactive)
+        } else if let file = page.pdfFile, let index = page.pdfIndex,
            let document = DocumentRenderCache.shared.pdf(package.appendingPathComponent(file)),
            index >= 0, index < document.numberOfPages,
            let pdf = document.page(at: index + 1) {
@@ -149,10 +151,19 @@ enum PageRenderer {
 
 @MainActor
 final class PageSurfaceView: UIView {
+    init() {
+        super.init(frame: .zero)
+        NotificationCenter.default.addObserver(self, selector: #selector(nnPDFPreviewReady(_:)), name: PDFRasterCache.didRender, object: nil)
+    }
+    required init?(coder: NSCoder) { nil }
+    deinit { NotificationCenter.default.removeObserver(self) }
+    @objc private func nnPDFPreviewReady(_ note: Notification) {
+        if PDFRasterCache.affects(note, page: page, package: package, previewOnly: true) { setNeedsDisplay() }
+    }
     /// Redraw at the visible zoom resolution, bounded to 32 MB per surface.
     func updateResolution(zoom: CGFloat, screenScale: CGFloat) {
         let maximum = sqrt(8_000_000 / max(1, CGFloat(page.width * page.height)))
-        let scale = max(0.5, min(maximum, screenScale * max(1, zoom)))
+        let scale = page.pdfFile != nil ? min(1, 1024 / max(page.width, page.height)) : max(0.5, min(maximum, screenScale * max(1, zoom)))
         guard abs(contentScaleFactor - scale) > 0.15 else { return }
         contentScaleFactor = scale; layer.contentsScale = scale; setNeedsDisplay()
     }
@@ -183,6 +194,6 @@ final class PageSurfaceView: UIView {
     var package = URL(fileURLWithPath: "/")
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: allHiddenObjectIDs)
+        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: allHiddenObjectIDs, pdfMode: .preview)
     }
 }

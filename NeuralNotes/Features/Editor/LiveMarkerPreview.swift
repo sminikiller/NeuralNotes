@@ -18,8 +18,14 @@ final class LiveMarkerPreview: UIView {
         // Match committed ink: front objects, study tape and drawing guides
         // must remain above a live stroke as well as after the Pencil lifts.
         host.insertSubview(self, belowSubview: host.foregroundObjects)
+        NotificationCenter.default.addObserver(self, selector: #selector(nnPDFMarkerPreviewReady(_:)), name: PDFRasterCache.didRender, object: nil)
     }
     required init?(coder: NSCoder) { nil }
+    deinit { NotificationCenter.default.removeObserver(self) }
+    @objc private func nnPDFMarkerPreviewReady(_ note: Notification) {
+        guard let host, host.model?.page?.id == page.id else { return }
+        if PDFRasterCache.affects(note, page: page, package: host.surface.package) { setNeedsDisplay() }
+    }
     func update(path: CGPath) {
         guard let host, host.model?.page?.id == page.id else { isHidden = true; return }
         let visible = host.surface.frame.intersection(host.bounds)
@@ -35,6 +41,6 @@ final class LiveMarkerPreview: UIView {
         context.addPath(footprint); context.clip()
         let visible = CGRect(origin: origin, size: CGSize(width: bounds.width / zoom, height: bounds.height / zoom))
         composition.drawLiveMarker(page: page, baseline: baseline, token: token, footprint: footprint,
-            color: color, package: host.surface.package, bounds: visible, scale: contentScaleFactor * zoom, in: context)
+            color: color, package: host.surface.package, bounds: visible, scale: contentScaleFactor * zoom, in: context, pdfMode: .interactive)
     }
 }

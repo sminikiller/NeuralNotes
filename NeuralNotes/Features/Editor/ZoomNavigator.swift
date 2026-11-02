@@ -26,9 +26,15 @@ final class ZoomNavigator: UIView {
             addGestureRecognizer(gesture)
         }
         isHidden = true; accessibilityIdentifier = "zoomNavigator"
+        NotificationCenter.default.addObserver(self, selector: #selector(nnPDFNavigatorPreviewReady(_:)), name: PDFRasterCache.didRender, object: nil)
         thumbnail.isAccessibilityElement = true; thumbnail.accessibilityLabel = "Panoramica del foglio"; thumbnail.accessibilityHint = "Tocca o trascina con un dito per spostare l’area ingrandita."
     }
     required init?(coder: NSCoder) { nil }
+    deinit { NotificationCenter.default.removeObserver(self) }
+    @objc private func nnPDFNavigatorPreviewReady(_ note: Notification) {
+        guard let host, let page = host.model?.page, PDFRasterCache.affects(note, page: page, package: host.surface.package, previewOnly: true) else { return }
+        generation = ""; update(host)
+    }
     @objc private func hide() { host?.model?.showZoomNavigator = false }
     @objc private func navigate(_ gesture: UIGestureRecognizer) {
         guard let host, let page = host.model?.page else { return }
@@ -47,7 +53,7 @@ final class ZoomNavigator: UIView {
         let key = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)"
         if generation != key && !model.hasActiveStroke {
             generation = key
-            thumbnail.image = DocumentServices.image(page: page, drawing: host.canvas.drawing, workspace: model.workspace, maxDimension: 400)
+            thumbnail.image = DocumentServices.image(page: page, drawing: host.canvas.drawing, workspace: model.workspace, maxDimension: 400, pdfMode: .preview)
         }
         let visible = host.surface.convert(host.bounds, from: host).intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
         if visible.isNull { viewport.path = nil }

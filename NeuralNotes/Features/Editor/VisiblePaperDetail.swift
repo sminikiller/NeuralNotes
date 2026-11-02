@@ -5,6 +5,15 @@ import NeuralNotesCore
 /// full-page bitmap at 8x zoom and keeps PDF/text sharp within a bounded viewport.
 @MainActor
 final class VisiblePaperDetail: UIView {
+    init() {
+        super.init(frame: .zero)
+        NotificationCenter.default.addObserver(self, selector: #selector(nnPDFDetailReady(_:)), name: PDFRasterCache.didRender, object: nil)
+    }
+    required init?(coder: NSCoder) { nil }
+    deinit { NotificationCenter.default.removeObserver(self) }
+    @objc private func nnPDFDetailReady(_ note: Notification) {
+        if let page, !isHidden, PDFRasterCache.affects(note, page: page, package: package) { setNeedsDisplay() }
+    }
     private var page: PageSnapshot?
     private var package = URL(fileURLWithPath: "/")
     private var zoom: CGFloat = 1
@@ -17,7 +26,7 @@ final class VisiblePaperDetail: UIView {
     }
     func update(from host: CanvasHost, force: Bool = false) {
         let z = host.canvas.zoomScale, rect = host.surface.frame.intersection(host.bounds)
-        isHidden = (!force && z <= 1) || rect.isNull || rect.isEmpty
+        isHidden = (!force && z <= 1 && host.surface.page.pdfFile == nil) || rect.isNull || rect.isEmpty
         guard !isHidden else { return }
         let at = CGPoint(x: (rect.minX - host.surface.frame.minX) / z, y: (rect.minY - host.surface.frame.minY) / z)
         let changed = frame != rect || page != host.surface.page || package != host.surface.package || zoom != z || origin != at || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs
@@ -32,6 +41,6 @@ final class VisiblePaperDetail: UIView {
     override func draw(_ rect: CGRect) {
         guard let page, let context = UIGraphicsGetCurrentContext() else { return }
         context.scaleBy(x: zoom, y: zoom); context.translateBy(x: -origin.x, y: -origin.y)
-        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: hiddenObjectIDs)
+        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: hiddenObjectIDs, pdfMode: .interactive)
     }
 }

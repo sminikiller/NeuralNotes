@@ -172,7 +172,12 @@ final class EditorViewModel {
                   let page = self.page, page.revision > 0,
                   await self.workspace.needsAutomaticOCR(pageID: page.id, revision: page.revision) else { return }
             do {
-                let image = DocumentServices.image(page: page, drawing: self.canvas.drawing, workspace: self.workspace, maxDimension: 1600)
+                let drawing = self.canvas.drawing
+                let prepared = await PDFRasterCache.shared.prepareDetail(page: page, package: self.workspace.package,
+                    bounds: CGRect(x: 0, y: 0, width: page.width, height: page.height), scale: min(2, 1600 / max(page.width, page.height)))
+                guard prepared, !Task.isCancelled, self.hasLease, !self.hasActiveStroke, !self.dirty,
+                      self.page?.id == page.id, self.page?.revision == page.revision else { return }
+                let image = DocumentServices.image(page: page, drawing: drawing, workspace: self.workspace, maxDimension: 1600, pdfMode: .interactive)
                 guard let data = image.pngData() else { return }
                 let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
                 _ = try await self.workspace.storeAutomaticOCR(pageID: page.id, revision: page.revision, text: text)
@@ -486,6 +491,8 @@ final class EditorViewModel {
             recovered = true
             self.error = "Recuperata la revisione precedente. Salva per conservarla."
         }
+        await PDFRasterCache.shared.preparePreview(page: current, package: workspace.package)
+        try Task.checkCancellation()
         installPage(current, drawing: drawing, recovered: recovered)
     }
 

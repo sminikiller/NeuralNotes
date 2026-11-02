@@ -211,7 +211,9 @@ struct PageThumbnail: View {
                 let bytes = try await workspace.drawing(page)
                 try Task.checkCancellation()
                 let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
-                image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: maxDimension)
+                await PDFRasterCache.shared.preparePreview(page: page, package: workspace.package)
+                try Task.checkCancellation()
+                image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: maxDimension, pdfMode: .preview)
             } catch is CancellationError { }
             catch { failed = true }
         }

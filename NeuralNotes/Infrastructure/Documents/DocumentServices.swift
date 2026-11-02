@@ -210,11 +210,11 @@ enum DocumentServices {
             hash: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined())
     }
 
-    static func image(page: PageSnapshot, drawing: PKDrawing, workspace: DocumentWorkspace, maxDimension: CGFloat = 2048) -> UIImage {
+    static func image(page: PageSnapshot, drawing: PKDrawing, workspace: DocumentWorkspace, maxDimension: CGFloat = 2048, pdfMode: PDFRenderMode = .vector) -> UIImage {
         let bounds = CGRect(x: 0, y: 0, width: page.width, height: page.height)
         let format = UIGraphicsImageRendererFormat(); format.scale = min(2, maxDimension / max(bounds.width, bounds.height))
         return UIGraphicsImageRenderer(bounds: bounds, format: format).image { result in
-            PageRenderer.draw(page, package: workspace.package, in: result.cgContext)
+            PageRenderer.draw(page, package: workspace.package, in: result.cgContext, pdfMode: pdfMode)
             LegibleInkRenderer.draw(drawing, in: result.cgContext, bounds: bounds, scale: format.scale)
             PageRenderer.drawForeground(page, package: workspace.package, in: result.cgContext)
         }

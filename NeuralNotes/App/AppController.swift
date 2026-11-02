@@ -44,6 +44,9 @@ final class AppController {
             let repository = SwiftDataLibraryRepository(container: container, documents: documents)
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--ui-testing"), arguments.contains("--ui-pdf-fixture"), try repository.notebooks().isEmpty {
+                try PDFRenderUITestFixture.install(repository: repository, documents: documents)
+            }
             if arguments.contains("--ui-testing"), arguments.contains("--ui-audio-fixture"), try repository.notebooks().isEmpty {
                 // UI-only metadata fixture in the isolated test container. No mic or ASR.
                 let notebook = try repository.createNotebook(title: "Audio UI test", folderID: nil, cover: .lagoon)

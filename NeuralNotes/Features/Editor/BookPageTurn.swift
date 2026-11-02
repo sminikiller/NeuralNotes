@@ -52,6 +52,8 @@ extension CanvasHost: EditorPagePresenter {
     func presentPage(_ target: PageSnapshot, load: @MainActor () async throws -> Void) async throws {
         guard let model, let current = model.page, current.id != target.id,
               bounds.width > 0, bounds.height > 0 else { try await load(); return }
+        await PDFRasterCache.shared.preparePreview(page: current, package: model.workspace.package)
+        try Task.checkCancellation()
         let oldIndex = model.pages.firstIndex(where: { $0.id == current.id }) ?? 0
         let newIndex = model.pages.firstIndex(where: { $0.id == target.id }) ?? oldIndex
         let overlay = BookPageTurnOverlay(frame: bounds, image: pageTurnImage(model: model), reduceMotion: UIAccessibility.isReduceMotionEnabled)
@@ -68,7 +70,7 @@ extension CanvasHost: EditorPagePresenter {
     private func pageTurnImage(model: EditorViewModel) -> UIImage {
         let format = UIGraphicsImageRendererFormat(); format.scale = min(2, 1600 / max(bounds.width, bounds.height)); format.opaque = true
         let page = surface.page
-        let image = DocumentServices.image(page: page, drawing: canvas.drawing, workspace: model.workspace, maxDimension: 1600)
+        let image = DocumentServices.image(page: page, drawing: canvas.drawing, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
         return UIGraphicsImageRenderer(bounds: bounds, format: format).image { result in
             UIColor.secondarySystemBackground.setFill(); result.fill(bounds)
             image.draw(in: surface.frame)

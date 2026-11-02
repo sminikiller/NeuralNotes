@@ -193,7 +193,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
               let result = ShapeRecognizer.recognize(points, enabled: model.tool == .marker ? [.line] : model.shapePreferences.kinds) else { return }
         let kind = result.shape.kind
         held = true; model.pendingHeldShape = (page.id, kind, points); model.pendingShapeRecognition = result
-        previousInk.image = DocumentServices.image(page: page, drawing: before, workspace: model.workspace, maxDimension: 1600)
+        previousInk.image = DocumentServices.image(page: page, drawing: before, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
         previousInk.frame = host.surface.frame; host.addSubview(previousInk)
         host.canvas.layer.opacity = 0
         drawPreview(kind)

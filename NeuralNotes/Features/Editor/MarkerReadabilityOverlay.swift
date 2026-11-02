@@ -15,8 +15,16 @@ final class MarkerReadabilityOverlay: UIView {
     private var zoom: CGFloat = 1
     private var origin = CGPoint.zero
     private let composition = MarkerCompositionCache()
-    init() { super.init(frame: .zero); isUserInteractionEnabled = false; isOpaque = false; backgroundColor = .clear; isHidden = true }
+    init() {
+        super.init(frame: .zero); isUserInteractionEnabled = false; isOpaque = false; backgroundColor = .clear; isHidden = true
+        NotificationCenter.default.addObserver(self, selector: #selector(nnPDFMarkerDetailReady(_:)), name: PDFRasterCache.didRender, object: nil)
+    }
     required init?(coder: NSCoder) { nil }
+    deinit { NotificationCenter.default.removeObserver(self) }
+    @objc private func nnPDFMarkerDetailReady(_ note: Notification) {
+        guard let host, let page, !isHidden else { return }
+        if PDFRasterCache.affects(note, page: page, package: host.surface.package) { setNeedsDisplay() }
+    }
     func reset() { page = nil; generation = nil; patches = []; drawing = PKDrawing(); composition.clear(); layer.contents = nil; isHidden = true }
     func update(_ host: CanvasHost?) {
         guard let host, let model = host.model else { reset(); return }
@@ -58,11 +66,11 @@ final class MarkerReadabilityOverlay: UIView {
         if let token = model.eraserCompositionToken {
             composition.drawReplacingContent(page: page, drawing: drawing, token: token, package: host.surface.package,
                 bounds: visible, scale: max(0.1, contentScaleFactor * zoom), hiddenIDs: hiddenIDs,
-                hiddenTextID: host.surface.hiddenTextID, in: context)
+                hiddenTextID: host.surface.hiddenTextID, in: context, pdfMode: .interactive)
             return
         }
         composition.draw(page: page, baseline: baseDrawing, token: appendOnly ? model.inkGestureGeneration : model.inkDisplayGeneration,
             delta: delta, package: host.surface.package, bounds: visible, scale: max(0.1, contentScaleFactor * zoom),
-            hiddenIDs: hiddenIDs, hiddenTextID: host.surface.hiddenTextID, in: context)
+            hiddenIDs: hiddenIDs, hiddenTextID: host.surface.hiddenTextID, in: context, pdfMode: .interactive)
     }
 }
