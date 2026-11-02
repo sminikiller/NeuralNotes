@@ -46,8 +46,9 @@ extension EditorViewModel {
 final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteractionDelegate {
     weak var host: CanvasHost?
     weak var model: EditorViewModel?
-    let view = UITextView()
+    let view = PageTextView()
     private var shownID: UUID?
+    private var shownRTF: Data?
     private var formatting: TextFormatting?
     private let placeholder = UILabel()
     init(host: CanvasHost, model: EditorViewModel) {
@@ -64,20 +65,27 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         placeholder.font = .preferredFont(forTextStyle: .callout); placeholder.textColor = .secondaryLabel
         placeholder.isUserInteractionEnabled = false; view.addSubview(placeholder)
         formatting = TextFormatting(view: view) { [weak self] in
-            guard let self else { return }; self.model?.updateLiveText(self.view.attributedText); self.layout()
+            guard let self else { return }; self.updateModel(); self.layout()
         }
         // Formatting belongs to the themed overlay, not a second keyboard bar.
+        view.formattingCommand = { [weak self] in self?.format($0) }
+        view.pasteCommand = { [weak self] in self?.paste(plain: $0) ?? false }
         view.inputAccessoryView = nil
         view.inputAssistantItem.leadingBarButtonGroups = []; view.inputAssistantItem.trailingBarButtonGroups = []
         view.isHidden = true; host.addSubview(view)
     }
     func finishEditing() {
         model?.endTextEdit(); view.resignFirstResponder(); refresh()
+        if model?.writingOptions.textStaysActive == false { model?.chooseTool(.pen) }
         host?.becomeFirstResponder()
     }
     func showKeyboard() { view.becomeFirstResponder(); view.reloadInputViews() }
     func format(_ action: PageTextAction) {
+        model?.commitTextEdit()
         switch action {
+        case .superscript: formatting?.superscript()
+        case .subscriptText: formatting?.subscriptText()
+        case .normalBaseline: formatting?.normalBaseline()
         case .bold: formatting?.bold()
         case .italic: formatting?.italic()
         case .underline: formatting?.underline()
@@ -91,18 +99,36 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         case .indent: formatting?.increaseIndent()
         case .outdent: formatting?.decreaseIndent()
         }
+        model?.commitTextEdit()
+    }
+    @discardableResult
+    func paste(plain: Bool) -> Bool {
+        guard let model, let value = TextPasteboard.read(plain: plain, attributes: view.typingAttributes),
+              view.markedTextRange == nil else { return false }
+        let range = view.selectedRange, original = NSMutableAttributedString(attributedString: view.attributedText)
+        guard range.location <= original.length, range.length <= original.length - range.location,
+              original.length - range.length + value.length <= 100_000 else { return false }
+        model.commitTextEdit()
+        original.replaceCharacters(in: range, with: value)
+        view.attributedText = original; view.selectedRange = NSRange(location: range.location + value.length, length: 0)
+        if value.length > 0 { view.typingAttributes = value.attributes(at: value.length - 1, effectiveRange: nil) }
+        placeholder.isHidden = !view.text.isEmpty; updateModel(); model.commitTextEdit(); layout()
+        return true
     }
     func refresh() {
         guard let host, let model else { return }
         guard model.tool == .text, let id = model.editingTextID,
               let page = model.page, let text = page.texts.first(where: { $0.id == id }) else {
             if !view.isHidden { view.resignFirstResponder(); view.isHidden = true }
-            host.surface.hiddenTextID = nil; shownID = nil; return
+            host.surface.hiddenTextID = nil; shownID = nil; shownRTF = nil; return
         }
         let needsFocus = shownID != id
-        if needsFocus {
-            shownID = id; view.attributedText = RichText.attributed(text); view.isHidden = false
-        } else if view.text != text.text && view.markedTextRange == nil { view.attributedText = RichText.attributed(text) }
+        if needsFocus || (view.markedTextRange == nil && (view.text != text.text || shownRTF != text.rtf)) {
+            let selected = view.selectedRange
+            shownID = id; shownRTF = text.rtf; view.attributedText = RichText.attributed(text); view.isHidden = false
+            let at = min(selected.location, view.attributedText.length)
+            view.selectedRange = NSRange(location: at, length: min(selected.length, view.attributedText.length - at))
+        }
         let tone = page.appearance?.tone ?? .white
         view.backgroundColor = .clear
         if text.rtf == nil { view.textColor = text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black }
@@ -124,7 +150,11 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         view.center = host.surface.convert(CGPoint(x: text.x + text.width / 2, y: text.y + height / 2), to: host)
         host.bringSubviewToFront(view)
     }
-    func textViewDidChange(_ textView: UITextView) { placeholder.isHidden = !textView.text.isEmpty; model?.updateLiveText(textView.attributedText); layout() }
+    private func updateModel() {
+        model?.updateLiveText(view.attributedText)
+        shownRTF = model?.page?.texts.first(where: { $0.id == shownID })?.rtf
+    }
+    func textViewDidChange(_ textView: UITextView) { placeholder.isHidden = !textView.text.isEmpty; updateModel(); layout() }
     func scribbleInteraction(_ interaction: UIScribbleInteraction, shouldBeginAt location: CGPoint) -> Bool {
         model?.tool == .text && model?.hasLease == true && model?.loading == false && model?.navigating == false
     }

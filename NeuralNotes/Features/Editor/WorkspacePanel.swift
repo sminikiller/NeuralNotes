@@ -8,6 +8,7 @@ struct ToolPalettePanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(model.tool.rawValue).font(.headline)
+            if let subject = model.currentWorkspace.activeNamedPalette { swatches(subject.name, colors: subject.colors) }
             swatches("Preferiti", colors: model.activePalette.favorites)
             swatches("Ultimi tre colori", colors: model.activePalette.recentColors)
             HStack {
@@ -46,7 +47,7 @@ struct ToolPalettePanel: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             if colors.isEmpty { Text("I colori usati appariranno qui").font(.caption2).foregroundStyle(.secondary) }
-            HStack {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 36), spacing: 4)], alignment: .leading, spacing: 6) {
                 ForEach(Array(colors.enumerated()), id: \.offset) { row in
                     Button { model.chooseInk(row.element.color) } label: {
                         Circle().fill(row.element.color).frame(width: 26, height: 26).overlay(Circle().stroke(.gray.opacity(0.5)))
@@ -75,6 +76,7 @@ struct WorkspacePanel: View {
                 }
                 Section("Personalizza \(model.currentWorkspace.name)") {
                     NavigationLink { tools } label: { Label("Strumenti preferiti", systemImage: "star") }
+                    NavigationLink { NamedPalettesPanel(model: model) } label: { Label("Colori per materia", systemImage: "swatchpalette") }
                     FocusToolsMenu(model: model, showLabel: true)
                     Text("Scegli fino a cinque strumenti nella mini toolbar della modalità Solo foglio.").font(.caption).foregroundStyle(.secondary)
                     NavigationLink { layout } label: { Label("Toolbar e pannelli", systemImage: "rectangle.3.group") }

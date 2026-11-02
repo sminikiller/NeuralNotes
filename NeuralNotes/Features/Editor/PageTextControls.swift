@@ -1,7 +1,7 @@
 import SwiftUI
 
 // These are app actions, not UIKit target/action selectors.
-enum PageTextAction { case bold, italic, underline, heading, body, bullet, checklist, black, blue, red, indent, outdent }
+enum PageTextAction { case superscript, subscriptText, normalBaseline, bold, italic, underline, heading, body, bullet, checklist, black, blue, red, indent, outdent }
 
 @MainActor
 struct PageTextControls: View {
@@ -16,7 +16,10 @@ struct PageTextControls: View {
                         Button { input?.format(.bold) } label: { Image(systemName: "bold").frame(width: 40, height: 44) }.accessibilityLabel("Grassetto")
                         Button { input?.format(.italic) } label: { Image(systemName: "italic").frame(width: 40, height: 44) }.accessibilityLabel("Corsivo")
                         Button { input?.format(.underline) } label: { Image(systemName: "underline").frame(width: 40, height: 44) }.accessibilityLabel("Sottolineato")
+                        Button { input?.format(.superscript) } label: { Image(systemName: "textformat.superscript").frame(width: 40, height: 44) }.accessibilityLabel("Apice")
+                        Button { input?.format(.subscriptText) } label: { Image(systemName: "textformat.subscript").frame(width: 40, height: 44) }.accessibilityLabel("Pedice")
                         Menu("Aa") {
+                            Button("Testo normale") { input?.format(.normalBaseline) }
                             Button("Titolo") { input?.format(.heading) }; Button("Corpo") { input?.format(.body) }
                             Button("Elenco") { input?.format(.bullet) }; Button("Checklist") { input?.format(.checklist) }
                             Button("Aumenta rientro") { input?.format(.indent) }; Button("Riduci rientro") { input?.format(.outdent) }

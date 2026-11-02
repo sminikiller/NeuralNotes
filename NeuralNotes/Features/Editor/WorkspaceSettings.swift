@@ -105,7 +105,7 @@ extension EditorViewModel {
     func restoreToolPalette() {
         let palette = activePalette
         let style = tool == .shape ? shapePreferences.style : nil
-        ink = (style?.color ?? palette.recentColors.first ?? palette.favorites.first ?? .black).color
+        ink = (style?.color ?? palette.recentColors.first ?? currentWorkspace.activeNamedPalette?.colors.first ?? palette.favorites.first ?? .black).color
         thickness = style?.width ?? palette.recentWidths.first ?? 3
     }
     func chooseInk(_ color: Color) {

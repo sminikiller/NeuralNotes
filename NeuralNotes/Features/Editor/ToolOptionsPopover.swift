@@ -29,8 +29,8 @@ struct ToolOptionsPopover: View {
     private var inkOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
             if tool == .pen {
-                Picker("Tipo di penna", selection: Binding(get: { model.writingOptions.pen }, set: { kind in model.editWriting { $0.pen = kind } })) {
-                    ForEach(PenKind.allCases, id: \.self) { Text($0.title).tag($0) }
+                Picker("Tipo di penna", selection: Binding(get: { model.writingOptions.pen.availableSelection }, set: { kind in model.editWriting { $0.pen = kind } })) {
+                    ForEach(PenKind.availableKinds, id: \.self) { Text($0.title).tag($0) }
                 }.pickerStyle(.menu)
             }
             ToolPalettePanel(model: model)
@@ -42,7 +42,7 @@ struct ToolOptionsPopover: View {
                     let preset = PenPreset(kind: model.writingOptions.pen, color: InkColor(model.ink), width: model.thickness)
                     model.editWriting { $0.presets.append(preset) }
                 }.disabled(model.writingOptions.presets.count >= 5)
-                ForEach(model.writingOptions.presets) { preset in
+                ForEach(model.writingOptions.presets.filter { PenKind.availableKinds.contains($0.kind) }) { preset in
                     Button("\(preset.kind.title) · \(preset.width, specifier: "%.1f") pt") { model.usePreset(preset) }
                 }
             }
@@ -96,6 +96,7 @@ struct ToolOptionsPopover: View {
             } else if tool == .protractor {
                 ProtractorOptions(model: model)
             } else if tool == .text {
+                Toggle("Resta attivo", isOn: Binding(get: { model.writingOptions.textStaysActive != false }, set: { value in model.editWriting { $0.textStaysActive = value } }))
                 Text("Scrivi con Pencil o tastiera. I comandi nel piccolo overlay sul foglio contengono stile, elenchi e tastiera.").font(.callout)
                 Button("Nuova casella", systemImage: "text.badge.plus") { model.beginTextEdit(at: CGPoint(x: 48, y: 64)) }
             } else if tool == .lens {

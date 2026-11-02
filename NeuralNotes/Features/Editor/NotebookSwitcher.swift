@@ -7,6 +7,7 @@ struct NotebookSwitching {
     let select: (UUID) -> Void
     let close: (UUID) -> Void
     let open: () -> Void
+    let openSearchResult: (Notebook, SourceReference, String) -> Void
 }
 
 /// Open documents live in the title, leaving the full height to the editor.

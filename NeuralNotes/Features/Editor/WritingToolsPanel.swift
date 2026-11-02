@@ -3,9 +3,22 @@ import PencilKit
 import NeuralNotesCore
 
 extension PenKind {
+    static var availableKinds: [PenKind] {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { return allCases }
+        #endif
+        return allCases.filter { $0 != .reed }
+    }
+    var availableSelection: PenKind { Self.availableKinds.contains(self) ? self : .pen }
     var native: PKInkingTool.InkType {
         switch self { case .pen: return .pen; case .pencil: return .pencil; case .monoline: return .monoline
-        case .fountainPen: return .fountainPen; case .watercolor: return .watercolor; case .crayon: return .crayon }
+        case .fountainPen: return .fountainPen; case .watercolor: return .watercolor; case .crayon: return .crayon
+        case .reed:
+            #if compiler(>=6.2)
+            if #available(iOS 26.0, *) { return .reed }
+            #endif
+            return .pen
+        }
     }
 }
 @MainActor
@@ -36,7 +49,7 @@ struct WritingToolsPanel: View {
     var body: some View {
         Form {
             Section("Penna") {
-                Picker("Tipo", selection: option(\.pen)) { ForEach(PenKind.allCases, id: \.self) { Text($0.title).tag($0) } }
+                Picker("Tipo", selection: Binding(get: { model.writingOptions.pen.availableSelection }, set: { kind in model.editWriting { $0.pen = kind } })) { ForEach(PenKind.availableKinds, id: \.self) { Text($0.title).tag($0) } }
                 Slider(value: Binding(get: { model.thickness }, set: { model.chooseWidth($0) }), in: 0.5...40)
                 Text("Spessore \(model.thickness, specifier: "%.1f") pt")
                 ColorPicker("Colore", selection: Binding(get: { model.ink }, set: { model.chooseInk($0) }), supportsOpacity: false)
@@ -44,7 +57,7 @@ struct WritingToolsPanel: View {
                     let preset = PenPreset(kind: model.writingOptions.pen, color: InkColor(model.ink), width: model.thickness)
                     model.editWriting { $0.presets.append(preset) }
                 }.disabled(model.writingOptions.presets.count >= 5)
-                ForEach(model.writingOptions.presets) { preset in
+                ForEach(model.writingOptions.presets.filter { PenKind.availableKinds.contains($0.kind) }) { preset in
                     HStack {
                         Button { model.usePreset(preset) } label: { Label("\(preset.kind.title) · \(preset.width, specifier: "%.1f") pt", systemImage: "pencil.tip").foregroundStyle(preset.color.color) }
                         Spacer()

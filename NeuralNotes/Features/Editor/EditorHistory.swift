@@ -16,6 +16,7 @@ enum EditorEdit {
     case order([UUID], [UUID], UUID?, UUID?)
     case pages([EditorContentState], [EditorContentState], UUID, UUID)
     case disk(EditorDiskChange)
+    case sections([NotebookSection], [NotebookSection])
 }
 
 @MainActor
@@ -53,6 +54,9 @@ extension EditorViewModel {
     func performRedo() async { await applyHistory(undo: false) }
 
     private func applyHistory(undo: Bool) async {
+        let textBeingEdited = editingTextID
+        let hadKeyboard = (pagePresenter as? CanvasHost)?.textInput?.view.isFirstResponder == true
+        defer { restoreTextAfterHistory(textBeingEdited, keyboard: hadKeyboard) }
         finishInkGesture(); endTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke else { return }
         // CanvasHost shields new touches while navigating. Keep the native
@@ -118,12 +122,24 @@ extension EditorViewModel {
                 try await workspace.applyPageBatch(changes)
                 pages = try await workspace.pages()
                 if let target = pages.first(where: { $0.id == (undo ? beforeID : afterID) }) { try await load(target) }
+            case .sections(let before, let after):
+                let target = undo ? before : after
+                try await workspace.replaceSections(target, expected: undo ? after : before)
+                sections = target
             case .disk(let change):
                 try await restoreDiskChange(change, undo: undo)
             }
             if undo { history.didUndo() } else { history.didRedo() }
             status = "\(undo ? "Annullato" : "Ripristinato"): \(entry.label)"
         } catch { self.error = error.localizedDescription }
+    }
+
+    private func restoreTextAfterHistory(_ id: UUID?, keyboard: Bool) {
+        guard let id, hasLease, !loading, tool == .text, page?.texts.contains(where: { $0.id == id }) == true else { return }
+        editingTextID = id; textEditBefore = captureEdit()
+        let input = (pagePresenter as? CanvasHost)?.textInput
+        input?.refresh()
+        if keyboard { input?.view.becomeFirstResponder() }
     }
 
     /// Comparing ordinary ink is needed only for a cached scan, once per undo.

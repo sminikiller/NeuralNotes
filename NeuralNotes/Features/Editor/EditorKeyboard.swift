@@ -5,6 +5,8 @@ import NeuralNotesCore
 extension CanvasHost {
     var editorKeyCommands: [UIKeyCommand] {
         let specs: [(String, UIKeyModifierFlags, String)] = [
+            ("f", [.command, .shift], "Cerca in tutti i quaderni"), ("t", .command, "Apri una scheda"), ("w", .command, "Chiudi questa scheda"),
+            ("v", [.command, .shift], "Incolla senza formattazione"),
             ("n", [.command, .shift], "Nuova pagina"), ("f", .command, "Cerca nel quaderno"), ("k", .command, "Lente AI"),
             ("0", .command, "Pagina intera"), ("+", .command, "Ingrandisci"), ("-", .command, "Riduci"),
             (".", .command, "Solo foglio"), ("a", .command, "Seleziona tutto"), ("x", .command, "Taglia selezione"),
@@ -22,12 +24,19 @@ extension CanvasHost {
         }
     }
     @objc func editorKey(_ command: UIKeyCommand) {
-        guard let model, model.editingTextID == nil, !model.interactionBusy, !model.navigating, !model.loading else { return }
+        guard let model, !model.hasActiveStroke, !model.navigating, !model.loading else { return }
         let input = command.input ?? "", flags = command.modifierFlags
+        if model.editingTextID != nil {
+            let leavesText = flags.contains(.command) && (input == "t" || input == "w" || (input == "f" && flags.contains(.shift)))
+            guard leavesText else { return }; textInput?.finishEditing()
+        }
         if flags.contains(.command) {
             switch input {
             case "n": Task { await model.addPage() }
-            case "f": model.searchRequest += 1
+            case "f": if flags.contains(.shift) { model.globalSearchRequest += 1 } else { model.searchRequest += 1 }
+            case "t": model.openNotebookRequest += 1
+            case "w": model.closeNotebookRequest += 1
+            case "v": if flags.contains(.shift) { Task { await model.pasteSelection(plainText: true) } }
             case "k": model.chooseTool(model.tool == .lens ? .pen : .lens)
             case "0": fitPage(animated: true)
             case "+", "-": canvas.setZoomScale(min(canvas.maximumZoomScale, max(canvas.minimumZoomScale, canvas.zoomScale * (input == "+" ? 1.25 : 0.8))), animated: true)

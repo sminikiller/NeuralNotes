@@ -11,6 +11,9 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     var paused = false
     var elapsed: Double = 0
     var replayInk = false
+    var replayMode = AudioReplayMode.follow {
+        didSet { UserDefaults.standard.set(replayMode.rawValue, forKey: "audio.replayMode.\(workspace.documentID)") }
+    }
     private(set) var playbackRate: Double = 1
     var playback: Double = 0
     var playingSessionID: UUID?
@@ -58,6 +61,7 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
     init(workspace: DocumentWorkspace) {
         self.workspace = workspace
         super.init()
+        replayMode = UserDefaults.standard.string(forKey: "audio.replayMode.\(workspace.documentID)").flatMap(AudioReplayMode.init(rawValue:)) ?? .follow
         interruption = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification,
             object: nil, queue: .main) { [weak self] notification in
                 guard let kind = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -311,6 +315,12 @@ final class AudioController: NSObject, AVAudioRecorderDelegate, AVAudioPlayerDel
         let target = min(session.duration, max(0, playback + seconds))
         if target >= session.duration { stopPlayback(); playback = session.duration }
         else { await play(session, at: target) }
+    }
+
+    func skipToKeyPoint(_ direction: Int) async {
+        guard let id = playingSessionID, let session = sessions.first(where: { $0.id == id }),
+              let target = AudioReplay.keyPoint(direction, from: playback, session: session) else { return }
+        await play(session, at: target)
     }
 
     func suspendForTabChange() async {

@@ -5,6 +5,7 @@ import NeuralNotesCore
 @MainActor
 private enum EditorClipboard {
     static var current: SelectionSnapshot?
+    static var changeCount: Int?
 }
 
 @MainActor
@@ -39,20 +40,25 @@ extension EditorViewModel {
         let bytes = selectionIncludesInk ? drawing.dataRepresentation() : nil
         do { EditorClipboard.current = try SelectionSnapshot(page: copy, drawing: bytes, source: workspace.package, maximumBytes: maximumBytes) }
         catch { self.error = "Selezione non copiata: controlla che i media esistano e scegli una parte più piccola (limite \(max(0, maximumBytes) / (1024 * 1024)) MB). Gli originali restano nel foglio."; return false }
+        EditorClipboard.changeCount = UIPasteboard.general.changeCount
         status = "Selezione copiata"
         return true
     }
     func cutSelection(maximumBytes: Int = 32 * 1024 * 1024) {
         if copySelection(maximumBytes: maximumBytes) { deleteSelectedObject() }
     }
-    func pasteSelection() async {
+    func pasteSelection(plainText: Bool = false) async {
         finishInkGesture(); endTextEdit()
         guard hasLease, !loading, !navigating, !hasActiveStroke, page != nil else { return }
         // Keep this snapshot alive across awaits even if another window copies
         // a different selection while the media are being pasted.
+        if EditorClipboard.current == nil || EditorClipboard.changeCount != UIPasteboard.general.changeCount {
+            pasteSystemText(plain: plainText); return
+        }
         guard let clipboard = EditorClipboard.current else { return }
         defer { withExtendedLifetime(clipboard) { } }
         var copy = clipboard.page; let source = clipboard.package
+        if plainText { for i in copy.texts.indices { copy.texts[i].rtf = nil; copy.texts[i].fontSize = 18 } }
         copy.renewObjectIDs()
         navigating = true; defer { navigating = false }
         let before = captureEdit(ink: clipboard.drawing != nil)
@@ -100,4 +106,19 @@ extension EditorViewModel {
             recordEdit(before, label: "Incolla selezione"); drawingChanged()
         } catch { self.error = error.localizedDescription }
     }
+    private func pasteSystemText(plain: Bool) {
+        guard let value = TextPasteboard.read(plain: plain, attributes: [.font: UIFont.systemFont(ofSize: 18), .foregroundColor: UIColor.black]),
+              !value.string.isEmpty, let current = page else { return }
+        var text = TextElement(text: value.string)
+        text.rtf = RichText.data(value)
+        text.width = min(480, current.width - 48); text.x = 24; text.y = 48
+        if let host = pagePresenter as? CanvasHost {
+            let point = host.surface.convert(CGPoint(x: host.bounds.midX, y: host.bounds.midY), from: host)
+            text.x = min(max(0, point.x - text.width / 2), current.width - text.width)
+            text.y = min(max(0, point.y), current.height - 40)
+        }
+        mutatePage(plain ? "Incolla testo semplice" : "Incolla testo formattato") { $0.texts.append(text) }
+        selectedObjectID = text.id
+    }
+
 }

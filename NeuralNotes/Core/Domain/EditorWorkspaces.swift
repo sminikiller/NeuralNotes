@@ -57,6 +57,8 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     public var dock = ToolbarDock.top
     public var showPages = true, showStatus = true, holdShapes = true, scratchErase = true, pullNext = true
     public var palettes: [String: ToolPalette] = [:]
+    public var namedPalettes: [NamedInkPalette]?
+    public var activeNamedPaletteID: UUID?
     public var writing: WritingOptions?
     public var focusTools: [WorkspaceTool]?
     public var shapes: ShapePreferences?
@@ -66,7 +68,7 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     public var effectiveFocusTools: [WorkspaceTool] { focusTools ?? Array(favorites.prefix(3)) }
     public init(name: String, favorites: [WorkspaceTool]) { self.name = name; self.favorites = favorites }
     private enum CodingKeys: String, CodingKey {
-        case id, name, favorites, dock, showPages, showStatus, holdShapes, scratchErase, pullNext, palettes, writing, focusTools, shapes, snapping, protractorKind
+        case id, name, favorites, dock, showPages, showStatus, holdShapes, scratchErase, pullNext, palettes, writing, focusTools, shapes, snapping, protractorKind, namedPalettes, activeNamedPaletteID
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -89,6 +91,8 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
         pullNext = try values.decodeIfPresent(Bool.self, forKey: .pullNext) ?? true
         palettes = try values.decodeIfPresent([String: ToolPalette].self, forKey: .palettes) ?? [:]
         palettes = palettes.filter { WorkspaceTool(rawValue: $0.key) != nil }
+        namedPalettes = try values.decodeIfPresent([NamedInkPalette].self, forKey: .namedPalettes)
+        activeNamedPaletteID = try values.decodeIfPresent(UUID.self, forKey: .activeNamedPaletteID)
         writing = try values.decodeIfPresent(WritingOptions.self, forKey: .writing)
         shapes = try values.decodeIfPresent(ShapePreferences.self, forKey: .shapes)
         snapping = try values.decodeIfPresent(SnapPreferences.self, forKey: .snapping)
@@ -96,6 +100,8 @@ public struct EditorWorkspace: Codable, Equatable, Identifiable, Sendable {
     }
     public func palette(for tool: WorkspaceTool) -> ToolPalette { palettes[tool.rawValue] ?? .standard(for: tool) }
     public var isValid: Bool {
+        (namedPalettes.map { $0.count <= NamedInkPalette.maximumSets && Set($0.map(\.id)).count == $0.count && $0.allSatisfy(\.isValid) } ?? true) &&
+        (activeNamedPaletteID.map { id in namedPalettes?.contains { $0.id == id } == true } ?? true) &&
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 40 &&
         (1...8).contains(favorites.count) && Set(favorites).count == favorites.count && palettes.count <= WorkspaceTool.allCases.count &&
         palettes.allSatisfy { WorkspaceTool(rawValue: $0.key) != nil && $0.value.isValid } && (writing?.isValid ?? true) && shapes?.isValid != false &&

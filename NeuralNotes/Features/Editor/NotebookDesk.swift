@@ -41,7 +41,8 @@ struct NotebookDesk: View {
                     selected: selected,
                     select: { id in Task { await select(id) } },
                     close: { id in Task { await close(id) } },
-                    open: { choosing = true }
+                    open: { choosing = true },
+                    openSearchResult: { book, reference, query in Task { await openSearch(book, reference: reference, query: query) } }
                 )).id(active.id).disabled(switching)
             }
         }
@@ -110,6 +111,15 @@ struct NotebookDesk: View {
             tabs.append(NotebookTab(notebook: notebook, model: EditorViewModel(workspace: try library.workspace(notebook))))
             selected = notebook.id
         } catch { active?.model.audio?.resumeAfterTabChange(); self.error = error.localizedDescription }
+    }
+
+    private func openSearch(_ notebook: Notebook, reference: SourceReference, query: String) async {
+        await open(notebook)
+        guard selected == notebook.id, let target = tabs.first(where: { $0.id == notebook.id }) else { return }
+        target.model.enqueueGlobalSearch(reference: reference, query: query)
+        // An unopened tab consumes the destination after its one normal open
+        // task. An already-open tab can navigate immediately without a lease race.
+        await target.model.consumeGlobalSearch()
     }
 
     private func close(_ id: UUID) async {

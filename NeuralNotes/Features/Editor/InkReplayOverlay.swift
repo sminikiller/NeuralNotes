@@ -11,7 +11,20 @@ final class InkReplayOverlay: UIImageView {
     private var drawing = PKDrawing()
     private var signatures: [String] = []
     private var active = false
-    init() { super.init(frame: .zero); isHidden = true; isUserInteractionEnabled = false; contentMode = .scaleToFill }
+    private weak var host: CanvasHost?
+    private var previousMode: AudioReplayMode?
+    private var previousHot: [Int] = []
+    private var previousHidden = Set<UUID>()
+    private var previousPDFVersion = -1
+    init() {
+        super.init(frame: .zero); isHidden = true; isUserInteractionEnabled = false; contentMode = .scaleToFill
+        NotificationCenter.default.addObserver(self, selector: #selector(nnReplayPDFReady(_:)), name: PDFRasterCache.didRender, object: nil)
+    }
+    deinit { NotificationCenter.default.removeObserver(self) }
+    @objc private func nnReplayPDFReady(_ note: Notification) {
+        guard let host, let page = host.model?.page, active, PDFRasterCache.affects(note, page: page, package: host.surface.package) else { return }
+        update(host)
+    }
     required init?(coder: NSCoder) { nil }
     func resetForPageChange(_ host: CanvasHost) {
         host.surface.replayHiddenObjectIDs = []
@@ -20,6 +33,7 @@ final class InkReplayOverlay: UIImageView {
         drawing = PKDrawing(); signatures = []; previousVisible = []
     }
     func update(_ host: CanvasHost) {
+        self.host = host
         guard let model = host.model, let page = model.page, let audio = model.audio,
               audio.replayInk, let sessionID = audio.playingSessionID else {
             if !host.surface.replayHiddenObjectIDs.isEmpty {
@@ -40,26 +54,38 @@ final class InkReplayOverlay: UIImageView {
             let hiddenEnd = edge.to.objectID.map { hiddenShapes.contains($0) } ?? false
             return future || hiddenStart || hiddenEnd ? edge.id : nil
         })
-        let hiddenObjects = hiddenShapes.union(hiddenEdges)
+        let hiddenObjects: Set<UUID> = audio.replayMode == .showAll ? [] : hiddenShapes.union(hiddenEdges)
         if hiddenObjects != host.surface.replayHiddenObjectIDs {
             host.surface.replayHiddenObjectIDs = hiddenObjects; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
         }
-        let generation = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)|\(sessionID)"
+        let generation = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)|\(sessionID)|\(model.inkDisplayGeneration)"
         if key != generation {
             key = generation; drawing = host.canvas.drawing
             signatures = EditorInkSignatures.make(drawing)
             previousVisible = [-1]
         }
-        let visible = AudioReplay.visible(signatures: signatures, anchors: page.anchors, sessionID: sessionID, seconds: audio.playback)
-        if visible != previousVisible {
+        let visible = audio.replayMode == .showAll ? Array(drawing.strokes.indices) : AudioReplay.visible(signatures: signatures, anchors: page.anchors, sessionID: sessionID, seconds: audio.playback)
+        let hot = audio.replayMode == .showAll ? AudioReplay.current(signatures: signatures, anchors: page.anchors, sessionID: sessionID, seconds: audio.playback) : []
+        let pdfVersion = PDFRasterCache.shared.version(page: page, package: host.surface.package)
+        if visible != previousVisible || hot != previousHot || previousMode != audio.replayMode || previousHidden != hiddenObjects || previousPDFVersion != pdfVersion {
             let filtered = PKDrawing(strokes: visible.map { drawing.strokes[$0] })
             let box = CGRect(x: 0, y: 0, width: page.width, height: page.height)
             let format = UIGraphicsImageRendererFormat(); format.scale = min(2, 2048 / max(page.width, page.height))
             image = UIGraphicsImageRenderer(bounds: box, format: format).image { renderer in
-                PageRenderer.draw(page, package: host.surface.package, in: renderer.cgContext, hidingObjectIDs: hiddenObjects)
+                PageRenderer.draw(page, package: host.surface.package, in: renderer.cgContext, hidingObjectIDs: hiddenObjects, pdfMode: .interactive)
                 LegibleInkRenderer.draw(filtered, in: renderer.cgContext, bounds: box, scale: format.scale)
+                if !hot.isEmpty {
+                    let emphasized = PKDrawing(strokes: hot.map { index in
+                        let stroke = drawing.strokes[index]
+                        return PKStroke(ink: PKInk(.pen, color: .systemTeal), path: stroke.path, transform: stroke.transform, mask: stroke.mask)
+                    })
+                    renderer.cgContext.saveGState(); renderer.cgContext.setAlpha(0.65)
+                    LegibleInkRenderer.draw(emphasized, in: renderer.cgContext, bounds: box, scale: format.scale)
+                    renderer.cgContext.restoreGState()
+                }
             }
-            previousVisible = visible
+            previousVisible = visible; previousHot = hot; previousHidden = hiddenObjects
+            previousMode = audio.replayMode; previousPDFVersion = pdfVersion
         }
         frame = host.surface.frame; isHidden = false; active = true
         host.canvas.layer.opacity = 0; host.canvas.drawingGestureRecognizer.isEnabled = false

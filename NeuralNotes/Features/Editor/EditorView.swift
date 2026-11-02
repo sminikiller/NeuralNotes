@@ -7,7 +7,7 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, study, crop, pages, practice, storage, paper, workspace, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
+    case elements, audio, search, globalSearch, study, crop, pages, practice, storage, paper, workspace, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
     var id: String { rawValue }
 }
 
@@ -39,6 +39,7 @@ struct EditorView: View {
     @State private var working = false
     @State private var confirmDelete = false
     @State private var jumpingToPage = false
+    @State private var pendingGlobalSearch: (Notebook, SourceReference, String)?
     @State private var shareURL: URL?
     @State private var sharing = false
     @State private var media: EditorMedia?
@@ -64,6 +65,10 @@ struct EditorView: View {
                 .onChange(of: model.connectorStyleRequest) { _, _ in panel = .connectorStyle }
                 .onChange(of: model.imageStraightenRequest) { _, _ in openImageCrop(straighten: true) }
                 .onChange(of: model.searchRequest) { _, _ in panel = .search }
+                .onChange(of: model.globalSearchRequest) { _, _ in panel = .globalSearch }
+                .onChange(of: model.openNotebookRequest) { _, _ in notebookSwitching?.open() }
+                .onChange(of: model.closeNotebookRequest) { _, _ in notebookSwitching?.close(notebook.id) }
+                .onChange(of: model.globalSearchDestinationRequest) { _, _ in Task { await model.consumeGlobalSearch() } }
                 .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
                 .onChange(of: model.selectionImageShareRequest) { _, _ in Task { await exportExtra("selection") } }
                 .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
@@ -120,7 +125,7 @@ struct EditorView: View {
     private var lifecycle: some View {
         editorStack
             .toolbar { editorToolbar }
-            .task { library.markOpened(notebook); model.lensSubject = notebook.title; await model.open() }
+            .task { library.markOpened(notebook); model.lensSubject = notebook.title; await model.open(); await model.consumeGlobalSearch() }
             .interactiveDismissDisabled()
             .fullScreenCover(item: $media, onDismiss: finishMediaImport) { source in mediaCapture(source) }
             .onChange(of: model.tool) { _, _ in model.restoreToolPalette(); model.configureTool() }
@@ -139,7 +144,7 @@ struct EditorView: View {
                 Button("Elimina pagina", role: .destructive) { Task { await model.deletePage() } }
             } message: { Text("La pagina verrà rimossa dal quaderno. I file vengono conservati per il recupero.") }
             .fileImporter(isPresented: $importing, allowedContentTypes: importTypes) { result in imported(result) }
-            .sheet(item: $panel) { item in panelSheet(item) }
+            .sheet(item: $panel, onDismiss: finishGlobalSearch) { item in panelSheet(item) }
             .sheet(item: $photoCrop) { request in photoCropSheet(request) }
             .sheet(isPresented: $sharing) { if let shareURL { ShareDocument(url: shareURL) } }
             .sheet(item: $model.lensNoteEditor) { target in LensNoteEditor(model: model, noteID: target.id) }
@@ -170,6 +175,12 @@ struct EditorView: View {
             lensMenu
             actionsMenu
         }
+    }
+
+    private func finishGlobalSearch() {
+        guard let (book, reference, query) = pendingGlobalSearch else { return }
+        pendingGlobalSearch = nil
+        notebookSwitching?.openSearchResult(book, reference, query)
     }
 
     private var libraryButton: some View {
@@ -349,6 +360,8 @@ struct EditorView: View {
         case .elements: ElementEditor(model: model)
         case .audio:
             if let audio = model.audio { AudioPanel(audio: audio, model: model) }
+        case .globalSearch:
+            GlobalSearchPanel(library: library) { book, reference, query in pendingGlobalSearch = (book, reference, query) }
         case .search: DocumentSearchPanel(model: model)
         case .study: StudyPanel(model: model, notebook: notebook, library: library)
         case .crop:

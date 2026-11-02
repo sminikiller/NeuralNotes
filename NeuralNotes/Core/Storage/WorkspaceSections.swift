@@ -1,6 +1,15 @@
 import Foundation
 
 public extension DocumentWorkspace {
+    /// Compare just the section metadata, never overwrite audio or other
+    /// catalog changes that happened after the editor captured its undo step.
+    func replaceSections(_ sections: [NotebookSection], expected: [NotebookSection]) throws {
+        try NotebookSections.validate(sections)
+        var catalog = try catalog()
+        guard (catalog.sections ?? []) == expected else { throw WorkspaceFailure.staleRevision }
+        catalog.sections = sections
+        try write(catalog, "catalog.json")
+    }
     func saveSection(_ input: NotebookSection) throws {
         var section = input; section.title = try LibraryName.validated(input.title)
         var catalog = try catalog(), sections = catalog.sections ?? []

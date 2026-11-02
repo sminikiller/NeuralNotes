@@ -53,6 +53,9 @@ final class EditorViewModel {
     @ObservationIgnored var lensAnchor: CGRect?
     var lensSubject = ""
     var searchRequest = 0
+    var globalSearchRequest = 0, openNotebookRequest = 0, closeNotebookRequest = 0
+    var globalSearchDestinationRequest = 0
+    var pendingGlobalSearch: EditorSearchDestination?
     var focusRequest = 0
     var selectionImageShareRequest = 0
     var objectEditorRequest = 0

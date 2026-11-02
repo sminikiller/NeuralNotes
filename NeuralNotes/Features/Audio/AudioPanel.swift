@@ -77,7 +77,19 @@ struct AudioPanel: View {
                         ForEach([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], id: \.self) { rate in Text("\(rate, specifier: "%.2g")×").tag(rate) }
                     }
                     Toggle("Rivela gli appunti al momento dell’audio", isOn: $audio.replayInk)
-                    Text("Il replay mostra i tratti collegati fino al momento ascoltato. Il disegno originale è conservato.").font(.caption)
+                    if audio.replayInk {
+                        Picker("Riproduzione dei tratti", selection: $audio.replayMode) {
+                            ForEach(AudioReplayMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        if audio.replayMode == .keyPoints {
+                            HStack {
+                                Button("Punto precedente", systemImage: "backward.end") { Task { await audio.skipToKeyPoint(-1) } }
+                                Button("Punto successivo", systemImage: "forward.end") { Task { await audio.skipToKeyPoint(1) } }
+                            }.disabled(audio.playingSessionID == nil)
+                            Text("Le frecce raggiungono i segnalibri e le riprese dopo pause di almeno 8 secondi nella trascrizione. L’audio non viene tagliato o saltato automaticamente.").font(.caption)
+                        }
+                    }
+                    Text("Il disegno originale è sempre conservato. Mostra tutto lascia visibili anche gli appunti successivi ed evidenzia il tratto del momento.").font(.caption)
                     Button("Importa audio da File", systemImage: "waveform.badge.plus") { importingAudio = true }
                         .disabled(!audio.canTranscribe || audio.transcribingSessionID != nil)
                 }

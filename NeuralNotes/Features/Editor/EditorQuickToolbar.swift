@@ -90,8 +90,7 @@ struct EditorQuickToolbar: View {
     }
     private var usesInk: Bool { model.tool == .pen || model.tool == .marker || model.tool == .shape }
     private var quickColors: [InkColor] {
-        let palette = model.activePalette
-        return Array((palette.recentColors + palette.favorites.filter { !palette.recentColors.contains($0) }).prefix(3))
+        Array(model.currentWorkspace.displayedColors(for: model.tool.workspaceTool).prefix(3))
     }
     private func toolButton(_ item: WorkspaceTool) -> some View {
         let selected = isSelected(item)

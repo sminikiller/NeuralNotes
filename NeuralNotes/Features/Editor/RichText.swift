@@ -21,11 +21,12 @@ enum RichText {
     private static func decode(_ text: TextElement, color: UIColor) -> NSAttributedString {
         if let data = text.rtf, data.count <= 2 * 1024 * 1024,
            let value = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil),
-           value.string == text.text { return value }
+           value.string == text.text { return RichTextScript.restoreMetadata(in: value, from: data) }
         return NSAttributedString(string: text.text, attributes: [.font: UIFont.systemFont(ofSize: text.fontSize), .foregroundColor: color])
     }
     static func data(_ text: NSAttributedString) -> Data? {
-        try? text.data(from: NSRange(location: 0, length: text.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        guard let rtf = try? text.data(from: NSRange(location: 0, length: text.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) else { return nil }
+        return RichTextScript.appendMetadata(to: rtf, value: text)
     }
     static func bounds(_ text: TextElement, pageHeight: Double) -> CGRect {
         // A Lens note reduced to 💡 takes only the room of its icon.
@@ -145,10 +146,14 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
         let selected = view.selectedRange, string = view.text as NSString
         guard selected.location <= string.length, selected.length <= string.length - selected.location else { return }
         let range = string.paragraphRange(for: selected)
-        var typing = view.typingAttributes; typing[.font] = font; typing[.paragraphStyle] = paragraph; typing[.baselineOffset] = 0
+        var typing = RichTextScript.attributes(view.typingAttributes, applying: .normal); typing[.font] = font; typing[.paragraphStyle] = paragraph; typing[.baselineOffset] = 0
         if range.length > 0 {
             let value = NSMutableAttributedString(attributedString: view.attributedText)
-            value.addAttributes([.font: font, .paragraphStyle: paragraph, .baselineOffset: 0], range: range)
+            value.enumerateAttributes(in: range) { attributes, subrange, _ in
+                var attributes = RichTextScript.attributes(attributes, applying: .normal)
+                attributes[.font] = font; attributes[.paragraphStyle] = paragraph; attributes[.baselineOffset] = 0
+                value.setAttributes(attributes, range: subrange)
+            }
             view.attributedText = value; view.selectedRange = selected
         }
         view.typingAttributes = typing; didChange?()
@@ -175,10 +180,19 @@ final class TextFormatting: NSObject, UIGestureRecognizerDelegate {
     @objc func bold() { trait(.traitBold) }
     @objc func italic() { trait(.traitItalic) }
     @objc func underline() { apply { $0[.underlineStyle] = ($0[.underlineStyle] as? Int == 1) ? 0 : 1 } }
-    @objc func superscript() { baseline(8) }
-    @objc func subscriptText() { baseline(-5) }
-    @objc func normalBaseline() { baseline(0) }
-    private func baseline(_ offset: CGFloat) { apply { $0[.baselineOffset] = offset } }
+    @objc func superscript() { script(.superscript) }
+    @objc func subscriptText() { script(.subscriptText) }
+    @objc func normalBaseline() { script(.normal) }
+    private func script(_ kind: RichTextScript.Kind) {
+        guard let view else { return }
+        var active = kind != .normal
+        let range = view.selectedRange
+        if range.length == 0 { active = active && RichTextScript.kind(in: view.typingAttributes) == kind }
+        else if NSMaxRange(range) <= view.attributedText.length {
+            view.attributedText.enumerateAttributes(in: range) { attrs, _, _ in if RichTextScript.kind(in: attrs) != kind { active = false } }
+        } else { return }
+        apply { $0 = RichTextScript.attributes($0, applying: active ? .normal : kind) }
+    }
     private func prefix(_ value: String) {
         guard let view else { return }
         let source = (view.text ?? "") as NSString, selected = view.selectedRange

@@ -3,8 +3,27 @@ import UIKit
 import PDFKit
 import PencilKit
 import CryptoKit
+import ImageIO
 import NeuralNotesCore
 @testable import NeuralNotes
+
+private actor PDFScanReaderProbe {
+    private(set) var calls = 0, blackPixels = 0
+    func read(_ data: Data) -> [PageWord] {
+        calls += 1
+        if let source = CGImageSourceCreateWithData(data as CFData, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            var bytes = [UInt8](repeating: 255, count: image.width * image.height * 4)
+            bytes.withUnsafeMutableBytes { buffer in
+                if let context = CGContext(data: buffer.baseAddress, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue) {
+                    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                }
+            }
+            for i in stride(from: 0, to: bytes.count, by: 4) { if bytes[i] < 50 && bytes[i + 1] < 50 && bytes[i + 2] < 50 { blackPixels += 1 } }
+        }
+        return [PageWord(text: "Energia", rect: CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.05))]
+    }
+}
 
 final class PDFRasterCacheTests: XCTestCase {
     @MainActor private func source(pages: Int = 2, dense: Bool = false) throws -> (URL, [PageSnapshot]) {
@@ -107,6 +126,9 @@ final class PDFRasterCacheTests: XCTestCase {
             let vector = UIGraphicsImageRenderer(size: box.size, format: format).image { output in
                 output.cgContext.translateBy(x: -box.minX, y: -box.minY)
                 PageRenderer.draw(page, package: root, in: output.cgContext)
+            }
+            for (name, value) in [("raster", raster), ("vector", vector)] {
+                let attachment = XCTAttachment(image: value); attachment.name = "PDF-\(name)-\(rotation)"; attachment.lifetime = .keepAlways; add(attachment)
             }
             let originalBlack = try blackPixels(vector), rasterBlack = try blackPixels(raster)
             XCTAssertGreaterThan(originalBlack, 100)
@@ -211,6 +233,37 @@ final class PDFRasterCacheTests: XCTestCase {
         let white = try pixel(fresh, at: CGPoint(x: fresh.size.width * 0.83, y: fresh.size.height * 0.125))
         XCTAssertGreaterThan(white[0], 220); XCTAssertGreaterThan(white[1], 220); XCTAssertGreaterThan(white[2], 220)
         _ = await model.close()
+    }
+    @MainActor func testScannedPDFWordPreparationUsesBackgroundPixelsAndPassesActualContentToOCR() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try NativeDocumentStore(root: root), manifest = DocumentManifest(documentID: UUID(), notebookID: UUID())
+        try store.create(manifest)
+        let model = EditorViewModel(workspace: DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID))
+        await model.open()
+        do {
+            let bounds = CGRect(x: 0, y: 0, width: 600, height: 800), file = root.appendingPathComponent("scan.pdf")
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1
+            let scan = UIGraphicsImageRenderer(bounds: bounds, format: format).image { output in
+                UIColor.white.setFill(); output.fill(bounds)
+                ("Energia conservata" as NSString).draw(at: CGPoint(x: 60, y: 100), withAttributes: [.font: UIFont.systemFont(ofSize: 28), .foregroundColor: UIColor.black])
+            }
+            try UIGraphicsPDFRenderer(bounds: bounds).writePDF(to: file) { output in output.beginPage(); scan.draw(in: bounds) }
+            await model.importPages(from: file)
+            let page = try XCTUnwrap(model.page); XCTAssertNotNil(page.pdfFile)
+            XCTAssertTrue((PDFDocument(url: file)?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let before = DocumentRenderCache.shared.pdfOpens, probe = PDFScanReaderProbe()
+            let index = PageWordIndex { await probe.read($0) }
+            index.prepare(page, model: model)
+            let deadline = Date().addingTimeInterval(10)
+            while index.isPreparing(page), Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+            XCTAssertTrue(index.isReady(page)); XCTAssertEqual(index.groups(for: page).first?.first?.text, "Energia")
+            let calls = await probe.calls, black = await probe.blackPixels
+            XCTAssertEqual(calls, 1); XCTAssertGreaterThan(black, 100, "OCR must receive the scan's content, not a cold blank preview")
+            XCTAssertEqual(DocumentRenderCache.shared.pdfOpens, before, "Selecting the marker on a scan must not synchronously decode its PDF")
+            XCTAssertEqual(PDFRasterCache.shared.mainThreadRasterizations, 0)
+            _ = await model.close()
+        } catch { _ = await model.close(); throw error }
     }
     @MainActor private func pixel(_ image: UIImage, at point: CGPoint) throws -> [UInt8] {
         let source = try XCTUnwrap(image.cgImage), scale = image.scale
