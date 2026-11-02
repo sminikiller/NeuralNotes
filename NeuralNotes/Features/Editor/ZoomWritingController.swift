@@ -18,6 +18,8 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
     @ObservationIgnored private var originalProtractor: Bool
     @ObservationIgnored private var panelSize = CGSize.zero
     @ObservationIgnored private var copiedGeneration: UUID?
+    @ObservationIgnored private var beginningNativeTouch = false
+    @ObservationIgnored private var nativeBaselineCount = 0
     @ObservationIgnored private var overview: ZoomWritingViewport?
     init(model: EditorViewModel) {
         self.model = model; host = CanvasHost(canvas: PKCanvasView()); pageID = model.page?.id
@@ -79,6 +81,9 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
         syncFromMain()
     }
     private func syncFromMain() {
+        // A following touch may begin before the previous 80 ms delivery fence.
+        // Never reset its native recognizer from inside didBeginUsingTool.
+        guard !beginningNativeTouch else { return }
         if copiedGeneration != model.inkDisplayGeneration {
             let target = model.canvas.drawing
             if !NativeInkComparison.equal(target, host.canvas.drawing) { replaceChild(target) }
@@ -99,7 +104,8 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
     func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
         guard available, model.tool == .pen, canvasView === host.canvas else { return }
         // Do not replace the child container while PencilKit is beginning this native touch.
-        completeNativeStroke()
+        beginningNativeTouch = true; completeNativeStroke(); beginningNativeTouch = false
+        nativeBaselineCount = host.canvas.drawing.strokes.count
         nativeStrokeActive = true; model.strokeBegan()
     }
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
@@ -119,8 +125,14 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
     func completeNativeStroke() {
         ending?.cancel(); ending = nil
         guard nativeStrokeActive else { return }
-        let drawing = host.canvas.drawing
-        let changed = model.inkGestureBaseline.map { !NativeInkComparison.equal($0, drawing) } ?? false
+        let delivered = host.canvas.drawing
+        let baseline = model.inkGestureBaseline ?? model.canvas.drawing
+        // Only append this gesture's native strokes to the authoritative value.
+        // A preceding scratch/shape correction may have changed the main value
+        // while a fast following touch still owns the child's old timeline.
+        let added = delivered.strokes.count >= nativeBaselineCount ? Array(delivered.strokes.dropFirst(nativeBaselineCount)) : []
+        let drawing = PKDrawing(strokes: baseline.strokes + added)
+        let changed = !added.isEmpty
         nativeStrokeActive = false; installing = true
         if !changed {
             model.cancelGuidedInk(model.canvas.drawing); installing = false; syncFromMain(); return
@@ -129,8 +141,12 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
             model.installNativeInk(drawing); model.strokeEnded(); model.finishInkGesture()
             if model.editBeforeGesture != nil { model.cancelGuidedInk(model.canvas.drawing) }
         }
-        installing = false; syncFromMain()
-        if let stroke = drawing.strokes.last, stroke.path.count > 0 {
+        installing = false
+        if !beginningNativeTouch {
+            replaceChild(model.canvas.drawing); copiedGeneration = model.inkDisplayGeneration
+        }
+        syncFromMain()
+        if let stroke = added.last, stroke.path.count > 0 {
             let end = stroke.path[stroke.path.count - 1].location.applying(stroke.transform)
             advance(after: end)
         }
