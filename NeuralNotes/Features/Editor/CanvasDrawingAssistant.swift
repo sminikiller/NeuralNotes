@@ -252,6 +252,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         host?.canvas.layer.opacity = 1; previousInk.removeFromSuperview(); previousInk.image = nil
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }
+    func detach() {
+        cancel(); monitor.isEnabled = false
+        host?.canvas.removeGestureRecognizer(monitor)
+    }
     func cancel() {
         if let session = rectangleMarkerSession { rectangleMarkerSession = nil; session.finish(cancelled: true) }
         if let session = protractorSession { protractorSession = nil; session.finish(cancelled: true) }

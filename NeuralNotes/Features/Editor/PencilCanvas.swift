@@ -167,7 +167,15 @@ final class CanvasHost: UIView {
             emptyInkCover.update(from: self, force: true)
             // The cover already renders the visible PDF/text at screen resolution.
             paperDetail.isHidden = true; paperDetail.layer.contents = nil
-        } else { emptyInkCover.resetForPageChange() }
+        } else {
+            let covered = !emptyInkCover.isHidden
+            emptyInkCover.resetForPageChange()
+            // The first native stroke removes the cover immediately. Restore
+            // its detailed background in the same callback, not at the next
+            // SwiftUI layout/save; otherwise the PDF briefly falls back to the
+            // low-resolution whole-page preview while the user keeps writing.
+            if covered { paperDetail.update(from: self); paperDetail.setNeedsDisplay() }
+        }
     }
 
     func resetPage() {

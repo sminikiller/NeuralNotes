@@ -43,6 +43,31 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
             controller.finishAndClose(); XCTAssertFalse(model.zoomWritingOpen)
         }
     }
+    @MainActor func testLateNativeValueAndClosingDuringAMarkerPreserveDeliveredInk() async throws {
+        try await fixture { model in
+            model.zoomWritingOpen = true
+            let controller = ZoomWritingController(model: model); controller.host.frame = CGRect(x: 0, y: 0, width: 700, height: 200)
+            controller.resize(controller.host.bounds.size); controller.automatic = false
+            controller.canvasViewDidBeginUsingTool(controller.host.canvas)
+            controller.canvasViewDidEndUsingTool(controller.host.canvas) // final drawing arrives after this delegate callback
+            let native = self.stroke(x: 100, y: 150)
+            controller.host.canvas.drawing = PKDrawing(strokes: [native])
+            let deadline = Date().addingTimeInterval(2)
+            while model.hasActiveStroke && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertFalse(model.hasActiveStroke)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, PKDrawing(strokes: [native])))
+            model.tool = .marker; model.editWriting { $0.markerMode = .freehand; $0.markerWidth = 2 }
+            let assistant = try XCTUnwrap(controller.host.drawingAssistant)
+            assistant.begin(at: CGPoint(x: 100, y: 180)); assistant.move(samples: [CGPoint(x: 200, y: 180)])
+            XCTAssertTrue(model.hasActiveStroke)
+            model.closeZoomWriting()
+            XCTAssertFalse(model.hasActiveStroke); XCTAssertFalse(model.zoomWritingOpen)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+            XCTAssertEqual(model.canvas.drawing.strokes.last?.ink.inkType, .marker)
+            await model.performUndo()
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, PKDrawing(strokes: [native])))
+        }
+    }
     @MainActor func testRectangleIsEditableMultiplyAndMarkerOnlyEraserLeavesNormalShapeAndPen() async throws {
         try await fixture { model in
             model.tool = .marker; model.editWriting { $0.markerMode = .rectangle }
