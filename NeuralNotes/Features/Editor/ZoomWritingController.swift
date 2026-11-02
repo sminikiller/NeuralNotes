@@ -59,6 +59,10 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
         panelSize = size
         if geometry == nil {
             geometry = ZoomWritingGeometry(pageWidth: page.width, pageHeight: page.height, panelWidth: size.width, panelHeight: size.height)
+            if let parent = model.pagePresenter as? CanvasHost, let viewport = geometry {
+                let center = parent.surface.convert(CGPoint(x: parent.bounds.midX, y: parent.bounds.midY), from: parent)
+                geometry?.move(to: .init(x: center.x - viewport.width / 2, y: center.y - viewport.height / 2))
+            }
         } else { geometry?.resize(panelWidth: size.width, panelHeight: size.height, zoom: geometry?.zoom ?? 3) }
         updateViewport(); configureTool()
     }

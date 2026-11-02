@@ -65,7 +65,9 @@ final class ZoomWritingViewport: UIView {
     init(controller: ZoomWritingController, host: CanvasHost) {
         self.controller = controller; self.host = host; super.init(frame: .zero)
         backgroundColor = UIColor.systemTeal.withAlphaComponent(0.08); layer.borderColor = UIColor.systemTeal.cgColor; layer.borderWidth = 2; layer.cornerRadius = 4
+        isAccessibilityElement = true; accessibilityTraits = .adjustable
         accessibilityLabel = "Zona di scrittura ingrandita"; accessibilityIdentifier = "zoomWritingViewport"
+        accessibilityHint = "Trascina con un dito per spostare la zona; scorri verso l’alto o il basso con VoiceOver per avanzare o tornare indietro."
         let pan = UIPanGestureRecognizer(target: self, action: #selector(nnMoveWindow(_:)))
         pan.maximumNumberOfTouches = 1; pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         addGestureRecognizer(pan)
@@ -76,6 +78,8 @@ final class ZoomWritingViewport: UIView {
         let pageBox = CGRect(x: value.x, y: value.y, width: value.width, height: value.height)
         frame = host.surface.convert(pageBox, to: host); isHidden = false
     }
+    override func accessibilityIncrement() { controller?.step(1) }
+    override func accessibilityDecrement() { controller?.step(-1) }
     @objc private func nnMoveWindow(_ gesture: UIPanGestureRecognizer) {
         guard let host, let controller, let geometry = controller.geometry else { return }
         if gesture.state == .began { start = CGPoint(x: geometry.x, y: geometry.y) }
