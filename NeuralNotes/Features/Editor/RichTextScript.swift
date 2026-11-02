@@ -42,8 +42,12 @@ enum RichTextScript {
         guard !runs.isEmpty, runs.count <= 20_000,
               let payload = try? JSONEncoder().encode(Metadata(version: 1, digest: digest(value.string), runs: runs)),
               payload.count <= 1024 * 1024, let closing = rtf.lastIndex(of: 125) else { return rtf }
+        let group = prefix + Data(payload.base64EncodedString().utf8) + Data("}".utf8)
+        // The complete RTF must still fit the reader's limit. Keep the standard
+        // font/baseline RTF if optional exact-base metadata would exceed it.
+        guard rtf.count <= 2 * 1024 * 1024 - group.count else { return rtf }
         var result = rtf
-        result.insert(contentsOf: prefix + Data(payload.base64EncodedString().utf8) + Data("}".utf8), at: closing)
+        result.insert(contentsOf: group, at: closing)
         return result
     }
     static func restoreMetadata(in value: NSAttributedString, from rtf: Data) -> NSAttributedString {
