@@ -167,7 +167,10 @@ final class TextScriptsAndPalettesTests: XCTestCase {
         let value = NSAttributedString(string: "2", attributes: attrs)
         var rtf = try value.data(from: NSRange(location: 0, length: 1), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
         let closing = try XCTUnwrap(rtf.lastIndex(of: 125))
-        rtf.insert(contentsOf: Data(repeating: 32, count: 2 * 1024 * 1024 - 16 - rtf.count), at: closing)
+        let paddingPrefix = Data("{\\*\\nnpadding ".utf8)
+        let paddingCount = 2 * 1024 * 1024 - 16 - rtf.count - paddingPrefix.count - 1
+        let padding = paddingPrefix + Data(repeating: 32, count: paddingCount) + Data("}".utf8)
+        rtf.insert(contentsOf: padding, at: closing)
         let bounded = RichTextScript.appendMetadata(to: rtf, value: value)
         XCTAssertEqual(bounded, rtf)
         XCTAssertLessThanOrEqual(bounded.count, 2 * 1024 * 1024)
