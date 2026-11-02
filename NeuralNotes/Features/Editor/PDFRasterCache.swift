@@ -69,6 +69,7 @@ private actor PDFRasterWorker {
             context.setFillColor(CGColor(gray: 1, alpha: 1)); context.fill(source.bounds)
             context.translateBy(x: 0, y: source.height); context.scaleBy(x: 1, y: -1)
             context.concatenate(page.getDrawingTransform(.cropBox, rect: source.bounds, rotate: 0, preserveAspectRatio: true))
+            context.interpolationQuality = .high
             context.drawPDFPage(page)
             guard !Task.isCancelled, let image = context.makeImage() else { return nil }
             return PDFRasterResult(image: image, opened: opened, onMainThread: Thread.isMainThread)
@@ -129,6 +130,8 @@ final class PDFRasterCache: NSObject {
         guard let source = PDFRasterSource(page: page, package: package) else { return }
         let clip = context.boundingBoxOfClipPath.intersection(source.bounds)
         guard !clip.isNull, !clip.isEmpty else { return }
+        context.saveGState(); defer { context.restoreGState() }
+        context.interpolationQuality = .high
         clock &+= 1; let demand = clock
         let preview = previewRequest(source)
         if let entry = entries[preview.key] { entry.touched = demand; entry.image.draw(in: entry.bounds) }
@@ -209,7 +212,11 @@ final class PDFRasterCache: NSObject {
         return jobs
     }
     private func detailRequests(_ source: PDFRasterSource, clip: CGRect, scale: Double) -> [PDFRasterRequest] {
-        var level = Int(ceil(log2(min(16, max(0.03125, scale))) * 2))
+        // A fixed tile grid is often sampled at a fractional pixel offset while
+        // panning. Render with headroom so that a second bitmap sampling does
+        // not soften thin/rotated glyphs. The complete visible set still has
+        // to fit the same working-memory budget below.
+        var level = min(8, Int(ceil(log2(min(16, max(0.03125, scale))) * 2)) + 2)
         var jobs = tileRequests(source, clip: clip, level: level)
         let workingBudget = (maximumBytes - maximumBytes / 4) * 4 / 5
         // The complete visible set must fit, including offscreen tile edges.

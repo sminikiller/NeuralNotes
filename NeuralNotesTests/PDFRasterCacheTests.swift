@@ -108,6 +108,9 @@ final class PDFRasterCacheTests: XCTestCase {
                 output.cgContext.translateBy(x: -box.minX, y: -box.minY)
                 PageRenderer.draw(page, package: root, in: output.cgContext)
             }
+            for (name, value) in [("raster", raster), ("vector", vector)] {
+                let attachment = XCTAttachment(image: value); attachment.name = "PDF-\(name)-\(rotation)"; attachment.lifetime = .keepAlways; add(attachment)
+            }
             let originalBlack = try blackPixels(vector), rasterBlack = try blackPixels(raster)
             XCTAssertGreaterThan(originalBlack, 100)
             XCTAssertGreaterThanOrEqual(rasterBlack, Int(Double(originalBlack) * 0.94), "Glyphs must stay sharp at \(rotation) degrees")
