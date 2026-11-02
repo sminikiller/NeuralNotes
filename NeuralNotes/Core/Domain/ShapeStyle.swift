@@ -50,6 +50,10 @@ public struct ShapeStyle: Codable, Equatable, Sendable {
         shape.fill = fill; shape.fillOpacity = fillOpacity; shape.dash = dash
         shape.cornerRadius = cornerRadius.map { min($0, min(shape.width, shape.height) / 2) }
         shape.arrowHeads = arrowHeads; shape.arrowStyle = arrowStyle; shape.strokeOpacity = strokeOpacity
+        if source.rectangularMarker == true {
+            shape.fill = fill ?? color ?? source.fill; shape.fillOpacity = fillOpacity ?? source.fillOpacity ?? 0.25
+            shape.strokeOpacity = 0; shape.cornerRadius = 0
+        }
         return shape
     }
 }
@@ -64,6 +68,9 @@ public extension ShapeElement {
               sides.map({ (kind == .star ? 4...12 : 3...12).contains($0) }) != false,
               (label?.count ?? 0) <= 100_000, (labelRTF?.count ?? 0) <= 2 * 1024 * 1024,
               labelFontSize.map({ $0.isFinite && (6...200).contains($0) }) != false else { return false }
+        if rectangularMarker == true {
+            guard kind == .rectangle, fill != nil, strokeOpacity == 0, (cornerRadius ?? 0) == 0 else { return false }
+        }
         if let vertices {
             guard (3...64).contains(vertices.count), vertices.allSatisfy(\.isValid) else { return false }
             let unique = Set(vertices.map { "\($0.x)|\($0.y)" })

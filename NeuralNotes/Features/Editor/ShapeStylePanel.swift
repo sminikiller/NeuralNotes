@@ -14,7 +14,11 @@ struct ShapeStylePanel: View {
         NavigationStack {
             Form {
                 Section { Text("Lo stile si applica alle forme selezionate in un solo passo di annulla.").font(.callout) }
-                ShapeStyleFields(style: $style, maximumRadius: maximumRadius)
+                if onlyMarkers {
+                    Section("Evidenziatore rettangolare") {
+                        MarkerRectangleStyleFields(style: $style)
+                    }
+                } else { ShapeStyleFields(style: $style, maximumRadius: maximumRadius) }
                 if let shape {
                     Section("\(shape.kind.title)") {
                         ShapeParametersFields(shape: Binding(get: { self.shape ?? shape }, set: { self.shape = $0 }))
@@ -43,6 +47,7 @@ struct ShapeStylePanel: View {
             loaded = true
         }
     }
+    private var onlyMarkers: Bool { !model.selectedShapes.isEmpty && model.selectedShapes.allSatisfy { $0.rectangularMarker == true } }
     private var maximumRadius: Double {
         max(1, model.selectedShapes.map { min($0.width, $0.height) / 2 }.min() ?? 80)
     }

@@ -65,6 +65,7 @@ extension EditorViewModel {
     func chooseTool(_ item: WorkspaceTool) {
         laserActive = false
         guard !hasActiveStroke else { return }
+        if zoomWritingOpen, item.draftingKind != nil || item == .protractor { closeZoomWriting() }
         if item != .objects && item != .lasso { selectionPageDragMode = false; activeSelectionPageDrag = nil }
         cancelMaintenance()
         if item == .lens, tool != .lens { toolBeforeLens = tool }

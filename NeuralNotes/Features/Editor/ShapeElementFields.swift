@@ -5,20 +5,22 @@ import NeuralNotesCore
 struct ShapeElementFields: View {
     @Binding var shape: ShapeElement
     var body: some View {
-        Picker("Forma", selection: Binding(get: { shape.kind }, set: { shape = shape.changingKind(to: $0) })) {
+        if shape.rectangularMarker != true { Picker("Forma", selection: Binding(get: { shape.kind }, set: { shape = shape.changingKind(to: $0) })) {
             ForEach(ShapeKind.allCases, id: \.self) { kind in Label(kind.title, systemImage: kind.icon).tag(kind) }
+        }
         }
         coordinate("X", $shape.x)
         coordinate("Y", $shape.y)
         coordinate("Larghezza", $shape.width)
         coordinate("Altezza", $shape.height)
-        ColorPicker("Colore", selection: outlineColor, supportsOpacity: false)
-        Stepper("Spessore \(Int(shape.lineWidth)) pt", value: $shape.lineWidth, in: 1...40)
-        ShapeParametersFields(shape: $shape)
-        NavigationLink("Stile della forma") {
-            Form {
-                ShapeStyleFields(style: style, maximumRadius: min(shape.width, shape.height) / 2)
-            }.navigationTitle("Stile")
+        if shape.rectangularMarker == true { MarkerRectangleStyleFields(style: style) }
+        else {
+            ColorPicker("Colore", selection: outlineColor, supportsOpacity: false)
+            Stepper("Spessore \(Int(shape.lineWidth)) pt", value: $shape.lineWidth, in: 1...40)
+            ShapeParametersFields(shape: $shape)
+            NavigationLink("Stile della forma") {
+                Form { ShapeStyleFields(style: style, maximumRadius: min(shape.width, shape.height) / 2) }.navigationTitle("Stile")
+            }
         }
     }
     private var style: Binding<NeuralNotesCore.ShapeStyle> {

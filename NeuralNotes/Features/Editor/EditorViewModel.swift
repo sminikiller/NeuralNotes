@@ -103,6 +103,8 @@ final class EditorViewModel {
     var canvasZoomed = false
     var canvasViewportMoving = false
     var showZoomNavigator = false
+    var zoomWritingOpen = false
+    @ObservationIgnored weak var zoomWritingController: ZoomWritingController?
     var laserActive = false
     var searchFocus: SearchFocusRequest?
     var editingTextID: UUID?
@@ -272,6 +274,11 @@ final class EditorViewModel {
         PaperInk.configureNavigation(canvas, fingerDrawing: fingerDrawing)
         if tool == .shape { canvas.panGestureRecognizer.minimumNumberOfTouches = 2 }
         if tool == .marker { prepareMarkerWords() }
+        if zoomWritingOpen {
+            canvas.drawingGestureRecognizer.isEnabled = false
+            canvas.panGestureRecognizer.isEnabled = false; canvas.pinchGestureRecognizer?.isEnabled = false
+        }
+        zoomWritingController?.configureTool()
         refreshDrawingGuides()
     }
 
@@ -279,6 +286,7 @@ final class EditorViewModel {
         guard !loading else { return }
         guard !movingObjects else { return }
         inkDisplayGeneration = UUID()
+        zoomWritingController?.mainDrawingChanged()
         (canvas.superview as? CanvasHost)?.updateNativeInkVisibility()
         (canvas.superview as? CanvasHost)?.markerReadability.update(canvas.superview as? CanvasHost)
         if tool == .eraser && drawingShape { return }
@@ -300,6 +308,7 @@ final class EditorViewModel {
     }
 
     func close() async -> Bool {
+        closeZoomWriting()
         guard !hasActiveStroke else { return false }
         cancelMaintenance()
         guard await flush() else { return false }
@@ -545,9 +554,11 @@ final class EditorViewModel {
         canvas.undoManager?.removeAllActions()
         canvas.drawingGestureRecognizer.isEnabled = enabled
         canvas.delegate = delegate; inkDisplayGeneration = UUID()
+        zoomWritingController?.mainDrawingChanged()
     }
 
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
+        closeZoomWriting()
         lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
         endTextEdit()
         replaceInkSession(with: drawing)

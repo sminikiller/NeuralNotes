@@ -36,6 +36,8 @@ final class CanvasHost: UIView {
     var diagramPreview: DiagramDragPreview?
     weak var model: EditorViewModel?
     var flow: ContinuousCanvasFlow?
+    var writingViewport: ZoomWritingGeometry?
+    private var aligningWritingViewport = false
     private let inputShield = PendingPageInputShield()
     private var hintTask: Task<Void, Never>?
     let pullHint = UILabel()
@@ -76,6 +78,7 @@ final class CanvasHost: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         canvas.frame = bounds
+        if writingViewport != nil { alignWritingViewport(); return }
         inputShield.frame = bounds
         pullHint.frame = CGRect(x: 12, y: max(0, bounds.height - 58), width: max(0, bounds.width - 24), height: 36)
         guard bounds.width > 0, bounds.height > 0 else { return }
@@ -108,7 +111,7 @@ final class CanvasHost: UIView {
             if let handles = diagramHandles, hit.isDescendant(of: handles), hit !== handles { return hit }
             if let handles = shapeHandles, hit.isDescendant(of: handles), hit !== handles { return hit }
         }
-        if let model, !model.laserActive, let flow, flow.enabled, let touch = event?.allTouches?.first(where: { touch in
+        if let model, !model.zoomWritingOpen, !model.laserActive, let flow, flow.enabled, let touch = event?.allTouches?.first(where: { touch in
             let at = touch.location(in: self)
             return touch.phase == .began && hypot(at.x - point.x, at.y - point.y) < 2
         }), touch.type == .pencil || (model.fingerDrawing && touch.type == .direct) {
@@ -251,6 +254,7 @@ final class CanvasHost: UIView {
     }
 
     func alignSurface() {
+        if writingViewport != nil { alignWritingViewport(); return }
         defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update(); selectionPageDrag?.update(); updateNativeInkVisibility() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
@@ -272,6 +276,19 @@ final class CanvasHost: UIView {
         paperDetail.update(from: self)
         interaction?.refresh()
         textInput?.layout()
+    }
+    func alignWritingViewport() {
+        guard let viewport = writingViewport, !aligningWritingViewport else { return }
+        aligningWritingViewport = true; defer { aligningWritingViewport = false }
+        let z = CGFloat(viewport.zoom), size = CGSize(width: surface.page.width, height: surface.page.height)
+        canvas.contentInset = .zero
+        canvas.minimumZoomScale = z; canvas.maximumZoomScale = z
+        canvas.zoomScale = z; canvas.contentSize = CGSize(width: size.width * z, height: size.height * z)
+        let offset = CGPoint(x: viewport.x * z, y: viewport.y * z)
+        if canvas.contentOffset != offset { canvas.setContentOffset(offset, animated: false) }
+        surface.bounds = CGRect(origin: .zero, size: size); surface.transform = CGAffineTransform(scaleX: z, y: z)
+        surface.center = CGPoint(x: size.width * z / 2 - offset.x, y: size.height * z / 2 - offset.y)
+        paperDetail.update(from: self); updateNativeInkVisibility(); markerReadability.update(self); foregroundObjects.update(self)
     }
     func centerWritingArea(_ point: CGPoint, zoomFactor: CGFloat = 3) {
         guard let model, !model.interactionBusy, !model.navigating, !model.loading else { return }

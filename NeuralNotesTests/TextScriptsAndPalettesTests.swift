@@ -2,6 +2,7 @@ import XCTest
 import UIKit
 import PencilKit
 import PDFKit
+import UniformTypeIdentifiers
 import NeuralNotesCore
 @testable import NeuralNotes
 
@@ -76,7 +77,7 @@ final class TextScriptsAndPalettesTests: XCTestCase {
             let file = try await DocumentServices.exportPDF(workspace: model.workspace)
             defer { try? FileManager.default.removeItem(at: file) }
             let page = try XCTUnwrap(PDFDocument(url: file)?.page(at: 0)), string = try XCTUnwrap(page.string) as NSString
-            func box(_ character: String) throws -> CGRect {
+            @MainActor func box(_ character: String) throws -> CGRect {
                 let range = string.range(of: character); XCTAssertNotEqual(range.location, NSNotFound)
                 guard range.location != NSNotFound else { throw CocoaError(.fileReadCorruptFile) }
                 return page.characterBounds(at: range.location)
@@ -121,6 +122,45 @@ final class TextScriptsAndPalettesTests: XCTestCase {
             let afterRedo = try await model.workspace.catalog()
             XCTAssertEqual(afterRedo.sessions.map(\.id), [audio.id])
         }
+    }
+    @MainActor func testRichAndPlainPasteUseOneUndoAndPlainPasteKeepsTheDestinationStyle() async throws {
+        let board = UIPasteboard.general, old = UIPasteboard.general.items
+        defer { board.items = old }
+        try await editorFixture { model in
+            model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 70, y: 120))
+            let host = CanvasHost(canvas: model.canvas); host.model = model; model.pagePresenter = host
+            host.surface.page = try XCTUnwrap(model.page); host.frame = CGRect(x: 0, y: 0, width: 800, height: 700)
+            let input = CanvasTextInput(host: host, model: model); host.textInput = input; host.layoutIfNeeded(); input.refresh()
+            input.view.attributedText = NSAttributedString(string: "A", attributes: [.font: UIFont.systemFont(ofSize: 18)])
+            input.textViewDidChange(input.view); model.commitTextEdit()
+            let rich = NSAttributedString(string: "Rich", attributes: [.font: UIFont.boldSystemFont(ofSize: 26), .foregroundColor: UIColor.red])
+            board.items = [[UTType.rtf.identifier: try XCTUnwrap(RichText.data(rich)), UTType.utf8PlainText.identifier: Data("Rich".utf8)]]
+            input.view.selectedRange = NSRange(location: 1, length: 0)
+            XCTAssertTrue(input.paste(plain: false))
+            XCTAssertEqual(input.view.text, "ARich")
+            XCTAssertEqual(try self.font(input.view, at: 2).pointSize, 26, accuracy: 0.01)
+            XCTAssertTrue(try self.font(input.view, at: 2).fontDescriptor.symbolicTraits.contains(.traitBold))
+            await model.performUndo(); input.refresh(); XCTAssertEqual(input.view.text, "A")
+            input.view.selectedRange = NSRange(location: 1, length: 0)
+            input.view.typingAttributes = [.font: UIFont.italicSystemFont(ofSize: 18), .foregroundColor: UIColor.blue]
+            XCTAssertTrue(input.paste(plain: true)); XCTAssertEqual(input.view.text, "ARich")
+            XCTAssertEqual(try self.font(input.view, at: 2).pointSize, 18)
+            XCTAssertTrue(try self.font(input.view, at: 2).fontDescriptor.symbolicTraits.contains(.traitItalic))
+            XCTAssertFalse(try self.font(input.view, at: 2).fontDescriptor.symbolicTraits.contains(.traitBold))
+            await model.performUndo(); input.refresh(); XCTAssertEqual(input.view.text, "A")
+        }
+    }
+    @MainActor func testParagraphStyleClearsScriptMetadataAndTextShortcutsHaveDiscoverableNames() throws {
+        let view = UITextView(); view.attributedText = NSAttributedString(string: "H2O", attributes: [.font: UIFont.systemFont(ofSize: 18)])
+        view.selectedRange = NSRange(location: 0, length: 3)
+        let formatting = TextFormatting(view: view) {}; formatting.superscript(); formatting.paragraphStyle(size: 30, heading: true)
+        formatting.normalBaseline(); XCTAssertEqual(try font(view, at: 1).pointSize, 30)
+        let commands = PageTextView().keyCommands ?? []
+        for title in ["Grassetto", "Corsivo", "Sottolineato", "Pedice", "Apice", "Incolla senza formattazione"] {
+            XCTAssertTrue(commands.contains { $0.discoverabilityTitle == title })
+        }
+        var text = TextElement(text: "Plain"); text.rtf = Data("{\\rtf1{\\*\\nnscript invalid}Plain}".utf8)
+        XCTAssertEqual(RichText.attributed(text).string, "Plain")
     }
     @MainActor private func editorFixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

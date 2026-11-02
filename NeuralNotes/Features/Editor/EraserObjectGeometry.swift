@@ -23,13 +23,18 @@ enum EraserObjectGeometry {
             }
         }
         if includeObjects && (target == .all || target == .shapes) {
-            for shape in page.shapes ?? [] where !locked.contains(shape.id) { regions[shape.id] = shapeRegion(shape, page: page) }
+            for shape in page.shapes ?? [] where shape.rectangularMarker != true && !locked.contains(shape.id) { regions[shape.id] = shapeRegion(shape, page: page) }
             for edge in page.connectors ?? [] where !locked.contains(edge.id) { regions[edge.id] = connectorRegion(edge, objects: objects, page: page) }
         }
         if includeObjects && target == .all {
             for tape in page.tapes ?? [] where !locked.contains(tape.id) {
                 let box = CGPath(rect: CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height), transform: nil)
                 regions[tape.id] = tape.revealed ? box.copy(strokingWithWidth: 1, lineCap: .round, lineJoin: .round, miterLimit: 1) : box
+            }
+        }
+        if target == .marker || target == .all {
+            for shape in page.shapes ?? [] where shape.rectangularMarker == true && !locked.contains(shape.id) {
+                regions[shape.id] = shapeRegion(shape, page: page)
             }
         }
         for markup in page.pdfMarkups ?? [] where target == .all || (target == .marker && markup.kind == .highlight) || (target == .pen && markup.kind == .underline) {

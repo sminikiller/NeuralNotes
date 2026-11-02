@@ -33,13 +33,16 @@ enum PageRenderer {
         }
         drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight != true }, in: context)
         let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
-        for id in page.orderedObjectIDs where !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
+        for id in page.orderedObjectIDs where objects.shapes[id]?.rectangularMarker != true && !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
             drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
         // Photo/scanned words must stay visible on top of their opaque image.
         // Multiply preserves black printed/typed glyphs; native pen ink is
         // composited above this surface, including white ink on dark paper.
         drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight == true }, in: context)
+        for id in page.orderedObjectIDs where objects.shapes[id]?.rectangularMarker == true && !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+        }
     }
     static func drawMarkups(_ markups: [PDFMarkup], in context: CGContext) {
         for markup in markups where markup.wordHighlight != true {
@@ -79,8 +82,13 @@ enum PageRenderer {
     /// paper tone, but without drawing its paper, PDF or other objects.
     static func drawSelected(_ ids: Set<UUID>, foreground: Bool, page: PageSnapshot, package: URL, in context: CGContext) {
         let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
-        for id in page.orderedObjectIDs where ids.contains(id) && above.contains(id) == foreground {
+        for id in page.orderedObjectIDs where ids.contains(id) && above.contains(id) == foreground && (foreground || objects.shapes[id]?.rectangularMarker != true) {
             drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: nil)
+        }
+        if !foreground {
+            for id in page.orderedObjectIDs where ids.contains(id) && !above.contains(id) && objects.shapes[id]?.rectangularMarker == true {
+                drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: nil)
+            }
         }
         if foreground { drawTapes((page.tapes ?? []).filter { ids.contains($0.id) }, in: context) }
     }

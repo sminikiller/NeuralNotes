@@ -29,6 +29,9 @@ public struct WritingOptions: Codable, Equatable, Sendable {
     public var markerWidth: Double?
     public var markerRecentWidths: [Double]?
     public var markerSnapWords: Bool?
+    public var markerMode: MarkerInputMode?
+    public var rectangleSnapLines: Bool?
+    public var effectiveMarkerMode: MarkerInputMode { markerMode ?? (markerSnapWords == false ? .freehand : .words) }
     public var textStaysActive: Bool?
     public var eraserTarget: EraserTarget?
     public var eraseObjects: Bool?

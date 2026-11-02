@@ -69,6 +69,7 @@ struct EditorView: View {
                 .onChange(of: model.openNotebookRequest) { _, _ in notebookSwitching?.open() }
                 .onChange(of: model.closeNotebookRequest) { _, _ in notebookSwitching?.close(notebook.id) }
                 .onChange(of: model.globalSearchDestinationRequest) { _, _ in Task { await model.consumeGlobalSearch() } }
+                .onChange(of: model.audio?.replayInk) { _, replay in if replay == true { model.closeZoomWriting() } }
                 .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
                 .onChange(of: model.selectionImageShareRequest) { _, _ in Task { await exportExtra("selection") } }
                 .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
@@ -82,7 +83,15 @@ struct EditorView: View {
     private var editorStack: some View {
         VStack(spacing: 0) {
             if model.page != nil {
-                writingSurface
+                GeometryReader { geometry in
+                    VStack(spacing: 0) {
+                        writingSurface
+                        if model.zoomWritingOpen {
+                            Divider()
+                            ZoomWritingPanel(model: model).frame(height: max(150, geometry.size.height * 0.3))
+                        }
+                    }
+                }
             } else { ProgressView("Apertura pagine…").frame(maxWidth: .infinity, maxHeight: .infinity) }
             if !focus && model.currentWorkspace.showPages { pageStrip }
             else if !focus && model.currentWorkspace.showStatus {
@@ -242,6 +251,8 @@ struct EditorView: View {
         Menu {
             Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
             Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
+            Button(model.zoomWritingOpen ? "Chiudi finestra di scrittura" : "Finestra di scrittura", systemImage: "rectangle.bottomthird.inset.filled") { model.toggleZoomWriting() }
+                .accessibilityIdentifier("toggleZoomWriting")
             Toggle("Puntatore laser", systemImage: "scope", isOn: laserBinding).disabled(model.interactionBusy)
             insertMenu
             documentMenu
@@ -329,6 +340,7 @@ struct EditorView: View {
 
     private func sceneChanged(_ phase: ScenePhase) {
         if phase != .active {
+            model.closeZoomWriting()
             Task {
                 let identifier = UIApplication.shared.beginBackgroundTask(withName: "Salvataggio NeuralNotes")
                 _ = await model.flush()

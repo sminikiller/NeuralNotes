@@ -137,6 +137,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+        if model?.zoomWritingOpen == true { return false }
         guard let model, let host, !model.loading, !model.navigating else { return false }
         if gesture === labelTap { return model.tool == .objects && model.editingTextID == nil }
         if gesture === undoTap || gesture === redoTap { return model.hasLease && !model.hasActiveStroke && model.editingTextID == nil }
@@ -160,6 +161,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if model?.zoomWritingOpen == true { return false }
         if let handles = host?.shapeHandles, let touched = touch.view,
            touched !== handles, touched.isDescendant(of: handles) { return false }
         if let handles = host?.diagramHandles, let touched = touch.view,

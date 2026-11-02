@@ -134,6 +134,11 @@ final class PDFRasterCacheTests: XCTestCase {
             XCTAssertGreaterThan(originalBlack, 100)
             XCTAssertGreaterThanOrEqual(rasterBlack, Int(Double(originalBlack) * 0.94), "Glyphs must stay sharp at \(rotation) degrees")
             XCTAssertLessThanOrEqual(rasterBlack, Int(Double(originalBlack) * 1.06) + 20)
+            let originalBounds = try inkBounds(vector), rasterBounds = try inkBounds(raster)
+            XCTAssertEqual(rasterBounds.minX, originalBounds.minX, accuracy: 1.25)
+            XCTAssertEqual(rasterBounds.minY, originalBounds.minY, accuracy: 1.25)
+            XCTAssertEqual(rasterBounds.maxX, originalBounds.maxX, accuracy: 1.25)
+            XCTAssertEqual(rasterBounds.maxY, originalBounds.maxY, accuracy: 1.25)
         }
     }
     @MainActor func testInteractiveMarkerKeepsGlyphsAndColorAndDoesNotDecodeThePDFAgainForNewStrokes() async throws {
@@ -284,6 +289,20 @@ final class PDFRasterCacheTests: XCTestCase {
             context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
             let p = buffer.bindMemory(to: UInt8.self)
             return stride(from: 0, to: p.count, by: 4).filter { p[$0] < 30 && p[$0 + 1] < 30 && p[$0 + 2] < 30 }.count
+        }
+    }
+    @MainActor private func inkBounds(_ image: UIImage) throws -> CGRect {
+        let source = try XCTUnwrap(image.cgImage)
+        var bytes = [UInt8](repeating: 0, count: source.width * source.height * 4)
+        return try bytes.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: source.width, height: source.height, bitsPerComponent: 8,
+                bytesPerRow: source.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
+            let pixels = buffer.bindMemory(to: UInt8.self); var box = CGRect.null
+            for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i] < 128 && pixels[i + 1] < 128 && pixels[i + 2] < 128 {
+                let at = i / 4; box = box.union(CGRect(x: at % source.width, y: at / source.width, width: 1, height: 1))
+            }
+            return box
         }
     }
 }

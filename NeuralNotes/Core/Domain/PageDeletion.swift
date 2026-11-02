@@ -24,13 +24,14 @@ public enum PageDeletion {
     public static func objectIDs(in page: PageSnapshot, kind: PageDeletionKind) -> Set<UUID> {
         let values: [UUID]
         switch kind {
-        case .shapes: values = (page.shapes ?? []).map(\.id)
+        case .shapes: values = (page.shapes ?? []).filter { $0.rectangularMarker != true }.map(\.id)
+        case .marker: values = (page.shapes ?? []).filter { $0.rectangularMarker == true }.map(\.id)
         case .connectors: values = (page.connectors ?? []).map(\.id)
         case .text: values = page.texts.filter { $0.lensNote == nil }.map(\.id)
         case .images: values = page.images.map(\.id)
         case .tapes: values = (page.tapes ?? []).map(\.id)
         case .lensNotes: values = page.texts.filter { $0.lensNote != nil }.map(\.id)
-        case .pen, .marker, .audioLinks: values = []
+        case .pen, .audioLinks: values = []
         }
         return Set(values).subtracting(page.lockedObjects ?? [])
     }
@@ -41,7 +42,7 @@ public enum PageDeletion {
         let edges = (page.connectors ?? []).filter { !locked.contains($0.id) && $0.audioAnchor != nil }.count
         counts[.audioLinks] = page.anchors.count + shapes + edges
         // Existing PDF selection markup belongs to the same visible categories.
-        counts[.marker] = (page.pdfMarkups ?? []).filter { $0.kind == .highlight }.count
+        counts[.marker, default: 0] += (page.pdfMarkups ?? []).filter { $0.kind == .highlight }.count
         counts[.pen] = (page.pdfMarkups ?? []).filter { $0.kind == .underline }.count
         return counts
     }

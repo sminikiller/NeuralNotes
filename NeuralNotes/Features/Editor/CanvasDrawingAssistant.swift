@@ -18,8 +18,12 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private var before = PKDrawing()
     private var held = false
     var hasRecognizedPreview: Bool { held }
+    var zoomWritingInput = false
+    private(set) var lastCompletedPoint: CGPoint?
+    var customGestureFinished: (() -> Void)?
     private var markerSession: SelectiveEraseSession?
     private var wordSession: MarkerWordSession?
+    private var rectangleMarkerSession: RectangularMarkerSession?
     private var protractorSession: ProtractorInkSession?
     private var guiding = false
     private var guideEdge = 1.0
@@ -42,8 +46,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         host.canvas.addGestureRecognizer(monitor)
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard let model, model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
+        guard let model, (!model.zoomWritingOpen || zoomWritingInput), model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
+        if zoomWritingInput { return (model.markerCustomInput || model.tool == .eraser) && (touch.type == .pencil || (model.fingerDrawing && touch.type == .direct)) }
         let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.protractorActive || model.recognitionMode != .off))
         return enabled && (touch.type == .pencil || (touch.type == .direct && (model.fingerDrawing || model.tool == .shape)))
     }
@@ -63,6 +68,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         beganAt = Date(); snapHint = nil
         if let session = ProtractorInkSession(host: host, model: model, start: points[0]) {
             protractorSession = session; lockPageNavigation(); return
+        }
+        if model.markerCustomInput && model.writingOptions.effectiveMarkerMode == .rectangle {
+            rectangleMarkerSession = RectangularMarkerSession(host: host, model: model, at: at); lockPageNavigation(); return
         }
         if model.markerCustomInput {
             wordSession = MarkerWordSession(host: host, model: model); wordSession?.move([at]); return
@@ -93,6 +101,8 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func move(samples: [CGPoint]) {
         guard let host, let model, model.page?.id == pageID, let page = model.page else { return }
+        if zoomWritingInput, let last = samples.last { points.append(.init(x: last.x, y: last.y)) }
+        if let rectangleMarkerSession { rectangleMarkerSession.move(samples); return }
         if let protractorSession { protractorSession.move(samples); return }
         if let wordSession {
             if !held { wordSession.move(samples) }
@@ -137,8 +147,13 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         }
     }
     func end(cancelled: Bool, modifierActive: Bool? = nil) {
+        lastCompletedPoint = cancelled ? nil : points.last.map { CGPoint(x: $0.x, y: $0.y) }
+        defer { if zoomWritingInput { customGestureFinished?() } }
         holdTask?.cancel(); holdTask = nil
         guard let model else { cancel(); return }
+        if let session = rectangleMarkerSession {
+            rectangleMarkerSession = nil; session.finish(cancelled: cancelled); cancel(); return
+        }
         if let session = protractorSession {
             protractorSession = nil; session.finish(cancelled: cancelled); cancel(); return
         }
@@ -238,6 +253,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }
     func cancel() {
+        if let session = rectangleMarkerSession { rectangleMarkerSession = nil; session.finish(cancelled: true) }
         if let session = protractorSession { protractorSession = nil; session.finish(cancelled: true) }
         if let session = wordSession { wordSession = nil; session.finish(cancelled: true) }
         if guiding { model?.cancelGuidedInk(before); guiding = false }

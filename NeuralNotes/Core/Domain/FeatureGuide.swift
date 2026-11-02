@@ -28,6 +28,32 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("text-scripts", .writing, "Pedice, apice e incolla", "textformat.superscript", "Formule e testo formattato, con annulla.", [
+            "Scegli Testo, tocca il foglio e seleziona i caratteri. Nella barra usa Apice o Pedice; premi lo stesso comando per tornare alla riga normale.",
+            "Da tastiera usa ⌘= per il pedice e ⇧⌘= per l’apice. ⌘B, ⌘I e ⌘U applicano grassetto, corsivo e sottolineato.",
+            "Incolla mantiene la formattazione RTF; ⇧⌘V usa lo stile della destinazione. Ogni formattazione si annulla separatamente. Nelle opzioni Testo scegli Resta attivo per creare più caselle." ], tools: [.text]),
+        .init("subject-palettes", .writing, "Colori per materia", "swatchpalette", "Set nominati senza cambiare i recenti personali.", [
+            "Apri Workspace → Colori per materia → Nuovo set. Assegna un nome, scegli fino a dodici colori distinti e salva.",
+            "Tocca il set per usarlo nell’attività attuale. La tavolozza mostra quel set insieme a preferiti e recenti, separati per strumento.",
+            "Usa Modifica per riordinare o eliminare set e colori. Cambiare materia non cancella i colori personali." ]),
+        .init("marker-rectangle", .writing, "Evidenziatore rettangolare", "rectangle.fill", "Aree trasparenti modificabili e testo leggibile.", [
+            "Tieni premuto Evidenziatore e scegli Rettangolo. Trascina tra due angoli: l’area usa lo stesso colore trasparente degli altri evidenziatori.",
+            "Su un PDF attiva Aggancia alle righe del PDF se vuoi aree distinte attorno alle righe selezionate.",
+            "Con il lazo seleziona il rettangolo per spostarlo o ridimensionarlo. Stile cambia colore e opacità. Gomma Solo evidenziatore o Elimina per tipo lo trattano come evidenziatore, senza contarlo due volte." ], tools: [.marker, .lasso]),
+        .init("zoom-writing", .writing, "Finestra di scrittura ingrandita", "rectangle.bottomthird.inset.filled", "Scrivi in una zona 2–4× mantenendo la panoramica.", [
+            "Da Azioni apri Finestra di scrittura. Il pannello inferiore mostra la zona delimitata dal riquadro turchese sulla pagina.",
+            "Trascina quel riquadro con un dito per spostarti. Nel pannello scrivi con penna o evidenziatore oppure cancella con la gomma; i tratti rimangono nelle coordinate originali del foglio.",
+            "Regola zoom e margini nelle opzioni. Usa le frecce o Nuova riga. Avanza dopo il tratto sposta la zona quando scrivi nell’ultimo 15% a destra; sulla carta a righe rispetta l’interlinea.",
+            "Chiudi per tornare all’editor intero. Annulla e Ripristina lavorano sugli stessi tratti. Il pannello si chiude salvando il tratto consegnato quando cambi pagina, strumento incompatibile o passi in background." ], tools: [.pen, .marker, .eraser]),
+        .init("audio-replay-modes", .audio, "Mostra tutto e punti chiave", "waveform.path", "Tre modi di seguire la scrittura registrata.", [
+            "Nel pannello Audio avvia la riproduzione con i tratti sincronizzati e scegli Segui in tempo reale, Mostra tutto oppure Punti chiave.",
+            "Mostra tutto mantiene l’inchiostro completo e colora temporaneamente di turchese il tratto del momento: non cambia il file salvato.",
+            "Nei Punti chiave usa precedente e successivo per saltare tra segnalibri e riprese del parlato nella trascrizione. Nessun audio viene tagliato automaticamente." ]),
+        .init("sections-outline", .pages, "Indice comprimibile e riordinabile", "list.bullet.indent", "Organizza sezioni e sottosezioni conservando le pagine.", [
+            "Apri l’indice del quaderno. La freccia a fianco del titolo comprime o espande tutte le sottosezioni.",
+            "Con Modifica trascina la maniglia per riordinare una sezione insieme ai suoi figli. Nel menu usa Rientra per inserirla sotto la precedente o Riduci rientro per riportarla fuori.",
+            "Annulla ripristina l’organizzazione precedente, senza riscrivere gli audio o gli altri dati aggiunti nel frattempo." ]),
+
         .init("drawing-squares", .writing, "Squadre da disegno", "triangle", "Traccia lungo un bordo a 45° oppure 30°/60°.", [
             "Apri Tutti gli strumenti e scegli Squadra 45° oppure Squadra 30°/60°. Il pulsante opzioni e la pressione prolungata funzionano anche senza aggiungerla ai preferiti.",
             "Trascina il corpo con un dito per spostarlo. Ruota con due dita e pizzica per ridimensionare. Con scrittura a dito attiva, usa due dita anche per spostare la guida.",

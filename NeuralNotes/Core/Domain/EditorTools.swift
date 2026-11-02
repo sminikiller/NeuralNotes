@@ -53,6 +53,8 @@ public struct ShapeElement: Codable, Identifiable, Equatable, Sendable {
     public var arrowHeads: ArrowHeads?
     public var arrowStyle: ArrowStyle?
     public var strokeOpacity: Double?
+    /// Filled multiply rectangle, canonically classified as marker rather than a second shape.
+    public var rectangularMarker: Bool?
     public var audioAnchor: StrokeAnchor?
     public var label: String?
     public var labelRTF: Data?
@@ -76,6 +78,7 @@ public extension ShapeElement {
     func changingKind(to kind: ShapeKind) -> ShapeElement {
         guard kind != self.kind else { return self }
         var value = self; value.kind = kind
+        if kind != .rectangle { value.rectangularMarker = nil }
         value.vertices = nil; value.arcStart = nil; value.arcSweep = nil
         value.sides = kind == .star ? min(12, max(4, sides ?? 5)) : (kind == .polygon ? min(12, max(3, sides ?? 6)) : nil)
         value.innerRatio = kind == .star ? (innerRatio ?? 0.5) : nil

@@ -20,10 +20,12 @@ enum ShapePathRendering {
     static func draw(_ shape: ShapeElement, context: CGContext) {
         context.saveGState(); defer { context.restoreGState() }
         let outline = path(ShapeGeometry.path(for: shape))
+        if shape.rectangularMarker == true { context.setBlendMode(.multiply) }
         if let fill = shape.fill, !shape.kind.isOpen {
             context.setFillColor(UIColor(red: fill.red, green: fill.green, blue: fill.blue, alpha: shape.fillOpacity ?? 0.25).cgColor)
             context.addPath(outline); context.fillPath()
         }
+        guard shape.rectangularMarker != true else { return }
         let color = UIColor(red: shape.red, green: shape.green, blue: shape.blue, alpha: shape.strokeOpacity ?? 1)
         context.setStrokeColor(color.cgColor); context.setFillColor(color.cgColor)
         context.setLineWidth(shape.lineWidth); context.setLineCap(.round); context.setLineJoin(.round)

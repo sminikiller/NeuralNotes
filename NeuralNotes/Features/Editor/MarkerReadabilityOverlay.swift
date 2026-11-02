@@ -26,7 +26,7 @@ final class MarkerReadabilityOverlay: UIView {
         if PDFRasterCache.affects(note, page: page, package: host.surface.package) { setNeedsDisplay() }
     }
     func reset() { page = nil; generation = nil; patches = []; drawing = PKDrawing(); composition.clear(); layer.contents = nil; isHidden = true }
-    func update(_ host: CanvasHost?) {
+    func update(_ host: CanvasHost?, forceInk: Bool = false) {
         guard let host, let model = host.model else { reset(); return }
         self.host = host
         let visible = host.surface.frame.intersection(host.bounds)
@@ -34,7 +34,7 @@ final class MarkerReadabilityOverlay: UIView {
               host.canvas.layer.opacity > 0 else { isHidden = true; return }
         let nextZoom = max(0.05, host.canvas.zoomScale)
         let at = CGPoint(x: (visible.minX - host.surface.frame.minX) / nextZoom, y: (visible.minY - host.surface.frame.minY) / nextZoom)
-        let inkChanged = generation != model.inkDisplayGeneration || page?.id != model.page?.id
+        let inkChanged = forceInk || generation != model.inkDisplayGeneration || page?.id != model.page?.id
         let changed = inkChanged || page != host.surface.page || frame != visible || origin != at || zoom != nextZoom
         if inkChanged {
             drawing = host.canvas.drawing

@@ -5,7 +5,7 @@ import NeuralNotesCore
 @MainActor
 extension EditorViewModel {
     var markerWidth: Double { writingOptions.markerWidth ?? max(1, min(80, thickness * 5)) }
-    var wordHighlightEnabled: Bool { tool == .marker && !rulerActive && !protractorActive && writingOptions.markerSnapWords != false }
+    var wordHighlightEnabled: Bool { tool == .marker && !rulerActive && !protractorActive && writingOptions.effectiveMarkerMode == .words }
     var markerWordsActive: Bool {
         wordHighlightEnabled && page.map { !PageWordIndex.shared.groups(for: $0).isEmpty } == true
     }
@@ -13,7 +13,7 @@ extension EditorViewModel {
         tool == .marker && !rulerActive && !protractorActive && true
     }
     func prepareMarkerWords() {
-        guard wordHighlightEnabled, let page else { return }
+        guard wordHighlightEnabled || (tool == .marker && writingOptions.effectiveMarkerMode == .rectangle && writingOptions.rectangleSnapLines == true), let page else { return }
         if page.pdfFile != nil || !page.images.isEmpty || !canvas.drawing.strokes.isEmpty { PageWordIndex.shared.prepare(page, model: self) }
     }
     func highlightWords(_ selection: (words: [PageWord], indices: [Int])) {
@@ -43,9 +43,14 @@ struct MarkerOptions: View {
     let model: EditorViewModel
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Modalità evidenziatore", selection: Binding(get: { model.writingOptions.markerSnapWords != false }, set: { value in model.editWriting { $0.markerSnapWords = value } })) {
-                Text("Parole").tag(true); Text("Tratto libero").tag(false)
+            Picker("Modalità evidenziatore", selection: Binding(get: { model.writingOptions.effectiveMarkerMode }, set: { value in model.editWriting { $0.markerMode = value; $0.markerSnapWords = value == .words } })) {
+                ForEach(MarkerInputMode.allCases, id: \.self) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).accessibilityIdentifier("markerMode")
+            if model.writingOptions.effectiveMarkerMode == .rectangle {
+                Toggle("Aggancia alle righe del PDF", isOn: Binding(get: { model.writingOptions.rectangleSnapLines == true }, set: { value in model.editWriting { $0.rectangleSnapLines = value } }))
+                Text("Trascina da un angolo all’altro. Poi usa il lazo per spostare, ridimensionare o cambiare colore al rettangolo.").font(.caption).foregroundStyle(.secondary)
+            }
+            if model.writingOptions.effectiveMarkerMode != .rectangle {
             Text("Larghezza reale · \(model.markerWidth, specifier: "%.1f") pt").font(.callout.monospacedDigit())
             HStack {
                 ForEach(widths, id: \.self) { width in
@@ -57,6 +62,7 @@ struct MarkerOptions: View {
                 .accessibilityLabel("Larghezza reale dell’evidenziatore").accessibilityIdentifier("markerActualWidth")
             Text("In Parole sottolinea come con la Lente: si colorano solo le parole riconosciute, anche nei testi inseriti e nelle scansioni. Attendi la lettura iniziale della grafia. Per un segno a mano libera scegli Tratto libero; la larghezza riguarda solo quel segno.")
                 .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
     private var widths: [Double] {
