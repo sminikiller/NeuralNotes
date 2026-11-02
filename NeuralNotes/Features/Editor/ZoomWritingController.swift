@@ -141,7 +141,11 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
     }
     func finishAndClose() {
         guard !closed else { return }
-        completeNativeStroke(); host.drawingAssistant?.cancel(); closed = true
+        completeNativeStroke()
+        // Background/dismiss can arrive before a custom marker/eraser lifts.
+        // Commit the samples already delivered rather than discarding that pass.
+        if model.drawingShape { host.drawingAssistant?.end(cancelled: false) }
+        host.drawingAssistant?.detach(); closed = true
         host.canvas.delegate = nil; host.canvas.drawingGestureRecognizer.isEnabled = false
         overview?.removeFromSuperview(); overview = nil
         if model.zoomWritingController === self { model.zoomWritingController = nil }
