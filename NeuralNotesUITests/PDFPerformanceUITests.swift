@@ -48,6 +48,9 @@ final class PDFPerformanceUITests: XCTestCase {
         let written = try await waitForPixels(inkArea, app: app) { $0.black > beforeInk.black + 30 }
         XCTAssertGreaterThan(written.black, beforeInk.black + 30)
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "dense-PDF-zoom-scroll-marker-undo-and-pen"; shot.lifetime = .keepAlways; add(shot)
+        let counter = app.buttons["editorPageCounter"]
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: counter)], timeout: 10)
+        let settledShot = XCTAttachment(screenshot: app.screenshot()); settledShot.name = "dense-PDF-after-write-settled"; settledShot.lifetime = .keepAlways; add(settledShot)
         app.buttons["quickUndo"].tap()
         let undone = try await waitForPixels(inkArea, app: app) { $0.black <= beforeInk.black + 10 }
         XCTAssertLessThanOrEqual(undone.black, beforeInk.black + 10)

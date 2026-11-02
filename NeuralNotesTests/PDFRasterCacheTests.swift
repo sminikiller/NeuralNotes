@@ -209,8 +209,21 @@ final class PDFRasterCacheTests: XCTestCase {
             PKStrokePoint(location: point, timeOffset: Double(index) * 0.1, size: .init(width: 4, height: 4), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
         }
         let stroke = PKStroke(ink: PKInk(.pen, color: .black), path: PKStrokePath(controlPoints: points, creationDate: Date()))
+        host.updateNativeInkVisibility()
+        XCTAssertFalse(host.emptyInkCover.isHidden); XCTAssertTrue(host.paperDetail.isHidden)
         model.strokeBegan(); model.canvas.drawing = PKDrawing(strokes: [stroke])
-        model.drawingChanged(); model.strokeEnded(); model.finishInkGesture()
+        model.drawingChanged()
+        // No synchronizePage/layout call here: drawingDidChange must replace
+        // the empty cover with its high-resolution PDF detail immediately.
+        XCTAssertTrue(host.emptyInkCover.isHidden)
+        XCTAssertFalse(host.paperDetail.isHidden, "The first pen stroke must not expose only the blurry PDF preview until the next save/layout")
+        host.paperDetail.layer.displayIfNeeded()
+        let detailFormat = UIGraphicsImageRendererFormat(); detailFormat.scale = 1
+        let firstStrokeBackground = UIGraphicsImageRenderer(size: host.paperDetail.bounds.size, format: detailFormat).image {
+            host.paperDetail.layer.render(in: $0.cgContext)
+        }
+        XCTAssertGreaterThan(try blackPixels(firstStrokeBackground), 100, "Restoring visibility must also repaint the cleared detail backing store")
+        model.strokeEnded(); model.finishInkGesture()
         host.synchronizePage()
         XCTAssertTrue(host.emptyInkCover.isHidden); XCTAssertEqual(model.canvas.layer.opacity, 1)
         XCTAssertTrue(host.hitTest(CGPoint(x: 500, y: 400), with: nil)?.isDescendant(of: model.canvas) == true)
