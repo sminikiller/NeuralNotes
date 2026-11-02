@@ -24,6 +24,9 @@ extension CanvasHost {
         }
     }
     @objc func editorKey(_ command: UIKeyCommand) {
+        if writingViewport != nil, let parent = model?.pagePresenter as? CanvasHost, parent !== self {
+            parent.editorKey(command); return
+        }
         guard let model, !model.hasActiveStroke, !model.navigating, !model.loading else { return }
         let input = command.input ?? "", flags = command.modifierFlags
         if model.editingTextID != nil {

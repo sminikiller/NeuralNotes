@@ -43,6 +43,21 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
             controller.finishAndClose(); XCTAssertFalse(model.zoomWritingOpen)
         }
     }
+    @MainActor func testWritingWindowKeyboardPageFitTargetsTheAuthoritativeMainViewport() async throws {
+        try await fixture { model in
+            let parent = CanvasHost(canvas: model.canvas); parent.model = model; model.pagePresenter = parent
+            parent.surface.page = try XCTUnwrap(model.page); parent.frame = CGRect(x: 0, y: 0, width: 1000, height: 700); parent.layoutIfNeeded()
+            parent.togglePageZoom(animated: false); XCTAssertTrue(parent.fitsPageWidth)
+            model.zoomWritingOpen = true
+            let controller = ZoomWritingController(model: model); controller.host.frame = CGRect(x: 0, y: 0, width: 700, height: 200)
+            controller.resize(controller.host.bounds.size)
+            let command = UIKeyCommand(input: "0", modifierFlags: .command, action: #selector(CanvasHost.editorKey(_:)))
+            controller.host.editorKey(command)
+            XCTAssertFalse(parent.fitsPageWidth)
+            XCTAssertEqual(controller.geometry?.zoom, 3)
+            controller.finishAndClose()
+        }
+    }
     @MainActor func testLateNativeValueAndClosingDuringAMarkerPreserveDeliveredInk() async throws {
         try await fixture { model in
             model.zoomWritingOpen = true

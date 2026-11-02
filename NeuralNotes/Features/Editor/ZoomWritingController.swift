@@ -167,6 +167,7 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
         guard automatic else { return }
         geometry?.advance(after: .init(x: point.x, y: point.y), lineSpacing: lineSpacing); updateViewport()
     }
+    func refreshOverview() { overview?.refresh() }
     private func updateViewport() { host.writingViewport = geometry; host.setNeedsLayout(); host.layoutIfNeeded(); overview?.refresh() }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { if !installing { host.alignSurface() } }
 }

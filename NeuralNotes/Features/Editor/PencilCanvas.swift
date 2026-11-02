@@ -263,7 +263,7 @@ final class CanvasHost: UIView {
 
     func alignSurface() {
         if writingViewport != nil { alignWritingViewport(); return }
-        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update(); selectionPageDrag?.update(); updateNativeInkVisibility() }
+        defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update(); selectionPageDrag?.update(); updateNativeInkVisibility(); model?.zoomWritingController?.refreshOverview() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
             paperDetail.update(from: self)
