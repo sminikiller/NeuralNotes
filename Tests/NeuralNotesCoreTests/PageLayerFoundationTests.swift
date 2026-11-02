@@ -40,6 +40,35 @@ final class PageLayerFoundationTests: XCTestCase {
         page = original; page.layers = [PageLayer(id: page.id, name: "Base")] + (0..<16).map { PageLayer(name: "\($0)") }
         XCTAssertThrowsError(try PageValidation.validate(page))
     }
+    func testToolEligibilityAndExportUseOneScopeWithoutChangingHiddenContent() throws {
+        var page = PageSnapshot(); let base = PageLayer(id: page.id, name: "Base")
+        let hidden = PageLayer(name: "Hidden", isVisible: false), locked = PageLayer(name: "Locked", isLocked: true), active = PageLayer(name: "Active")
+        page.layers = [hidden, active, base, locked] // Base can be above another layer.
+        var a = TextElement(text: "A"); a.layerID = active.id
+        var b = TextElement(text: "B"); b.layerID = hidden.id
+        var c = TextElement(text: "C"); c.layerID = locked.id
+        let normal = TextElement(text: "Base"); page.texts = [a, b, c, normal]; page.lockedObjects = [a.id]
+        var mark = PDFMarkup(kind: .highlight, x: 10, y: 10, width: 10, height: 10, text: "word"); mark.layerID = active.id; page.pdfMarkups = [mark]
+        let original = page
+        XCTAssertEqual(PageLayers.ownedObjectIDs(in: page, layerID: active.id), [a.id])
+        XCTAssertEqual(PageLayers.editableObjectIDs(in: page, layerID: active.id), [])
+        XCTAssertEqual(PageLayers.editableObjectIDs(in: page, layerID: hidden.id), [])
+        XCTAssertEqual(PageLayers.editableObjectIDs(in: page, layerID: locked.id), [])
+        XCTAssertEqual(PageLayers.editableObjectIDs(in: page, layerID: page.id), [normal.id])
+        XCTAssertEqual(PageLayers.editableMarkupIDs(in: page, layerID: active.id), [mark.id])
+        XCTAssertEqual(LayerExportSelection.all.layers(in: page).map(\.id), [hidden.id, active.id, base.id, locked.id])
+        XCTAssertEqual(LayerExportSelection.visible.layers(in: page).map(\.id), [active.id, base.id, locked.id])
+        XCTAssertEqual(LayerExportSelection.selected([hidden.id]).layers(in: page).map(\.id), [hidden.id])
+        XCTAssertEqual(page, original); try PageValidation.validate(page)
+    }
+    func testCopiedNativeSignaturesAreSeparatedByLayerAndLegacyNilStillMeansBase() {
+        let page = UUID(), other = UUID(), signature = "same-native-path-and-date"
+        let legacy = LayerInkSignature(layerID: nil, pageID: page, signature: signature)
+        let explicitBase = LayerInkSignature(layerID: page, pageID: page, signature: signature)
+        let copied = LayerInkSignature(layerID: other, pageID: page, signature: signature)
+        XCTAssertEqual(legacy, explicitBase); XCTAssertNotEqual(legacy, copied)
+        XCTAssertEqual(Set([legacy, explicitBase, copied]).count, 2)
+    }
     func testMaintenanceInspectorAndUndoSnapshotRetainHiddenLayerFiles() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

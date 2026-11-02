@@ -54,6 +54,26 @@ public enum PageLayers {
         let embedded = (page.shapes ?? []).compactMap(\.audioAnchor) + (page.connectors ?? []).compactMap(\.audioAnchor)
         guard embedded.compactMap(\.layerID).allSatisfy(ids.contains) else { throw LibraryFailure.corruptDocument }
     }
+    public static func drawingFile(for id: UUID, in page: PageSnapshot) -> String? {
+        id == page.id ? page.drawingFile : page.layers?.first(where: { $0.id == id })?.drawingFile
+    }
+    public static func ownedObjectIDs(in page: PageSnapshot, layerID: UUID) -> Set<UUID> {
+        var result = Set<UUID>()
+        for value in page.texts where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }
+        for value in page.images where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }
+        for value in page.shapes ?? [] where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }
+        for value in page.connectors ?? [] where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }
+        for value in page.tapes ?? [] where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }
+        return result
+    }
+    public static func editableObjectIDs(in page: PageSnapshot, layerID: UUID) -> Set<UUID> {
+        guard editable(layerID, page: page) else { return [] }
+        return ownedObjectIDs(in: page, layerID: layerID).subtracting(page.lockedObjects ?? [])
+    }
+    public static func editableMarkupIDs(in page: PageSnapshot, layerID: UUID) -> Set<UUID> {
+        guard editable(layerID, page: page) else { return [] }
+        return Set((page.pdfMarkups ?? []).filter { canonical($0.layerID, page: page) == layerID }.map(\.id))
+    }
     private static func validDrawingPath(_ file: String) -> Bool {
         let parts = file.split(separator: "/", omittingEmptySubsequences: false)
         return file.utf8.count <= 1024 && file.hasPrefix("drawings/") && file.hasSuffix(".drawing") && !file.contains("\\") && !file.contains(":") &&
@@ -97,4 +117,23 @@ public extension PageSnapshot {
         if var list = pdfMarkups { for i in list.indices { list[i].layerID = owner(list[i].layerID) }; pdfMarkups = list }
         for i in anchors.indices { anchors[i].layerID = owner(anchors[i].layerID) }
     }
+}
+
+/// Export is a read-only selection. Hidden content is retained by native backup
+/// independently of the PDF/image choice here; no page flags are rewritten.
+public enum LayerExportSelection: Equatable, Sendable {
+    case all, visible, selected(Set<UUID>)
+    public func layers(in page: PageSnapshot) -> [PageLayer] {
+        PageLayers.ordered(in: page).filter { layer in
+            switch self { case .all: return true; case .visible: return layer.isVisible; case .selected(let ids): return ids.contains(layer.id) }
+        }
+    }
+}
+
+/// The same native stroke copied to another layer may keep its signature.
+/// A composite key prevents anchors on one layer from matching another's ink.
+public struct LayerInkSignature: Hashable, Sendable {
+    public let layerID: UUID
+    public let signature: String
+    public init(layerID: UUID?, pageID: UUID, signature: String) { self.layerID = layerID ?? pageID; self.signature = signature }
 }
