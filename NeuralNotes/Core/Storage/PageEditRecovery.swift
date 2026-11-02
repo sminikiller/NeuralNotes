@@ -76,8 +76,8 @@ enum PageEditRecovery {
             let current: PageSnapshot = try read(currentPath, package: package)
             guard current.id == next.id, current == next || current.revision == entry.expectedRevision else { throw WorkspaceFailure.staleRevision }
         } else if entry.expectedRevision != nil { throw LibraryFailure.missingItem }
-        let assets = [next.drawingFile, next.previousDrawingFile, next.pdfFile].compactMap { $0 } + next.images.map(\.file)
-        for drawing in [next.drawingFile, next.previousDrawingFile].compactMap({ $0 }) {
+        let assets = next.mediaFiles
+        for drawing in next.allDrawingFiles {
             guard drawing.hasPrefix("drawings/"), drawing.hasSuffix(".drawing") else { throw LibraryFailure.corruptDocument }
         }
         for asset in assets {

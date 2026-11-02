@@ -23,6 +23,7 @@ public struct ConnectorEnd: Codable, Equatable, Sendable {
 
 public struct ConnectorElement: Codable, Equatable, Identifiable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var from: ConnectorEnd, to: ConnectorEnd
     public var routing: ConnectorRouting
     public var controlPoints: [StrokeSample]?

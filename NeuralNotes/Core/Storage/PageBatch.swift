@@ -44,7 +44,7 @@ enum PageBatchRecovery {
             guard (try pageFile.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
             let current = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: pageFile))
             guard current.id == entry.page.id, current.revision == entry.expectedRevision || current == entry.page else { throw WorkspaceFailure.staleRevision }
-            for path in [entry.page.drawingFile, entry.page.previousDrawingFile, entry.page.pdfFile].compactMap({ $0 }) + entry.page.images.map(\.file) {
+            for path in entry.page.mediaFiles {
                 let url = try NativeArchive.fileURL(path, in: package)
                 guard try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { throw LibraryFailure.corruptDocument }
             }
@@ -69,7 +69,7 @@ public extension DocumentWorkspace {
             try PageValidation.validate(change.page)
             let current = try pageSnapshot(change.page.id)
             guard current.revision == change.expectedRevision, change.expectedRevision < Int.max else { throw WorkspaceFailure.staleRevision }
-            for path in [change.page.pdfFile, current.drawingFile].compactMap({ $0 }) + change.page.images.map(\.file) {
+            for path in change.page.mediaFiles.union([current.drawingFile].compactMap { $0 }) {
                 let file = try url(path)
                 guard try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { throw LibraryFailure.corruptDocument }
             }

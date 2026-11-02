@@ -67,7 +67,7 @@ extension NativeDocumentStore {
                 let oldURL = destination.appendingPathComponent("pages/\(original).json")
                 var page = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: oldURL))
                 guard page.id == original else { throw LibraryFailure.corruptDocument }
-                page.id = UUID()
+                page.id = UUID(); page.renewLayerIDs(from: original)
                 pageMap[original] = page.id
                 if page.texts.contains(where: { $0.pageLink != nil || $0.lensNote?.source != nil }) || (page.shapes ?? []).contains(where: { $0.pageLink != nil }) { linkedPageIDs.append(page.id) }
                 page.renewObjectIDs()

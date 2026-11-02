@@ -240,7 +240,7 @@ public actor DocumentWorkspace {
     public func duplicatePage(_ pageID: UUID) throws -> PageSnapshot {
         let original = try readPage(pageID)
         var copy = original
-        copy.id = UUID(); copy.revision = 0; copy.previousDrawingFile = nil
+        copy.id = UUID(); copy.renewLayerIDs(from: original.id); copy.revision = 0; copy.previousDrawingFile = nil
         copy.lastEditedAt = Date().timeIntervalSince1970
         copy.renewObjectIDs()
         for index in copy.anchors.indices { copy.anchors[index].id = UUID() }
@@ -449,7 +449,7 @@ public actor DocumentWorkspace {
               page.width > 0, page.height > 0, page.width <= 20000, page.height <= 20000 else {
             throw LibraryFailure.corruptDocument
         }
-        for path in [page.drawingFile, page.previousDrawingFile, page.pdfFile].compactMap({ $0 }) + page.images.map(\.file) {
+        for path in page.mediaFiles {
             _ = try url(path)
         }
         if let appearance = page.appearance, !appearance.isValid { throw LibraryFailure.corruptDocument }

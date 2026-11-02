@@ -49,7 +49,7 @@ public enum NativePackageInspector {
             let page: PageSnapshot = try read("pages/\(id).json")
             guard page.id == id else { throw LibraryFailure.corruptDocument }
             try PageValidation.validate(page)
-            for path in [page.drawingFile, page.previousDrawingFile, page.pdfFile].compactMap({ $0 }) + page.images.map(\.file) { try media(path) }
+            for path in page.mediaFiles { try media(path) }
         }
         if FileManager.default.fileExists(atPath: package.appendingPathComponent("catalog.json").path) {
             let catalog: DocumentCatalog = try read("catalog.json")

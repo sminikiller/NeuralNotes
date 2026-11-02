@@ -2,6 +2,7 @@ import Foundation
 
 public struct StudyTape: Codable, Equatable, Identifiable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var x: Double, y: Double, width: Double, height: Double
     public var revealed = false
     public init(x: Double = 48, y: Double = 120, width: Double = 320, height: Double = 56) {

@@ -47,10 +47,7 @@ extension DocumentWorkspace {
         var pages: [PageSnapshot] = []
         for id in imported.pageIDs {
             var page: PageSnapshot = try read("pages/\(id).json")
-            page.drawingFile = try page.drawingFile.map(mapped)
-            page.previousDrawingFile = try page.previousDrawingFile.map(mapped)
-            page.pdfFile = try page.pdfFile.map(mapped)
-            for position in page.images.indices { page.images[position].file = try mapped(page.images[position].file) }
+            try page.remapMedia(mapped)
             for position in page.texts.indices {
                 if var link = page.texts[position].pageLink, link.documentID == importedID {
                     link.documentID = index.documentID; page.texts[position].pageLink = link

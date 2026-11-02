@@ -6,6 +6,7 @@ public enum PDFMarkupKind: String, Codable, Sendable {
 }
 public struct PDFMarkup: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var kind: PDFMarkupKind
     public var x: Double, y: Double, width: Double, height: Double
     public var text: String

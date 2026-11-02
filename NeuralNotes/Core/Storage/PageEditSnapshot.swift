@@ -80,8 +80,8 @@ public actor PageEditSnapshotBuilder {
         let data = try encoder.encode(page)
         guard data.count <= 16 << 20 else { throw NativeArchiveFailure.limit }
         try reserve(Int64(data.count) + Int64(drawing?.count ?? 0))
-        for path in Set(page.images.map(\.file)).subtracting(media) {
-            guard path.hasPrefix("images/"), media.count < 50000 else { throw WorkspaceFailure.invalidPath }
+        for path in page.snapshotMediaFiles.subtracting(media) {
+            guard (path.hasPrefix("images/") || path.hasPrefix("drawings/")), media.count < 50000 else { throw WorkspaceFailure.invalidPath }
             let source = try NativeArchive.fileURL(path, in: sourcePackage)
             let info = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
             guard info.isRegularFile == true, let size = info.fileSize, (0...100 << 20).contains(size) else { throw NativeArchiveFailure.limit }

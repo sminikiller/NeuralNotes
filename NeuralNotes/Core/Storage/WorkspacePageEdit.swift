@@ -54,7 +54,7 @@ public extension DocumentWorkspace {
                 next.drawingFile = current?.drawingFile; next.previousDrawingFile = current?.previousDrawingFile
             }
             try PageValidation.validate(next)
-            for path in [next.drawingFile, next.previousDrawingFile, next.pdfFile].compactMap({ $0 }) + next.images.map(\.file) {
+            for path in next.mediaFiles {
                 guard try url(path).resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { throw LibraryFailure.corruptDocument }
             }
             try write(next, journal.header(id))

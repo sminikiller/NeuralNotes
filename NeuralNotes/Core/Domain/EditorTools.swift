@@ -34,6 +34,7 @@ public enum ShapeKind: String, Codable, CaseIterable, Sendable {
 
 public struct ShapeElement: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var kind: ShapeKind
     public var x: Double, y: Double, width: Double, height: Double
     public var red: Double, green: Double, blue: Double

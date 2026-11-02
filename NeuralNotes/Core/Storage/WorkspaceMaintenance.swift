@@ -22,7 +22,7 @@ extension DocumentWorkspace {
                 let data = try Data(contentsOf: file.url)
                 let page = try decoder.decode(PageSnapshot.self, from: data)
                 guard UUID(uuidString: file.url.deletingPathExtension().lastPathComponent) == page.id else { throw LibraryFailure.corruptDocument }
-                for path in [page.drawingFile, page.previousDrawingFile, page.pdfFile].compactMap({ $0 }) + page.images.map(\.file) {
+                for path in page.mediaFiles {
                     _ = try url(path); referenced.insert(path)
                 }
                 if !index.pageIDs.contains(page.id) { removed.append(page) }

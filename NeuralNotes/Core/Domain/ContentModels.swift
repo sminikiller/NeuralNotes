@@ -16,6 +16,7 @@ public enum PaperStyle: String, Codable, CaseIterable, Sendable {
 
 public struct TextElement: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var text: String
     public var x: Double = 48
     public var y: Double = 64
@@ -32,6 +33,7 @@ public struct TextElement: Codable, Identifiable, Equatable, Sendable {
 
 public struct ImageElement: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var file: String
     public var x: Double = 48
     public var y: Double = 120
@@ -63,6 +65,7 @@ public struct Attachment: Codable, Identifiable, Equatable, Sendable {
 
 public struct StrokeAnchor: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
+    public var layerID: UUID?
     public var signature: String
     public var audioSessionID: UUID
     public var seconds: Double
@@ -80,6 +83,7 @@ public struct PageSnapshot: Codable, Identifiable, Equatable, Sendable {
     public var paper: PaperStyle = .plain
     public var drawingFile: String?
     public var previousDrawingFile: String?
+    public var layers: [PageLayer]?
     public var pdfFile: String?
     public var pdfIndex: Int?
     public var texts: [TextElement] = []
