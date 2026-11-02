@@ -151,11 +151,10 @@ final class PDFRasterCache: NSObject {
         for (_, entry) in available {
             entry.touched = demand
             let density = CGFloat(entry.image.cgImage?.width ?? 0) / max(0.001, entry.bounds.width)
-            // The PDF already antialiases glyphs in the high-density tile.
-            // Filtering those edge pixels again loses dark text detail at a
-            // fractional pan offset. Only enlarge lower-resolution fallbacks
-            // with a filter; adequately sampled detail stays crisp.
-            context.interpolationQuality = density >= scale ? .none : .high
+            // Bilinear sampling keeps fractional pans smooth without the
+            // extra edge softening of the high-quality reconstruction filter.
+            // Nearest-neighbour over-darkens glyph edges at these offsets.
+            context.interpolationQuality = density >= scale ? .low : .high
             entry.image.draw(in: entry.bounds)
         }
         clock &+= 1
