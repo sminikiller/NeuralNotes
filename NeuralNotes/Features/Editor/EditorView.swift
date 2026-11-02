@@ -54,28 +54,32 @@ struct EditorView: View {
     @Environment(\.openWindow) private var openWindow
     @SceneStorage("editor.focus") private var focus = false
 
-    var body: some View {
-        NavigationStack {
-            presentations
-                .inspector(isPresented: $sideOpen) { studyInspector }
-                .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
-                .onChange(of: model.lensPanelRequest) { _, _ in lensPanelRequested() }
-                .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
-                .onChange(of: model.shapeStyleRequest) { _, _ in panel = .shapeStyle }
-                .onChange(of: model.connectorStyleRequest) { _, _ in panel = .connectorStyle }
-                .onChange(of: model.imageStraightenRequest) { _, _ in openImageCrop(straighten: true) }
-                .onChange(of: model.searchRequest) { _, _ in panel = .search }
-                .onChange(of: model.globalSearchRequest) { _, _ in panel = .globalSearch }
-                .onChange(of: model.openNotebookRequest) { _, _ in notebookSwitching?.open() }
-                .onChange(of: model.closeNotebookRequest) { _, _ in notebookSwitching?.close(notebook.id) }
-                .onChange(of: model.globalSearchDestinationRequest) { _, _ in Task { await model.consumeGlobalSearch() } }
-                .onChange(of: model.audio?.replayInk) { _, replay in if replay == true { model.closeZoomWriting() } }
-                .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
-                .onChange(of: model.selectionImageShareRequest) { _, _ in Task { await exportExtra("selection") } }
-                .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
-                .onChange(of: model.lensHighlight) { _, _ in model.refreshLensOverlays() }
-                .onChange(of: model.lensNoteFocus) { _, _ in model.refreshLensOverlays() }
-        }
+    var body: some View { NavigationStack { editorEvents } }
+
+    // Keep event routing in two small view expressions for the iPad compiler.
+    private var editorPresentations: some View {
+        presentations
+            .inspector(isPresented: $sideOpen) { studyInspector }
+            .onChange(of: model.lensRequest) { _, _ in sidePDF = false; sideOpen = true }
+            .onChange(of: model.lensPanelRequest) { _, _ in lensPanelRequested() }
+            .onChange(of: model.objectEditorRequest) { _, _ in panel = .elements }
+            .onChange(of: model.shapeStyleRequest) { _, _ in panel = .shapeStyle }
+            .onChange(of: model.connectorStyleRequest) { _, _ in panel = .connectorStyle }
+            .onChange(of: model.imageStraightenRequest) { _, _ in openImageCrop(straighten: true) }
+            .onChange(of: model.searchRequest) { _, _ in panel = .search }
+            .onChange(of: model.globalSearchRequest) { _, _ in panel = .globalSearch }
+            .onChange(of: model.openNotebookRequest) { _, _ in notebookSwitching?.open() }
+            .onChange(of: model.closeNotebookRequest) { _, _ in notebookSwitching?.close(notebook.id) }
+            .onChange(of: model.globalSearchDestinationRequest) { _, _ in Task { await model.consumeGlobalSearch() } }
+            .onChange(of: model.audio?.replayInk) { _, replay in if replay == true { model.closeZoomWriting() } }
+    }
+    private var editorEvents: some View {
+        editorPresentations
+            .onChange(of: model.focusRequest) { _, _ in focus.toggle() }
+            .onChange(of: model.selectionImageShareRequest) { _, _ in Task { await exportExtra("selection") } }
+            .onChange(of: model.lensPick) { _, _ in model.refreshLensOverlays() }
+            .onChange(of: model.lensHighlight) { _, _ in model.refreshLensOverlays() }
+            .onChange(of: model.lensNoteFocus) { _, _ in model.refreshLensOverlays() }
     }
 
     // The editor is built from a few small parts, so the type checker of Swift
