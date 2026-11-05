@@ -1,10 +1,51 @@
 import XCTest
 import UIKit
 import PencilKit
+import PDFKit
 import NeuralNotesCore
 @testable import NeuralNotes
 
 final class HandwritingSessionTests: XCTestCase {
+    @MainActor func test030FixtureKeepsItsNativeHandwritingThroughRefinementReopenPDFAndBackupImport() async throws {
+        try await fixture { model in
+            let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("Tests/Fixtures/0.30.0/page.json")
+            var legacy = try JSONDecoder().decode(PageSnapshot.self, from: Data(contentsOf: file))
+            let current = try XCTUnwrap(model.page)
+            legacy.id = current.id; legacy.revision = current.revision; legacy.layers?[0].id = current.id
+            model.page = legacy; model.drawingChanged()
+            let saved = await model.flush(); XCTAssertTrue(saved)
+            try await model.load(try XCTUnwrap(model.page))
+            model.tool = .objects; model.selectionIncludesInk = true; model.selectedStrokeIndices = nil
+            let original = model.canvas.drawing
+            model.beginHandwriting(.straighten); let preview = try await self.ready(model)
+            preview.apply(); let refined = model.canvas.drawing
+            XCTAssertFalse(NativeInkComparison.equal(refined, original))
+            let flushed = await model.flush(); XCTAssertTrue(flushed)
+            try await model.load(try XCTUnwrap(model.page))
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, refined))
+            XCTAssertEqual(model.page?.recognizedText, legacy.recognizedText)
+            let manifest = try await model.workspace.manifest()
+            let notebook = Notebook(id: manifest.notebookID, documentID: manifest.documentID, title: "Grafia precedente",
+                createdAt: Date(), updatedAt: Date(), folderID: nil, cover: .lagoon, isFavorite: false)
+            let backup = try await model.workspace.exportNative(metadata: notebook)
+            defer { try? FileManager.default.removeItem(at: backup) }
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let store = try NativeDocumentStore(root: root), documentID = UUID(), notebookID = UUID()
+            _ = try NativeImport.copy(from: backup, into: store, documentID: documentID, notebookID: notebookID)
+            let copy = DocumentWorkspace(package: store.packageURL(for: documentID), documentID: documentID, notebookID: notebookID)
+            let pages = try await copy.pages(), restored = try XCTUnwrap(pages.first)
+            XCTAssertNotEqual(restored.id, current.id); XCTAssertEqual(restored.recognizedText, legacy.recognizedText)
+            let native = try await LayerDrawingReader.read(page: restored, layerID: restored.id, workspace: copy)
+            XCTAssertTrue(NativeInkComparison.equal(native.drawing, refined)); try PageValidation.validate(restored)
+            let output = try await DocumentServices.exportPDF(workspace: copy)
+            defer { try? FileManager.default.removeItem(at: output) }
+            XCTAssertEqual(PDFDocument(url: output)?.pageCount, 1)
+            let pdf = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(pdf.page(at: 1)?.dictionary)
+            XCTAssertFalse(PDFResourceProbe.hasImages(dictionary), "Refined native handwriting must remain vector in PDF export")
+        }
+    }
     @MainActor func testUndoDuringPreviewOnlyCancelsTheProposalAndLeavesThePreviousRealActionInHistory() async throws {
         try await fixture { model in
             let original = model.canvas.drawing, title = model.page?.title
