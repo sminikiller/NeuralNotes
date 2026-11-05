@@ -114,11 +114,14 @@ public enum HandwritingLayout {
         var replacements: [Int: [StrokeSample]] = [:]
         switch action {
         case .straighten:
+            var previousPaperBaseline: Double?
             for line in analysis.lines {
                 var value = HandwritingAffine.rotating(-line.angle, about: line.baselineStart)
                 if options.alignLeft { value = value.translated(x: analysis.bounds.x - line.bounds.x) }
                 if let spacing = options.paperSpacing, spacing.isFinite, spacing > 0 {
-                    let target = ((line.baseline - options.paperOrigin) / spacing).rounded() * spacing + options.paperOrigin
+                    var target = ((line.baseline - options.paperOrigin) / spacing).rounded() * spacing + options.paperOrigin
+                    if let previousPaperBaseline { target = max(target, previousPaperBaseline + spacing) }
+                    previousPaperBaseline = target
                     value = value.translated(y: target - line.baseline)
                 }
                 for id in line.strokeIDs { transforms[id] = value }

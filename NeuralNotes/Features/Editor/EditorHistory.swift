@@ -55,6 +55,7 @@ extension EditorViewModel {
     }
 
     func mutatePage(_ label: String, _ action: (inout PageSnapshot) -> Void) {
+        cancelHandwriting()
         finishInkGesture()
         commitTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke, var value = page else { return }

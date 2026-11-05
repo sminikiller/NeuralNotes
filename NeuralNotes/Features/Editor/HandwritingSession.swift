@@ -46,7 +46,8 @@ final class HandwritingSession {
     }
     var isCurrent: Bool {
         guard !cancelled, let model, model.handwriting === self else { return false }
-        return model.hasLease && model.page?.id == before.page.id && model.drawingLayerID == (before.layerID ?? before.page.id) &&
+        return model.hasLease && !model.loading && !model.navigating && model.canEditActiveLayer &&
+            model.page?.id == before.page.id && model.drawingLayerID == (before.layerID ?? before.page.id) &&
             model.inkDisplayGeneration == generation && !model.inkReplayActive
     }
     var canApply: Bool { !preparing && proposal?.fitsPage == true && fitsRenderedPage && preview != nil && isCurrent }
@@ -103,7 +104,8 @@ final class HandwritingSession {
                 }
                 let proposal = try await withTaskCancellationHandler { try await worker.value } onCancel: { worker.cancel() }
                 try Task.checkCancellation()
-                guard let self, ticket == current, isCurrent else { return }
+                guard let self, ticket == current else { return }
+                guard isCurrent else { model?.cancelHandwriting(); return }
                 let next = try HandwritingNative.applying(proposal, to: original, allowed: selected)
                 let native = next.strokes
                 let painted = proposal.adjustments.reduce(CGRect.null) { $0.union(native[$1.strokeID].renderBounds) }
@@ -128,6 +130,9 @@ final class HandwritingSession {
               current.normalized == before.normalized, NativeInkComparison.equal(model.canvas.drawing, original) else {
             message = "Gli appunti sono cambiati. Annulla l’anteprima e selezionali di nuovo."; return
         }
+        let metadata = (try? JSONEncoder().encode(before.page).count) ?? 0
+        let cost = (before.drawing?.count ?? 0) + preview.dataRepresentation().count + metadata * 2
+        guard model.history.accepts(cost: cost) else { message = HandwritingFailure.tooLarge.localizedDescription; return }
         model.cancelHandwriting()
         guard !NativeInkComparison.equal(preview, original) else { model.status = "La grafia è già regolare"; return }
         model.installNativeInk(preview)
@@ -135,6 +140,7 @@ final class HandwritingSession {
         // Recognized text is content, not geometry. Keep it; invalidate its
         // old spatial index so future Pencil hits never use obsolete boxes.
         model.drawingChanged()
+        (model.pagePresenter as? CanvasHost)?.interaction?.refresh()
     }
 }
 

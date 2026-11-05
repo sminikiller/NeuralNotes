@@ -2,6 +2,15 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class HandwritingLayoutTests: XCTestCase {
+    func testPaperSnapKeepsCloseHandwrittenRowsOnDistinctRuledLines() throws {
+        let strokes = line(start: 0, y: 100, words: 1, height: 6) + line(start: 100, y: 110, words: 1, height: 6)
+        let analysis = try HandwritingLayout.analyze(strokes); XCTAssertEqual(analysis.lines.count, 2)
+        var options = HandwritingOptions(); options.paperSpacing = 32
+        let proposal = try HandwritingLayout.propose(.straighten, strokes: strokes, analysis: analysis, page: page, options: options)
+        let transforms = Dictionary(uniqueKeysWithValues: proposal.adjustments.map { ($0.strokeID, $0.transform) })
+        let y = analysis.lines.map { transforms[$0.strokeIDs[0]]!.applying($0.baselineStart).y }
+        XCTAssertEqual(y[0], 96, accuracy: 0.01); XCTAssertEqual(y[1], 128, accuracy: 0.01)
+    }
     func testParagraphBudgetRejectsExcessiveSelectionsBeforeGeometricWork() {
         let strokes = (0...HandwritingLayout.maximumStrokes).map { HandwritingStroke(id: $0, points: [.init(x: 10, y: 10)]) }
         XCTAssertThrowsError(try HandwritingLayout.analyze(strokes)) { error in

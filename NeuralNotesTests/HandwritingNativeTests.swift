@@ -4,6 +4,21 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class HandwritingNativeTests: XCTestCase {
+    @MainActor func testMaskedMiddleOfASparsePathCanBeAnalyzedWithoutReintroducingItsErasedEnds() throws {
+        let a = PKStrokePoint(location: CGPoint(x: 10, y: 50), timeOffset: 0, size: CGSize(width: 4, height: 4), opacity: 1, force: 0.4, azimuth: 0.2, altitude: 1)
+        let b = PKStrokePoint(location: CGPoint(x: 110, y: 70), timeOffset: 1, size: CGSize(width: 8, height: 8), opacity: 1, force: 0.9, azimuth: 0.4, altitude: 1)
+        let path = PKStrokePath(controlPoints: [a, b], creationDate: Date(timeIntervalSince1970: 1234))
+        let mask = UIBezierPath(rect: CGRect(x: 40, y: 0, width: 40, height: 200))
+        let stroke = PKStroke(ink: PKInk(.pen, color: .black), path: path, transform: .identity, mask: mask, randomSeed: 12)
+        let drawing = PKDrawing(strokes: [stroke])
+        let input = try HandwritingNative.analyze(drawing.dataRepresentation(), selected: [0])
+        XCTAssertEqual(input.strokes[0].points.count, 2)
+        XCTAssertGreaterThan(input.strokes[0].layoutPoints.count, 2)
+        XCTAssertTrue(input.strokes[0].layoutPoints.allSatisfy { $0.x >= 40 && $0.x <= 80 })
+        let proposal = try HandwritingLayout.propose(.straighten, strokes: input.strokes, analysis: input.analysis, page: page)
+        let result = try HandwritingNative.applying(proposal, to: drawing, allowed: [0])
+        assertAttributes(result.strokes[0], stroke, locations: true)
+    }
     private let page = SnapRect(x: 0, y: 0, width: 800, height: 1100)
 
     private func stroke(marker: Bool = false, masked: Bool = false) -> PKStroke {
@@ -44,7 +59,7 @@ final class HandwritingNativeTests: XCTestCase {
     @MainActor func testCleanupKeepsEveryPressureSampleAndMaskWithoutResurrectingErasedInk() throws {
         let source = PKDrawing(strokes: [stroke(masked: true)])
         let input = try HandwritingNative.analyze(source.dataRepresentation(), selected: [0])
-        XCTAssertLessThan(input.strokes[0].layoutPoints.count, input.strokes[0].points.count)
+        XCTAssertTrue(input.strokes[0].layoutPoints.allSatisfy { $0.x >= 105 && $0.x <= 175 })
         XCTAssertGreaterThanOrEqual(input.strokes[0].bounds.x, 105)
         let proposal = try HandwritingLayout.propose(.cleanup(.strong), strokes: input.strokes, analysis: input.analysis, page: page)
         let result = try HandwritingNative.applying(proposal, to: source, allowed: [0])

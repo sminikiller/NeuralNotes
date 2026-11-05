@@ -17,7 +17,7 @@ enum HandwritingNative {
             throw HandwritingFailure.invalidSelection
         }
         guard selected.count <= HandwritingLayout.maximumStrokes else { throw HandwritingFailure.tooLarge }
-        var result: [HandwritingStroke] = [], count = 0
+        var result: [HandwritingStroke] = [], count = 0, layoutCount = 0
         for index in selected.sorted() {
             try Task.checkCancellation()
             let stroke = drawing.strokes[index]
@@ -28,13 +28,33 @@ enum HandwritingNative {
                 let position = point.location.applying(stroke.transform)
                 return .init(x: position.x, y: position.y)
             }
+            guard points.allSatisfy({ $0.x.isFinite && $0.y.isFinite && abs($0.x) <= 10_000_000 && abs($0.y) <= 10_000_000 }) else {
+                throw HandwritingFailure.invalidSelection
+            }
             // Erased portions must not determine word widths or baselines.
             // The full original point list is still used for smoothing.
-            let visible = stroke.path.enumerated().compactMap { offset, point -> StrokeSample? in
-                if let mask = stroke.mask, !mask.contains(point.location) { return nil }
-                return points[offset]
-            }
+            let visible: [StrokeSample]
+            if let mask = stroke.mask {
+                var length: CGFloat = 0, previous: CGPoint?
+                for point in stroke.path {
+                    guard point.location.x.isFinite, point.location.y.isFinite else { throw HandwritingFailure.invalidSelection }
+                    if let previous { length += hypot(point.location.x - previous.x, point.location.y - previous.y) }
+                    previous = point.location
+                }
+                guard length.isFinite else { throw HandwritingFailure.invalidSelection }
+                var samples: [StrokeSample] = []
+                // The remaining middle of a two-point path can be visible even
+                // when neither original control point is inside the mask.
+                let distance = max(1, length / 512)
+                for point in stroke.path.interpolatedPoints(by: .distance(distance)).prefix(2048) where mask.contains(point.location) && point.opacity > 0.001 {
+                    let world = point.location.applying(stroke.transform)
+                    samples.append(.init(x: world.x, y: world.y))
+                }
+                visible = samples
+            } else { visible = points }
             guard !visible.isEmpty else { continue }
+            layoutCount += visible.count
+            guard layoutCount <= HandwritingLayout.maximumPoints else { throw HandwritingFailure.tooLarge }
             result.append(.init(id: index, points: points, layoutPoints: visible))
         }
         return Input(strokes: result, analysis: try HandwritingLayout.analyze(result, lineHints: lineHints))
