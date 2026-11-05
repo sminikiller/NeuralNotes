@@ -95,4 +95,34 @@ final class PageLayerEditingTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(originalFile)), bytes)
     }
 
+    func testFileBackedLayerHistoryRestoresEveryBaseAndLayerPointerAfterPackageCleanup() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID), workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = try await workspace.addPage()
+        let added = try PageLayerEditing.adding(to: page, name: "Notes"); page = added.page
+        page.revision += 1; page = try await workspace.save(page, drawing: Data([10]))
+        page.revision += 1; page = try await workspace.save(page, drawing: Data([20]), layerID: added.layerID)
+        let before = page, baseFile = try XCTUnwrap(page.drawingFile), layerFile = try XCTUnwrap(page.layers?.last?.drawingFile)
+        let builder = try PageEditSnapshotBuilder(documentID: manifest.documentID, parent: root.appendingPathComponent("undo"), preservingBaseReferences: true)
+        try await builder.append(page, drawing: nil, sourcePackage: package)
+        let saved = try await builder.finish()
+        XCTAssertTrue(saved.preservesBaseReferences); XCTAssertNil(try saved.drawingURL(page.id))
+        for revision in 1...4 {
+            page.revision += 1; page = try await workspace.save(page, drawing: Data([UInt8(30 + revision)]))
+            page.revision += 1; page = try await workspace.save(page, drawing: Data([UInt8(40 + revision)]), layerID: added.layerID)
+        }
+        _ = try await workspace.cleanUnusedFiles()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: package.appendingPathComponent(baseFile).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: package.appendingPathComponent(layerFile).path))
+        try await workspace.applyPageEdit(saved, expectedOrder: [page.id], newOrder: [page.id], expectedRevisions: [page.id: page.revision])
+        let restored = try await workspace.pageSnapshot(page.id)
+        XCTAssertEqual(restored.drawingFile, before.drawingFile); XCTAssertEqual(restored.layers, before.layers)
+        XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(baseFile)), Data([10]))
+        XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(layerFile)), Data([20]))
+        XCTAssertNoThrow(try NativePackageInspector.inspect(package))
+    }
+
 }

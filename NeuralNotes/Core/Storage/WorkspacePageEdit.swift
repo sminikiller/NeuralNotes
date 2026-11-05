@@ -50,7 +50,7 @@ public extension DocumentWorkspace {
                 let file = "drawings/\(id)-\(UUID()).drawing"
                 try FileManager.default.copyItem(at: ink, to: url(file))
                 next.drawingFile = file; next.previousDrawingFile = current?.drawingFile
-            } else {
+            } else if !snapshot.preservesBaseReferences {
                 next.drawingFile = current?.drawingFile; next.previousDrawingFile = current?.previousDrawingFile
             }
             try PageValidation.validate(next)

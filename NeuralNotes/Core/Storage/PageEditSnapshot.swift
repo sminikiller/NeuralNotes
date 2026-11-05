@@ -7,11 +7,13 @@ public final class PageEditSnapshot: Sendable {
     public let directory: URL
     public let pageIDs: [UUID]
     public let byteCount: Int64
+    public let preservesBaseReferences: Bool
     public var residentCost: Int { 1024 + pageIDs.count * 32 + media.reduce(0) { $0 + $1.utf8.count + 64 } }
     private let drawings: Set<UUID>, media: Set<String>, ids: Set<UUID>
-    fileprivate init(documentID: UUID, directory: URL, pageIDs: [UUID], drawings: Set<UUID>, media: Set<String>, bytes: Int64) {
+    fileprivate init(documentID: UUID, directory: URL, pageIDs: [UUID], drawings: Set<UUID>, media: Set<String>, bytes: Int64, preservesBaseReferences: Bool) {
         self.documentID = documentID; self.directory = directory; self.pageIDs = pageIDs
         self.drawings = drawings; self.media = media; self.byteCount = bytes; ids = Set(pageIDs)
+        self.preservesBaseReferences = preservesBaseReferences
     }
     public func page(_ id: UUID) throws -> PageSnapshot {
         guard ids.contains(id) else { throw LibraryFailure.missingItem }
@@ -56,8 +58,9 @@ public actor PageEditSnapshotBuilder {
     private let documentID: UUID, directory: URL
     private var ids: [UUID] = [], idSet = Set<UUID>(), drawings = Set<UUID>(), media = Set<String>()
     private var bytes: Int64 = 0, finished = false
-    public init(documentID: UUID, parent: URL? = nil) throws {
-        self.documentID = documentID
+    private let preservingBaseReferences: Bool
+    public init(documentID: UUID, parent: URL? = nil, preservingBaseReferences: Bool = false) throws {
+        self.documentID = documentID; self.preservingBaseReferences = preservingBaseReferences
         let manager = FileManager.default
         let support = try parent ?? PageEditHistoryRoot.managed.get()
         let root = support.standardizedFileURL.resolvingSymlinksInPath()
@@ -80,7 +83,9 @@ public actor PageEditSnapshotBuilder {
         let data = try encoder.encode(page)
         guard data.count <= 16 << 20 else { throw NativeArchiveFailure.limit }
         try reserve(Int64(data.count) + Int64(drawing?.count ?? 0))
-        for path in page.snapshotMediaFiles.subtracting(media) {
+        var retained = page.snapshotMediaFiles
+        if preservingBaseReferences { retained.formUnion([page.drawingFile, page.previousDrawingFile].compactMap { $0 }) }
+        for path in retained.subtracting(media) {
             guard (path.hasPrefix("images/") || path.hasPrefix("drawings/")), media.count < 50000 else { throw WorkspaceFailure.invalidPath }
             let source = try NativeArchive.fileURL(path, in: sourcePackage)
             let info = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
@@ -102,7 +107,7 @@ public actor PageEditSnapshotBuilder {
         try Task.checkCancellation()
         guard !finished, !ids.isEmpty else { throw WorkspaceFailure.emptyDocument }
         finished = true
-        return PageEditSnapshot(documentID: documentID, directory: directory, pageIDs: ids, drawings: drawings, media: media, bytes: bytes)
+        return PageEditSnapshot(documentID: documentID, directory: directory, pageIDs: ids, drawings: drawings, media: media, bytes: bytes, preservesBaseReferences: preservingBaseReferences)
     }
     private func reserve(_ additional: Int64) throws {
         let info = try FileManager.default.attributesOfFileSystem(forPath: directory.path)
