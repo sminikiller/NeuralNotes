@@ -16,8 +16,8 @@ final class PDFPerformanceUITests: XCTestCase {
         XCTAssertEqual(canvas.frame.width, originalFrame.width, accuracy: 1); XCTAssertEqual(canvas.frame.height, originalFrame.height, accuracy: 1)
 
         app.buttons["editorWorkspace"].tap()
-        let gestures = app.buttons["Gesti e automatismi"], list = app.collectionViews["workspaceList"]
-        for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
+        let gestures = app.buttons["workspaceGestures"], list = app.collectionViews["workspaceList"]
+        revealWorkspaceRow(gestures, in: list)
         XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
         let finger = app.switches["Scrittura con il dito"]; XCTAssertTrue(finger.waitForExistence(timeout: 5))
         finger.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap()

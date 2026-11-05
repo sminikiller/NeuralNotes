@@ -169,8 +169,25 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
             PageRenderer.draw(page, package: URL(fileURLWithPath: "/"), in: target.cgContext)
         }
         let yellow = try pixel(image, point: CGPoint(x: 90, y: 100)), black = try pixel(image, point: CGPoint(x: 120, y: 115))
-        XCTAssertGreaterThan(yellow[0], 245); XCTAssertGreaterThan(yellow[1], 245)
-        XCTAssertLessThanOrEqual(abs(Int(yellow[2]) - 191), 3)
+        // The named yellow is (1, .83, .12), not RGB(1, 1, 0).
+        // Compare against a real freehand marker at the same 25% opacity,
+        // and independently check the multiply equation on white paper.
+        var referencePage = page; referencePage.shapes = [printed]
+        let color = UIColor(red: InkColor.yellow.red, green: InkColor.yellow.green, blue: InkColor.yellow.blue, alpha: 1)
+        let a = PKStrokePoint(location: .init(x: 80, y: 120), timeOffset: 0, size: .init(width: 60, height: 60), opacity: 0.25, force: 1, azimuth: 0, altitude: .pi / 2)
+        let b = PKStrokePoint(location: .init(x: 200, y: 120), timeOffset: 1, size: .init(width: 60, height: 60), opacity: 0.25, force: 1, azimuth: 0, altitude: .pi / 2)
+        let stroke = PKStroke(ink: PKInk(.marker, color: color), path: PKStrokePath(controlPoints: [a, b], creationDate: Date()))
+        let reference = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 250), format: format).image { target in
+            PageRenderer.draw(referencePage, package: URL(fileURLWithPath: "/"), in: target.cgContext)
+            LegibleInkRenderer.draw(PKDrawing(strokes: [stroke]), in: target.cgContext, bounds: CGRect(x: 0, y: 0, width: 300, height: 250), scale: 1)
+        }
+        let nativeYellow = try pixel(reference, point: CGPoint(x: 90, y: 100))
+        let components = [InkColor.yellow.red, InkColor.yellow.green, InkColor.yellow.blue]
+        for channel in 0..<3 {
+            let expected = Int((255 * (0.75 + components[channel] * 0.25)).rounded())
+            XCTAssertLessThanOrEqual(abs(Int(yellow[channel]) - expected), 3)
+            XCTAssertLessThanOrEqual(abs(Int(yellow[channel]) - Int(nativeYellow[channel])), 2)
+        }
         XCTAssertLessThan(black[0], 10); XCTAssertLessThan(black[1], 10); XCTAssertLessThan(black[2], 10)
         let outline = ShapePathRendering.path(ShapeGeometry.path(for: marker))
         XCTAssertEqual(outline.boundingBoxOfPath, CGRect(x: 80, y: 90, width: 120, height: 60))
