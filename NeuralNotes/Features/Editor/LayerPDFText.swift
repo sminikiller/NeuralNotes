@@ -35,8 +35,13 @@ import CoreText
                 super.showCGGlyphs(glyphs, positions: positions, count: glyphCount, font: font,
                     textMatrix: textMatrix, attributes: attributes, in: context); return
             }
-            let native = CTFontCreateWithName(font.fontName as CFString, font.pointSize, nil)
+            // Preserve the resolved font instance, including optical-size and
+            // variation axes. Recreating a system font by name can change its
+            // glyph outlines while the layout still uses the original metrics.
+            let native = font as CTFont
             context.saveGState(); defer { context.restoreGState() }
+            if let color = attributes[.foregroundColor] as? UIColor { context.setFillColor(color.cgColor) }
+            if let color = attributes[.strokeColor] as? UIColor { context.setStrokeColor(color.cgColor) }
             let stroke = (attributes[.strokeWidth] as? NSNumber)?.doubleValue ?? 0
             if stroke != 0 { context.setLineWidth(font.pointSize * CGFloat(abs(stroke)) / 100) }
             for index in 0..<glyphCount {

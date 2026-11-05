@@ -33,7 +33,7 @@ struct PreparedLayerInk {
     }
     func drawMarkers(in context: CGContext) {
         guard let markers else { return }
-        context.saveGState(); context.setBlendMode(.multiply); markers.draw(in: bounds); context.restoreGState()
+        context.saveGState(); markers.draw(in: bounds, blendMode: .multiply, alpha: 1); context.restoreGState()
     }
     func drawPens(in context: CGContext) {
         guard let pens else { return }
