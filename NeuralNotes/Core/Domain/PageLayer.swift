@@ -57,6 +57,9 @@ public enum PageLayers {
     public static func drawingFile(for id: UUID, in page: PageSnapshot) -> String? {
         id == page.id ? page.drawingFile : page.layers?.first(where: { $0.id == id })?.drawingFile
     }
+    public static func previousDrawingFile(for id: UUID, in page: PageSnapshot) -> String? {
+        id == page.id ? page.previousDrawingFile : page.layers?.first(where: { $0.id == id })?.previousDrawingFile
+    }
     public static func ownedObjectIDs(in page: PageSnapshot, layerID: UUID) -> Set<UUID> {
         var result = Set<UUID>()
         for value in page.texts where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }

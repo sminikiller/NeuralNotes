@@ -164,7 +164,22 @@ public actor DocumentWorkspace {
         let target = layerID ?? page.id
         guard PageLayers.ordered(in: page).contains(where: { $0.id == target }) else { throw LibraryFailure.missingItem }
         guard let file = PageLayers.drawingFile(for: target, in: page) else { return nil }
-        return try Data(contentsOf: url(file))
+        return try boundedDrawing(file)
+    }
+
+    public func previousDrawing(_ page: PageSnapshot, layerID: UUID? = nil) throws -> Data? {
+        let target = layerID ?? page.id
+        guard PageLayers.ordered(in: page).contains(where: { $0.id == target }) else { throw LibraryFailure.missingItem }
+        guard let file = PageLayers.previousDrawingFile(for: target, in: page) else { return nil }
+        return try boundedDrawing(file)
+    }
+    private func boundedDrawing(_ relative: String) throws -> Data {
+        let file = try url(relative), info = try file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard info.isRegularFile == true else { throw LibraryFailure.corruptDocument }
+        guard let size = info.fileSize, size <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+        let value = try Data(contentsOf: file, options: .mappedIfSafe)
+        guard value.count <= 100 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
+        return value
     }
 
     public func addPage(_ input: PageSnapshot = PageSnapshot()) throws -> PageSnapshot {
