@@ -28,6 +28,15 @@ public extension DocumentWorkspace {
     /// Copy immutable bytes without loading PKDrawing into memory. Source
     /// metadata remains unchanged if preparation or the final header fails.
     func duplicateLayer(pageID: UUID, layerID: UUID, name: String) throws -> (page: PageSnapshot, layerID: UUID) {
+        let result = try prepareLayerDuplicate(pageID: pageID, layerID: layerID, name: name)
+        let saved = try saveLayerMetadata(result.page, expectedRevision: result.page.revision)
+        return (saved, result.layerID)
+    }
+    /// Prepare immutable media without publishing the header. The editor uses
+    /// this with its existing file-backed undo journal so duplication commits
+    /// together with one chronological history entry. Abandoned media is
+    /// unreachable and can be reclaimed by ordinary package maintenance.
+    func prepareLayerDuplicate(pageID: UUID, layerID: UUID, name: String) throws -> (page: PageSnapshot, layerID: UUID) {
         let original = try pageSnapshot(pageID)
         let source = PageLayers.drawingFile(for: layerID, in: original)
         let copied = source.map { _ in "drawings/\(pageID)-\(UUID()).drawing" }
@@ -39,7 +48,6 @@ public extension DocumentWorkspace {
             try FileManager.default.copyItem(at: file, to: url(copied))
         }
         try Task.checkCancellation()
-        let saved = try saveLayerMetadata(result.page, expectedRevision: original.revision)
-        return (saved, result.layerID)
+        return result
     }
 }

@@ -7,6 +7,8 @@ struct EditorDiskChange {
     let before: PageEditSnapshot, after: PageEditSnapshot
     let beforeOrder: [UUID], afterOrder: [UUID]
     let beforePage: UUID, afterPage: UUID
+    var beforeLayerID: UUID? = nil
+    var afterLayerID: UUID? = nil
     var residentCost: Int { before.residentCost + after.residentCost + (beforeOrder.count + afterOrder.count) * 24 }
     var diskCost: Int64 {
         let sum = before.byteCount.addingReportingOverflow(after.byteCount)
@@ -45,7 +47,19 @@ extension EditorViewModel {
         do {
             pages = try await workspace.pages()
             let focus = undo ? change.beforePage : change.afterPage
-            if let selected = pages.first(where: { $0.id == focus }) ?? pages.first { try await load(selected) }
+            if let selected = pages.first(where: { $0.id == focus }) ?? pages.first {
+                try await load(selected)
+                if let requested = undo ? change.beforeLayerID : change.afterLayerID, let current = page {
+                    let owner = PageLayers.editable(requested, page: current) ? requested :
+                        (PageLayers.ordered(in: current).first(where: { PageLayers.editable($0.id, page: current) })?.id ?? current.id)
+                    if owner != current.id {
+                        let value = try await LayerDrawingReader.read(page: current, layerID: owner, workspace: workspace)
+                        installLayerInk(value.drawing, owner: owner, recovered: value.recoveredFromPrevious)
+                        dirty = value.recoveredFromPrevious
+                        configureTool()
+                    }
+                }
+            }
         } catch { self.error = "Modifica salvata. Riapri il quaderno per aggiornare la visualizzazione: \(error.localizedDescription)" }
         scheduleMaintenance()
     }

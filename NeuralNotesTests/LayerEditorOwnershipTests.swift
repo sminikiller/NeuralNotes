@@ -86,6 +86,65 @@ final class LayerEditorOwnershipTests: XCTestCase {
         }
     }
 
+    @MainActor func testLayerMetadataAndNativeInkShareOneChronologicalUndoAcrossOwnerChanges() async throws {
+        try await fixture { model, _, base, _ in
+            let pageID = try XCTUnwrap(model.page?.id)
+            let added = await model.performLayerOperation(.add("New notes")); XCTAssertTrue(added)
+            let owner = try XCTUnwrap(model.drawingLayerID)
+            XCTAssertNotEqual(owner, pageID); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            let before = model.captureEdit(ink: true), ink = PKDrawing(strokes: [self.stroke(x: 340)])
+            model.replaceInkSession(with: ink); model.recordEdit(before, label: "Inchiostro"); model.drawingChanged()
+            let hidden = await model.performLayerOperation(.visibility(owner, false)); XCTAssertTrue(hidden)
+            XCTAssertEqual(model.drawingLayerID, pageID)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, base))
+            await model.performUndo()
+            XCTAssertEqual(model.drawingLayerID, owner)
+            XCTAssertTrue(model.page?.layers?.first(where: { $0.id == owner })?.isVisible == true)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, ink))
+            await model.performUndo()
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            await model.performUndo()
+            XCTAssertEqual(model.drawingLayerID, pageID)
+            XCTAssertFalse(model.page?.layers?.contains(where: { $0.id == owner }) == true)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, base))
+            await model.performRedo(); await model.performRedo()
+            XCTAssertEqual(model.drawingLayerID, owner)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, ink))
+        }
+    }
+
+    @MainActor func testDuplicateAndDeleteKeepIndependentNativeFilesAndUndoRestoresTheDeletedVectors() async throws {
+        try await fixture { model, originalID, base, upper in
+            await model.selectLayer(originalID)
+            let sourceFile = try XCTUnwrap(PageLayers.drawingFile(for: originalID, in: XCTUnwrap(model.page)))
+            let copied = await model.performLayerOperation(.duplicate(originalID, "Copy")); XCTAssertTrue(copied)
+            let copyID = try XCTUnwrap(model.drawingLayerID)
+            XCTAssertNotEqual(copyID, originalID)
+            let copyFile = try XCTUnwrap(PageLayers.drawingFile(for: copyID, in: XCTUnwrap(model.page)))
+            XCTAssertNotEqual(copyFile, sourceFile)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, upper))
+            let before = model.captureEdit(ink: true)
+            let edited = PKDrawing(strokes: upper.strokes + [self.stroke(x: 400)])
+            model.replaceInkSession(with: edited); model.recordEdit(before, label: "Inchiostro"); model.drawingChanged()
+            let removed = await model.performLayerOperation(.remove(copyID)); XCTAssertTrue(removed)
+            XCTAssertFalse(model.page?.layers?.contains(where: { $0.id == copyID }) == true)
+            await model.performUndo()
+            XCTAssertEqual(model.drawingLayerID, copyID)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, edited))
+            let page = try XCTUnwrap(model.page)
+            let source = try await LayerDrawingReader.read(page: page, layerID: originalID, workspace: model.workspace)
+            let baseRead = try await LayerDrawingReader.read(page: page, layerID: page.id, workspace: model.workspace)
+            XCTAssertTrue(NativeInkComparison.equal(source.drawing, upper))
+            XCTAssertTrue(NativeInkComparison.equal(baseRead.drawing, base))
+            XCTAssertEqual(PageLayers.drawingFile(for: originalID, in: page), sourceFile)
+            await model.performUndo(); await model.performUndo()
+            XCTAssertFalse(model.page?.layers?.contains(where: { $0.id == copyID }) == true)
+            await model.performRedo()
+            XCTAssertEqual(model.drawingLayerID, copyID)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, upper))
+        }
+    }
+
     @MainActor private func stroke(x: CGFloat) -> PKStroke {
         let a = PKStrokePoint(location: CGPoint(x: x, y: 120), timeOffset: 0,
             size: CGSize(width: 4, height: 5), opacity: 0.9, force: 0.72, azimuth: 0.3, altitude: 1)
