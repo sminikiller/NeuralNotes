@@ -20,3 +20,16 @@ Stato: implementazione candidata locale, non ancora compilata con SDK Apple e no
 Eseguire l’intera fase con SDK26.6: test Core geometria/compatibilità/riordino/palette/audio, test nativi RTF/PDF e annulla campo attivo, canvas figlio/annulla-nuovo tratto/marker/gomma/coordinata, pixel moltiplica e rendering replay. Eseguire le prove UI della finestra con tratto vero, annulla/ripristina e ripristino del layout, palette, mantenendo le regressioni PDF, riconoscimento e marcatura già verdi. Ispezionare gli screenshot, verificare lo ZIP esatto della CI, quindi usare la corsia TestFlight esistente. Nessun risultato SDK ancora dichiarato per 0.29.
 
 Restano da misurare su iPad fisico pressione Apple Pencil, latenza e rotazione durante una scrittura reale. Non sono verificabili con il solo parser Windows.
+
+
+## Collaudo completo e ultimo lotto di correzioni
+
+La [run41992864208](https://github.com/sminikiller/NeuralNotes/actions/runs/41992864208), sorgenti0b8a647, ha passato Core386+98, Release, PlaygroundsRelease dispositivo/simulatore+60controlli, aggiornamento con quaderni precedenti e backend. Dei639 test nativi:636 passati,2saltati,1fallito con due asserzioni di colore. Dei47 testUI:40passati e7interrotti prima della scrittura nella navigazione delle impostazioni.
+
+Il test del marker rettangolare assumevaRGB(1,1,0), mentre il giallo della palette è(1,.83,.12). Il controllo ora confronta tutti e tre i canali col vero evidenziatore libero e con l'equazione multiply25%, mantenendo tolleranze strette e il controllo sul nero dei contenuti. Non cambia il colore dell'app per adattarlo a un oracolo errato.
+
+Il filmato CI della finestra zoom mostra che gli swipe lunghi saltavano direttamente dall'inizio del Workspace alle righe successive a Gesti e automatismi, che viene virtualizzata. Un helper condiviso usa brevi trascinamenti lenti e richiede comunque la riga reale esistente e toccabile. La voce riceve un identificatore accessibile stabile. Nessuna fixture salta l'interfaccia; scrittura, evidenziatore, annulla e zoom restano gesti e verifiche reali.
+
+L'audit ha anche corretto un caso dei margini della finestra zoom: dopo un viewport limitato dalla pagina, ridurre i margini ripristina la vera larghezza del pannello. Una provaCore controlla il roundtrip. La formula è locale alla finestra facoltativa e non cambia doppio tap o cachePDF. Un controllo statico intercetta dichiarazioni multiple incompatibili con Observable prima di iniziare AppleCI.
+
+[Verifica finale42001223527](https://github.com/sminikiller/NeuralNotes/actions/runs/42001223527), sorgentiab73e4f5bd9bb12f615cda1791ac373473c530c9: Core completo, nativi critici con tutte le nuove classi, i sette scenariUI ancora da concludere, Release e pacchettoPlaygroundsRelease con avvio. Riutilizza i quaranta scenariUI già conclusi, evitando di ripeterli per la sola formula dei margini o per il helper di scorrimento. In corso: non è dichiarato alcun nuovo PASS o upload0.29. La beta realmente caricata rimane1.0.0(177), PDF0.28.2.
