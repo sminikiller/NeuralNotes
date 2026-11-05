@@ -21,7 +21,7 @@ extension EditorViewModel {
         let bounds = selectionBounds.insetBy(dx: -2, dy: -2)
         guard !bounds.isNull, !bounds.isEmpty, [bounds.minX, bounds.minY, bounds.width, bounds.height].allSatisfy(\.isFinite),
               bounds.width * 2 <= 8192, bounds.height * 2 <= 8192, bounds.width * bounds.height * 4 <= 32_000_000 else { throw WorkspaceFailure.oversizedImport }
-        let selected = page.includingInternalConnectors(selectedIDs)
+        let selected = scopedSelectionIDs(in: page)
         let strokes = selectionIncludesInk ? canvas.drawing.strokes.enumerated().filter { selectedStrokeIndices?.contains($0.offset) ?? true }.map(\.element) : []
         guard !selected.isEmpty || !strokes.isEmpty else { throw WorkspaceFailure.emptyDocument }
         let ink = PKDrawing(strokes: strokes)
@@ -35,11 +35,11 @@ extension EditorViewModel {
         }
     }
     /// OCR still receives a white-paper crop, not a transparent clipboard image.
-    func selectionAreaImage() throws -> UIImage {
+    func selectionAreaImage() async throws -> UIImage {
         guard let page else { throw WorkspaceFailure.emptyDocument }
         let box = selectionBounds.intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
         guard !box.isNull, box.width > 0, box.height > 0 else { throw WorkspaceFailure.emptyDocument }
-        let image = DocumentServices.image(page: page, drawing: canvas.drawing, workspace: workspace, maxDimension: 2048)
+        let image = try await DocumentServices.compositeImage(page: page, drawing: canvas.drawing, drawingLayerID: activeLayerID, workspace: workspace, maxDimension: 2048)
         let pixels = CGRect(x: box.minX * image.scale, y: box.minY * image.scale, width: box.width * image.scale, height: box.height * image.scale).integral
         guard let cropped = image.cgImage?.cropping(to: pixels) else { throw CocoaError(.fileReadCorruptFile) }
         return UIImage(cgImage: cropped)
@@ -67,12 +67,12 @@ extension EditorViewModel {
         try blocks.joined(separator: "\n\n").write(to: file, atomically: true, encoding: .utf8); return file
     }
     func convertSelectionToText() async {
-        guard hasLease, !interactionBusy, !navigating, !loading, let page else { return }
+        guard hasLease, canEditActiveLayer, !interactionBusy, !navigating, !loading, let page else { return }
         let bounds = selectionBounds; guard !bounds.isNull else { return }
         navigating = true; defer { navigating = false }
         let before = captureEdit(ink: selectionIncludesInk), selected = selectedIDs, inkIndices = selectedStrokeIndices
         do {
-            let image = try selectionAreaImage()
+            let image = try await selectionAreaImage()
             guard let data = image.pngData() else { throw CocoaError(.fileReadCorruptFile) }
             let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { error = "Nessun testo leggibile nella selezione."; return }
@@ -82,7 +82,7 @@ extension EditorViewModel {
             if selectionIncludesInk {
                 canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { inkIndices?.contains($0.offset) == false }.map(\.element))
             }
-            var element = TextElement(text: text); element.x = bounds.minX; element.y = bounds.minY
+            var element = TextElement(text: text); element.layerID = drawingLayerID == page.id ? nil : drawingLayerID; element.x = bounds.minX; element.y = bounds.minY
             element.width = max(40, min(bounds.width, page.width - bounds.minX)); element.fontSize = 20
             self.page?.texts.append(element); self.page?.pruneObjectReferences()
             recordEdit(before, label: "Converti selezione in testo"); selectedObjectID = element.id; drawingChanged()

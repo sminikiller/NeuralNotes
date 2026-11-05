@@ -1,6 +1,26 @@
 import Foundation
 
 public extension DocumentWorkspace {
+    /// Stage an immutable native revision for a file-backed multi-owner edit.
+    /// The page header and reachability index are not published here; callers
+    /// capture both snapshots and commit them through applyPageEdit atomically.
+    func preparingLayerDrawing(_ data: Data, in input: PageSnapshot, layerID: UUID,
+                               recoveredFromPrevious: Bool = false) throws -> PageSnapshot {
+        try PageValidation.validate(input)
+        guard data.count <= 100 << 20 else { throw WorkspaceFailure.oversizedImport }
+        guard PageLayers.ordered(in: input).contains(where: { $0.id == layerID }) else { throw PageLayerFailure.missing }
+        try Task.checkCancellation()
+        let path = "drawings/\(input.id)-\(UUID()).drawing"
+        let file = try url(path)
+        try data.write(to: file, options: .atomic)
+        var page = input
+        let previous = recoveredFromPrevious ? PageLayers.previousDrawingFile(for: layerID, in: input) : PageLayers.drawingFile(for: layerID, in: input)
+        if layerID == page.id { page.drawingFile = path; page.previousDrawingFile = previous }
+        else if let index = page.layers?.firstIndex(where: { $0.id == layerID }) {
+            page.layers?[index].drawingFile = path; page.layers?[index].previousDrawingFile = previous
+        }
+        return page
+    }
     /// Commit an entire layer header after every immutable media reference has
     /// been prepared. A crash sees the old header or the complete new one. The
     /// caller owns file-backed undo snapshots before any destructive operation.

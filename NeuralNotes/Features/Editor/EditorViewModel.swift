@@ -192,7 +192,7 @@ final class EditorViewModel {
                     bounds: CGRect(x: 0, y: 0, width: page.width, height: page.height), scale: min(2, 1600 / max(page.width, page.height)))
                 guard prepared, !Task.isCancelled, self.hasLease, !self.hasActiveStroke, !self.dirty,
                       self.page?.id == page.id, self.page?.revision == page.revision else { return }
-                let image = DocumentServices.image(page: page, drawing: drawing, workspace: self.workspace, maxDimension: 1600, pdfMode: .interactive)
+                let image = try await DocumentServices.compositeImage(page: page, drawing: drawing, drawingLayerID: self.activeLayerID, workspace: self.workspace, maxDimension: 1600, layers: .all, pdfMode: .interactive)
                 guard let data = image.pngData() else { return }
                 let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
                 _ = try await self.workspace.storeAutomaticOCR(pageID: page.id, revision: page.revision, text: text)
@@ -391,10 +391,23 @@ final class EditorViewModel {
         gestureCommitTask?.cancel(); gestureCommitTask = nil
         finishingInkGesture = true; defer { finishingInkGesture = false }
         if let (session, time) = strokeTime, var page {
-            let existing = Set(page.anchors.map(\.signature))
-            for signature in signatures() {
-                if !existing.contains(signature), !signaturesBeforeStroke.contains(signature) {
-                    page.anchors.append(StrokeAnchor(signature: signature, audioSessionID: session, seconds: time))
+            if page.layers != nil {
+                let owner = drawingLayerID ?? page.id
+                let current = signatures(), old = EditorInkSignatures.make(inkGestureBaseline ?? PKDrawing())
+                let previousCounts = old.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+                let keys = LayerStrokeTimeline.keys(signatures: current, pageID: page.id, layerID: owner)
+                for key in keys where (key.occurrence ?? 0) >= previousCounts[key.signature, default: 0] {
+                    guard !page.anchors.contains(where: { ($0.layerID ?? page.id) == owner && $0.signature == key.signature && $0.strokeOccurrence == key.occurrence }) else { continue }
+                    var anchor = StrokeAnchor(signature: key.signature, audioSessionID: session, seconds: time)
+                    anchor.layerID = owner == page.id ? nil : owner; anchor.strokeOccurrence = key.occurrence
+                    page.anchors.append(anchor)
+                }
+            } else {
+                let existing = Set(page.anchors.map(\.signature))
+                for signature in signatures() {
+                    if !existing.contains(signature), !signaturesBeforeStroke.contains(signature) {
+                        page.anchors.append(StrokeAnchor(signature: signature, audioSessionID: session, seconds: time))
+                    }
                 }
             }
             self.page = page
@@ -704,7 +717,7 @@ final class EditorViewModel {
     }
 
     func deleteSelectedObject() {
-        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
+        guard canEditActiveLayer, hasLease, !loading, !navigating, !hasActiveStroke else { return }
         finishInkGesture(); endTextEdit()
         let before = captureEdit(ink: selectionIncludesInk)
         let ids = selectedIDs
@@ -721,7 +734,7 @@ final class EditorViewModel {
     }
 
     func duplicateSelectedObject() {
-        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
+        guard canEditActiveLayer, hasLease, !loading, !navigating, !hasActiveStroke else { return }
         finishInkGesture(); endTextEdit()
         if selectedIDs.count > 1 || selectionIncludesInk || selectedConnector != nil { if copySelection() { Task { await pasteSelection() } }; return }
         let before = captureEdit()
@@ -755,6 +768,20 @@ final class EditorViewModel {
 
     func playAudio(at point: CGPoint, tolerance: CGFloat) async {
         guard let page, let audio else { return }
+        if page.layers != nil {
+            do {
+                guard let anchor = try await LayerAudioHit.anchor(at: point, tolerance: tolerance, page: page,
+                    live: canvas.drawing, owner: drawingLayerID ?? page.id, workspace: workspace, zoom: canvas.zoomScale) else {
+                    error = "Questo tratto non ha un collegamento audio."; return
+                }
+                guard self.page?.id == page.id,
+                      let session = audio.sessions.first(where: { $0.id == anchor.audioSessionID })
+                        ?? (audio.active?.id == anchor.audioSessionID ? audio.active : nil) else { return }
+                if audio.recording { await audio.pause(reason: "Ascolto di un tratto") }
+                await audio.play(session, at: anchor.seconds)
+            } catch { self.error = error.localizedDescription }
+            return
+        }
         let keys = signatures()
         // Use the interpolated curve, rather than the whole bounding
         // rectangle of a long stroke, to avoid jumping to unrelated handwriting.

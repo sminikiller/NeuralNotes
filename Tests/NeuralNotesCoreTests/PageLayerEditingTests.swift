@@ -176,4 +176,35 @@ final class PageLayerEditingTests: XCTestCase {
         XCTAssertNoThrow(try NativePackageInspector.inspect(package))
     }
 
+    func testStagingMultipleOwnersPublishesNoHeaderAndFileBackedCommitRestoresAllReferences() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID)
+        let workspace = DocumentWorkspace(package: package, documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = try await workspace.addPage(); page.revision += 1
+        page = try await workspace.save(page, drawing: Data([10]))
+        let added = try PageLayerEditing.adding(to: page, name: "Upper"); page = added.page; page.revision += 1
+        page = try await workspace.save(page, drawing: Data([20]), layerID: added.layerID)
+        let beforeBuilder = try PageEditSnapshotBuilder(documentID: manifest.documentID, preservingBaseReferences: true)
+        try await beforeBuilder.append(page, drawing: nil, sourcePackage: package)
+        let before = try await beforeBuilder.finish()
+        var staged = try await workspace.preparingLayerDrawing(Data([30]), in: page, layerID: page.id)
+        staged = try await workspace.preparingLayerDrawing(Data([40]), in: staged, layerID: added.layerID)
+        let unchanged = try await workspace.pageSnapshot(page.id); XCTAssertEqual(unchanged, page)
+        let oldBase = try await workspace.drawing(page); XCTAssertEqual(oldBase, Data([10]))
+        let oldUpper = try await workspace.drawing(page, layerID: added.layerID); XCTAssertEqual(oldUpper, Data([20]))
+        let afterBuilder = try PageEditSnapshotBuilder(documentID: manifest.documentID, preservingBaseReferences: true)
+        try await afterBuilder.append(staged, drawing: nil, sourcePackage: package)
+        let after = try await afterBuilder.finish()
+        try await workspace.applyPageEdit(after, expectedOrder: [page.id], newOrder: [page.id], expectedRevisions: [page.id: page.revision])
+        let changed = try await workspace.pageSnapshot(page.id)
+        let newBase = try await workspace.drawing(changed), newUpper = try await workspace.drawing(changed, layerID: added.layerID)
+        XCTAssertEqual(newBase, Data([30])); XCTAssertEqual(newUpper, Data([40]))
+        try await workspace.applyPageEdit(before, expectedOrder: [page.id], newOrder: [page.id], expectedRevisions: [page.id: changed.revision])
+        let restored = try await workspace.pageSnapshot(page.id)
+        XCTAssertEqual(restored.drawingFile, page.drawingFile); XCTAssertEqual(restored.layers, page.layers)
+    }
+
 }

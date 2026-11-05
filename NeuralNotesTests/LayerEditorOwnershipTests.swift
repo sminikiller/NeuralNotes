@@ -169,6 +169,80 @@ final class LayerEditorOwnershipTests: XCTestCase {
         }
     }
 
+    @MainActor func testDirectMetadataEditorsAndClipboardCannotModifyOrReassignAnotherOwnersObjects() async throws {
+        try await fixture { model, owner, base, _ in
+            model.mutatePage("Base text") { $0.texts.append(TextElement(text: "Base protected")) }
+            let baseID = try XCTUnwrap(model.page?.texts.first?.id)
+            await model.selectLayer(owner)
+            model.mutatePage("Owner text") { $0.texts.append(TextElement(text: "Owner")) }
+            let ownID = try XCTUnwrap(model.page?.texts.last?.id)
+            XCTAssertEqual(model.page?.texts.last?.layerID, owner)
+            let before = model.captureEdit()
+            model.page?.texts.removeAll { $0.id == baseID }
+            model.page?.texts.append(TextElement(text: "Inserted directly"))
+            model.recordEdit(before, label: "Direct editor"); model.drawingChanged()
+            XCTAssertEqual(model.page?.texts.first(where: { $0.id == baseID })?.text, "Base protected")
+            XCTAssertEqual(model.page?.texts.last?.layerID, owner)
+            model.selectedIDs = [ownID]; XCTAssertTrue(model.copySelection())
+            await model.selectLayer(try XCTUnwrap(model.page?.id))
+            await model.pasteSelection()
+            let pasted = try XCTUnwrap(model.page?.texts.last)
+            XCTAssertNotEqual(pasted.id, ownID); XCTAssertNil(pasted.layerID)
+            XCTAssertEqual(model.page?.texts.first(where: { $0.id == ownID })?.layerID, owner)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, base))
+            try PageValidation.validate(try XCTUnwrap(model.page))
+        }
+    }
+
+    @MainActor func testMovingUpperInkToAnotherPagePreservesBaseFilesAndCrossPageUndoRestoresItsOwner() async throws {
+        try await fixture { model, owner, base, upper in
+            let sourceID = try XCTUnwrap(model.page?.id)
+            let destination = try await model.workspace.addPage()
+            model.pages = try await model.workspace.pages()
+            await model.selectLayer(owner)
+            let baseFile = model.page?.drawingFile
+            model.selectionIncludesInk = true; model.selectedStrokeIndices = [0]
+            await model.transferSelection(to: destination.id, copy: false)
+            XCTAssertEqual(model.page?.id, destination.id)
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+            let source = try await model.workspace.pageSnapshot(sourceID)
+            XCTAssertEqual(source.drawingFile, baseFile)
+            let sourceBase = try await LayerDrawingReader.read(page: source, layerID: sourceID, workspace: model.workspace)
+            let sourceUpper = try await LayerDrawingReader.read(page: source, layerID: owner, workspace: model.workspace)
+            XCTAssertTrue(NativeInkComparison.equal(sourceBase.drawing, base)); XCTAssertTrue(sourceUpper.drawing.strokes.isEmpty)
+            await model.performUndo()
+            XCTAssertEqual(model.page?.id, sourceID); XCTAssertEqual(model.drawingLayerID, owner)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, upper))
+            let emptyDestination = try await model.workspace.pageSnapshot(destination.id)
+            let restored = try await LayerDrawingReader.read(page: emptyDestination, layerID: destination.id, workspace: model.workspace)
+            XCTAssertTrue(restored.drawing.strokes.isEmpty)
+            await model.performRedo(); XCTAssertEqual(model.page?.id, destination.id)
+            XCTAssertEqual(model.canvas.drawing.strokes[0].path[0].force, upper.strokes[0].path[0].force)
+        }
+    }
+
+    @MainActor func testPaperResizeTransformsEveryOwnerAndUndoRestoresExactNativeInk() async throws {
+        try await fixture { model, owner, base, upper in
+            let page = try XCTUnwrap(model.page)
+            await model.selectLayer(owner)
+            var template = PageTemplate(); template.landscape = true
+            let expected = template.makePage(), scale = min(expected.width / page.width, expected.height / page.height)
+            let changed = await model.applyTemplate(template, useForNext: false); XCTAssertTrue(changed)
+            let resized = try XCTUnwrap(model.page)
+            let lower = try await LayerDrawingReader.read(page: resized, layerID: resized.id, workspace: model.workspace)
+            let higher = try await LayerDrawingReader.read(page: resized, layerID: owner, workspace: model.workspace)
+            let transform = CGAffineTransform(scaleX: scale, y: scale)
+            XCTAssertTrue(NativeInkComparison.equal(lower.drawing, base.transformed(using: transform)))
+            XCTAssertTrue(NativeInkComparison.equal(higher.drawing, upper.transformed(using: transform)))
+            await model.performUndo()
+            XCTAssertEqual(model.page?.width, page.width); XCTAssertEqual(model.drawingLayerID, owner)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, upper))
+            let old = try XCTUnwrap(model.page)
+            let restored = try await LayerDrawingReader.read(page: old, layerID: old.id, workspace: model.workspace)
+            XCTAssertTrue(NativeInkComparison.equal(restored.drawing, base))
+        }
+    }
+
     @MainActor private func stroke(x: CGFloat) -> PKStroke {
         let a = PKStrokePoint(location: CGPoint(x: x, y: 120), timeOffset: 0,
             size: CGSize(width: 4, height: 5), opacity: 0.9, force: 0.72, azimuth: 0.3, altitude: 1)

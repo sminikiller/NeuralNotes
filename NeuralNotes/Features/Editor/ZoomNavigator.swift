@@ -8,7 +8,9 @@ final class ZoomNavigator: UIView {
     private let thumbnail = UIImageView(), viewport = CAShapeLayer(), close = UIButton(type: .system)
     private weak var host: CanvasHost?
     private var generation = ""
+    private var imageTask: Task<Void, Never>?
     func resetForPageChange() {
+        imageTask?.cancel(); imageTask = nil
         generation = ""; thumbnail.image = nil; viewport.path = nil
     }
     init() {
@@ -30,7 +32,7 @@ final class ZoomNavigator: UIView {
         thumbnail.isAccessibilityElement = true; thumbnail.accessibilityLabel = "Panoramica del foglio"; thumbnail.accessibilityHint = "Tocca o trascina con un dito per spostare l’area ingrandita."
     }
     required init?(coder: NSCoder) { nil }
-    deinit { NotificationCenter.default.removeObserver(self) }
+    deinit { imageTask?.cancel(); NotificationCenter.default.removeObserver(self) }
     @objc private func nnPDFNavigatorPreviewReady(_ note: Notification) {
         guard let host, let page = host.model?.page, PDFRasterCache.affects(note, page: page, package: host.surface.package, previewOnly: true) else { return }
         generation = ""; update(host)
@@ -50,10 +52,19 @@ final class ZoomNavigator: UIView {
         frame = CGRect(x: max(4, host.bounds.width - width - 24), y: max(12, host.bounds.height - height - 64), width: width + 16, height: height + 40)
         close.frame = CGRect(x: bounds.width - 42, y: 0, width: 44, height: 36)
         thumbnail.frame = CGRect(x: 8, y: 32, width: width, height: height)
-        let key = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)"
+        let key = "\(page.id)|\(page.revision)|\(model.activeLayerID?.uuidString ?? "base")|\(model.inkDisplayGeneration)"
         if generation != key && !model.hasActiveStroke {
             generation = key
-            thumbnail.image = DocumentServices.image(page: page, drawing: host.canvas.drawing, workspace: model.workspace, maxDimension: 400, pdfMode: .preview)
+            imageTask?.cancel()
+            let drawing = host.canvas.drawing, owner = model.activeLayerID, workspace = model.workspace
+            imageTask = Task { [weak self] in
+                do {
+                    let image = try await DocumentServices.compositeImage(page: page, drawing: drawing, drawingLayerID: owner,
+                        workspace: workspace, maxDimension: 400, pdfMode: .preview)
+                    guard !Task.isCancelled, let self, self.generation == key else { return }
+                    self.thumbnail.image = image
+                } catch { /* Derived preview: the live page stays authoritative. */ }
+            }
         }
         let visible = host.surface.convert(host.bounds, from: host).intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
         if visible.isNull { viewport.path = nil }

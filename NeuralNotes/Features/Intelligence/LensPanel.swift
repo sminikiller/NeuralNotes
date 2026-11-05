@@ -207,7 +207,7 @@ struct LensPanel: View {
                 || (page.shapes ?? []).contains(where: { model.selectedIDs.contains($0.id) })
             let area = model.lensArea ?? (visual ? model.selectionBounds : nil)
             if exact == nil, let area, !area.isNull, area.width > 3, area.height > 3 {
-                let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 1600)
+                let image = try await DocumentServices.compositeImage(page: page, drawing: model.canvas.drawing, drawingLayerID: model.activeLayerID, workspace: model.workspace, maxDimension: 1600)
                 let box = area.intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
                 let pixel = CGRect(x: box.minX * image.scale, y: box.minY * image.scale, width: box.width * image.scale, height: box.height * image.scale)
                 if let cropped = image.cgImage?.cropping(to: pixel), let data = UIImage(cgImage: cropped).pngData() {
@@ -219,7 +219,7 @@ struct LensPanel: View {
                     text = try await DocumentServices.pdfText(page: page, workspace: model.workspace)
                 }
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 1600)
+                    let image = try await DocumentServices.compositeImage(page: page, drawing: model.canvas.drawing, drawingLayerID: model.activeLayerID, workspace: model.workspace, maxDimension: 1600)
                     if let data = image.pngData() { text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n") }
                 }
             }

@@ -45,9 +45,10 @@ extension EditorViewModel {
     }
     @discardableResult
     func createDiagramBlock(from id: UUID, side: DiagramSide, at drop: StrokeSample? = nil) -> UUID? {
-        guard hasLease, !interactionBusy, !loading, !navigating, let page else { return nil }
+        guard hasLease, canEditActiveLayer, !interactionBusy, !loading, !navigating, let page else { return nil }
         let objects = DiagramObjects.make(page)
-        guard let source = objects[id], !source.locked, source.connectionPoints.indices.contains(side.rawValue),
+        guard page.layers == nil || PageLayers.editableObjectIDs(in: page, layerID: drawingLayerID ?? page.id).contains(id),
+              let source = objects[id], !source.locked, source.connectionPoints.indices.contains(side.rawValue),
               page.shapes?.contains(where: { $0.id == id }) == true || page.texts.contains(where: { $0.id == id }) else { return nil }
         let box = source.bounds
         let pageBox = SnapRect(x: 0, y: 0, width: page.width, height: page.height)

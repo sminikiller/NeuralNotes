@@ -11,6 +11,7 @@ final class CanvasHost: UIView {
     let paperDetail = VisiblePaperDetail()
     let emptyInkCover = VisiblePaperDetail()
     let foregroundObjects = ForegroundObjectsView()
+    let layeredScene = LayerSceneView()
     let inkReplay = InkReplayOverlay()
     let markerReadability = MarkerReadabilityOverlay()
     let zoomNavigator = ZoomNavigator()
@@ -57,6 +58,7 @@ final class CanvasHost: UIView {
         addSubview(markerReadability)
         foregroundObjects.isUserInteractionEnabled = false; foregroundObjects.isOpaque = false; foregroundObjects.backgroundColor = .clear
         addSubview(foregroundObjects)
+        addSubview(layeredScene)
         canvas.backgroundColor = .clear; canvas.isOpaque = false
         canvas.alwaysBounceVertical = true
         pullHint.text = "Rilascia per avanzare · nuova pagina se sei all’ultima"
@@ -107,6 +109,7 @@ final class CanvasHost: UIView {
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         if let model, bounds.contains(point), model.loading || model.navigating { return inputShield }
+        if model?.page?.layers != nil, bounds.contains(point), model?.inkReplayActive != true, !layeredScene.isReady { return inputShield }
         if let hit = super.hitTest(point, with: event) {
             if let handles = diagramHandles, hit.isDescendant(of: handles), hit !== handles { return hit }
             if let handles = shapeHandles, hit.isDescendant(of: handles), hit !== handles { return hit }
@@ -135,6 +138,7 @@ final class CanvasHost: UIView {
             paperDetail.resetForPageChange()
             emptyInkCover.resetForPageChange()
             markerReadability.reset()
+            layeredScene.reset()
             foregroundObjects.layer.contents = nil
             inkReplay.resetForPageChange(self)
             searchHighlight.resetForPageChange()
@@ -158,6 +162,18 @@ final class CanvasHost: UIView {
     /// canvas opacity/alpha: UIKit must keep dispatching the first touch and
     /// scrolling gestures to the live canvas even when its drawing is empty.
     func updateNativeInkVisibility() {
+        if model?.page?.layers != nil {
+            if model?.inkReplayActive == true {
+                layeredScene.reset(); emptyInkCover.resetForPageChange(); paperDetail.resetForPageChange()
+                markerReadability.reset(); foregroundObjects.isHidden = true; return
+            }
+            canvas.layer.opacity = 1
+            emptyInkCover.resetForPageChange(); paperDetail.resetForPageChange()
+            markerReadability.reset(); foregroundObjects.isHidden = true
+            layeredScene.update(self)
+            return
+        }
+        if !layeredScene.isHidden { layeredScene.reset() }
         guard drawingAssistant?.hasRecognizedPreview != true,
               !(model?.audio?.replayInk == true && model?.audio?.playingSessionID != nil) else {
             emptyInkCover.resetForPageChange(); return

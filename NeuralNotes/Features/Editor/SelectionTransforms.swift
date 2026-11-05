@@ -6,7 +6,7 @@ import NeuralNotesCore
 extension EditorViewModel {
     var selectionBounds: CGRect {
         guard let page else { return .null }
-        let ids = page.includingInternalConnectors(selectedIDs)
+        let ids = scopedSelectionIDs(in: page)
         var result = selectionIncludesInk ? selectedInkBounds : .null
         for text in page.texts where ids.contains(text.id) {
             result = result.union(RichText.bounds(text, pageHeight: page.height).applying(RichText.rotation(text, pageHeight: page.height)))
@@ -37,7 +37,7 @@ extension EditorViewModel {
     func transformSelection(scale: CGFloat = 1, degrees: CGFloat = 0) {
         finishInkGesture(); endTextEdit()
         guard hasLease, !interactionBusy, !loading, !navigating, var page, (0.2...5).contains(scale), degrees.isFinite else { return }
-        selectedIDs = page.includingInternalConnectors(selectedIDs)
+        selectedIDs = scopedSelectionIDs(in: page)
         let bounds = selectionBounds; guard !bounds.isNull else { return }
         let before = captureEdit(ink: selectionIncludesInk)
         let cx = bounds.midX, cy = bounds.midY
@@ -90,7 +90,7 @@ extension EditorViewModel {
         if selectionIncludesInk {
             canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().map { index, stroke in
                 guard selectedStrokeIndices == nil || selectedStrokeIndices?.contains(index) == true else { return stroke }
-                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
+                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
         }
         recordEdit(before, label: degrees == 0 ? "Ridimensiona selezione" : "Ruota selezione"); drawingChanged()
@@ -101,7 +101,7 @@ extension EditorViewModel {
         if selectionIncludesInk {
             canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().map { index, stroke in
                 guard selectedStrokeIndices == nil || selectedStrokeIndices?.contains(index) == true else { return stroke }
-                return PKStroke(ink: PKInk(stroke.ink.inkType, color: PaperInk.color(color.color)), path: stroke.path, transform: stroke.transform, mask: stroke.mask)
+                return PKStroke(ink: PKInk(stroke.ink.inkType, color: PaperInk.color(color.color)), path: stroke.path, transform: stroke.transform, mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
         }
         if var shapes = page?.shapes {
@@ -132,7 +132,7 @@ extension EditorViewModel {
                 let resized = points.map { point in PKStrokePoint(location: point.location, timeOffset: point.timeOffset,
                     size: CGSize(width: point.size.width * ratio, height: point.size.height * ratio), opacity: point.opacity,
                     force: point.force, azimuth: point.azimuth, altitude: point.altitude) }
-                return PKStroke(ink: stroke.ink, path: PKStrokePath(controlPoints: resized, creationDate: stroke.path.creationDate), transform: stroke.transform, mask: stroke.mask)
+                return PKStroke(ink: stroke.ink, path: PKStrokePath(controlPoints: resized, creationDate: stroke.path.creationDate), transform: stroke.transform, mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
         }
         if var shapes = page?.shapes {

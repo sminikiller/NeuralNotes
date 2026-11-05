@@ -49,7 +49,7 @@ extension EditorViewModel {
     }
     func pasteSelection(plainText: Bool = false) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, !loading, !navigating, !hasActiveStroke, page != nil else { return }
+        guard hasLease, canEditActiveLayer, !loading, !navigating, !hasActiveStroke, page != nil else { return }
         // Keep this snapshot alive across awaits even if another window copies
         // a different selection while the media are being pasted.
         if EditorClipboard.current == nil || EditorClipboard.changeCount != UIPasteboard.general.changeCount {
@@ -94,7 +94,7 @@ extension EditorViewModel {
                 let strokes = copied.strokes.enumerated().map { index, stroke in
                     PKStroke(ink: stroke.ink, path: PKStrokePath(controlPoints: Array(stroke.path),
                         creationDate: Date().addingTimeInterval(Double(index) * 0.001)),
-                        transform: stroke.transform.concatenating(CGAffineTransform(translationX: 20, y: 20)), mask: stroke.mask)
+                        transform: stroke.transform.concatenating(CGAffineTransform(translationX: 20, y: 20)), mask: stroke.mask, randomSeed: stroke.randomSeed)
                 }
                 canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes + strokes)
             }

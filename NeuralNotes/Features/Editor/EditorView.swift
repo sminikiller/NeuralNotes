@@ -386,10 +386,7 @@ struct EditorView: View {
     }
 
     private func areaRecognition(_ page: PageSnapshot) -> some View {
-        let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace)
-        return AreaRecognitionPanel(image: image, workspace: model.workspace, pageID: page.id) { text in
-            model.page?.recognizedText += "\n" + text; model.drawingChanged()
-        }
+        LayerAreaRecognition(model: model, page: page)
     }
 
     private func photoCropSheet(_ request: PhotoCropPresentation) -> some View {
@@ -623,7 +620,8 @@ struct EditorView: View {
         guard let page = model.page else { return }
         working = true; defer { working = false }
         do {
-            guard let data = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace).pngData() else {
+            let image = try await DocumentServices.compositeImage(page: page, drawing: model.canvas.drawing, drawingLayerID: model.activeLayerID, workspace: model.workspace, layers: .all)
+            guard let data = image.pngData() else {
                 throw CocoaError(.fileReadCorruptFile)
             }
             let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
@@ -689,11 +687,12 @@ struct EditorView: View {
             adjustment: item.photoAdjustment, straighten: straighten)
     }
     private func insertPhoto(data: Data, edit: PhotoAdjustment, pageID: UUID) async {
-        guard model.page?.id == pageID, model.hasLease, !model.hasActiveStroke else { return }
+        guard model.page?.id == pageID, model.hasLease, model.canEditActiveLayer, !model.hasActiveStroke else { return }
+        let owner = model.drawingLayerID
         working = true; defer { working = false }
         do {
             var element = try await DocumentServices.importImage(data: data, into: model.workspace)
-            guard model.page?.id == pageID, model.hasLease, !model.hasActiveStroke else { model.error = "La pagina di destinazione è cambiata: la foto non è stata inserita su un altro foglio."; return }
+            guard model.page?.id == pageID, model.drawingLayerID == owner, model.hasLease, model.canEditActiveLayer, !model.hasActiveStroke else { model.error = "La pagina di destinazione è cambiata: la foto non è stata inserita su un altro foglio."; return }
             guard let preview = try? DocumentServices.photoPreview(data),
                   let corrected = PhotoPerspective.render(preview, adjustment: edit, maxDimension: 800) else { throw CocoaError(.fileReadCorruptFile) }
             let ratio = Double(corrected.size.height / max(1, corrected.size.width))

@@ -78,7 +78,7 @@ final class SearchHighlightOverlay: UIView {
                     guard self.generation == key, model.page?.id == page.id, model.searchFocus == request else { return }
                     if !rects.isEmpty { self.show(boxes + rects, host: host); return }
                 }
-                let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: 2000)
+                let image = try await DocumentServices.compositeImage(page: page, drawing: model.canvas.drawing, drawingLayerID: model.activeLayerID, workspace: model.workspace, maxDimension: 2000, layers: .all)
                 guard let bytes = image.pngData() else { return }
                 let words = try await VisionOCRService().words(image: bytes)
                 try Task.checkCancellation()

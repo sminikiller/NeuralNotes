@@ -17,7 +17,8 @@ final class LiveMarkerPreview: UIView {
         accessibilityIdentifier = "liveMarkerPreview"
         // Match committed ink: front objects, study tape and drawing guides
         // must remain above a live stroke as well as after the Pencil lifts.
-        host.insertSubview(self, belowSubview: host.foregroundObjects)
+        if page.layers != nil { host.insertSubview(self, aboveSubview: host.layeredScene) }
+        else { host.insertSubview(self, belowSubview: host.foregroundObjects) }
         NotificationCenter.default.addObserver(self, selector: #selector(nnPDFMarkerPreviewReady(_:)), name: PDFRasterCache.didRender, object: nil)
     }
     required init?(coder: NSCoder) { nil }
@@ -40,6 +41,10 @@ final class LiveMarkerPreview: UIView {
         context.scaleBy(x: zoom, y: zoom); context.translateBy(x: -origin.x, y: -origin.y)
         context.addPath(footprint); context.clip()
         let visible = CGRect(origin: origin, size: CGSize(width: bounds.width / zoom, height: bounds.height / zoom))
+        if page.layers != nil {
+            host.layeredScene.drawScene(in: context, bounds: visible, drawing: baseline, marker: footprint, color: color, sourceToken: token)
+            return
+        }
         composition.drawLiveMarker(page: page, baseline: baseline, token: token, footprint: footprint,
             color: color, package: host.surface.package, bounds: visible, scale: contentScaleFactor * zoom, in: context, pdfMode: .interactive)
     }

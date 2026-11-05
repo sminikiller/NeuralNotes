@@ -28,6 +28,7 @@ final class MarkerReadabilityOverlay: UIView {
     func reset() { page = nil; generation = nil; patches = []; drawing = PKDrawing(); composition.clear(); layer.contents = nil; isHidden = true }
     func update(_ host: CanvasHost?, forceInk: Bool = false) {
         guard let host, let model = host.model else { reset(); return }
+        guard model.page?.layers == nil else { if !isHidden || page != nil { reset() }; return }
         self.host = host
         let visible = host.surface.frame.intersection(host.bounds)
         guard !visible.isNull, !visible.isEmpty, model.audio?.replayInk != true || model.audio?.playingSessionID == nil,

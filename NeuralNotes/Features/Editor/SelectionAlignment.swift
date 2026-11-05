@@ -53,7 +53,7 @@ extension EditorViewModel {
                 .concatenating(CGAffineTransform(scaleX: sx, y: sy)).concatenating(CGAffineTransform(translationX: target.x, y: target.y))
             canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().map { index, stroke in
                 guard selectedStrokeIndices == nil || selectedStrokeIndices?.contains(index) == true else { return stroke }
-                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
+                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
         }
         recordEdit(before, label: action.title); drawingChanged()

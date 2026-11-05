@@ -81,7 +81,7 @@ final class LensSession: Identifiable {
             if text.isEmpty, let png = image.pngData() { text = await LensReader.ocr(png) }
         } else if let area = request.area, request.pageID == nil || request.pageID == model.page?.id {
             if text.isEmpty { text = await LensReader.text(in: area, model: model) }
-            if request.useImage || text.isEmpty, let crop = LensReader.crop(area, model: model, maxDimension: 1600) {
+            if request.useImage || text.isEmpty, let crop = await LensReader.crop(area, model: model, maxDimension: 1600) {
                 preview = crop; picture = LensReader.jpegBase64(crop)
             }
         }

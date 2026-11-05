@@ -161,7 +161,7 @@ final class ContinuousCanvasFlow {
         guard pending == nil, let host, let model, !model.interactionBusy, !model.navigating,
               let target = model.pages.first(where: { $0.id == id }) else { return }
         captureViewport(target: id)
-        if let current = model.page {
+        if let current = model.page, current.layers == nil {
             let drawing = host.canvas.drawing
             let image = DocumentServices.image(page: current, drawing: drawing, workspace: model.workspace, maxDimension: 1200, pdfMode: .preview)
             let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)
@@ -245,7 +245,7 @@ final class ContinuousCanvasFlow {
                 let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
                 await PDFRasterCache.shared.preparePreview(page: page, package: workspace.package)
                 try Task.checkCancellation()
-                let image = DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: CGFloat(PreviewBudget.previewDimension), pdfMode: .preview)
+                let image = try await DocumentServices.compositeImage(page: page, drawing: drawing, drawingLayerID: page.id, workspace: workspace, maxDimension: CGFloat(PreviewBudget.previewDimension), pdfMode: .preview)
                 try Task.checkCancellation()
                 guard self.tokens[page.id] == token,
                       self.model?.pages.first(where: { $0.id == page.id }) == page else { return }

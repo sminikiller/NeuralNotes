@@ -52,18 +52,19 @@ final class PageWordIndex {
     /// Word groups in reading order: the text layer or OCR first, then each typed box.
     /// Lens notes are answers, not the student's material, and are left out.
     func groups(for page: PageSnapshot) -> [[PageWord]] {
+        let visible = Set(PageLayers.ordered(in: page).filter { $0.isVisible && ($0.opacity ?? 1) > 0 }.map(\.id))
         var groups: [[PageWord]] = []
         if let base = cache[key(page)], !base.isEmpty { groups.append(base) }
-        for text in page.texts where text.lensNote == nil && !text.text.isEmpty {
+        for text in page.texts where visible.contains(text.layerID ?? page.id) && text.lensNote == nil && !text.text.isEmpty {
             let words = Self.typedWords(text, pageHeight: page.height)
             if !words.isEmpty { groups.append(words) }
         }
-        for shape in page.shapes ?? [] {
+        for shape in page.shapes ?? [] where visible.contains(shape.layerID ?? page.id) {
             if let label = DiagramLabels.shape(shape, page: page) { groups.append(labelWords(label, page: page)) }
         }
         if page.connectors?.isEmpty == false {
             let objects = DiagramObjects.make(page)
-            for connector in page.connectors ?? [] {
+            for connector in page.connectors ?? [] where visible.contains(connector.layerID ?? page.id) {
                 if let label = DiagramLabels.connector(connector, objects: objects, page: page) { groups.append(labelWords(label, page: page)) }
             }
         }
@@ -149,7 +150,7 @@ final class PageWordIndex {
                 let prepared = await PDFRasterCache.shared.prepareDetail(page: visual, package: model.workspace.package,
                     bounds: CGRect(x: 0, y: 0, width: page.width, height: page.height), scale: min(2, 2200 / max(page.width, page.height)))
                 guard prepared, !Task.isCancelled, model.hasLease, model.page?.id == page.id, self.key(page) == cacheKey, epochs[page.id] == generation else { return }
-                let image = DocumentServices.image(page: visual, drawing: ink, workspace: model.workspace, maxDimension: 2200, pdfMode: .interactive)
+                let image = try await DocumentServices.compositeImage(page: visual, drawing: ink, drawingLayerID: model.activeLayerID, workspace: model.workspace, maxDimension: 2200, pdfMode: .interactive)
                 if let data = image.pngData() {
                     let found = try await recognize(data)
                     let width = CGFloat(page.width), height = CGFloat(page.height)

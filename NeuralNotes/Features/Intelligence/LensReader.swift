@@ -7,15 +7,16 @@ import NeuralNotesCore
 enum LensReader {
     static func text(in area: CGRect, model: EditorViewModel) async -> String {
         guard let page = model.page else { return "" }
+        let visible = Set(PageLayers.ordered(in: page).filter { $0.isVisible && ($0.opacity ?? 1) > 0 }.map(\.id))
         var parts: [String] = []
         // Lens notes are answers, not the student's material: they are never read back.
-        for text in page.texts where text.lensNote == nil && RichText.bounds(text, pageHeight: page.height).intersects(area) { parts.append(text.text) }
+        for text in page.texts where visible.contains(text.layerID ?? page.id) && text.lensNote == nil && RichText.bounds(text, pageHeight: page.height).intersects(area) { parts.append(text.text) }
         if let file = page.pdfFile, let index = page.pdfIndex, let url = try? await model.workspace.url(file),
            let digital = try? await PDFTextReader.shared.text(url: url, index: index, in: area, pageWidth: page.width, pageHeight: page.height),
            !digital.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             parts.append(digital)
         }
-        if parts.joined().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let crop = crop(area, model: model, maxDimension: 1600),
+        if parts.joined().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let crop = await crop(area, model: model, maxDimension: 1600),
            let png = crop.pngData() {
             parts.append(await ocr(png))
         }
@@ -35,9 +36,9 @@ enum LensReader {
     }
 
     /// The drawn page inside an area, ink and objects included.
-    static func crop(_ area: CGRect, model: EditorViewModel, maxDimension: CGFloat) -> UIImage? {
+    static func crop(_ area: CGRect, model: EditorViewModel, maxDimension: CGFloat) async -> UIImage? {
         guard let page = model.page else { return nil }
-        let image = DocumentServices.image(page: page, drawing: model.canvas.drawing, workspace: model.workspace, maxDimension: maxDimension)
+        guard let image = try? await DocumentServices.compositeImage(page: page, drawing: model.canvas.drawing, drawingLayerID: model.activeLayerID, workspace: model.workspace, maxDimension: maxDimension) else { return nil }
         let box = area.intersection(CGRect(x: 0, y: 0, width: page.width, height: page.height))
         guard !box.isNull, box.width > 3, box.height > 3 else { return nil }
         let pixels = CGRect(x: box.minX * image.scale, y: box.minY * image.scale, width: box.width * image.scale, height: box.height * image.scale)

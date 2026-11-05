@@ -110,6 +110,7 @@ final class ZoomWritingController: NSObject, PKCanvasViewDelegate {
     }
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
         guard !installing, canvasView === host.canvas, nativeStrokeActive else { return }
+        host.layeredScene.inkDidChange()
         host.updateNativeInkVisibility(); host.markerReadability.update(host, forceInk: true)
     }
     func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {

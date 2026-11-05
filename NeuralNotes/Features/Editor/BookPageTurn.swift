@@ -56,21 +56,21 @@ extension CanvasHost: EditorPagePresenter {
         try Task.checkCancellation()
         let oldIndex = model.pages.firstIndex(where: { $0.id == current.id }) ?? 0
         let newIndex = model.pages.firstIndex(where: { $0.id == target.id }) ?? oldIndex
-        let overlay = BookPageTurnOverlay(frame: bounds, image: pageTurnImage(model: model), reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        let overlay = BookPageTurnOverlay(frame: bounds, image: try await pageTurnImage(model: model), reduceMotion: UIAccessibility.isReduceMotionEnabled)
         addSubview(overlay); overlay.layoutIfNeeded()
         do {
             try await load()
             synchronizePage(); setNeedsLayout(); layoutIfNeeded()
-            let image = pageTurnImage(model: model)
+            let image = try await pageTurnImage(model: model)
             bringSubviewToFront(overlay)
             await overlay.turn(to: image, forward: newIndex > oldIndex)
         } catch { overlay.removeFromSuperview(); throw error }
     }
 
-    private func pageTurnImage(model: EditorViewModel) -> UIImage {
+    private func pageTurnImage(model: EditorViewModel) async throws -> UIImage {
         let format = UIGraphicsImageRendererFormat(); format.scale = min(2, 1600 / max(bounds.width, bounds.height)); format.opaque = true
         let page = surface.page
-        let image = DocumentServices.image(page: page, drawing: canvas.drawing, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
+        let image = try await DocumentServices.compositeImage(page: page, drawing: canvas.drawing, drawingLayerID: model.activeLayerID, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
         return UIGraphicsImageRenderer(bounds: bounds, format: format).image { result in
             UIColor.secondarySystemBackground.setFill(); result.fill(bounds)
             image.draw(in: surface.frame)

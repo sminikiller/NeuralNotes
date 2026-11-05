@@ -142,6 +142,6 @@ enum LastEditedCover {
             drawing = try PKDrawing(data: Data(contentsOf: file))
         }
         try Task.checkCancellation()
-        return DocumentServices.image(page: page, drawing: drawing, workspace: workspace, maxDimension: 700)
+        return try await DocumentServices.compositeImage(page: page, drawing: drawing, drawingLayerID: page.id, workspace: workspace, maxDimension: 700)
     }
 }

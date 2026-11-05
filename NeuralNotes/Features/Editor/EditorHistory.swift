@@ -37,7 +37,15 @@ extension EditorViewModel {
         page.map { EditorContentState(page: $0, drawing: ink ? canvas.drawing.dataRepresentation() : nil, layerID: activeLayerID) }
     }
 
-    func recordEdit(_ before: EditorContentState?, label: String) {
+    func recordEdit(_ before: EditorContentState?, label: String, layerScoped: Bool = true) {
+        if layerScoped, !applyingHistory, let before, let current = page,
+           before.page.id == current.id, before.page.layers != nil {
+            let owner = before.layerID ?? before.page.id
+            guard owner == drawingLayerID else { return }
+            page = LayerObjectEdits.restricted(current, from: before.page, activeLayerID: owner)
+            if !PageLayers.editable(owner, page: before.page), let data = before.drawing,
+               let original = try? PKDrawing(data: data) { replaceInkSession(with: original) }
+        }
         if !applyingHistory, let before, before.page.id == page?.id { settleDiagramReferences(from: before.page) }
         guard !applyingHistory, let before, let after = captureEdit(ink: before.drawing != nil), before != after else { return }
         recognitionNoticeTask?.cancel(); recognitionNotice = nil
@@ -186,16 +194,16 @@ extension EditorViewModel {
     }
 
     func addText() {
-        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
+        guard canEditActiveLayer, hasLease, !loading, !navigating, !hasActiveStroke else { return }
         let text = TextElement(text: "Nuovo testo")
         mutatePage("Aggiungi testo") { $0.texts.append(text) }; selectedObjectID = text.id; tool = .objects
     }
     func addImage(_ image: ImageElement) {
-        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
+        guard canEditActiveLayer, hasLease, !loading, !navigating, !hasActiveStroke else { return }
         mutatePage("Inserisci immagine") { $0.images.append(image) }; selectedObjectID = image.id; tool = .objects
     }
     func addShape(_ kind: ShapeKind) {
-        guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
+        guard canEditActiveLayer, hasLease, !loading, !navigating, !hasActiveStroke else { return }
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         PaperInk.color(ink).getRed(&r, green: &g, blue: &b, alpha: &a)
         let shape = ShapeElement(kind: kind, red: Double(r), green: Double(g), blue: Double(b), lineWidth: thickness)

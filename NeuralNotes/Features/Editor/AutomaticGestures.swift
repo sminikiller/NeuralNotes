@@ -17,7 +17,7 @@ extension EditorViewModel {
 
     func eraseScratchIfNeeded() -> Bool {
         let enabled = currentWorkspace.scratchErase
-        guard enabled, tool == .pen,
+        guard enabled, canEditActiveLayer, tool == .pen,
               let before = editBeforeGesture?.drawing, let previous = try? PKDrawing(data: before),
               canvas.drawing.strokes.count == previous.strokes.count + 1,
               let scratch = canvas.drawing.strokes.last, let page else { return false }
@@ -28,7 +28,8 @@ extension EditorViewModel {
         guard ScratchGesture.matches(samples) else { return false }
         let area = InkScratchEraser.coverage(of: scratch)
         var texts = page.texts, textChanged = false
-        for index in texts.indices {
+        let editable = page.layers == nil ? Set(page.texts.map(\.id)) : PageLayers.editableObjectIDs(in: page, layerID: drawingLayerID ?? page.id)
+        for index in texts.indices where editable.contains(texts[index].id) {
             let corrected = TextScratchEraser.eraseFormattedWords(texts[index], in: area, pageHeight: page.height)
             if corrected.text != texts[index].text { texts[index] = corrected; textChanged = true }
         }

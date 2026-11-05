@@ -474,7 +474,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             let transform = CGAffineTransform(translationX: dx, y: dy)
             model.canvas.drawing = PKDrawing(strokes: drawing.strokes.enumerated().map { index, stroke in
                 guard model.selectedStrokeIndices == nil || model.selectedStrokeIndices?.contains(index) == true else { return stroke }
-                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask)
+                return PKStroke(ink: stroke.ink, path: stroke.path, transform: stroke.transform.concatenating(transform), mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
         }
         refresh()

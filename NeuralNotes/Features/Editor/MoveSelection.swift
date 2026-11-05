@@ -7,8 +7,8 @@ extension EditorViewModel {
     func moveSelection(to pageID: UUID) async { await transferSelection(to: pageID, copy: false) }
     func transferSelection(to pageID: UUID?, copy: Bool, newPageAfter: Bool = true, newPageAtEnd: Bool = false) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id, pageID != nil || pages.count < DocumentWorkspace.maximumPageEditPages else { return }
-        let ids = origin.includingInternalConnectors(selectedIDs.subtracting(origin.lockedObjects ?? []))
+        guard hasLease, canEditActiveLayer, !navigating, !loading, !hasActiveStroke, let origin = page, pageID != origin.id, pageID != nil || pages.count < DocumentWorkspace.maximumPageEditPages else { return }
+        let ids = scopedSelectionIDs(in: origin).subtracting(origin.lockedObjects ?? [])
         let selectedInk = selectionIncludesInk ? Set(selectedStrokeIndices ?? Set(canvas.drawing.strokes.indices)) : []
         guard !ids.isEmpty || !selectedInk.isEmpty else { return }
         selectedIDs = ids
@@ -30,11 +30,15 @@ extension EditorViewModel {
                 let insertion = newPageAtEnd ? oldOrder.endIndex : index + (newPageAfter ? 1 : 0)
                 newOrder.insert(destination.id, at: insertion)
             }
-            let destinationBytes = try await workspace.drawing(destination)
-            let originalInk = canvas.drawing, destinationInk = try destinationBytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
-            let beforeBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID)
-            if !copy { try await beforeBuilder.append(source, drawing: originalInk.dataRepresentation(), sourcePackage: workspace.package) }
-            try await beforeBuilder.append(destination, drawing: destinationInk.dataRepresentation(), sourcePackage: workspace.package)
+            let layered = source.layers != nil || destination.layers != nil
+            let sourceOwner = drawingLayerID ?? source.id
+            let destinationOwner = PageLayers.ordered(in: destination).first(where: { PageLayers.editable($0.id, page: destination) })?.id
+            guard let destinationOwner else { throw PageLayerFailure.locked }
+            let target = try await LayerDrawingReader.read(page: destination, layerID: destinationOwner, workspace: workspace)
+            let originalInk = canvas.drawing, destinationInk = target.drawing
+            let beforeBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: layered)
+            if !copy { try await beforeBuilder.append(source, drawing: layered ? nil : originalInk.dataRepresentation(), sourcePackage: workspace.package) }
+            try await beforeBuilder.append(destination, drawing: layered ? nil : destinationInk.dataRepresentation(), sourcePackage: workspace.package)
             let before = try await beforeBuilder.finish()
             let sourceObjects = DiagramObjects.make(source)
             source.refreshConnectorFallbacks(objects: sourceObjects)
@@ -45,6 +49,7 @@ extension EditorViewModel {
                 .concatenating(CGAffineTransform(scaleX: scale, y: scale)).concatenating(CGAffineTransform(translationX: mx, y: my))
             var moving = source.selectingObjects(ids, objects: sourceObjects)
             moving.renewObjectIDs()
+            moving.assignObjectOwner(destinationOwner == destination.id ? nil : destinationOwner)
             for i in moving.texts.indices {
                 let value = moving.texts[i], point = CGPoint(x: value.x, y: value.y).applying(transform)
                 moving.texts[i].x = point.x; moving.texts[i].y = point.y; moving.texts[i].width *= Double(scale)
@@ -102,6 +107,23 @@ extension EditorViewModel {
                 return PKStroke(ink: stroke.ink, path: path, transform: stroke.transform.concatenating(transform), mask: stroke.mask, randomSeed: stroke.randomSeed)
             })
             let oldSignatures = EditorInkSignatures.make(originalInk), keptSignatures = EditorInkSignatures.make(remaining), appendedSignatures = EditorInkSignatures.make(appended)
+            if layered {
+                let sourceKeys = LayerStrokeTimeline.keys(signatures: oldSignatures, pageID: source.id, layerID: sourceOwner)
+                let targetKeys = LayerStrokeTimeline.keys(signatures: appendedSignatures, pageID: destination.id, layerID: destinationOwner)
+                let matching = source.anchors.filter { ($0.layerID ?? source.id) == sourceOwner }
+                if !copy {
+                    source.anchors = LayerStrokeTimeline.replacing(anchors: source.anchors, oldSignatures: oldSignatures,
+                        newSignatures: keptSignatures, retainedOriginalIndices: keptIndices, pageID: source.id, layerID: sourceOwner)
+                }
+                for (offset, oldIndex) in movedIndices.enumerated() {
+                    let key = sourceKeys[oldIndex], newKey = targetKeys[destinationInk.strokes.count + offset]
+                    for anchor in matching where anchor.signature == key.signature && (anchor.strokeOccurrence == nil || anchor.strokeOccurrence == key.occurrence) {
+                        var value = anchor; value.id = UUID(); value.signature = newKey.signature
+                        value.layerID = destinationOwner == destination.id ? nil : destinationOwner; value.strokeOccurrence = newKey.occurrence
+                        destination.anchors.append(value)
+                    }
+                }
+            } else {
             let anchors = Dictionary(grouping: source.anchors, by: \.signature)
             if !copy { source.anchors = keptIndices.enumerated().flatMap { offset, oldIndex in
                 (anchors[oldSignatures[oldIndex]] ?? []).map { anchor in var value = anchor; value.signature = keptSignatures[offset]; return value }
@@ -112,13 +134,24 @@ extension EditorViewModel {
                     StrokeAnchor(signature: appendedSignatures[destinationInk.strokes.count + offset], audioSessionID: anchor.audioSessionID, seconds: anchor.seconds)
                 }
             }
+            }
             source.recognizedText = ""; destination.recognizedText = ""
-            let afterBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID)
-            if !copy { try await afterBuilder.append(source, drawing: remaining.dataRepresentation(), sourcePackage: workspace.package) }
-            try await afterBuilder.append(destination, drawing: appended.dataRepresentation(), sourcePackage: workspace.package)
+            let afterBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: layered)
+            if layered {
+                if !copy {
+                    source = try await workspace.preparingLayerDrawing(remaining.dataRepresentation(), in: source, layerID: sourceOwner)
+                    try await afterBuilder.append(source, drawing: nil, sourcePackage: workspace.package)
+                }
+                destination = try await workspace.preparingLayerDrawing(appended.dataRepresentation(), in: destination, layerID: destinationOwner,
+                    recoveredFromPrevious: target.recoveredFromPrevious)
+                try await afterBuilder.append(destination, drawing: nil, sourcePackage: workspace.package)
+            } else {
+                if !copy { try await afterBuilder.append(source, drawing: remaining.dataRepresentation(), sourcePackage: workspace.package) }
+                try await afterBuilder.append(destination, drawing: appended.dataRepresentation(), sourcePackage: workspace.package)
+            }
             let after = try await afterBuilder.finish()
             let change = EditorDiskChange(before: before, after: after, beforeOrder: oldOrder, afterOrder: newOrder,
-                beforePage: source.id, afterPage: destination.id)
+                beforePage: source.id, afterPage: destination.id, beforeLayerID: sourceOwner, afterLayerID: destinationOwner)
             try await applyDiskChange(change, label: copy ? "Copia selezione tra pagine" : "Sposta selezione tra pagine")
             selectedIDs = Set(moving.objectIDs); selectionIncludesInk = false; selectedStrokeIndices = nil
             scheduleMaintenance()

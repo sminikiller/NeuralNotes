@@ -25,6 +25,7 @@ final class VisiblePaperDetail: UIView {
         page = nil; hiddenTextID = nil; layer.contents = nil; isHidden = true
     }
     func update(from host: CanvasHost, force: Bool = false) {
+        if host.surface.page.layers != nil { if !isHidden || page != nil { resetForPageChange() }; return }
         let z = host.canvas.zoomScale, rect = host.surface.frame.intersection(host.bounds)
         isHidden = (!force && z <= 1 && host.surface.page.pdfFile == nil) || rect.isNull || rect.isEmpty
         guard !isHidden else { return }

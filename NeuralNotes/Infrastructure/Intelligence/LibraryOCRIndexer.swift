@@ -38,8 +38,9 @@ final class LibraryOCRIndexer {
         defer { EditorLeases.shared.releaseCloud(workspace.documentID) }
         let page = try await workspace.pageSnapshot(id)
         guard await workspace.needsAutomaticOCR(pageID: id, revision: page.revision) else { return false }
-        guard page.drawingFile != nil || !page.images.isEmpty || (page.pdfFile != nil && page.recognizedText.isEmpty) else { return false }
-        if page.pdfFile != nil, page.drawingFile == nil, page.images.isEmpty {
+        let hasInk = !page.allDrawingFiles.isEmpty
+        guard hasInk || !page.images.isEmpty || (page.pdfFile != nil && page.recognizedText.isEmpty) else { return false }
+        if page.pdfFile != nil, !hasInk, page.images.isEmpty {
             let text = try await DocumentServices.pdfText(page: page, workspace: workspace)
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 try Task.checkCancellation()
@@ -49,7 +50,7 @@ final class LibraryOCRIndexer {
         let bytes = try await workspace.drawing(page)
         let drawing = try bytes.map { try PKDrawing(data: $0) } ?? PKDrawing()
         var visual = page; visual.texts = []; visual.tapes = []; visual.shapes = []
-        let image = DocumentServices.image(page: visual, drawing: drawing, workspace: workspace, maxDimension: 1600)
+        let image = try await DocumentServices.compositeImage(page: visual, drawing: drawing, drawingLayerID: page.id, workspace: workspace, maxDimension: 1600, layers: .all)
         guard let data = image.pngData() else { throw CocoaError(.fileReadCorruptFile) }
         let text = try await VisionOCRService().recognize(image: data).map(\.text).joined(separator: "\n")
         try Task.checkCancellation()

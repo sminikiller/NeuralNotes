@@ -208,9 +208,13 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
               let result = ShapeRecognizer.recognize(points, enabled: model.tool == .marker ? [.line] : model.shapePreferences.kinds) else { return }
         let kind = result.shape.kind
         held = true; model.pendingHeldShape = (page.id, kind, points); model.pendingShapeRecognition = result
-        previousInk.image = DocumentServices.image(page: page, drawing: before, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
-        previousInk.frame = host.surface.frame; host.addSubview(previousInk)
-        host.canvas.layer.opacity = 0
+        if page.layers != nil {
+            host.layeredScene.showRecognitionBaseline(before)
+        } else {
+            previousInk.image = DocumentServices.image(page: page, drawing: before, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
+            previousInk.frame = host.surface.frame; host.addSubview(previousInk)
+            host.canvas.layer.opacity = 0
+        }
         drawPreview(kind)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
@@ -249,6 +253,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func finishPreview() {
         cleanupTask?.cancel(); cleanupTask = nil
+        host?.layeredScene.showRecognitionBaseline(nil)
         host?.canvas.layer.opacity = 1; previousInk.removeFromSuperview(); previousInk.image = nil
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }

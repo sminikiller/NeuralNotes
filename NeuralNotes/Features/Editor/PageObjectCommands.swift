@@ -52,6 +52,7 @@ final class ForegroundObjectsView: UIView {
         PageRenderer.drawForeground(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: replayHiddenObjectIDs)
     }
     func update(_ host: CanvasHost) {
+        if host.surface.page.layers != nil { isHidden = true; layer.contents = nil; return }
         isHidden = (host.surface.page.aboveInkObjects ?? []).isEmpty && (host.surface.page.tapes ?? []).isEmpty
         guard !isHidden else { layer.contents = nil; return }
         isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false

@@ -87,4 +87,19 @@ final class LayerExportRenderingTests: XCTestCase {
             XCTAssertTrue(NativeInkComparison.equal(original.drawing, self.ink(color: .red, y: 70)))
         }
     }
+    @MainActor func testPartialLayerTypedTextRemainsSelectableOnceAndDoesNotRasterizeIntoThePDF() async throws {
+        try await fixture { workspace, original, layer in
+            var page = try PageLayerEditing.opacity(layer, value: 0.5, in: original)
+            var text = TextElement(text: "LAYER UNIQUE"); text.layerID = layer
+            text.x = 5; text.y = 5; text.width = 110; text.fontSize = 12; page.texts.append(text)
+            page = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
+            let output = try await DocumentServices.exportPDF(workspace: workspace, layers: .selected([layer]))
+            defer { try? FileManager.default.removeItem(at: output) }
+            let pdf = try XCTUnwrap(PDFDocument(url: output)), extracted = try XCTUnwrap(pdf.page(at: 0)?.string)
+            XCTAssertEqual(extracted.components(separatedBy: "LAYER UNIQUE").count - 1, 1)
+            let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
+            XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
+        }
+    }
+
 }

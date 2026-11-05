@@ -108,7 +108,10 @@ extension EditorViewModel {
         guard hasLease, !navigating, !loading, !hasActiveStroke, let current = page else { return false }
         guard template.appearance.isValid else { return false }
         navigating = true; defer { navigating = false }
-        guard await flush() else { return false }
+        closeZoomWriting(); endTextEdit()
+        guard await flush(), let original = page else { return false }
+        var committed = false
+        defer { if !committed { page = original } }
         do {
             if useForNext { try await workspace.setDefaultPageTemplate(template) }
             if current.pdfFile == nil {
@@ -148,11 +151,33 @@ extension EditorViewModel {
                     }
                     page = value
                 }
-                canvas.drawing = canvas.drawing.transformed(using: CGAffineTransform(scaleX: CGFloat(sx), y: CGFloat(sy)))
-                recordEdit(before, label: "Carta e formato"); drawingChanged()
+                let transform = CGAffineTransform(scaleX: CGFloat(sx), y: CGFloat(sy))
+                if original.layers != nil, var resized = page {
+                    // Resizing paper is explicitly a whole-page operation.
+                    // Hidden/locked owners must retain their geometry too.
+                    page = original
+                    let beforeBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: true)
+                    let afterBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: true)
+                    try await beforeBuilder.append(original, drawing: nil, sourcePackage: workspace.package)
+                    for layer in PageLayers.ordered(in: original) {
+                        let value = try await LayerDrawingReader.read(page: original, layerID: layer.id, workspace: workspace)
+                        let drawing = value.drawing.transformed(using: transform)
+                        resized = try await workspace.preparingLayerDrawing(drawing.dataRepresentation(), in: resized,
+                            layerID: layer.id, recoveredFromPrevious: value.recoveredFromPrevious)
+                    }
+                    try await afterBuilder.append(resized, drawing: nil, sourcePackage: workspace.package)
+                    let old = try await beforeBuilder.finish(), new = try await afterBuilder.finish(), order = pages.map(\.id)
+                    let change = EditorDiskChange(before: old, after: new, beforeOrder: order, afterOrder: order,
+                        beforePage: original.id, afterPage: original.id, beforeLayerID: drawingLayerID, afterLayerID: drawingLayerID)
+                    try await applyDiskChange(change, label: "Carta e formato")
+                    committed = true; return true
+                }
+                canvas.drawing = canvas.drawing.transformed(using: transform)
+                recordEdit(before, label: "Carta e formato", layerScoped: false); drawingChanged()
+                committed = true
                 return await flush()
             }
-            return true
+            committed = true; return true
         } catch { self.error = error.localizedDescription; return false }
     }
 }

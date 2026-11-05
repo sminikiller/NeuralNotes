@@ -98,6 +98,12 @@ enum PageRenderer {
     static func drawLayerContent(_ group: LayerRenderGroup, page: PageSnapshot, package: URL,
                                  in context: CGContext, hidingObjectIDs: Set<UUID> = [],
                                  hidingTextID: UUID? = nil, ink: (CGContext) -> Void) {
+        drawLayerUnder(group, page: page, package: package, in: context, hidingObjectIDs: hidingObjectIDs, hidingTextID: hidingTextID)
+        ink(context)
+        drawLayerAbove(group, page: page, package: package, in: context, hidingObjectIDs: hidingObjectIDs, hidingTextID: hidingTextID)
+    }
+    static func drawLayerUnder(_ group: LayerRenderGroup, page: PageSnapshot, package: URL,
+                               in context: CGContext, hidingObjectIDs: Set<UUID> = [], hidingTextID: UUID? = nil) {
         let objects = ObjectLookup(page)
         let ordinary = Set(group.ordinaryMarkupIDs), words = Set(group.wordMarkupIDs)
         drawMarkups((page.pdfMarkups ?? []).filter { ordinary.contains($0.id) }, in: context)
@@ -109,8 +115,13 @@ enum PageRenderer {
         draw(group.underObjectIDs)
         drawMarkups((page.pdfMarkups ?? []).filter { words.contains($0.id) }, in: context)
         draw(group.underMarkerIDs)
-        ink(context)
-        draw(group.aboveObjectIDs)
+    }
+    static func drawLayerAbove(_ group: LayerRenderGroup, page: PageSnapshot, package: URL,
+                               in context: CGContext, hidingObjectIDs: Set<UUID> = [], hidingTextID: UUID? = nil) {
+        let objects = ObjectLookup(page)
+        for id in group.aboveObjectIDs where !hidingObjectIDs.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+        }
         let tapes = Set(group.tapeIDs).subtracting(hidingObjectIDs)
         drawTapes((page.tapes ?? []).filter { tapes.contains($0.id) }, in: context)
     }
@@ -206,6 +217,7 @@ final class PageSurfaceView: UIView {
         setNeedsDisplay()
         guard let host = superview as? CanvasHost else { return }
         host.markerReadability.setNeedsDisplay()
+        if page.layers != nil, host.model?.inkReplayActive != true { host.layeredScene.update(host) }
         // Object/text drag previews hide their source without changing page
         // metadata until release. The empty-ink cover must mirror that state.
         if !host.emptyInkCover.isHidden { host.emptyInkCover.update(from: host, force: true) }
@@ -224,6 +236,7 @@ final class PageSurfaceView: UIView {
     var package = URL(fileURLWithPath: "/")
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
-        PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: allHiddenObjectIDs, pdfMode: .preview)
+        if page.layers != nil { PageRenderer.drawPaper(page, package: package, in: context, pdfMode: .preview) }
+        else { PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: allHiddenObjectIDs, pdfMode: .preview) }
     }
 }

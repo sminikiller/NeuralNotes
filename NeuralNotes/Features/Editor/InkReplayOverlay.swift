@@ -16,17 +16,22 @@ final class InkReplayOverlay: UIImageView {
     private var previousHot: [Int] = []
     private var previousHidden = Set<UUID>()
     private var previousPDFVersion = -1
+    private let layerReplay = LayerReplayRenderer()
+    private var layerTask: Task<Void, Never>?
+    private var layerTicket = UUID()
+    private var layerRequestKey = ""
     init() {
         super.init(frame: .zero); isHidden = true; isUserInteractionEnabled = false; contentMode = .scaleToFill
         NotificationCenter.default.addObserver(self, selector: #selector(nnReplayPDFReady(_:)), name: PDFRasterCache.didRender, object: nil)
     }
-    deinit { NotificationCenter.default.removeObserver(self) }
+    deinit { layerTask?.cancel(); NotificationCenter.default.removeObserver(self) }
     @objc private func nnReplayPDFReady(_ note: Notification) {
         guard let host, let page = host.model?.page, active, PDFRasterCache.affects(note, page: page, package: host.surface.package) else { return }
         update(host)
     }
     required init?(coder: NSCoder) { nil }
     func resetForPageChange(_ host: CanvasHost) {
+        resetLayerReplay()
         host.surface.replayHiddenObjectIDs = []
         host.canvas.layer.opacity = 1
         active = false; image = nil; isHidden = true; key = ""
@@ -40,8 +45,10 @@ final class InkReplayOverlay: UIImageView {
                 host.surface.replayHiddenObjectIDs = []; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
             }
             if active {
+                resetLayerReplay()
+                host.insertSubview(self, belowSubview: host.markerReadability)
                 host.canvas.layer.opacity = 1; active = false; isHidden = true; image = nil; key = ""
-                host.model?.configureTool()
+                host.model?.configureTool(); host.updateNativeInkVisibility()
             }; return
         }
         let hiddenShapes = Set((page.shapes ?? []).compactMap { shape -> UUID? in
@@ -57,6 +64,11 @@ final class InkReplayOverlay: UIImageView {
         let hiddenObjects: Set<UUID> = audio.replayMode == .showAll ? [] : hiddenShapes.union(hiddenEdges)
         if hiddenObjects != host.surface.replayHiddenObjectIDs {
             host.surface.replayHiddenObjectIDs = hiddenObjects; host.paperDetail.update(from: host); host.foregroundObjects.update(host)
+        }
+        if page.layers != nil {
+            updateLayers(host, model: model, page: page, sessionID: sessionID, seconds: audio.playback,
+                mode: audio.replayMode, hiding: hiddenObjects)
+            return
         }
         let generation = "\(page.id)|\(page.revision)|\(host.canvas.drawing.strokes.count)|\(sessionID)|\(model.inkDisplayGeneration)"
         if key != generation {
@@ -77,7 +89,7 @@ final class InkReplayOverlay: UIImageView {
                 if !hot.isEmpty {
                     let emphasized = PKDrawing(strokes: hot.map { index in
                         let stroke = drawing.strokes[index]
-                        return PKStroke(ink: PKInk(.pen, color: .systemTeal), path: stroke.path, transform: stroke.transform, mask: stroke.mask)
+                        return PKStroke(ink: PKInk(.pen, color: .systemTeal), path: stroke.path, transform: stroke.transform, mask: stroke.mask, randomSeed: stroke.randomSeed)
                     })
                     renderer.cgContext.saveGState(); renderer.cgContext.setAlpha(0.65)
                     LegibleInkRenderer.draw(emphasized, in: renderer.cgContext, bounds: box, scale: format.scale)
@@ -90,4 +102,43 @@ final class InkReplayOverlay: UIImageView {
         frame = host.surface.frame; isHidden = false; active = true
         host.canvas.layer.opacity = 0; host.canvas.drawingGestureRecognizer.isEnabled = false
     }
+    private func resetLayerReplay() {
+        layerTask?.cancel(); layerTask = nil; layerTicket = UUID(); layerRequestKey = ""; layerReplay.clear()
+    }
+    private func updateLayers(_ host: CanvasHost, model: EditorViewModel, page: PageSnapshot,
+                              sessionID: UUID, seconds: Double, mode: AudioReplayMode, hiding: Set<UUID>) {
+        host.insertSubview(self, aboveSubview: host.layeredScene)
+        frame = host.surface.frame; isHidden = false; active = true
+        host.canvas.layer.opacity = 0; host.canvas.drawingGestureRecognizer.isEnabled = false
+        if image == nil {
+            let bounds = CGRect(x: 0, y: 0, width: page.width, height: page.height)
+            let format = UIGraphicsImageRendererFormat(); format.scale = min(1, 800 / max(bounds.width, bounds.height)); format.opaque = true
+            image = UIGraphicsImageRenderer(bounds: bounds, format: format).image {
+                PageRenderer.drawPaper(page, package: host.surface.package, in: $0.cgContext, pdfMode: .interactive)
+            }
+        }
+        let pdfVersion = PDFRasterCache.shared.version(page: page, package: host.surface.package)
+        let key = "\(page.id)|\(page.revision)|\(model.inkDisplayGeneration)|\(sessionID)|\(Int(seconds * 20))|\(mode)|\(pdfVersion)"
+        guard layerTask == nil, layerRequestKey != key else { return }
+        layerRequestKey = key; let ticket = layerTicket
+        let drawing = host.canvas.drawing, owner = model.drawingLayerID ?? page.id
+        let generation = model.inkDisplayGeneration, workspace = model.workspace
+        layerTask = Task { [weak self, weak host, weak model] in
+            guard let self else { return }
+            do {
+                let image = try await self.layerReplay.image(page: page, workspace: workspace, live: drawing, owner: owner,
+                    generation: generation, sessionID: sessionID, seconds: seconds, mode: mode, hiding: hiding)
+                guard !Task.isCancelled, self.layerTicket == ticket, let host, let model,
+                      model.page?.id == page.id, model.audio?.playingSessionID == sessionID, model.inkReplayActive else { return }
+                self.image = image; self.layerTask = nil
+                // Coalesce ticks while rendering rather than continually cancel
+                // a frame before it can finish on a large layered page.
+                self.update(host)
+            } catch {
+                guard !Task.isCancelled, self.layerTicket == ticket else { return }
+                self.layerTask = nil; model?.error = "Riproduzione dei livelli: \(error.localizedDescription)"
+            }
+        }
+    }
+
 }
