@@ -185,4 +185,28 @@ final class PageLayerFoundationTests: XCTestCase {
         try PageValidation.validate(page)
     }
 
+    func testFileBackedPageEditInvalidatesWarmReachabilityBeforeTheNextVectorSave() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID), workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = try await workspace.addPage()
+        for revision in 1...4 { page.revision += 1; page = try await workspace.save(page, drawing: Data([UInt8(revision)])) }
+        let shared = try XCTUnwrap(page.previousDrawingFile), bytes = try Data(contentsOf: package.appendingPathComponent(shared))
+        var other = try await workspace.addPage(); let expectedRevision = other.revision
+        var layer = PageLayer(name: "Recovered owner", isVisible: false); layer.drawingFile = shared
+        other.layers = [PageLayer(id: other.id, name: "Base"), layer]
+        let builder = try PageEditSnapshotBuilder(documentID: manifest.documentID, parent: root.appendingPathComponent("undo"))
+        try await builder.append(other, drawing: nil, sourcePackage: package)
+        let snapshot = try await builder.finish(), order = [page.id, other.id]
+        try await workspace.applyPageEdit(snapshot, expectedOrder: order, newOrder: order, expectedRevisions: [other.id: expectedRevision])
+        page.revision += 1; page = try await workspace.save(page, drawing: Data([5]))
+        XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(shared)), bytes)
+        let restored = try await workspace.pageSnapshot(other.id)
+        XCTAssertEqual(restored.layers?.last?.drawingFile, shared)
+        let report = try await workspace.storageReport(); XCTAssertFalse(report.unusedFiles.contains(shared))
+        XCTAssertNoThrow(try NativePackageInspector.inspect(package))
+    }
+
 }
