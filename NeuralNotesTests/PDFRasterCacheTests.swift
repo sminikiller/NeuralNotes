@@ -218,9 +218,10 @@ final class PDFRasterCacheTests: XCTestCase {
         XCTAssertTrue(host.emptyInkCover.isHidden)
         XCTAssertFalse(host.paperDetail.isHidden, "The first pen stroke must not expose only the blurry PDF preview until the next save/layout")
         host.paperDetail.layer.displayIfNeeded()
-        let detailFormat = UIGraphicsImageRendererFormat(); detailFormat.scale = 1
-        let firstStrokeBackground = UIGraphicsImageRenderer(size: host.paperDetail.bounds.size, format: detailFormat).image {
-            host.paperDetail.layer.render(in: $0.cgContext)
+        let detailFormat = UIGraphicsImageRendererFormat(); detailFormat.scale = 1; detailFormat.opaque = true
+        let firstStrokeBackground = UIGraphicsImageRenderer(size: host.paperDetail.bounds.size, format: detailFormat).image { output in
+            UIColor.white.setFill(); output.fill(host.paperDetail.bounds)
+            host.paperDetail.layer.render(in: output.cgContext)
         }
         XCTAssertGreaterThan(try blackPixels(firstStrokeBackground), 100, "Restoring visibility must also repaint the cleared detail backing store")
         model.strokeEnded(); model.finishInkGesture()

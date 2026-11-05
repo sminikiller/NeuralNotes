@@ -162,6 +162,23 @@ final class TextScriptsAndPalettesTests: XCTestCase {
         var text = TextElement(text: "Plain"); text.rtf = Data("{\\rtf1{\\*\\nnscript invalid}Plain}".utf8)
         XCTAssertEqual(RichText.attributed(text).string, "Plain")
     }
+    @MainActor func testOptionalScriptMetadataCannotMakeAnOtherwiseReadableRTFExceedTheReaderLimit() throws {
+        let attrs = RichTextScript.attributes([.font: UIFont.systemFont(ofSize: 24)], applying: .subscriptText)
+        let value = NSAttributedString(string: "2", attributes: attrs)
+        var rtf = try value.data(from: NSRange(location: 0, length: 1), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        let closing = try XCTUnwrap(rtf.lastIndex(of: 125))
+        let paddingPrefix = Data("{\\*\\nnpadding ".utf8)
+        let paddingCount = 2 * 1024 * 1024 - 16 - rtf.count - paddingPrefix.count - 1
+        let padding = paddingPrefix + Data(repeating: 32, count: paddingCount) + Data("}".utf8)
+        rtf.insert(contentsOf: padding, at: closing)
+        let bounded = RichTextScript.appendMetadata(to: rtf, value: value)
+        XCTAssertEqual(bounded, rtf)
+        XCTAssertLessThanOrEqual(bounded.count, 2 * 1024 * 1024)
+        let decoded = try NSAttributedString(data: bounded, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil)
+        XCTAssertEqual(decoded.string, "2")
+        XCTAssertEqual((decoded.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)?.pointSize ?? 0, 16.8, accuracy: 0.6)
+        XCTAssertLessThan((decoded.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0, 0)
+    }
     @MainActor private func editorFixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

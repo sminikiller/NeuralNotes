@@ -43,6 +43,61 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
             controller.finishAndClose(); XCTAssertFalse(model.zoomWritingOpen)
         }
     }
+    @MainActor func testFastNextTouchDoesNotResurrectThePreviousRawStrokeAfterItsCorrection() async throws {
+        try await fixture { model in
+            model.editShapePreferences { $0.mode = .hold; $0.output = .editable }
+            model.zoomWritingOpen = true
+            let controller = ZoomWritingController(model: model); controller.host.frame = CGRect(x: 0, y: 0, width: 700, height: 200)
+            controller.resize(controller.host.bounds.size); controller.automatic = false
+            let first = self.stroke(x: 90, y: 120)
+            controller.canvasViewDidBeginUsingTool(controller.host.canvas)
+            controller.host.canvas.drawing = PKDrawing(strokes: [first])
+            let points = (0...40).map { StrokeSample(x: 90 + Double($0) * 4, y: 120 + sin(Double($0)) * 0.5) }
+            model.pendingHeldShape = (try XCTUnwrap(model.page?.id), .line, points)
+            controller.canvasViewDidEndUsingTool(controller.host.canvas)
+            // Begin synchronously, before the previous asynchronous end fence.
+            controller.canvasViewDidBeginUsingTool(controller.host.canvas)
+            XCTAssertEqual(model.page?.shapes?.count, 1)
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            let next = self.stroke(x: 180, y: 190)
+            controller.host.canvas.drawing = PKDrawing(strokes: [first, next])
+            controller.completeNativeStroke()
+            XCTAssertEqual(model.page?.shapes?.count, 1)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, PKDrawing(strokes: [next])))
+            XCTAssertTrue(NativeInkComparison.equal(controller.host.canvas.drawing, model.canvas.drawing))
+            await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertEqual(model.page?.shapes?.count, 1)
+            controller.finishAndClose()
+        }
+    }
+    @MainActor func testStoppedReplayPreferenceDoesNotDisableTheWritingWindow() async throws {
+        try await fixture { model in
+            let audio = try XCTUnwrap(model.audio); audio.replayInk = true
+            XCTAssertNil(audio.playingSessionID)
+            model.toggleZoomWriting(); XCTAssertTrue(model.zoomWritingOpen)
+            let controller = ZoomWritingController(model: model); controller.host.frame = CGRect(x: 0, y: 0, width: 700, height: 200)
+            controller.resize(controller.host.bounds.size); XCTAssertTrue(model.zoomWritingOpen)
+            audio.playingSessionID = UUID(); controller.configureTool()
+            XCTAssertFalse(model.zoomWritingOpen); XCTAssertTrue(audio.replayInk)
+            audio.stopPlayback(); model.toggleZoomWriting(); XCTAssertTrue(model.zoomWritingOpen)
+            model.closeZoomWriting()
+        }
+    }
+    @MainActor func testWritingWindowKeyboardPageFitTargetsTheAuthoritativeMainViewport() async throws {
+        try await fixture { model in
+            let parent = CanvasHost(canvas: model.canvas); parent.model = model; model.pagePresenter = parent
+            parent.surface.page = try XCTUnwrap(model.page); parent.frame = CGRect(x: 0, y: 0, width: 1000, height: 700); parent.layoutIfNeeded()
+            parent.togglePageZoom(animated: false); XCTAssertTrue(parent.fitsPageWidth)
+            model.zoomWritingOpen = true
+            let controller = ZoomWritingController(model: model); controller.host.frame = CGRect(x: 0, y: 0, width: 700, height: 200)
+            controller.resize(controller.host.bounds.size)
+            let command = UIKeyCommand(input: "0", modifierFlags: .command, action: #selector(CanvasHost.editorKey(_:)))
+            controller.host.editorKey(command)
+            XCTAssertFalse(parent.fitsPageWidth)
+            XCTAssertEqual(controller.geometry?.zoom, 3)
+            controller.finishAndClose()
+        }
+    }
     @MainActor func testLateNativeValueAndClosingDuringAMarkerPreserveDeliveredInk() async throws {
         try await fixture { model in
             model.zoomWritingOpen = true
