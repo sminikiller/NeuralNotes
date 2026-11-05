@@ -25,6 +25,18 @@ if not devices:
 print(devices[0]["udid"])
 ')"
 fi
+# A freshly provisioned simulator can exist in the device list before its
+# first-boot services are ready. Wait for the same boot barrier already used by
+# the package/upgrade checks before asking XCTest to launch its test runner.
+# An infrastructure failure is reported as setup failure, never a passing test.
+python3 - "$simulator_id" <<'PYBOOT'
+import subprocess, sys
+try:
+    subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=180)
+except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+    sys.exit(f"Simulator boot did not complete; tests were not started: {error}")
+print("SIMULATOR_BOOT_READY", flush=True)
+PYBOOT
 result_dir=".verification/$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$result_dir"
 # macOS ships Bash 3.2: an empty array expanded under `set -u` aborts the
