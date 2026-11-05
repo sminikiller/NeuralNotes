@@ -201,6 +201,24 @@ def check_syntax():
         for child in node.named_children:
             result.extend(uikit_hidden_properties(child, source, view))
         return result
+    def observable_multiple_bindings(node, source):
+        result = []
+        if node.type == "class_declaration":
+            modifiers = next((c for c in node.named_children if c.type == "modifiers"), None)
+            observed = modifiers is not None and re.search(rb"@Observable\b", source[modifiers.start_byte:modifiers.end_byte])
+            body = next((c for c in node.named_children if c.type == "class_body"), None)
+            if observed and body is not None:
+                for declaration in body.named_children:
+                    if declaration.type != "property_declaration":
+                        continue
+                    bindings = [c for c in declaration.named_children if c.type == "pattern"]
+                    kind = next((c for c in declaration.named_children if c.type == "value_binding_pattern"), None)
+                    header = source[declaration.start_byte:bindings[0].start_byte] if bindings else b""
+                    if len(bindings) > 1 and kind is not None and source[kind.start_byte:kind.end_byte] == b"var" and not re.search(rb"\bstatic\b", header):
+                        result.append(declaration.start_point.row + 1)
+        for child in node.named_children:
+            result.extend(observable_multiple_bindings(child, source))
+        return result
     # The old SelectionCommands failure is valid grammar but invalid Swift:
     # bare catch binds an immutable Error named error, shadowing the UI property.
     bad = b'func f() { do { try g() } catch { error = "failed" } }'
@@ -213,6 +231,10 @@ def check_syntax():
     assert uikit_hidden_properties(parser.parse(hidden_bad).root_node, hidden_bad)
     assert not uikit_hidden_properties(parser.parse(hidden_good).root_node, hidden_good)
     assert not uikit_hidden_properties(parser.parse(hidden_state).root_node, hidden_state)
+    observable_bad = b'@Observable final class State { var first = 0, second = 0 }'
+    observable_good = b'@Observable final class State { var first = 0; var second = [1,2]; let x = 0, y = 1; func f() { var a = 0, b = 1 } }'
+    assert observable_multiple_bindings(parser.parse(observable_bad).root_node, observable_bad)
+    assert not observable_multiple_bindings(parser.parse(observable_good).root_node, observable_good)
     paths = [ROOT / "Package.swift"]
     paths += [p for base in ["NeuralNotes", "Tests", "NeuralNotesTests", "NeuralNotesUITests"]
               for p in (ROOT / base).rglob("*.swift")]
@@ -224,6 +246,8 @@ def check_syntax():
             failures.append(f"{path.relative_to(ROOT)}:{line}: assignment to implicit catch error; qualify the UI property")
         for line in uikit_hidden_properties(tree.root_node, source):
             failures.append(f"{path.relative_to(ROOT)}:{line}: hidden collides with UIKit; use a dedicated property name")
+        for line in observable_multiple_bindings(tree.root_node, source):
+            failures.append(f"{path.relative_to(ROOT)}:{line}: declare each observable stored variable separately; the accessor macro cannot expand multiple bindings")
         if tree.root_node.has_error:
             def walk(node):
                 if node.type == "ERROR" or node.is_missing:
@@ -233,6 +257,7 @@ def check_syntax():
             walk(tree.root_node)
     assert not failures, "\n".join(failures)
     print(f"PASS: syntax grammar parsing of {len(paths)} Swift files (not type checking or an SDK build)")
+    print("PASS: observable stored variables use individual macro-compatible declarations")
     print("PASS: no assignment to the implicit immutable error in bare catch blocks")
     print("PASS: no stored hidden property in the checked UIKit view subclasses (not a full SDK audit)")
 
