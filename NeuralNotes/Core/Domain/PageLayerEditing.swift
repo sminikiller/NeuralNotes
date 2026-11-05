@@ -50,14 +50,26 @@ public enum PageLayerEditing {
     public static func removing(_ id: UUID, in input: PageSnapshot) throws -> PageSnapshot {
         try PageValidation.validate(input)
         guard id != input.id else { throw PageLayerFailure.baseLayer }
-        guard let layer = input.layers?.first(where: { $0.id == id }) else { throw PageLayerFailure.missing }
+        var page = try clearing(id, in: input)
+        page.layers?.removeAll { $0.id == id }
+        try PageValidation.validate(page); return page
+    }
+    /// Clearing Base retains the PDF, paper and the Base identity. File-backed
+    /// undo must own its immutable references before this header is committed.
+    public static func clearing(_ id: UUID, in input: PageSnapshot) throws -> PageSnapshot {
+        try PageValidation.validate(input)
+        guard let layer = PageLayers.ordered(in: input).first(where: { $0.id == id }) else { throw PageLayerFailure.missing }
         guard !layer.isLocked else { throw PageLayerFailure.locked }
         var page = input
-        page.layers?.removeAll { $0.id == id }
-        page.texts.removeAll { $0.layerID == id }; page.images.removeAll { $0.layerID == id }
-        page.shapes = page.shapes?.filter { $0.layerID != id }; page.connectors = page.connectors?.filter { $0.layerID != id }
-        page.tapes = page.tapes?.filter { $0.layerID != id }; page.pdfMarkups = page.pdfMarkups?.filter { $0.layerID != id }
-        page.anchors.removeAll { $0.layerID == id }; page.pruneObjectReferences()
+        func owns(_ owner: UUID?) -> Bool { PageLayers.canonical(owner, page: input) == id }
+        if id == input.id { page.drawingFile = nil; page.previousDrawingFile = nil }
+        else if let index = page.layers?.firstIndex(where: { $0.id == id }) {
+            page.layers?[index].drawingFile = nil; page.layers?[index].previousDrawingFile = nil
+        }
+        page.texts.removeAll { owns($0.layerID) }; page.images.removeAll { owns($0.layerID) }
+        page.shapes = page.shapes?.filter { !owns($0.layerID) }; page.connectors = page.connectors?.filter { !owns($0.layerID) }
+        page.tapes = page.tapes?.filter { !owns($0.layerID) }; page.pdfMarkups = page.pdfMarkups?.filter { !owns($0.layerID) }
+        page.anchors.removeAll { owns($0.layerID) }; page.pruneObjectReferences()
         try PageValidation.validate(page); return page
     }
     public static func duplicating(_ id: UUID, in input: PageSnapshot, name: String, drawingCopy: String?) throws -> (page: PageSnapshot, layerID: UUID) {

@@ -61,6 +61,25 @@ public enum PageLayers {
     public static func previousDrawingFile(for id: UUID, in page: PageSnapshot) -> String? {
         id == page.id ? page.previousDrawingFile : page.layers?.first(where: { $0.id == id })?.previousDrawingFile
     }
+    /// Saving advances immutable file pointers, not the user's edits. Rebase
+    /// those pointers without overwriting a rename, visibility change or a
+    /// newly created layer while an older snapshot is being written.
+    public static func rebasingDrawingReferences(_ input: PageSnapshot, from saved: PageSnapshot) -> PageSnapshot {
+        guard input.id == saved.id else { return input }
+        var page = input
+        page.revision = saved.revision; page.lastEditedAt = saved.lastEditedAt
+        page.drawingFile = saved.drawingFile; page.previousDrawingFile = saved.previousDrawingFile
+        let values = Dictionary(uniqueKeysWithValues: ordered(in: saved).map { ($0.id, $0) })
+        if var layers = page.layers {
+            for i in layers.indices where layers[i].id != page.id {
+                guard let stored = values[layers[i].id] else { continue }
+                layers[i].drawingFile = stored.drawingFile
+                layers[i].previousDrawingFile = stored.previousDrawingFile
+            }
+            page.layers = layers
+        }
+        return page
+    }
     public static func ownedObjectIDs(in page: PageSnapshot, layerID: UUID) -> Set<UUID> {
         var result = Set<UUID>()
         for value in page.texts where canonical(value.layerID, page: page) == layerID { result.insert(value.id) }

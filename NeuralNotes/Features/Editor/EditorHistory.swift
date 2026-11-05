@@ -5,10 +5,19 @@ import NeuralNotesCore
 struct EditorContentState: Equatable {
     var page: PageSnapshot
     var drawing: Data?
+    var layerID: UUID? = nil
     var normalized: PageSnapshot {
-        var copy = page; copy.revision = 0; copy.drawingFile = nil; copy.previousDrawingFile = nil; copy.lastEditedAt = nil; return copy
+        var copy = page; copy.revision = 0; copy.drawingFile = nil; copy.previousDrawingFile = nil; copy.lastEditedAt = nil
+        if var layers = copy.layers {
+            for i in layers.indices { layers[i].drawingFile = nil; layers[i].previousDrawingFile = nil }
+            copy.layers = layers
+        }
+        return copy
     }
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.normalized == rhs.normalized && lhs.drawing == rhs.drawing }
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.normalized == rhs.normalized && lhs.drawing == rhs.drawing &&
+        (lhs.layerID ?? lhs.page.id) == (rhs.layerID ?? rhs.page.id)
+    }
 }
 
 enum EditorEdit {
@@ -25,7 +34,7 @@ extension EditorViewModel {
     var canRedo: Bool { history.redo != nil }
 
     func captureEdit(ink: Bool = false) -> EditorContentState? {
-        page.map { EditorContentState(page: $0, drawing: ink ? canvas.drawing.dataRepresentation() : nil) }
+        page.map { EditorContentState(page: $0, drawing: ink ? canvas.drawing.dataRepresentation() : nil, layerID: activeLayerID) }
     }
 
     func recordEdit(_ before: EditorContentState?, label: String) {
@@ -69,16 +78,15 @@ extension EditorViewModel {
         // An in-flight save rebases its revision/file pointers onto this live
         // state; dirty stays set so the normal save loop drains the latest edit.
         if case .content(let before, let after) = immediate.event,
-           let current = page, current.id == before.page.id, current.id == after.page.id {
+           let current = page, current.id == before.page.id, current.id == after.page.id,
+           (before.layerID ?? current.id) == drawingLayerID,
+           (after.layerID ?? current.id) == drawingLayerID {
             do {
                 let target = undo ? before : after
                 let ink = try target.drawing.map { try PKDrawing(data: $0) }
                 let preserveWords = scanWordsUnchanged(from: current, to: target.page, drawing: ink)
                 applyingHistory = true; defer { applyingHistory = false }
-                var restored = target.page
-                restored.revision = current.revision; restored.drawingFile = current.drawingFile
-                restored.previousDrawingFile = current.previousDrawingFile
-                page = restored
+                page = PageLayers.rebasingDrawingReferences(target.page, from: current)
                 if let ink { replaceInkSession(with: ink) }
                 selectedObjectID = nil
                 if undo { history.didUndo() } else { history.didRedo() }
@@ -96,11 +104,19 @@ extension EditorViewModel {
                 let latest = try await workspace.pages()
                 guard let stored = latest.first(where: { $0.id == target.page.id }) else { throw LibraryFailure.missingItem }
                 if page?.id != stored.id { try await load(stored) }
-                var restored = target.page
-                restored.revision = stored.revision; restored.drawingFile = stored.drawingFile
-                restored.previousDrawingFile = stored.previousDrawingFile
+                let owner = target.layerID ?? stored.id
+                let restored = PageLayers.rebasingDrawingReferences(target.page, from: stored)
+                // Metadata-only edits on another owner need its persisted ink,
+                // not the canvas that happens to be active when Undo is pressed.
+                let ink: PKDrawing
+                let recovered: Bool
+                if let bytes = target.drawing { ink = try PKDrawing(data: bytes); recovered = false }
+                else {
+                    let value = try await LayerDrawingReader.read(page: restored, layerID: owner, workspace: workspace)
+                    ink = value.drawing; recovered = value.recoveredFromPrevious
+                }
                 page = restored
-                if let bytes = target.drawing { replaceInkSession(with: try PKDrawing(data: bytes)) }
+                installLayerInk(ink, owner: owner, recovered: recovered)
                 selectedObjectID = nil; drawingChanged()
                 guard await flush() else { return }
             case .order(let before, let after, let beforePage, let afterPage):

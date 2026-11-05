@@ -2,6 +2,57 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class PageLayerEditingTests: XCTestCase {
+    func testClearingBaseRetainsPDFAndOtherOwnersAndDetachesTheirDeletedTargets() throws {
+        var page = PageSnapshot(); page.pdfFile = "pdf/source.pdf"; page.pdfIndex = 0
+        page.drawingFile = "drawings/base.drawing"; page.previousDrawingFile = "drawings/base-previous.drawing"
+        let added = try PageLayerEditing.adding(to: page, name: "Keep"); page = added.page
+        page.layers?[1].drawingFile = "drawings/upper.drawing"
+        let base = TextElement(text: "Base")
+        var explicitBase = TextElement(text: "Explicit Base"); explicitBase.layerID = page.id
+        var upper = TextElement(text: "Upper"); upper.layerID = added.layerID
+        page.texts = [base, explicitBase, upper]
+        var edge = ConnectorElement(from: .init(objectID: base.id, x: 60, y: 90), to: .init(objectID: upper.id, x: 80, y: 100))
+        edge.layerID = added.layerID; page.connectors = [edge]
+        page.lockedObjects = [base.id, upper.id]; page.aboveInkObjects = [base.id, upper.id]
+        let original = page
+        let cleared = try PageLayerEditing.clearing(page.id, in: page)
+        XCTAssertEqual(cleared.pdfFile, original.pdfFile); XCTAssertEqual(cleared.pdfIndex, original.pdfIndex)
+        XCTAssertEqual(cleared.layers, original.layers)
+        XCTAssertNil(cleared.drawingFile); XCTAssertNil(cleared.previousDrawingFile)
+        XCTAssertEqual(cleared.texts.map(\.id), [upper.id])
+        XCTAssertEqual(cleared.connectors?.first?.from.objectID, nil)
+        XCTAssertEqual(cleared.connectors?.first?.to.objectID, upper.id)
+        XCTAssertEqual(cleared.lockedObjects, [upper.id]); XCTAssertEqual(cleared.aboveInkObjects, [upper.id])
+        XCTAssertEqual(page, original); try PageValidation.validate(cleared)
+        let locked = try PageLayerEditing.lock(page.id, locked: true, in: page)
+        XCTAssertThrowsError(try PageLayerEditing.clearing(page.id, in: locked))
+        let emptyUpper = try PageLayerEditing.clearing(added.layerID, in: page)
+        XCTAssertEqual(emptyUpper.drawingFile, page.drawingFile)
+        XCTAssertNil(emptyUpper.layers?[1].drawingFile)
+        XCTAssertEqual(emptyUpper.texts.map(\.id), [base.id, explicitBase.id])
+    }
+
+    func testInFlightPointerRebasePreservesNewLayerMetadataAndDoesNotCrossPages() throws {
+        let added = try PageLayerEditing.adding(to: PageSnapshot(), name: "Notes")
+        var saved = added.page; saved.revision = 7; saved.lastEditedAt = 123
+        saved.drawingFile = "drawings/base-new.drawing"; saved.previousDrawingFile = "drawings/base-old.drawing"
+        saved.layers?[1].drawingFile = "drawings/notes-new.drawing"
+        saved.layers?[1].previousDrawingFile = "drawings/notes-old.drawing"
+        var pending = try PageLayerEditing.renaming(added.layerID, to: "Renamed while saving", in: added.page)
+        pending = try PageLayerEditing.opacity(added.layerID, value: 0.4, in: pending)
+        let extra = try PageLayerEditing.adding(to: pending, name: "Created while saving")
+        let rebased = PageLayers.rebasingDrawingReferences(extra.page, from: saved)
+        XCTAssertEqual(rebased.revision, 7); XCTAssertEqual(rebased.lastEditedAt, 123)
+        XCTAssertEqual(rebased.drawingFile, saved.drawingFile)
+        XCTAssertEqual(rebased.layers?[1].drawingFile, saved.layers?[1].drawingFile)
+        XCTAssertEqual(rebased.layers?[1].previousDrawingFile, saved.layers?[1].previousDrawingFile)
+        XCTAssertEqual(rebased.layers?[1].name, "Renamed while saving"); XCTAssertEqual(rebased.layers?[1].opacity, 0.4)
+        XCTAssertEqual(rebased.layers?.last?.id, extra.layerID)
+        let other = PageSnapshot()
+        XCTAssertEqual(PageLayers.rebasingDrawingReferences(other, from: saved), other)
+        try PageValidation.validate(rebased)
+    }
+
     func testMetadataEditingKeepsAllContentAndUsesCanonicalOrderAndBounds() throws {
         var original = PageSnapshot(); original.drawingFile = "drawings/base.drawing"; original.texts = [TextElement(text: "Base retained")]
         let added = try PageLayerEditing.adding(to: original, name: "  Annotazioni  "), id = added.layerID

@@ -202,6 +202,10 @@ final class EditorViewModel {
     @ObservationIgnored private var strokeTime: (UUID, Double)?
     @ObservationIgnored private var signaturesBeforeStroke = Set<String>()
     @ObservationIgnored private var recoveredFromPrevious = false
+    // Nil is the legacy base owner. Layer switching is not exposed in the UI
+    // until the inactive-layer compositor and scoped tools are installed.
+    var activeLayerID: UUID?
+    var drawingLayerID: UUID? { page.map { activeLayerID ?? $0.id } }
     @ObservationIgnored private let pageWriter: @MainActor (PageSnapshot, Data, Bool) async throws -> PageSnapshot
 
     init(workspace: DocumentWorkspace, pageWriter: (@MainActor (PageSnapshot, Data, Bool) async throws -> PageSnapshot)? = nil) {
@@ -426,10 +430,14 @@ final class EditorViewModel {
             snapshot.revision += 1
             let data = canvas.drawing.dataRepresentation()
             let recovering = recoveredFromPrevious
+            let owner = snapshot.layers == nil ? nil : (activeLayerID ?? snapshot.id)
             dirty = false; saving = true; status = "Salvataggio…"
-            let task = Task { [weak self, pageWriter] () -> Bool in
+            let task = Task { [weak self, pageWriter, workspace] () -> Bool in
                 do {
-                    let saved = try await pageWriter(snapshot, data, recovering)
+                    let saved: PageSnapshot
+                    if let owner {
+                        saved = try await workspace.save(snapshot, drawing: data, recoveredFromPrevious: recovering, layerID: owner)
+                    } else { saved = try await pageWriter(snapshot, data, recovering) }
                     guard let self else { return true }
                     if self.page?.id == saved.id {
                         self.recoveredFromPrevious = false
@@ -437,10 +445,7 @@ final class EditorViewModel {
                             var advanced = previous; advanced.revision = saved.revision
                             PageWordIndex.shared.didSave(previous, as: advanced)
                         }
-                        self.page?.revision = saved.revision
-                        self.page?.drawingFile = saved.drawingFile
-                        self.page?.previousDrawingFile = saved.previousDrawingFile
-                        self.page?.lastEditedAt = saved.lastEditedAt
+                        if let live = self.page { self.page = PageLayers.rebasingDrawingReferences(live, from: saved) }
                         if let index = self.pages.firstIndex(where: { $0.id == saved.id }), let current = self.page {
                             self.pages[index] = current
                         }
@@ -492,22 +497,40 @@ final class EditorViewModel {
             if order.allSatisfy({ known[$0] != nil }) { pages = order.compactMap { known[$0] } }
             else { pages = try await workspace.pages() }
         }
-        let drawing: PKDrawing
-        var recovered = false
-        do {
-            let data = try await workspace.drawing(current)
-            drawing = try data.map { try PKDrawing(data: $0) } ?? PKDrawing()
-        }
-        catch {
-            guard let backup = current.previousDrawingFile else { throw error }
-            let url = try await workspace.url(backup)
-            drawing = try PKDrawing(data: Data(contentsOf: url))
-            recovered = true
-            self.error = "Recuperata la revisione precedente. Salva per conservarla."
-        }
+        let value = try await LayerDrawingReader.read(page: current, layerID: current.id, workspace: workspace)
+        if value.recoveredFromPrevious { self.error = "Recuperata la revisione precedente. Salva per conservarla." }
         await PDFRasterCache.shared.preparePreview(page: current, package: workspace.package)
         try Task.checkCancellation()
-        installPage(current, drawing: drawing, recovered: recovered)
+        installPage(current, drawing: value.drawing, recovered: value.recoveredFromPrevious)
+    }
+
+    /// Transactional owner hand-off: never feed a different owner's ink into
+    /// the live canvas before the previous owner has reached disk. A failed
+    /// read/save leaves the current native timeline and owner unchanged.
+    func selectLayer(_ id: UUID) async {
+        guard hasLease, !loading, !navigating, !hasActiveStroke,
+              let original = page, id != drawingLayerID,
+              PageLayers.editable(id, page: original) else { return }
+        navigating = true; defer { navigating = false }
+        closeZoomWriting()
+        guard await flush(), let current = page, current.id == original.id,
+              PageLayers.editable(id, page: current) else { return }
+        do {
+            let value = try await LayerDrawingReader.read(page: current, layerID: id, workspace: workspace)
+            try Task.checkCancellation()
+            installLayerInk(value.drawing, owner: id, recovered: value.recoveredFromPrevious)
+            dirty = value.recoveredFromPrevious
+            selectedObjectID = nil; diagramLabelEditor = nil
+            lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
+            status = value.recoveredFromPrevious ? "Revisione precedente recuperata — salva" : "Salvato sul dispositivo"
+            configureTool()
+        } catch { self.error = error.localizedDescription }
+    }
+
+    func installLayerInk(_ drawing: PKDrawing, owner: UUID, recovered: Bool = false) {
+        replaceInkSession(with: drawing)
+        activeLayerID = owner == page?.id ? nil : owner
+        recoveredFromPrevious = recovered
     }
 
     /// Only a clean editor may switch synchronously at Pencil touch-down.
@@ -561,6 +584,7 @@ final class EditorViewModel {
 
     private func installPage(_ current: PageSnapshot, drawing: PKDrawing, recovered: Bool) {
         closeZoomWriting()
+        activeLayerID = nil
         lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
         endTextEdit()
         replaceInkSession(with: drawing)
@@ -653,7 +677,7 @@ final class EditorViewModel {
             let saved = try await workspace.setPageDetails(target.id, title: title, bookmarked: bookmarked)
             if page?.id == saved.id { page = saved }
             pages = try await workspace.pages()
-            let after = EditorContentState(page: saved, drawing: nil)
+            let after = EditorContentState(page: saved, drawing: nil, layerID: before?.layerID)
             if let before, before != after { history.record(.content(before, after), label: "Titolo e segnalibro") }
         } catch { self.error = error.localizedDescription }
     }
