@@ -21,6 +21,7 @@ final class HandwritingSession {
     var lineSpacing: Double = 1
     var previewToken = UUID()
     var proposal: HandwritingProposal?
+    private var fitsRenderedPage = false
     @ObservationIgnored private(set) var preview: PKDrawing?
     @ObservationIgnored let original: PKDrawing
     @ObservationIgnored let ghost: PKDrawing
@@ -30,6 +31,8 @@ final class HandwritingSession {
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private let generation: UUID
     @ObservationIgnored private var ticket = UUID()
+    @ObservationIgnored private var pendingRecompute = false
+    @ObservationIgnored private var cancelled = false
     let selected: Set<Int>
 
     init(command: HandwritingCommand, model: EditorViewModel, before: EditorContentState, selected: Set<Int>) {
@@ -42,11 +45,11 @@ final class HandwritingSession {
         })
     }
     var isCurrent: Bool {
-        guard let model else { return false }
+        guard !cancelled, let model, model.handwriting === self else { return false }
         return model.hasLease && model.page?.id == before.page.id && model.drawingLayerID == (before.layerID ?? before.page.id) &&
             model.inkDisplayGeneration == generation && !model.inkReplayActive
     }
-    var canApply: Bool { !preparing && proposal?.fitsPage == true && preview != nil && isCurrent }
+    var canApply: Bool { !preparing && proposal?.fitsPage == true && fitsRenderedPage && preview != nil && isCurrent }
     var selectionBounds: CGRect {
         guard let bounds = proposal?.bounds ?? input?.analysis.bounds else { return .null }
         return CGRect(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height)
@@ -73,8 +76,11 @@ final class HandwritingSession {
         }
     }
     func recompute() {
-        task?.cancel(); task = nil
         guard let input, isCurrent else { return }
+        // Coalesce changes while one worker is running. A trailing debounce
+        // alone would show no reflow until the finger stopped moving.
+        if task != nil { pendingRecompute = true; return }
+        pendingRecompute = false
         preparing = true; message = nil
         let current = UUID(); ticket = current
         let action: HandwritingAction
@@ -90,7 +96,7 @@ final class HandwritingSession {
         let bounds = SnapRect(x: 0, y: 0, width: before.page.width, height: before.page.height)
         task = Task { [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(65))
+                try await Task.sleep(for: .milliseconds(33))
                 let configuration = options
                 let worker = Task.detached(priority: .userInitiated) {
                     try HandwritingLayout.propose(action, strokes: input.strokes, analysis: input.analysis, page: bounds, options: configuration)
@@ -99,14 +105,24 @@ final class HandwritingSession {
                 try Task.checkCancellation()
                 guard let self, ticket == current, isCurrent else { return }
                 let next = try HandwritingNative.applying(proposal, to: original, allowed: selected)
+                let native = next.strokes
+                let painted = proposal.adjustments.reduce(CGRect.null) { $0.union(native[$1.strokeID].renderBounds) }
+                let sheet = CGRect(x: 0, y: 0, width: before.page.width, height: before.page.height).insetBy(dx: -0.5, dy: -0.5)
+                fitsRenderedPage = !painted.isNull && !painted.isInfinite && sheet.contains(painted)
                 self.proposal = proposal; preview = next; previewToken = UUID(); preparing = false
-                if !proposal.fitsPage { message = HandwritingFailure.outsidePage.localizedDescription }
+                if !proposal.fitsPage || !fitsRenderedPage { message = HandwritingFailure.outsidePage.localizedDescription }
                 (model?.pagePresenter as? CanvasHost)?.handwritingPreview.update()
+                task = nil
+                if pendingRecompute { recompute() }
             } catch is CancellationError { }
-            catch { guard let self, ticket == current else { return }; message = error.localizedDescription; preparing = false }
+            catch {
+                guard let self, ticket == current else { return }
+                message = error.localizedDescription; preparing = false; proposal = nil; task = nil
+                if pendingRecompute { recompute() }
+            }
         }
     }
-    func cancel() { task?.cancel(); task = nil; ticket = UUID(); preview = nil }
+    func cancel() { cancelled = true; task?.cancel(); task = nil; pendingRecompute = false; ticket = UUID(); preview = nil }
     func apply() {
         guard canApply, let model, let preview, let current = model.captureEdit(ink: false),
               current.normalized == before.normalized, NativeInkComparison.equal(model.canvas.drawing, original) else {
@@ -130,9 +146,8 @@ final class HandwritingSession {
         }
     }
     func beginHandwriting(_ command: HandwritingCommand) {
-        finishInkGesture(); endTextEdit()
+        finishInkGesture(); endTextEdit(); closeZoomWriting()
         guard canRefineHandwriting, hasLease, !navigating, !loading, let before = captureEdit(ink: true) else { return }
-        closeZoomWriting()
         let selected = selectedStrokeIndices ?? Set(canvas.drawing.strokes.indices)
         let session = HandwritingSession(command: command, model: self, before: before, selected: selected)
         handwriting = session; configureTool(); session.start()

@@ -52,9 +52,11 @@ enum HandwritingNative {
                   determinant > 0.0001, determinant < 10_000 else { throw HandwritingFailure.invalidSelection }
             let transform = CGAffineTransform(a: affine.a, b: affine.b, c: affine.c, d: affine.d, tx: affine.tx, ty: affine.ty)
             if let coordinates = adjustment.points {
+                let native = original.transform
+                let nativeDeterminant = native.a * native.d - native.b * native.c
                 guard coordinates.count == original.path.count,
                       coordinates.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
-                      abs(original.transform.determinant) > 0.000001 else { throw HandwritingFailure.invalidSelection }
+                      abs(nativeDeterminant) > 0.000001 else { throw HandwritingFailure.invalidSelection }
                 let inverse = original.transform.inverted()
                 let controls = zip(original.path, coordinates).enumerated().map { index, pair in
                     let (point, coordinate) = pair
@@ -85,8 +87,4 @@ enum HandwritingNative {
             opacity: point.opacity, force: point.force, azimuth: point.azimuth, altitude: point.altitude,
             secondaryScale: point.secondaryScale)
     }
-}
-
-private extension CGAffineTransform {
-    var determinant: CGFloat { a * d - b * c }
 }

@@ -30,6 +30,7 @@ struct FocusSelectionActions: View {
             if !model.selectedShapes.isEmpty {
                 Button("Stile forme", systemImage: "slider.horizontal.3") { model.editSelection() }
             }
+            if model.selectionIncludesInk { HandwritingMenu(model: model) }
             Section {
                 Button("Copia o sposta in un’altra pagina", systemImage: "doc.on.doc") { transfer = true }
                 Button("Trascina sulle miniature", systemImage: "rectangle.grid.1x2") { model.selectionPageDragMode.toggle() }

@@ -139,6 +139,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
         if model?.zoomWritingOpen == true { return false }
         guard let model, let host, !model.loading, !model.navigating else { return false }
+        if model.handwriting != nil && gesture !== undoTap && gesture !== redoTap && gesture !== fitTap && gesture !== pointerFitTap {
+            return false
+        }
         if gesture === labelTap { return model.tool == .objects && model.editingTextID == nil }
         if gesture === undoTap || gesture === redoTap { return model.hasLease && !model.hasActiveStroke && model.editingTextID == nil }
         if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,

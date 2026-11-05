@@ -5,6 +5,44 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class HandwritingSessionTests: XCTestCase {
+    @MainActor func testWidthChangesCoalesceToTheLatestProposalAndACancelledSessionCannotRestart() async throws {
+        try await fixture { model in
+            let original = model.canvas.drawing
+            model.beginHandwriting(.reflow); let session = try await self.ready(model)
+            for offset in [20.0, 40.0, 80.0, 60.0] {
+                session.width = session.minimumWidth + offset; session.recompute()
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            _ = try await self.ready(model)
+            let input = try XCTUnwrap(session.input), header = try XCTUnwrap(model.page)
+            var options = HandwritingOptions(); options.reflowX = session.left
+            let expected = try HandwritingLayout.propose(.reflow(width: session.width), strokes: input.strokes,
+                analysis: input.analysis, page: .init(x: 0, y: 0, width: header.width, height: header.height), options: options)
+            XCTAssertEqual(session.proposal?.adjustments, expected.adjustments)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, original)); XCTAssertFalse(model.dirty)
+            model.cancelHandwriting()
+            session.recompute(); session.apply()
+            XCTAssertFalse(session.canApply); XCTAssertNil(model.handwriting)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, original)); XCTAssertFalse(model.canUndo)
+        }
+    }
+    @MainActor func testPreviewBlocksObjectDraggingAndCancelRestoresSelectionGestures() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model; model.pagePresenter = host
+            host.surface.package = model.workspace.package; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 700, height: 500); host.setNeedsLayout(); host.layoutIfNeeded()
+            let interaction = CanvasInteraction(host: host, model: model), gesture = UIPanGestureRecognizer()
+            model.selectFreehand = true
+            XCTAssertTrue(interaction.gestureRecognizerShouldBegin(gesture))
+            let pinch = model.canvas.pinchGestureRecognizer?.isEnabled
+            model.beginHandwriting(.straighten); _ = try await self.ready(model)
+            XCTAssertFalse(interaction.gestureRecognizerShouldBegin(gesture))
+            XCTAssertFalse(model.canvas.drawingGestureRecognizer.isEnabled)
+            XCTAssertEqual(model.canvas.pinchGestureRecognizer?.isEnabled, pinch)
+            model.cancelHandwriting()
+            XCTAssertTrue(interaction.gestureRecognizerShouldBegin(gesture))
+        }
+    }
     @MainActor private func fixture(_ body: (EditorViewModel) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

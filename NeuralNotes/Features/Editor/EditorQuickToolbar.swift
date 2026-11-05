@@ -132,6 +132,7 @@ struct EditorQuickToolbar: View {
                 Button { model.editSelection() } label: { Label(model.selectedShapes.isEmpty ? "Modifica" : "Stile forma", systemImage: "slider.horizontal.3") }
                     .accessibilityLabel(model.selectedShapes.isEmpty ? "Modifica selezione" : "Stile forme")
                     .accessibilityIdentifier("selectionShapeStyle").disabled(!hasSelection)
+                if model.selectionIncludesInk { HandwritingMenu(model: model) }
 
                 Toggle(isOn: $model.multiSelection) { Image(systemName: "checkmark.circle") }.toggleStyle(.button).accessibilityLabel("Selezione multipla")
                 Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
@@ -141,7 +142,6 @@ struct EditorQuickToolbar: View {
                 Button { selectionOpen = false; model.selectionPageDragMode.toggle() } label: { Image(systemName: "rectangle.grid.1x2") }
                     .accessibilityLabel("Trascina sulle miniature").accessibilityIdentifier("selectionPageDrag").disabled(!hasSelection)
                 SelectionAlignmentMenu(model: model)
-                HandwritingMenu(model: model)
                 if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {
                     Button { model.editDiagramLabel(id) } label: { Image(systemName: "textformat") }.accessibilityLabel("Testo nella forma").accessibilityIdentifier("selectionDiagramLabel")
                 }
