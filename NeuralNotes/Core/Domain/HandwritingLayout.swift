@@ -92,10 +92,13 @@ public struct HandwritingProposal: Equatable, Sendable {
 }
 
 public enum HandwritingLayout {
+    public static let maximumStrokes = 4_000
+    public static let maximumPoints = 500_000
     public static func analyze(_ strokes: [HandwritingStroke], lineHints: [SnapRect] = []) throws -> HandwritingAnalysis {
-        guard !strokes.isEmpty, Set(strokes.map(\.id)).count == strokes.count,
-              strokes.allSatisfy({ valid($0) }) else { throw HandwritingFailure.invalidSelection }
-        guard strokes.count <= 10_000, strokes.reduce(0, { $0 + $1.points.count }) <= 2_000_000 else { throw HandwritingFailure.tooLarge }
+        guard !strokes.isEmpty, Set(strokes.map(\.id)).count == strokes.count else { throw HandwritingFailure.invalidSelection }
+        guard strokes.count <= maximumStrokes, strokes.reduce(0, { $0 + $1.points.count }) <= maximumPoints,
+              strokes.reduce(0, { $0 + $1.layoutPoints.count }) <= maximumPoints else { throw HandwritingFailure.tooLarge }
+        guard strokes.allSatisfy({ valid($0) }) else { throw HandwritingFailure.invalidSelection }
         return HandwritingGrouping.analyze(strokes, hints: Array(lineHints.filter(\.valid).prefix(256)))
     }
     private static func valid(_ stroke: HandwritingStroke) -> Bool {

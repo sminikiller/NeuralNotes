@@ -16,14 +16,14 @@ enum HandwritingNative {
         guard !selected.isEmpty, selected.allSatisfy({ drawing.strokes.indices.contains($0) }) else {
             throw HandwritingFailure.invalidSelection
         }
-        guard selected.count <= 10_000 else { throw HandwritingFailure.tooLarge }
+        guard selected.count <= HandwritingLayout.maximumStrokes else { throw HandwritingFailure.tooLarge }
         var result: [HandwritingStroke] = [], count = 0
         for index in selected.sorted() {
             try Task.checkCancellation()
             let stroke = drawing.strokes[index]
             guard stroke.ink.inkType != .marker, !stroke.path.isEmpty else { continue }
             count += stroke.path.count
-            guard count <= 2_000_000 else { throw HandwritingFailure.tooLarge }
+            guard count <= HandwritingLayout.maximumPoints else { throw HandwritingFailure.tooLarge }
             let points = stroke.path.map { point -> StrokeSample in
                 let position = point.location.applying(stroke.transform)
                 return .init(x: position.x, y: position.y)

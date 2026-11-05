@@ -3,9 +3,16 @@ import UIKit
 
 final class HandwritingUITests: XCTestCase {
     @MainActor private func open(_ app: XCUIApplication) async throws -> XCUIElement {
-        app.launchArguments += ["-ui-testing"]; app.launch()
-        app.buttons["Nuovo quaderno"].tap()
-        XCTAssertTrue(app.buttons["Scrivi e studia"].waitForExistence(timeout: 8)); app.buttons["Scrivi e studia"].tap()
+        continueAfterFailure = false; XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchArguments = ["--ui-testing", "--reset-ui-storage", "--ui-light"]; app.launch()
+        let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
+        let name = app.textFields["notebookNameField"]; XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Grafia test"); app.buttons["saveNotebookButton"].tap()
+        let book = app.buttons.matching(NSPredicate(format: "label == %@", "Grafia test")).firstMatch
+        XCTAssertTrue(book.waitForExistence(timeout: 8)); book.tap(); app.buttons["openEditorButton"].tap()
+        let focus = app.buttons["editorFocus"]
+        if focus.waitForExistence(timeout: 10), !app.buttons["editorAddText"].exists { focus.tap() }
+        XCTAssertTrue(app.buttons["editorWorkspace"].waitForExistence(timeout: 8))
         app.buttons["editorWorkspace"].tap()
         let gestures = app.buttons["workspaceGestures"]
         revealWorkspaceRow(gestures, in: app.collectionViews["workspaceList"])

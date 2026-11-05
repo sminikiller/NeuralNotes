@@ -123,7 +123,12 @@ final class HandwritingSession {
 }
 
 @MainActor extension EditorViewModel {
-    var canRefineHandwriting: Bool { selectionIncludesInk && canEditActiveLayer && !inkReplayActive && !interactionBusy }
+    var canRefineHandwriting: Bool {
+        guard selectionIncludesInk, canEditActiveLayer, !inkReplayActive, !interactionBusy else { return false }
+        return canvas.drawing.strokes.enumerated().contains { index, stroke in
+            (selectedStrokeIndices?.contains(index) ?? true) && stroke.ink.inkType != .marker
+        }
+    }
     func beginHandwriting(_ command: HandwritingCommand) {
         finishInkGesture(); endTextEdit()
         guard canRefineHandwriting, hasLease, !navigating, !loading, let before = captureEdit(ink: true) else { return }

@@ -99,9 +99,7 @@ import NeuralNotesCore
             ghostImage = PaperInk.image(session.ghost, from: viewport, scale: scale)
             ghostSession = session; ghostBounds = viewport; ghostScale = scale
         }
-        context.saveGState(); context.setAlpha(0.16)
-        ghostImage?.draw(in: viewport)
-        context.restoreGState()
+        ghostImage?.draw(in: viewport, blendMode: .normal, alpha: 0.16)
         if session.command == .reflow {
             context.setStrokeColor(UIColor.systemTeal.withAlphaComponent(0.6).cgColor)
             context.setLineWidth(1 / zoom); context.setLineDash(phase: 0, lengths: [4 / zoom, 4 / zoom])

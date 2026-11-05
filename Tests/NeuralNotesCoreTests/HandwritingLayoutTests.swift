@@ -2,6 +2,16 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class HandwritingLayoutTests: XCTestCase {
+    func testParagraphBudgetRejectsExcessiveSelectionsBeforeGeometricWork() {
+        let strokes = (0...HandwritingLayout.maximumStrokes).map { HandwritingStroke(id: $0, points: [.init(x: 10, y: 10)]) }
+        XCTAssertThrowsError(try HandwritingLayout.analyze(strokes)) { error in
+            guard case HandwritingFailure.tooLarge = error else { return XCTFail("Expected the paragraph budget") }
+        }
+        let points = Array(repeating: StrokeSample(x: 10, y: 10), count: HandwritingLayout.maximumPoints + 1)
+        XCTAssertThrowsError(try HandwritingLayout.analyze([.init(id: 0, points: points)])) { error in
+            guard case HandwritingFailure.tooLarge = error else { return XCTFail("Expected the point budget") }
+        }
+    }
     private func letter(id: Int, x: Double, baseline: Double, slope: Double = 0, height: Double = 18) -> HandwritingStroke {
         let values = [StrokeSample(x: x, y: baseline - height), .init(x: x + 4, y: baseline), .init(x: x + 8, y: baseline - height)]
         let points = values.map { StrokeSample(x: $0.x, y: $0.y + slope * $0.x) }
