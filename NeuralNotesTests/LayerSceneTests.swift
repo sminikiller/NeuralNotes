@@ -5,6 +5,27 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class LayerSceneTests: XCTestCase {
+    @MainActor func testHidingTheActiveOwnerAndUndoPrepareTheRealHostWithoutAnExtraTouchOrLayout() async throws {
+        try await fixture { model, owner in
+            let host = CanvasHost(canvas: model.canvas); host.model = model; model.pagePresenter = host
+            host.surface.package = model.workspace.package; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 700, height: 500); host.setNeedsLayout(); host.layoutIfNeeded()
+            let initial = await host.layeredScene.prepareForInput(host); XCTAssertTrue(initial)
+            await model.selectLayer(owner)
+            let selected = await host.layeredScene.prepareForInput(host); XCTAssertTrue(selected)
+            let hidden = await model.performLayerOperation(.visibility(owner, false)); XCTAssertTrue(hidden)
+            var deadline = Date().addingTimeInterval(5)
+            while !host.layeredScene.isReady && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertTrue(host.layeredScene.isReady, model.error ?? "Host preparation did not finish")
+            XCTAssertEqual(model.drawingLayerID, model.page?.id)
+            await model.performUndo()
+            deadline = Date().addingTimeInterval(5)
+            while !host.layeredScene.isReady && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertTrue(host.layeredScene.isReady, model.error ?? "Undo preparation did not finish")
+            XCTAssertEqual(model.drawingLayerID, owner)
+            host.layeredScene.reset()
+        }
+    }
     @MainActor private func fixture(_ body: (EditorViewModel, UUID) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

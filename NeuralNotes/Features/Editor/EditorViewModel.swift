@@ -563,6 +563,7 @@ final class EditorViewModel {
             lensArea = nil; lensTextSelection = nil; lensPick = nil; lensHighlight = nil
             status = value.recoveredFromPrevious ? "Revisione precedente recuperata — salva" : "Salvato sul dispositivo"
             configureTool()
+            await prepareLayerPresentation()
         } catch { self.error = error.localizedDescription }
     }
 

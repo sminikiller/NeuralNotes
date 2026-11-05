@@ -128,6 +128,9 @@ final class LayerExportRenderingTests: XCTestCase {
                 }
                 let pdf = try await DocumentServices.exportPDF(workspace: workspace)
                 defer { try? FileManager.default.removeItem(at: pdf) }
+                let text = try XCTUnwrap(PDFDocument(url: pdf)?.page(at: 0)?.string)
+                XCTAssertEqual(text.components(separatedBy: "Base front").count - 1, 1)
+                XCTAssertEqual(text.components(separatedBy: "Upper under").count - 1, 1)
                 let vector = try XCTUnwrap(CGPDFDocument(pdf as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
                 XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
                 await model.performUndo()

@@ -17,8 +17,10 @@ enum LayerBlendCompositor {
         }
         func draw(in context: CGContext, bounds: CGRect) {
             context.saveGState()
-            context.setAlpha(1); context.setBlendMode(.multiply); multiply.draw(in: bounds)
-            context.setBlendMode(.screen); screen.draw(in: bounds)
+            // UIImage.draw(in:) explicitly uses Normal and would overwrite the
+            // CGContext blend mode. Supply the intended equation to UIKit.
+            multiply.draw(in: bounds, blendMode: .multiply, alpha: 1)
+            screen.draw(in: bounds, blendMode: .screen, alpha: 1)
             context.restoreGState()
         }
     }
@@ -26,7 +28,7 @@ enum LayerBlendCompositor {
     /// The closure paints content only, with Normal/Multiply operations and no
     /// paper/PDF. Existing export callers keep their single backdrop drawing.
     /// For opaque groups the original vector commands can be emitted directly.
-    static func drawGroup(opacity: Double, bounds: CGRect, in context: CGContext,
+    static func drawGroup(opacity: Double, bounds: CGRect, in context: CGContext, uniqueText: Bool = false,
                           content: (CGContext) -> Void) {
         guard opacity.isFinite, opacity > 0, !bounds.isEmpty else { return }
         context.saveGState(); defer { context.restoreGState() }
@@ -35,11 +37,13 @@ enum LayerBlendCompositor {
         context.setAlpha(1); context.setBlendMode(.multiply)
         context.beginTransparencyLayer(auxiliaryInfo: nil)
         context.setBlendMode(.normal)
-        coefficient(opacity: opacity, bounds: bounds, in: context, content: content)
+        LayerPDFText.layout(uniqueText) {
+            LayerPDFText.outlines(uniqueText) { coefficient(opacity: opacity, bounds: bounds, in: context, content: content) }
+        }
         context.endTransparencyLayer()
         context.setAlpha(1); context.setBlendMode(.screen)
         context.beginTransparencyLayer(auxiliaryInfo: nil)
-        probe(white: false, opacity: opacity, bounds: bounds, in: context, content: content)
+        LayerPDFText.layout(uniqueText) { probe(white: false, opacity: opacity, bounds: bounds, in: context, content: content) }
         context.endTransparencyLayer()
     }
 
@@ -75,8 +79,8 @@ enum LayerBlendCompositor {
         let black = render { probe(white: false, opacity: opacity, bounds: bounds, in: $0, content: content) }
         let multiplier = render { context in
             probe(white: true, opacity: opacity, bounds: bounds, in: context, content: content)
-            context.setBlendMode(.difference); black.draw(in: bounds)
-            context.setBlendMode(.colorDodge); black.draw(in: bounds)
+            black.draw(in: bounds, blendMode: .difference, alpha: 1)
+            black.draw(in: bounds, blendMode: .colorDodge, alpha: 1)
         }
         return Maps(multiply: multiplier, screen: black)
     }

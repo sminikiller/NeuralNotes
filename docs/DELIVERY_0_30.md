@@ -1,6 +1,8 @@
 # Fase0.30 — candidata completa da compilare e collaudare
 
-La beta pubblicata resta1.0.0(179), con PDF0.28.2 e testo0.29. Questo candidato0.30 è isolato: nessuna verifica Apple o distribuzione30 ancora conclusa. I controlli Windows sul grafo e sulla grammatica non sono compilazione né test eseguiti.
+La beta pubblicata resta1.0.0(179), con PDF0.28.2 e testo0.29. Il candidato0.30 è isolato e non distribuito. La verifica completa42098289365 ha compilato il pacchetto iPad e superato Core e aggiornamento dei quaderni; nella suite nativa sono falliti sei casi (166 asserzioni, principalmente pixel della stessa fusione). **48 di49 UI sono passati**. Il job è poi scaduto durante Release: non è una verifica verde.
+
+Correzioni raggruppate: UIImage.draw usa esplicitamente Multiply/Screen/Difference/ColorDodge, perché il metodo senza parametri ripristina Normal. Il PDF dei gruppi parzialmente trasparenti usa contorni per le tre prove dei coefficienti e testo selezionabile una sola volta nel passaggio finale, anche nelle unioni annidate. Il cambio proprietario/visibilità completa la preparazione del fallback sul vero host, senza attendere il dettaglio né un ulteriore tocco. Aggiunte prove sul layout dei glifi, sui testi dopo unione e sulla preparazione dopo nascondi/annulla. La verifica successiva riusa le48UI concluse e riprova i livelli e le regressioni pertinenti con un ampio lotto nativo, Core, Release e pacchetto reale.
 
 ## Stato del candidato
 
