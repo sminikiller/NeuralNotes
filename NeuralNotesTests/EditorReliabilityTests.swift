@@ -551,7 +551,8 @@ final class EditorReliabilityTests: XCTestCase {
         try await fixture { model in
             model.editText([TextElement(text: "Appunto esportabile")]); _ = await model.flush()
             let original = try await model.workspace.pages()
-            let png = try model.exportPageImage(), jpeg = try model.exportPageImage(jpeg: true)
+            let png = try await model.exportPageImage()
+            let jpeg = try await model.exportPageImage(jpeg: true)
             let markdown = try await model.exportNotebookText()
             defer { for file in [png, jpeg, markdown] { try? FileManager.default.removeItem(at: file) } }
             XCTAssertNotNil(UIImage(contentsOfFile: png.path)); XCTAssertNotNil(UIImage(contentsOfFile: jpeg.path))

@@ -1,0 +1,90 @@
+import XCTest
+import UIKit
+import PDFKit
+import PencilKit
+import NeuralNotesCore
+@testable import NeuralNotes
+
+final class LayerExportRenderingTests: XCTestCase {
+    @MainActor private func fixture(_ body: (DocumentWorkspace, PageSnapshot, UUID) async throws -> Void) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let workspace = DocumentWorkspace(package: store.packageURL(for: manifest.documentID), documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = PageSnapshot(); page.width = 120; page.height = 100
+        page = try await workspace.addPage(page)
+        page.revision += 1; page = try await workspace.save(page, drawing: ink(color: .blue, y: 30).dataRepresentation())
+        let added = try PageLayerEditing.adding(to: page, name: "Annotations"); page = added.page
+        page.revision += 1; page = try await workspace.save(page, drawing: ink(color: .red, y: 70).dataRepresentation(), layerID: added.layerID)
+        try await body(workspace, page, added.layerID)
+    }
+    @MainActor private func ink(color: UIColor, y: CGFloat) -> PKDrawing {
+        let a = PKStrokePoint(location: CGPoint(x: 10, y: y), timeOffset: 0, size: CGSize(width: 7, height: 7), opacity: 1, force: 0.7, azimuth: 0.3, altitude: 1)
+        let b = PKStrokePoint(location: CGPoint(x: 110, y: y), timeOffset: 1, size: CGSize(width: 7, height: 7), opacity: 1, force: 0.9, azimuth: 0.5, altitude: 0.9)
+        return PKDrawing(strokes: [PKStroke(ink: PKInk(.pen, color: color), path: PKStrokePath(controlPoints: [a, b], creationDate: Date(timeIntervalSince1970: Double(y))))])
+    }
+    @MainActor private func pixel(_ image: UIImage, y: CGFloat) throws -> [UInt8] {
+        let source = try XCTUnwrap(image.cgImage)
+        let crop = try XCTUnwrap(source.cropping(to: CGRect(x: 60 * image.scale, y: y * image.scale, width: 1, height: 1)))
+        var rgba = [UInt8](repeating: 0, count: 4)
+        try rgba.withUnsafeMutableBytes { bytes in
+            let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        return rgba
+    }
+
+    @MainActor func testVisibleAllAndSingleLayerImagesUseTheCorrectFilesWithoutChangingHiddenMetadata() async throws {
+        try await fixture { workspace, original, layer in
+            let hidden = try PageLayerEditing.visibility(layer, visible: false, in: original)
+            let page = try await workspace.saveLayerMetadata(hidden, expectedRevision: original.revision)
+            let visible = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 240)
+            let all = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 240, selection: .all)
+            let only = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 240, selection: .selected([layer]))
+            let visibleBlue = try self.pixel(visible, y: 30), visibleRed = try self.pixel(visible, y: 70)
+            XCTAssertGreaterThan(Int(visibleBlue[2]), Int(visibleBlue[0]) + 100)
+            XCTAssertTrue(visibleRed.prefix(3).allSatisfy { $0 > 245 })
+            let allRed = try self.pixel(all, y: 70); XCTAssertGreaterThan(Int(allRed[0]), Int(allRed[2]) + 100)
+            let onlyBlue = try self.pixel(only, y: 30), onlyRed = try self.pixel(only, y: 70)
+            XCTAssertTrue(onlyBlue.prefix(3).allSatisfy { $0 > 245 })
+            XCTAssertGreaterThan(Int(onlyRed[0]), Int(onlyRed[2]) + 100)
+            let unchanged = try await workspace.pageSnapshot(page.id); XCTAssertEqual(unchanged, page)
+        }
+    }
+
+    @MainActor func testPDFLayerSelectionAndOpacityRemainVectorAndMatchImageOutput() async throws {
+        try await fixture { workspace, original, layer in
+            let partial = try PageLayerEditing.opacity(layer, value: 0.5, in: original)
+            let page = try await workspace.saveLayerMetadata(partial, expectedRevision: original.revision)
+            let output = try await DocumentServices.exportPDF(workspace: workspace, layers: .selected([layer]), pageIDs: [page.id])
+            defer { try? FileManager.default.removeItem(at: output) }
+            let pdf = try XCTUnwrap(PDFDocument(url: output)), first = try XCTUnwrap(pdf.page(at: 0))
+            XCTAssertEqual(pdf.pageCount, 1)
+            let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
+            XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
+            let bitmap = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 120, selection: .selected([layer]))
+            let preview = first.thumbnail(of: CGSize(width: 120, height: 100), for: .mediaBox)
+            let imageRed = try self.pixel(bitmap, y: 70), pdfRed = try self.pixel(preview, y: 70)
+            for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(imageRed[channel]) - Int(pdfRed[channel])), 4) }
+            XCTAssertGreaterThan(Int(pdfRed[0]), Int(pdfRed[2]) + 80)
+            let baseAbsent = try self.pixel(preview, y: 30)
+            XCTAssertTrue(baseAbsent.prefix(3).allSatisfy { $0 > 245 })
+        }
+    }
+
+    @MainActor func testLiveOverrideCannotReplaceTheBaseDrawingOrRequireAFileWriteToExport() async throws {
+        try await fixture { workspace, page, layer in
+            let live = self.ink(color: .green, y: 70)
+            let image = try await DocumentServices.compositeImage(page: page, drawing: live, drawingLayerID: layer,
+                workspace: workspace, maxDimension: 120)
+            let base = try self.pixel(image, y: 30), active = try self.pixel(image, y: 70)
+            XCTAssertGreaterThan(Int(base[2]), Int(base[0]) + 100)
+            XCTAssertGreaterThan(Int(active[1]), Int(active[0]) + 100)
+            let stored = try await workspace.pageSnapshot(page.id); XCTAssertEqual(stored, page)
+            let original = try await LayerDrawingReader.read(page: stored, layerID: layer, workspace: workspace)
+            XCTAssertTrue(NativeInkComparison.equal(original.drawing, self.ink(color: .red, y: 70)))
+        }
+    }
+}

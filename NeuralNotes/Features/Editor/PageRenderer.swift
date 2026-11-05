@@ -5,6 +5,19 @@ import NeuralNotesCore
 @MainActor
 enum PageRenderer {
     static func draw(_ page: PageSnapshot, package: URL, in context: CGContext, hidingTextID: UUID? = nil, hidingObjectID: UUID? = nil, hidingObjectIDs: Set<UUID> = [], pdfMode: PDFRenderMode = .vector) {
+        drawPaper(page, package: package, in: context, pdfMode: pdfMode)
+        drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight != true }, in: context)
+        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
+        for id in page.orderedObjectIDs where objects.shapes[id]?.rectangularMarker != true && !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+        }
+        // Photo/scanned words stay over their opaque image, under native pen.
+        drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight == true }, in: context)
+        for id in page.orderedObjectIDs where objects.shapes[id]?.rectangularMarker == true && !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
+            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+        }
+    }
+    static func drawPaper(_ page: PageSnapshot, package: URL, in context: CGContext, pdfMode: PDFRenderMode = .vector) {
         let rect = CGRect(x: 0, y: 0, width: page.width, height: page.height)
         let appearance = page.appearance ?? PaperAppearance(spacing: page.paper == .ruled ? 32 : 24)
         let rgb = appearance.tone.rgb
@@ -30,18 +43,6 @@ enum PageRenderer {
                 context.setStrokeColor(UIColor.systemRed.withAlphaComponent(0.45).cgColor)
                 context.move(to: CGPoint(x: 64, y: 0)); context.addLine(to: CGPoint(x: 64, y: rect.height)); context.strokePath()
             }
-        }
-        drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight != true }, in: context)
-        let objects = ObjectLookup(page), above = Set(page.aboveInkObjects ?? [])
-        for id in page.orderedObjectIDs where objects.shapes[id]?.rectangularMarker != true && !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
-            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
-        }
-        // Photo/scanned words must stay visible on top of their opaque image.
-        // Multiply preserves black printed/typed glyphs; native pen ink is
-        // composited above this surface, including white ink on dark paper.
-        drawMarkups((page.pdfMarkups ?? []).filter { $0.wordHighlight == true }, in: context)
-        for id in page.orderedObjectIDs where objects.shapes[id]?.rectangularMarker == true && !above.contains(id) && id != hidingObjectID && !hidingObjectIDs.contains(id) {
-            drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
         }
     }
     static func drawMarkups(_ markups: [PDFMarkup], in context: CGContext) {
@@ -91,6 +92,27 @@ enum PageRenderer {
             }
         }
         if foreground { drawTapes((page.tapes ?? []).filter { ids.contains($0.id) }, in: context) }
+    }
+    /// One owner's ordered content, with global connector geometry available.
+    /// Paper/PDF are deliberately outside this operation and drawn just once.
+    static func drawLayerContent(_ group: LayerRenderGroup, page: PageSnapshot, package: URL,
+                                 in context: CGContext, hidingObjectIDs: Set<UUID> = [],
+                                 hidingTextID: UUID? = nil, ink: (CGContext) -> Void) {
+        let objects = ObjectLookup(page)
+        let ordinary = Set(group.ordinaryMarkupIDs), words = Set(group.wordMarkupIDs)
+        drawMarkups((page.pdfMarkups ?? []).filter { ordinary.contains($0.id) }, in: context)
+        func draw(_ ids: [UUID]) {
+            for id in ids where !hidingObjectIDs.contains(id) {
+                drawObject(id, objects: objects, page: page, package: package, context: context, hidingTextID: hidingTextID)
+            }
+        }
+        draw(group.underObjectIDs)
+        drawMarkups((page.pdfMarkups ?? []).filter { words.contains($0.id) }, in: context)
+        draw(group.underMarkerIDs)
+        ink(context)
+        draw(group.aboveObjectIDs)
+        let tapes = Set(group.tapeIDs).subtracting(hidingObjectIDs)
+        drawTapes((page.tapes ?? []).filter { tapes.contains($0.id) }, in: context)
     }
     private static func drawTapes(_ tapes: [StudyTape], in context: CGContext) {
         for tape in tapes {

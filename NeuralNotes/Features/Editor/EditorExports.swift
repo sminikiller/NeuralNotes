@@ -4,9 +4,14 @@ import NeuralNotesCore
 
 @MainActor
 extension EditorViewModel {
-    func exportPageImage(jpeg: Bool = false, selection: Bool = false) throws -> URL {
+    func exportPageImage(jpeg: Bool = false, selection: Bool = false, layers: LayerExportSelection = .visible) async throws -> URL {
         guard let page else { throw WorkspaceFailure.emptyDocument }
-        let image = selection ? try selectionImage() : DocumentServices.image(page: page, drawing: canvas.drawing, workspace: workspace, maxDimension: 4096)
+        let image: UIImage
+        if selection { image = try selectionImage() }
+        else {
+            image = try await DocumentServices.compositeImage(page: page, drawing: canvas.drawing, drawingLayerID: activeLayerID,
+                workspace: workspace, maxDimension: 4096, layers: layers)
+        }
         guard let bytes = jpeg ? image.jpegData(compressionQuality: 0.94) : image.pngData() else { throw CocoaError(.fileWriteUnknown) }
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("NeuralNotes-\(UUID()).\(jpeg ? "jpg" : "png")")
         try bytes.write(to: file, options: .atomic); return file

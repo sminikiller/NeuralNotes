@@ -656,7 +656,7 @@ struct EditorView: View {
         do {
             let url: URL
             switch kind {
-            case "png", "jpeg", "selection": url = try model.exportPageImage(jpeg: kind == "jpeg", selection: kind == "selection")
+            case "png", "jpeg", "selection": url = try await model.exportPageImage(jpeg: kind == "jpeg", selection: kind == "selection")
             case "print": url = try await DocumentServices.exportPDF(workspace: model.workspace)
             default: url = try await model.exportNotebookText(markdown: kind != "text", highlightsOnly: kind == "highlights")
             }

@@ -220,8 +220,22 @@ enum DocumentServices {
         }
     }
 
-    static func exportPDF(workspace: DocumentWorkspace, vectorInk: Bool = true) async throws -> URL {
-        let pages = try await workspace.pages()
+    static func compositeImage(page: PageSnapshot, drawing: PKDrawing? = nil, drawingLayerID: UUID? = nil,
+                               workspace: DocumentWorkspace, maxDimension: CGFloat = 2048,
+                               layers: LayerExportSelection = .visible, pdfMode: PDFRenderMode = .vector) async throws -> UIImage {
+        if page.layers == nil, layers == .visible || layers == .all {
+            let ink: PKDrawing
+            if let drawing { ink = drawing }
+            else { ink = try await LayerDrawingReader.read(page: page, layerID: page.id, workspace: workspace).drawing }
+            return image(page: page, drawing: ink, workspace: workspace, maxDimension: maxDimension, pdfMode: pdfMode)
+        }
+        return try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: maxDimension,
+            selection: layers, liveDrawing: drawing, liveLayerID: drawingLayerID ?? page.id, pdfMode: pdfMode)
+    }
+
+    static func exportPDF(workspace: DocumentWorkspace, vectorInk: Bool = true, layers: LayerExportSelection = .visible,
+                          pageIDs: Set<UUID>? = nil) async throws -> URL {
+        let pages = try await workspace.pages().filter { pageIDs?.contains($0.id) ?? true }
         guard !pages.isEmpty else { throw WorkspaceFailure.emptyDocument }
         // Load each drawing only as its page is emitted; never rasterize an entire notebook.
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("NeuralNotes-\(UUID()).pdf")
@@ -237,6 +251,18 @@ enum DocumentServices {
         }
         for page in pages {
             try Task.checkCancellation()
+            if page.layers != nil || (layers != .visible && layers != .all) {
+                var box = CGRect(x: 0, y: 0, width: page.width, height: page.height)
+                let data = Data(bytes: &box, count: MemoryLayout<CGRect>.size)
+                context.beginPDFPage([kCGPDFContextMediaBox as String: data] as CFDictionary)
+                context.saveGState(); context.translateBy(x: 0, y: box.height); context.scaleBy(x: 1, y: -1)
+                do {
+                    try await LayeredPageRenderer.draw(page: page, workspace: workspace, in: context, bounds: box,
+                        scale: min(2, 4096 / max(box.width, box.height)), selection: layers, vector: vectorInk)
+                } catch { context.restoreGState(); context.endPDFPage(); throw error }
+                context.restoreGState(); context.endPDFPage()
+                await Task.yield(); continue
+            }
             let file: URL?
             if let relative = page.drawingFile { file = try await workspace.url(relative) } else { file = nil }
             // No UIKit current context is kept across suspension points. A page

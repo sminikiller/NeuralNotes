@@ -1025,7 +1025,7 @@ final class EditorIntegrationTests: XCTestCase {
     }
 }
 
-private final class PDFResourceProbe {
+final class PDFResourceProbe {
     var found = false
     let depth: Int
     init(depth: Int) { self.depth = depth }
