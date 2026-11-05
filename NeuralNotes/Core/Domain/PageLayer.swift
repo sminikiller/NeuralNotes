@@ -104,10 +104,10 @@ public extension PageSnapshot {
     /// Call after changing page.id; nil ownership remains the base. Connectors'
     /// object IDs and page links are handled by the existing object/page clone.
     mutating func renewLayerIDs(from sourcePageID: UUID) {
-        guard var values = layers else { return }
+        var values = layers ?? []
         var map: [UUID: UUID] = [sourcePageID: id]
         for i in values.indices { let source = values[i].id; let target = source == sourcePageID ? id : UUID(); map[source] = target; values[i].id = target }
-        layers = values
+        if layers != nil { layers = values }
         func owner(_ value: UUID?) -> UUID? { value.flatMap { map[$0] } }
         for i in texts.indices { texts[i].layerID = owner(texts[i].layerID) }
         for i in images.indices { images[i].layerID = owner(images[i].layerID) }

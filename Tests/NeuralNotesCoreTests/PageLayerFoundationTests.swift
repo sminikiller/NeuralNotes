@@ -175,4 +175,14 @@ final class PageLayerFoundationTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: package.appendingPathComponent("drawings"), includingPropertiesForKeys: nil).count, 4)
     }
 
+    func testCloningAnImplicitBaseRemapsExplicitBaseOwnersWithoutMaterializingLayers() throws {
+        var page = PageSnapshot(); let previous = page.id
+        var text = TextElement(text: "Explicit base"); text.layerID = previous; page.texts = [text]
+        var anchor = StrokeAnchor(signature: "base", audioSessionID: UUID(), seconds: 2); anchor.layerID = previous; page.anchors = [anchor]
+        try PageValidation.validate(page)
+        page.id = UUID(); page.renewLayerIDs(from: previous)
+        XCTAssertNil(page.layers); XCTAssertEqual(page.texts.first?.layerID, page.id); XCTAssertEqual(page.anchors.first?.layerID, page.id)
+        try PageValidation.validate(page)
+    }
+
 }
