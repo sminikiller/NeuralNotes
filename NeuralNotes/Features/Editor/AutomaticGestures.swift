@@ -38,6 +38,7 @@ extension EditorViewModel {
         self.page?.texts = texts.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         self.page?.pruneObjectReferences()
         canvas.drawing = erased.drawing
+        rebaseLayerInkMembership(from: page, old: previous, new: erased.drawing, retainedIndices: erased.retainedIndices)
         selectedObjectID = nil
         return true
     }

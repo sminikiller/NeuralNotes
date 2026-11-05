@@ -69,7 +69,9 @@ public enum PageLayerEditing {
         page.texts.removeAll { owns($0.layerID) }; page.images.removeAll { owns($0.layerID) }
         page.shapes = page.shapes?.filter { !owns($0.layerID) }; page.connectors = page.connectors?.filter { !owns($0.layerID) }
         page.tapes = page.tapes?.filter { !owns($0.layerID) }; page.pdfMarkups = page.pdfMarkups?.filter { !owns($0.layerID) }
-        page.anchors.removeAll { owns($0.layerID) }; page.pruneObjectReferences()
+        page.anchors.removeAll { owns($0.layerID) }
+        if let index = page.layers?.firstIndex(where: { $0.id == id }) { page.layers?[index].composition = nil }
+        page.pruneObjectReferences()
         try PageValidation.validate(page); return page
     }
     public static func duplicating(_ id: UUID, in input: PageSnapshot, name: String, drawingCopy: String?) throws -> (page: PageSnapshot, layerID: UUID) {
@@ -110,14 +112,16 @@ public enum PageLayerEditing {
             if let to = value.to.objectID, let replacement = map[to] { value.to.objectID = replacement }
             if page.connectors == nil { page.connectors = [] }; page.connectors?.append(value)
         }
+        var markupMap: [UUID: UUID] = [:]
         for var value in input.pdfMarkups ?? [] where owns(value.layerID) {
-            value.id = UUID(); value.layerID = target
+            let old = value.id; value.id = UUID(); value.layerID = target; markupMap[old] = value.id
             if page.pdfMarkups == nil { page.pdfMarkups = [] }; page.pdfMarkups?.append(value)
         }
         for value in input.anchors where owns(value.layerID) { if let copied = anchor(value) { page.anchors.append(copied) } }
         page.objectOrder = input.orderedObjectIDs + input.orderedObjectIDs.compactMap { map[$0] }
         if let values = input.aboveInkObjects { page.aboveInkObjects = values + values.compactMap { map[$0] } }
         if let values = input.lockedObjects { page.lockedObjects = values + values.compactMap { map[$0] } }
+        page.layers?[index].composition = source.composition?.remapping(objects: map, markups: markupMap)
         // Place the copy immediately above its original, preserving all other order.
         var layers = page.layers ?? []
         let copy = layers.removeLast()

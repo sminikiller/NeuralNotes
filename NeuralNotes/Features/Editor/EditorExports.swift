@@ -29,6 +29,17 @@ extension EditorViewModel {
         return UIGraphicsImageRenderer(size: bounds.size, format: format).image { renderer in
             let context = renderer.cgContext
             context.translateBy(x: -bounds.minX, y: -bounds.minY)
+            let ownerID = drawingLayerID ?? page.id
+            if let layer = PageLayers.ordered(in: page).first(where: { $0.id == ownerID }), layer.composition != nil || (layer.opacity ?? 1) != 1,
+               let plan = try? LayerRenderPlan.make(page: page, selection: .selected([ownerID])).first {
+                let originalKeys = EditorInkSignatures.make(canvas.drawing)
+                let selectedKeys = selectionIncludesInk ? originalKeys.enumerated().filter { selectedStrokeIndices?.contains($0.offset) ?? true }.map(\.element) : []
+                let group = plan.restricting(objects: selected, markups: [])
+                let prepared = PreparedLayerOwner(group: group, page: page, package: workspace.package, drawing: ink,
+                    bounds: bounds, scale: 2, transparent: true, signatures: selectedKeys)
+                LayerBlendCompositor.drawIsolatedGroup(opacity: layer.opacity ?? 1, in: context) { prepared.draw(in: $0, isolated: true) }
+                return
+            }
             PageRenderer.drawSelected(selected, foreground: false, page: page, package: workspace.package, in: context)
             LegibleInkRenderer.draw(ink, in: context, bounds: bounds, scale: 2)
             PageRenderer.drawSelected(selected, foreground: true, page: page, package: workspace.package, in: context)
@@ -80,7 +91,9 @@ extension EditorViewModel {
             self.page?.texts.removeAll { selected.contains($0.id) }; self.page?.images.removeAll { selected.contains($0.id) }
             self.page?.shapes?.removeAll { selected.contains($0.id) }; self.page?.tapes?.removeAll { selected.contains($0.id) }
             if selectionIncludesInk {
-                canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { inkIndices?.contains($0.offset) == false }.map(\.element))
+                let original = canvas.drawing, retained = canvas.drawing.strokes.indices.filter { inkIndices?.contains($0) == false }
+                canvas.drawing = PKDrawing(strokes: retained.map { original.strokes[$0] })
+                rebaseLayerInkMembership(from: page, old: original, new: canvas.drawing, retainedIndices: retained)
             }
             var element = TextElement(text: text); element.layerID = drawingLayerID == page.id ? nil : drawingLayerID; element.x = bounds.minX; element.y = bounds.minY
             element.width = max(40, min(bounds.width, page.width - bounds.minX)); element.fontSize = 20

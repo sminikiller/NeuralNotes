@@ -51,7 +51,7 @@ struct TypeDeletionPanel: View {
                             }
                         }.disabled(applying).accessibilityIdentifier("deleteType-\(kind.rawValue)")
                     }
-                    Text("Collegamenti audio rimuove i rimandi ai punti di ascolto. Gli oggetti bloccati sono esclusi dal conteggio.").font(.caption).foregroundStyle(.secondary)
+                    Text("Collegamenti audio rimuove i rimandi ai punti di ascolto. Gli oggetti bloccati e i livelli nascosti o bloccati sono esclusi dal conteggio.").font(.caption).foregroundStyle(.secondary)
                 }
                 Section {
                     if counting || applying { ProgressView(progress).accessibilityIdentifier("typeDeletionProgress") }

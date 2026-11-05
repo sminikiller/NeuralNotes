@@ -4,7 +4,8 @@ import NeuralNotesCore
 
 @MainActor
 enum InkScratchEraser {
-    static func erase(_ drawing: PKDrawing, in area: CGRect) -> (drawing: PKDrawing, erased: Bool) {
+    struct Result { let drawing: PKDrawing; let erased: Bool; let retainedIndices: [Int] }
+    static func erase(_ drawing: PKDrawing, in area: CGRect) -> Result {
         erase(drawing, in: CGPath(rect: area, transform: nil))
     }
 
@@ -24,9 +25,11 @@ enum InkScratchEraser {
             .normalized(using: .winding)
     }
 
-    static func erase(_ drawing: PKDrawing, in area: CGPath, wholeStroke: Bool = false) -> (drawing: PKDrawing, erased: Bool) {
-        var result: [PKStroke] = [], erased = false
-        for stroke in drawing.strokes {
+    static func erase(_ drawing: PKDrawing, in area: CGPath, wholeStroke: Bool = false) -> Result {
+        var result: [PKStroke] = [], retained: [Int] = [], erased = false
+        for (index, stroke) in drawing.strokes.enumerated() {
+            let count = result.count
+            defer { if result.count > count { retained.append(index) } }
             guard stroke.renderBounds.intersects(area.boundingBoxOfPath) else { result.append(stroke); continue }
             let transform = stroke.transform
             let determinant: CGFloat = transform.a * transform.d - transform.b * transform.c
@@ -67,10 +70,10 @@ enum InkScratchEraser {
             let remaining = base.subtracting(cut, using: .winding)
             erased = true
             if !remaining.isEmpty {
-                result.append(PKStroke(ink: stroke.ink, path: stroke.path, transform: transform, mask: UIBezierPath(cgPath: remaining)))
+                result.append(PKStroke(ink: stroke.ink, path: stroke.path, transform: transform, mask: UIBezierPath(cgPath: remaining), randomSeed: stroke.randomSeed))
             }
         }
-        return (PKDrawing(strokes: result), erased)
+        return Result(drawing: PKDrawing(strokes: result), erased: erased, retainedIndices: retained)
     }
 }
 

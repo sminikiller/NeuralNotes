@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import PencilKit
 import NeuralNotesCore
 
 /// Kept internal until rendering and every editing tool use the same owner
@@ -8,7 +9,7 @@ import NeuralNotesCore
 enum EditorLayerOperation {
     case add(String), duplicate(UUID, String), rename(UUID, String)
     case visibility(UUID, Bool), lock(UUID, Bool), opacity(UUID, Double)
-    case order([UUID]), clear(UUID), remove(UUID)
+    case order([UUID]), clear(UUID), remove(UUID), merge(UUID)
 
     var title: String {
         switch self {
@@ -21,6 +22,7 @@ enum EditorLayerOperation {
         case .order: return "Ordine livelli"
         case .clear: return "Svuota livello"
         case .remove: return "Elimina livello"
+        case .merge: return "Unisci livelli"
         }
     }
 }
@@ -55,6 +57,18 @@ extension EditorViewModel {
             case .order(let ids): next = try PageLayerEditing.reordering(ids, in: current)
             case .clear(let id): next = try PageLayerEditing.clearing(id, in: current)
             case .remove(let id): next = try PageLayerEditing.removing(id, in: current)
+            case .merge(let id):
+                let layers = PageLayers.ordered(in: current)
+                guard let index = layers.firstIndex(where: { $0.id == id }), index > 0 else { throw LayerMergeFailure.bottom }
+                let targetID = layers[index - 1].id
+                let target = try await LayerDrawingReader.read(page: current, layerID: targetID, workspace: workspace)
+                let source = try await LayerDrawingReader.read(page: current, layerID: id, workspace: workspace)
+                let merged = PKDrawing(strokes: target.drawing.strokes + source.drawing.strokes)
+                let plan = try LayerMergePlan.make(page: current, sourceID: id, targetStrokes: EditorInkSignatures.make(target.drawing),
+                    sourceStrokes: EditorInkSignatures.make(source.drawing), mergedStrokes: EditorInkSignatures.make(merged))
+                next = try await workspace.preparingLayerDrawing(merged.dataRepresentation(), in: plan.page,
+                    layerID: targetID, recoveredFromPrevious: target.recoveredFromPrevious)
+                owner = targetID
             }
             guard next != current else { return true }
             if !PageLayers.editable(owner, page: next) {

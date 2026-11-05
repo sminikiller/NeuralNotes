@@ -15,7 +15,7 @@ struct ElementEditor: View {
                 Section {
                     Button("Aggiungi casella di testo", systemImage: "text.badge.plus") {
                         texts.append(TextElement(text: "Nuovo testo"))
-                    }
+                    }.disabled(!model.canEditActiveLayer)
                 }
                 ForEach($texts) { $text in
                     Section(model.selectedIDs.contains(text.id) ? "Testo selezionato" : "Testo") {
@@ -39,7 +39,11 @@ struct ElementEditor: View {
                     }.id(shape.id)
                 }
             }.task {
-                texts = model.page?.texts ?? []; images = model.page?.images ?? []; shapes = model.page?.shapes ?? []
+                if let page = model.page, page.layers != nil {
+                    let ids = PageLayers.editableObjectIDs(in: page, layerID: model.drawingLayerID ?? page.id)
+                    texts = page.texts.filter { ids.contains($0.id) }; images = page.images.filter { ids.contains($0.id) }
+                    shapes = (page.shapes ?? []).filter { ids.contains($0.id) }
+                } else { texts = model.page?.texts ?? []; images = model.page?.images ?? []; shapes = model.page?.shapes ?? [] }
                 await Task.yield()
                 if let id = model.selectedObjectID { proxy.scrollTo(id, anchor: .top) }
             }
@@ -74,7 +78,7 @@ struct ElementEditor: View {
                                 shape.lineWidth = min(200, max(0.1, shape.lineWidth)); return shape
                             }
                         model.editElements(texts: texts, images: images, shapes: shapes); dismiss()
-                    }
+                    }.disabled(!model.canEditActiveLayer)
                 }
             }
         }

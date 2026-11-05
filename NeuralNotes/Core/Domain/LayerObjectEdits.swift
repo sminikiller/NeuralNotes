@@ -36,6 +36,9 @@ public enum LayerObjectEdits {
         }
         var result = proposed
         result.layers = original.layers
+        if mayInsert, let index = result.layers?.firstIndex(where: { $0.id == activeLayerID }) {
+            result.layers?[index].composition = proposed.layers?.first(where: { $0.id == activeLayerID })?.composition
+        }
         result.texts = scoped(original.texts, proposed.texts, owner: \.layerID, allowed: editable)
         result.images = scoped(original.images, proposed.images, owner: \.layerID, allowed: editable)
         let shapes = scoped(original.shapes ?? [], proposed.shapes ?? [], owner: \.layerID, allowed: editable) {

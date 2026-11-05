@@ -89,9 +89,8 @@ final class SelectiveEraseSession {
             let oldKeys = EditorInkSignatures.make(original), newKeys = EditorInkSignatures.make(drawing)
             let retained = order.filter { native[$0] != nil }
             if let page = originalPage, page.layers != nil {
-                model.page?.anchors = LayerStrokeTimeline.replacing(anchors: page.anchors, oldSignatures: oldKeys,
-                    newSignatures: newKeys, retainedOriginalIndices: retained.compactMap { originalIndices[$0] },
-                    pageID: page.id, layerID: layerID)
+                model.rebaseLayerInkMembership(from: page, old: original, new: drawing,
+                    retainedIndices: retained.compactMap { originalIndices[$0] })
             } else {
                 let anchors = Dictionary(grouping: originalPage?.anchors ?? [], by: \.signature)
                 model.page?.anchors = retained.enumerated().flatMap { offset, id in

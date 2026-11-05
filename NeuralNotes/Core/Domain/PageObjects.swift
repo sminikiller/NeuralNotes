@@ -29,6 +29,11 @@ public extension PageSnapshot {
         objectOrder = objectOrder?.filter { valid.contains($0) }
         lockedObjects = lockedObjects?.filter { valid.contains($0) }
         aboveInkObjects = aboveInkObjects?.filter { valid.contains($0) }
+        if var owners = layers {
+            let marks = Set((pdfMarkups ?? []).map(\.id))
+            for i in owners.indices { owners[i].composition = owners[i].composition?.pruning(objects: valid, markups: marks) }
+            layers = owners
+        }
         detachMissingConnectorTargets()
     }
     @discardableResult mutating func renewObjectIDs() -> [UUID: UUID] {
@@ -47,6 +52,9 @@ public extension PageSnapshot {
         objectOrder = objectOrder.map { $0.compactMap { map[$0] } }
         lockedObjects = lockedObjects.map { $0.compactMap { map[$0] } }
         aboveInkObjects = aboveInkObjects.map { $0.compactMap { map[$0] } }
+        if var owners = layers {
+            for i in owners.indices { owners[i].composition = owners[i].composition?.remapping(objects: map) }; layers = owners
+        }
         return map
     }
 }

@@ -10,6 +10,7 @@ enum LayerDrawingReader {
     static func read(page: PageSnapshot, layerID: UUID, workspace: DocumentWorkspace) async throws -> Value {
         do {
             let data = try await workspace.drawing(page, layerID: layerID)
+            try Task.checkCancellation()
             return Value(drawing: try data.map { try PKDrawing(data: $0) } ?? PKDrawing(), recoveredFromPrevious: false)
         } catch {
             let original = error

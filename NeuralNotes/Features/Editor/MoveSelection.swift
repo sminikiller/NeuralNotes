@@ -30,6 +30,7 @@ extension EditorViewModel {
                 let insertion = newPageAtEnd ? oldOrder.endIndex : index + (newPageAfter ? 1 : 0)
                 newOrder.insert(destination.id, at: insertion)
             }
+            let sourceBefore = source, destinationBefore = destination
             let layered = source.layers != nil || destination.layers != nil
             let sourceOwner = drawingLayerID ?? source.id
             let destinationOwner = PageLayers.ordered(in: destination).first(where: { PageLayers.editable($0.id, page: destination) })?.id
@@ -47,8 +48,8 @@ extension EditorViewModel {
             guard scale >= 0.05 else { throw WorkspaceFailure.oversizedImport }
             let transform = CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY)
                 .concatenating(CGAffineTransform(scaleX: scale, y: scale)).concatenating(CGAffineTransform(translationX: mx, y: my))
-            var moving = source.selectingObjects(ids, objects: sourceObjects)
-            moving.renewObjectIDs()
+            var moving = source.selectingObjects(ids, objects: sourceObjects, allowedIDs: ids)
+            let movingIDs = moving.renewObjectIDs()
             moving.assignObjectOwner(destinationOwner == destination.id ? nil : destinationOwner)
             for i in moving.texts.indices {
                 let value = moving.texts[i], point = CGPoint(x: value.x, y: value.y).applying(transform)
@@ -134,6 +135,17 @@ extension EditorViewModel {
                     StrokeAnchor(signature: appendedSignatures[destinationInk.strokes.count + offset], audioSessionID: anchor.audioSessionID, seconds: anchor.seconds)
                 }
             }
+            }
+            if let payload = sourceBefore.selectionComposition(owner: sourceOwner, signatures: oldSignatures,
+                inkIndices: selectedInk, objectIDs: ids) {
+                let mapping = Dictionary(zip(movedIndices.map { oldSignatures[$0] }, appendedSignatures.dropFirst(destinationInk.strokes.count)),
+                    uniquingKeysWith: { first, _ in first })
+                try destination.appendComposition(payload.remapping(objects: movingIDs, strokes: mapping), owner: destinationOwner,
+                    original: destinationBefore, originalInk: EditorInkSignatures.make(destinationInk))
+            }
+            if !copy, let index = source.layers?.firstIndex(where: { $0.id == sourceOwner }) {
+                source.layers?[index].composition = source.layers?[index].composition?.replacingStrokes(old: oldSignatures,
+                    new: keptSignatures, retainedIndices: keptIndices)
             }
             source.recognizedText = ""; destination.recognizedText = ""
             let afterBuilder = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: layered)

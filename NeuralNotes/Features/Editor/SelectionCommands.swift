@@ -6,6 +6,7 @@ import NeuralNotesCore
 private enum EditorClipboard {
     static var current: SelectionSnapshot?
     static var changeCount: Int?
+    static var documentID: UUID?
 }
 
 @MainActor
@@ -32,14 +33,23 @@ extension EditorViewModel {
     }
     @discardableResult
     func copySelection(maximumBytes: Int = 32 * 1024 * 1024) -> Bool {
-        guard var copy = page, !selectedIDs.isEmpty || selectionIncludesInk else { return false }
-        copy = copy.selectingObjects(selectedIDs, objects: DiagramObjects.make(copy))
-        let drawing: PKDrawing
-        if let selectedStrokeIndices { drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
-        else { drawing = canvas.drawing }
+        guard let original = page, !selectedIDs.isEmpty || selectionIncludesInk else { return false }
+        let ids = scopedSelectionIDs(in: original), owner = drawingLayerID ?? original.id
+        var copy = original.selectingObjects(ids, objects: DiagramObjects.make(original), allowedIDs: ids)
+        let indices = selectionIncludesInk ? canvas.drawing.strokes.indices.filter { selectedStrokeIndices?.contains($0) ?? true } : []
+        let drawing = PKDrawing(strokes: indices.map { canvas.drawing.strokes[$0] })
+        let originalKeys = EditorInkSignatures.make(canvas.drawing), keys = EditorInkSignatures.make(drawing)
+        let composition = original.selectionComposition(owner: owner, signatures: originalKeys, inkIndices: Set(indices), objectIDs: ids)?
+            .replacingStrokes(old: originalKeys, new: keys, retainedIndices: indices)
+        copy.assignObjectOwner(nil); copy.drawingFile = nil; copy.previousDrawingFile = nil
+        copy.pdfFile = nil; copy.pdfIndex = nil; copy.pdfMarkups = nil; copy.anchors = []
+        if let composition {
+            var base = PageLayer(id: copy.id, name: "Selezione"); base.composition = composition; copy.layers = [base]
+        } else { copy.layers = nil }
         let bytes = selectionIncludesInk ? drawing.dataRepresentation() : nil
         do { EditorClipboard.current = try SelectionSnapshot(page: copy, drawing: bytes, source: workspace.package, maximumBytes: maximumBytes) }
         catch { self.error = "Selezione non copiata: controlla che i media esistano e scegli una parte più piccola (limite \(max(0, maximumBytes) / (1024 * 1024)) MB). Gli originali restano nel foglio."; return false }
+        EditorClipboard.documentID = workspace.documentID
         EditorClipboard.changeCount = UIPasteboard.general.changeCount
         status = "Selezione copiata"
         return true
@@ -49,7 +59,7 @@ extension EditorViewModel {
     }
     func pasteSelection(plainText: Bool = false) async {
         finishInkGesture(); endTextEdit()
-        guard hasLease, canEditActiveLayer, !loading, !navigating, !hasActiveStroke, page != nil else { return }
+        guard hasLease, canEditActiveLayer, !loading, !navigating, !hasActiveStroke, let original = page else { return }
         // Keep this snapshot alive across awaits even if another window copies
         // a different selection while the media are being pasted.
         if EditorClipboard.current == nil || EditorClipboard.changeCount != UIPasteboard.general.changeCount {
@@ -58,8 +68,15 @@ extension EditorViewModel {
         guard let clipboard = EditorClipboard.current else { return }
         defer { withExtendedLifetime(clipboard) { } }
         var copy = clipboard.page; let source = clipboard.package
+        let sameDocument = EditorClipboard.documentID == workspace.documentID
+        let owner = drawingLayerID ?? original.id, originalInk = canvas.drawing
         if plainText { for i in copy.texts.indices { copy.texts[i].rtf = nil; copy.texts[i].fontSize = 18 } }
         copy.renewObjectIDs()
+        copy.assignObjectOwner(owner == original.id ? nil : owner)
+        if !sameDocument {
+            if var values = copy.shapes { for i in values.indices { values[i].audioAnchor = nil }; copy.shapes = values }
+            if var values = copy.connectors { for i in values.indices { values[i].audioAnchor = nil }; copy.connectors = values }
+        }
         navigating = true; defer { navigating = false }
         let before = captureEdit(ink: clipboard.drawing != nil)
         do {
@@ -74,34 +91,43 @@ extension EditorViewModel {
                     images[i].file = try await workspace.storeImage(data)
                 }
             }
-            var ids = Set<UUID>()
-            for var text in copy.texts { text.x += 20; text.y += 20; page?.texts.append(text); ids.insert(text.id) }
-            for var image in images { image.x += 20; image.y += 20; page?.images.append(image); ids.insert(image.id) }
+            var result = original, ids = Set<UUID>()
+            for var text in copy.texts { text.x += 20; text.y += 20; result.texts.append(text); ids.insert(text.id) }
+            for var image in images { image.x += 20; image.y += 20; result.images.append(image); ids.insert(image.id) }
             for var shape in copy.shapes ?? [] {
                 shape.x += 20; shape.y += 20
-                var shapes = page?.shapes ?? []; shapes.append(shape); page?.shapes = shapes; ids.insert(shape.id)
+                result.shapes = (result.shapes ?? []) + [shape]; ids.insert(shape.id)
             }
             for var tape in copy.tapes ?? [] {
                 tape.x += 20; tape.y += 20
-                var tapes = page?.tapes ?? []; tapes.append(tape); page?.tapes = tapes; ids.insert(tape.id)
+                result.tapes = (result.tapes ?? []) + [tape]; ids.insert(tape.id)
             }
             let edges = (copy.connectors ?? []).map { $0.transformed(dx: 20, dy: 20) }
-            if !edges.isEmpty {
-                var values = page?.connectors ?? []; values.append(contentsOf: edges); page?.connectors = values
-                ids.formUnion(edges.map(\.id))
-            }
+            result.connectors = (result.connectors ?? []) + edges; ids.formUnion(edges.map(\.id))
+            var delivered = originalInk
             if let copied = copiedDrawing {
+                let latest = (originalInk.strokes + copied.strokes).map { $0.path.creationDate.timeIntervalSince1970 }.max() ?? 0
+                let freshDate = max(Date().timeIntervalSince1970, latest) + 1
                 let strokes = copied.strokes.enumerated().map { index, stroke in
                     PKStroke(ink: stroke.ink, path: PKStrokePath(controlPoints: Array(stroke.path),
-                        creationDate: Date().addingTimeInterval(Double(index) * 0.001)),
+                        creationDate: Date(timeIntervalSince1970: freshDate + Double(index) * 0.001)),
                         transform: stroke.transform.concatenating(CGAffineTransform(translationX: 20, y: 20)), mask: stroke.mask, randomSeed: stroke.randomSeed)
                 }
-                canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes + strokes)
+                delivered = PKDrawing(strokes: originalInk.strokes + strokes)
             }
-            if let current = page {
-                page?.objectOrder = current.orderedObjectIDs.filter { !ids.contains($0) } + copy.orderedObjectIDs
-                page?.aboveInkObjects = Array(Set(current.aboveInkObjects ?? []).union(copy.aboveInkObjects ?? []))
+            result.objectOrder = original.orderedObjectIDs + copy.orderedObjectIDs
+            result.aboveInkObjects = Array(Set(original.aboveInkObjects ?? []).union(copy.aboveInkObjects ?? []))
+            if let composition = copy.layers?.first?.composition {
+                let oldKeys = copiedDrawing.map(EditorInkSignatures.make) ?? []
+                let addedKeys = Array(EditorInkSignatures.make(delivered).dropFirst(originalInk.strokes.count))
+                let mapping = Dictionary(zip(oldKeys, addedKeys), uniquingKeysWith: { first, _ in first })
+                try result.appendComposition(composition.remapping(strokes: mapping), owner: owner, original: original,
+                    originalInk: EditorInkSignatures.make(originalInk))
             }
+            try PageValidation.validate(result)
+            guard page?.id == original.id, drawingLayerID == owner else { throw WorkspaceFailure.staleRevision }
+            page = result
+            if copiedDrawing != nil { installNativeInk(delivered) }
             selectedIDs = ids; selectionIncludesInk = false; selectedStrokeIndices = nil
             recordEdit(before, label: "Incolla selezione"); drawingChanged()
         } catch { self.error = error.localizedDescription }

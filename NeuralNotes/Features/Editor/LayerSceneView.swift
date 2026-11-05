@@ -23,6 +23,7 @@ final class LayerSceneView: UIView {
     private var detailTicket = UUID()
     private var detailRequest: (CGRect, CGFloat, PageSnapshot, Set<UUID>, UUID?)?
     private var detailSuspended = false
+    private var detailBlockedByInk = false
     private var zoom: CGFloat = 1
     private var origin = CGPoint.zero
     private var visiblePage = CGRect.zero
@@ -30,6 +31,14 @@ final class LayerSceneView: UIView {
     private var hidingTextID: UUID?
     private var inkGeneration = UUID()
     private let inkCache = ActiveLayerInkCache()
+    private var ownerProgram: PreparedLayerOwner?
+    private var ownerProgramPage: PageSnapshot?
+    private var ownerProgramToken: UUID?
+    private var ownerProgramLocalToken: UUID?
+    private var ownerProgramBounds = CGRect.zero
+    private var ownerProgramScale: CGFloat = 0
+    private var ownerProgramHidden = Set<UUID>()
+    private var ownerProgramTextID: UUID?
     private let spinner = UIActivityIndicatorView(style: .medium)
     private(set) var isReady = false
     var cachedBytes: Int { (fallback?.byteCost ?? 0) + (detail?.byteCost ?? 0) }
@@ -50,13 +59,13 @@ final class LayerSceneView: UIView {
     }
     @objc private func nnLayerMemoryWarning() {
         detailTask?.cancel(); detailTask = nil; detail = nil; detailRequest = nil
-        detailSuspended = true; inkCache.clear(); setNeedsDisplay()
+        detailSuspended = true; inkCache.clear(); ownerProgram = nil; setNeedsDisplay()
     }
     func reset() {
         fallbackTask?.cancel(); detailTask?.cancel(); fallbackTask = nil; detailTask = nil
         epoch = UUID(); failedFallbackEpoch = nil; recognitionBaseline = nil; detailTicket = UUID(); detailRequest = nil
         fallback = nil; detail = nil; page = nil; ownerID = nil; signature = nil; lastRawPage = nil
-        inkCache.clear()
+        inkCache.clear(); ownerProgram = nil; ownerProgramPage = nil; ownerProgramToken = nil
         isReady = false; isHidden = true; layer.contents = nil; spinner.stopAnimating()
     }
     @discardableResult
@@ -68,6 +77,10 @@ final class LayerSceneView: UIView {
     func showRecognitionBaseline(_ drawing: PKDrawing?) {
         recognitionBaseline = drawing; recognitionToken = UUID(); setNeedsDisplay()
     }
+    func pauseDetailForInk() {
+        detailBlockedByInk = true
+        detailTask?.cancel(); detailTask = nil; detailRequest = nil; detailTicket = UUID()
+    }
     func inkDidChange() { inkGeneration = UUID(); if let host { update(host) } }
 
     func update(_ host: CanvasHost) {
@@ -75,6 +88,8 @@ final class LayerSceneView: UIView {
             if !isHidden || page != nil { reset() }; return
         }
         self.host = host
+        if model.hasActiveStroke { if !detailBlockedByInk { pauseDetailForInk() } }
+        else { detailBlockedByInk = false }
         let owner = model.activeLayerID ?? next.id
         let visible = host.surface.frame.intersection(host.bounds)
         guard !visible.isNull, !visible.isEmpty else { isHidden = true; return }
@@ -112,7 +127,7 @@ final class LayerSceneView: UIView {
             let wantedScale = max(0.01, contentScaleFactor * zoom)
             let covered = matches(detail, signature: signature) && detail?.bounds.contains(viewport) == true &&
                 (detail?.requestedScale ?? 0) >= wantedScale / 1.25
-            if !covered && !detailSuspended {
+            if !covered && !detailSuspended && !detailBlockedByInk && matches(fallback, signature: signature) {
                 let expanded = viewport.insetBy(dx: -viewport.width * 0.15, dy: -viewport.height * 0.15)
                     .intersection(CGRect(x: 0, y: 0, width: next.width, height: next.height))
                 prepareDetail(next, owner: owner, model: model, signature: signature, region: expanded, scale: wantedScale)
@@ -134,6 +149,7 @@ final class LayerSceneView: UIView {
                     previous: previous, hiding: hiddenIDs, hidingTextID: text)
                 guard !Task.isCancelled, let self, self.epoch == ticket, self.signature == signature else { return }
                 self.fallback = result; self.fallbackTask = nil; self.refreshReady(); self.setNeedsDisplay()
+                if let host = self.host { self.update(host) }
             } catch {
                 guard !Task.isCancelled, let self, self.epoch == ticket else { return }
                 self.fallbackTask = nil; self.failedFallbackEpoch = ticket; self.detailSuspended = true
@@ -189,6 +205,23 @@ final class LayerSceneView: UIView {
         if let active, active.isVisible, (active.opacity ?? 1) > 0 {
             let generation = sourceToken ?? (recognitionBaseline == nil ? model.inkDisplayGeneration : recognitionToken)
             let scale = max(0.01, contentScaleFactor * zoom)
+            if active.composition != nil,
+               let group = try? LayerRenderPlan.make(page: page, selection: .selected([ownerID])).first {
+                if ownerProgram == nil || ownerProgramToken != generation || ownerProgramLocalToken != inkGeneration ||
+                    ownerProgramPage != signature || ownerProgramBounds != bounds || ownerProgramScale != scale || hidingTextID != ownerProgramTextID || hiding != ownerProgramHidden {
+                    let appending = override != nil || recognitionBaseline != nil || ((model.tool == .pen || model.tool == .marker) && model.inkGestureBaseline != nil)
+                    let token = sourceToken ?? (recognitionBaseline != nil ? recognitionToken : model.inkGestureGeneration)
+                    ownerProgram = PreparedLayerOwner(group: group, page: page, package: host.surface.package,
+                        drawing: override ?? recognitionBaseline ?? host.canvas.drawing, bounds: bounds, scale: scale,
+                        hiding: hiding, hidingTextID: hidingTextID, rootToken: appending ? token : nil, previous: ownerProgram)
+                    ownerProgramPage = signature; ownerProgramToken = generation; ownerProgramLocalToken = inkGeneration
+                    ownerProgramBounds = bounds; ownerProgramScale = scale
+                    ownerProgramHidden = hiding; ownerProgramTextID = hidingTextID
+                }
+                LayerBlendCompositor.drawGroup(opacity: active.opacity ?? 1, bounds: bounds, in: context) {
+                    ownerProgram?.draw(in: $0, marker: marker, color: color)
+                }
+            } else {
             let canAppend = override == nil && recognitionBaseline == nil && (model.tool == .pen || model.tool == .marker)
             let baseline = canAppend ? model.inkGestureBaseline : nil
             inkCache.prepare(drawing: override ?? recognitionBaseline ?? host.canvas.drawing,
@@ -203,6 +236,7 @@ final class LayerSceneView: UIView {
                 }
                 inkCache.drawPens(in: target)
                 scene.over?.draw(in: target, bounds: scene.bounds)
+            }
             }
         }
         scene.above?.draw(in: context, bounds: scene.bounds)

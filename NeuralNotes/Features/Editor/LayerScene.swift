@@ -68,8 +68,8 @@ struct LayerScene {
         let lower = Array(plan.prefix(activeIndex)).filter { $0.layer.isVisible && $0.opacity > 0 && hasContent($0) }
         let upper = Array(plan.dropFirst(activeIndex + 1)).filter { $0.layer.isVisible && $0.opacity > 0 && hasContent($0) }
         let visible = active.layer.isVisible && active.opacity > 0
-        let hasUnder = visible && (!active.underObjectIDs.isEmpty || !active.underMarkerIDs.isEmpty || !active.ordinaryMarkupIDs.isEmpty || !active.wordMarkupIDs.isEmpty)
-        let hasOver = visible && (!active.aboveObjectIDs.isEmpty || !active.tapeIDs.isEmpty)
+        let hasUnder = active.layer.composition == nil && visible && (!active.underObjectIDs.isEmpty || !active.underMarkerIDs.isEmpty || !active.ordinaryMarkupIDs.isEmpty || !active.wordMarkupIDs.isEmpty)
+        let hasOver = active.layer.composition == nil && visible && (!active.aboveObjectIDs.isEmpty || !active.tapeIDs.isEmpty)
         let mapCount = 2 * [!lower.isEmpty, hasUnder, hasOver, !upper.isEmpty].filter { $0 }.count
         let area = bounds.width * bounds.height
         let affordable = sqrt(CGFloat(budget) * 0.8 / (max(1, CGFloat(mapCount)) * 4 * max(1, area)))
@@ -128,10 +128,9 @@ struct LayerScene {
         // No await after decoding: this native archive is released before the
         // caller starts the next owner, even when other hosts are preparing.
         return try autoreleasepool {
-            let ink = PreparedLayerInk(drawing: value.drawing, bounds: bounds, scale: scale)
-            guard let maps = LayerBlendCompositor.maps(opacity: group.opacity, bounds: bounds, scale: scale, content: { context in
-                PageRenderer.drawLayerContent(group, page: page, package: workspace.package, in: context, hidingObjectIDs: hiding, hidingTextID: hidingTextID) { ink.draw(in: $0) }
-            }) else { throw WorkspaceFailure.oversizedImport }
+            let owner = PreparedLayerOwner(group: group, page: page, package: workspace.package, drawing: value.drawing,
+                bounds: bounds, scale: scale, hiding: hiding, hidingTextID: hidingTextID)
+            guard let maps = LayerBlendCompositor.maps(opacity: group.opacity, bounds: bounds, scale: scale, content: { owner.draw(in: $0) }) else { throw WorkspaceFailure.oversizedImport }
             return maps
         }
     }

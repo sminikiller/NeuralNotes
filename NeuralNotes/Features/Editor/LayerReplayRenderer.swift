@@ -61,21 +61,11 @@ final class LayerReplayRenderer {
             if drawing == nil { drawing = try await read(page: page, layerID: id, owner: owner, live: live, workspace: workspace) }
             let value = try autoreleasepool { () throws -> Entry in
                 let native = drawing!
-                let ink = PreparedLayerInk(drawing: PKDrawing(strokes: visible.map { native.strokes[$0] }), bounds: bounds, scale: scale)
-                let emphasized = PKDrawing(strokes: hot.map {
-                    let stroke = native.strokes[$0]
-                    return PKStroke(ink: PKInk(.pen, color: .systemTeal), path: stroke.path, transform: stroke.transform, mask: stroke.mask, randomSeed: stroke.randomSeed)
-                })
-                guard let result = LayerBlendCompositor.maps(opacity: group.opacity, bounds: bounds, scale: scale, content: { context in
-                    PageRenderer.drawLayerContent(group, page: page, package: workspace.package, in: context, hidingObjectIDs: hiding) { target in
-                        ink.draw(in: target)
-                        if !hot.isEmpty {
-                            target.saveGState(); target.setAlpha(0.65)
-                            LegibleInkRenderer.draw(emphasized, in: target, bounds: bounds, scale: self.scale)
-                            target.restoreGState()
-                        }
-                    }
-                }) else { throw WorkspaceFailure.oversizedImport }
+                let owner = PreparedLayerOwner(group: group, page: page, package: workspace.package,
+                    drawing: PKDrawing(strokes: visible.map { native.strokes[$0] }), bounds: bounds, scale: scale,
+                    signatures: visible.map { signatures[$0] }, hot: Set(hot.map { signatures[$0] }), hiding: hiding)
+                guard let result = LayerBlendCompositor.maps(opacity: group.opacity, bounds: bounds, scale: scale,
+                    content: { owner.draw(in: $0) }) else { throw WorkspaceFailure.oversizedImport }
                 return Entry(source: source, signatures: signatures, visible: visible, hot: hot, hiddenIDs: hiding, maps: result)
             }
             entries[id] = value; drawing = nil; changed = true

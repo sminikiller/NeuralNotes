@@ -15,6 +15,12 @@ public struct LayerRenderGroup: Equatable, Sendable {
     public let aboveObjectIDs: [UUID]
     public let tapeIDs: [UUID]
     public var opacity: Double { layer.opacity ?? 1 }
+    public func restricting(objects: Set<UUID>, markups: Set<UUID>) -> Self {
+        Self(layer: layer, drawingFile: drawingFile, previousDrawingFile: previousDrawingFile, isActive: isActive,
+            ordinaryMarkupIDs: ordinaryMarkupIDs.filter(markups.contains), underObjectIDs: underObjectIDs.filter(objects.contains),
+            wordMarkupIDs: wordMarkupIDs.filter(markups.contains), underMarkerIDs: underMarkerIDs.filter(objects.contains),
+            aboveObjectIDs: aboveObjectIDs.filter(objects.contains), tapeIDs: tapeIDs.filter(objects.contains))
+    }
 }
 
 public enum LayerRenderPlan {

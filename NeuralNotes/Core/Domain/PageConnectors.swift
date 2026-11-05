@@ -45,8 +45,9 @@ public extension PageSnapshot {
         }
         return result
     }
-    func selectingObjects(_ ids: Set<UUID>, objects: [UUID: ConnectorObject]) -> Self {
-        let selected = includingInternalConnectors(ids)
+    func selectingObjects(_ ids: Set<UUID>, objects: [UUID: ConnectorObject], allowedIDs: Set<UUID>? = nil) -> Self {
+        let expanded = includingInternalConnectors(ids)
+        let selected = allowedIDs.map { expanded.intersection($0) } ?? expanded
         var copy = self; copy.refreshConnectorFallbacks(objects: objects)
         copy.texts.removeAll { !selected.contains($0.id) }; copy.images.removeAll { !selected.contains($0.id) }
         copy.shapes = copy.shapes?.filter { selected.contains($0.id) }; copy.tapes = copy.tapes?.filter { selected.contains($0.id) }

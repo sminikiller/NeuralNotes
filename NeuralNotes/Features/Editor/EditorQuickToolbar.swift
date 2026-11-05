@@ -67,6 +67,11 @@ struct EditorQuickToolbar: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 23).stroke(.white.opacity(0.18)))
             .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
+            if let name = model.activeLayerName {
+                Text(name).font(.caption2).lineLimit(1).truncationMode(.middle).frame(maxWidth: vertical ? 72 : 180)
+                    .padding(.horizontal, 8).padding(.vertical, 3).background(.regularMaterial, in: Capsule())
+                    .accessibilityLabel("Livello attivo: \(name)").accessibilityIdentifier("activeLayerBadge")
+            }
             if model.tool == .objects && !vertical { selectionBar.padding(6).frame(maxWidth: 700).background(.regularMaterial, in: Capsule()) }
             // The Lens commands sit right under the toolbar, not over the page.
             if model.tool == .lens && !vertical { LensModeBar(model: model, actions: lens) }

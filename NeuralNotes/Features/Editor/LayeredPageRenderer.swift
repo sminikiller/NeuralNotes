@@ -41,11 +41,9 @@ enum LayeredPageRenderer {
             else { drawing = try await LayerDrawingReader.read(page: page, layerID: group.layer.id, workspace: workspace).drawing }
             autoreleasepool {
                 withContext(context) {
-                    LayerBlendCompositor.drawGroup(opacity: group.opacity, bounds: bounds, in: context) { target in
-                        PageRenderer.drawLayerContent(group, page: page, package: workspace.package, in: target) {
-                            LegibleInkRenderer.draw(drawing, in: $0, bounds: bounds, scale: scale, vector: vector)
-                        }
-                    }
+                    let owner = PreparedLayerOwner(group: group, page: page, package: workspace.package, drawing: drawing,
+                        bounds: bounds, scale: scale, vector: vector)
+                    LayerBlendCompositor.drawGroup(opacity: group.opacity, bounds: bounds, in: context) { owner.draw(in: $0) }
                 }
             }
             await Task.yield()

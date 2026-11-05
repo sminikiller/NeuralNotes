@@ -214,6 +214,10 @@ final class EditorViewModel {
     // until the inactive-layer compositor and scoped tools are installed.
     var activeLayerID: UUID?
     var drawingLayerID: UUID? { page.map { activeLayerID ?? $0.id } }
+    var activeLayerName: String? {
+        guard let page, (page.layers?.count ?? 1) > 1 else { return nil }
+        return PageLayers.ordered(in: page).first(where: { $0.id == (activeLayerID ?? page.id) })?.name
+    }
     var canEditActiveLayer: Bool {
         guard let page else { return false }
         return page.layers == nil || PageLayers.editable(activeLayerID ?? page.id, page: page)
@@ -350,6 +354,7 @@ final class EditorViewModel {
         finishInkGesture()
         rememberPalette()
         usingInkTool = true
+        (canvas.superview as? CanvasHost)?.layeredScene.pauseDetailForInk()
         editBeforeGesture = captureEdit(ink: true)
         inkGestureBaseline = canvas.drawing; inkGestureGeneration = UUID()
         strokeTime = audio?.recordingAnchor
@@ -726,8 +731,10 @@ final class EditorViewModel {
         page?.connectors?.removeAll { ids.contains($0.id) }
         page?.tapes?.removeAll { ids.contains($0.id) }; page?.pruneObjectReferences()
         if selectionIncludesInk {
-            if let selectedStrokeIndices { canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes.enumerated().filter { !selectedStrokeIndices.contains($0.offset) }.map(\.element)) }
-            else { canvas.drawing = PKDrawing() }
+            let original = canvas.drawing
+            let retained = original.strokes.indices.filter { selectedStrokeIndices?.contains($0) == false }
+            canvas.drawing = PKDrawing(strokes: retained.map { original.strokes[$0] })
+            if let source = before?.page { rebaseLayerInkMembership(from: source, old: original, new: canvas.drawing, retainedIndices: retained) }
         }
         recordEdit(before, label: "Elimina selezione")
         selectedObjectID = nil; drawingChanged()

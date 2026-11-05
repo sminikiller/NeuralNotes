@@ -43,6 +43,16 @@ enum LayerBlendCompositor {
         context.endTransparencyLayer()
     }
 
+    /// Transparent clipboard PNGs have no document backdrop. Their groups use
+    /// ordinary isolation, so opacity remains alpha instead of opaque probes.
+    static func drawIsolatedGroup(opacity: Double, in context: CGContext, content: (CGContext) -> Void) {
+        guard opacity.isFinite, opacity > 0 else { return }
+        context.saveGState(); defer { context.restoreGState() }
+        context.setAlpha(CGFloat(min(1, opacity))); context.setBlendMode(.normal)
+        context.beginTransparencyLayer(auxiliaryInfo: nil); context.setAlpha(1)
+        content(context); context.endTransparencyLayer()
+    }
+
     /// Cache two opaque maps, never an opaque picture of the actual paper.
     /// The caller bounds region/scale and charges both images to its cache.
     static func maps(opacity: Double, bounds: CGRect, scale: CGFloat,

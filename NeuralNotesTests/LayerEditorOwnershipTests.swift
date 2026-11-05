@@ -243,6 +243,25 @@ final class LayerEditorOwnershipTests: XCTestCase {
         }
     }
 
+    @MainActor func testTypeDeletionCountsAndDeletesOnlyEditableOwnersAndRestoresTheirInkInOneUndo() async throws {
+        try await fixture { model, owner, base, upper in
+            let hidden = await model.performLayerOperation(.visibility(owner, false)); XCTAssertTrue(hidden)
+            let pageID = try XCTUnwrap(model.page?.id)
+            let preview = try await model.typeDeletionPreview(pageIDs: [pageID])
+            XCTAssertEqual(preview.counts[.pen], 1)
+            let count = try await model.deleteTypes([.pen], preview: preview)
+            XCTAssertEqual(count, 1); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            let stored = try await model.workspace.pageSnapshot(pageID)
+            let invisible = try await LayerDrawingReader.read(page: stored, layerID: owner, workspace: model.workspace)
+            XCTAssertTrue(NativeInkComparison.equal(invisible.drawing, upper))
+            await model.performUndo()
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, base))
+            let restored = try XCTUnwrap(model.page)
+            let untouched = try await LayerDrawingReader.read(page: restored, layerID: owner, workspace: model.workspace)
+            XCTAssertTrue(NativeInkComparison.equal(untouched.drawing, upper))
+        }
+    }
+
     @MainActor private func stroke(x: CGFloat) -> PKStroke {
         let a = PKStrokePoint(location: CGPoint(x: x, y: 120), timeOffset: 0,
             size: CGSize(width: 4, height: 5), opacity: 0.9, force: 0.72, azimuth: 0.3, altitude: 1)

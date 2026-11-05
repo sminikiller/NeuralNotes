@@ -13,11 +13,18 @@ extension EditorViewModel {
         var counts: [PageDeletionKind: Int] = [:], revisions: [UUID: Int] = [:]
         for (offset, id) in ids.enumerated() {
             try Task.checkCancellation()
-            let page = try await workspace.pageSnapshot(id), data = try await workspace.drawing(page)
-            let result = try await Task.detached(priority: .userInitiated) { try TypeDeletionInk.process(data, page: page) }.value
-            try Task.checkCancellation()
+            let page = try await workspace.pageSnapshot(id)
+            var pageCounts = PageDeletion.metadataCounts(in: page)
+            for layer in PageLayers.ordered(in: page) where PageLayers.editable(layer.id, page: page) {
+                let data = try await workspace.drawing(page, layerID: layer.id)
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try TypeDeletionInk.process(data, page: page, layerID: layer.id, includeMetadata: false)
+                }.value
+                try Task.checkCancellation()
+                for (kind, count) in result.counts { pageCounts[kind, default: 0] += count }
+            }
             revisions[id] = page.revision
-            for (kind, count) in result.counts { counts[kind, default: 0] += count }
+            for (kind, count) in pageCounts { counts[kind, default: 0] += count }
             progress(offset + 1, ids.count)
         }
         return TypeDeletionPreview(order: order, pageIDs: ids, revisions: revisions, counts: counts,
@@ -53,14 +60,43 @@ extension EditorViewModel {
             guard let metadata = backupMetadata,
                   try await workspace.createAutomaticBackup(metadata: metadata, minimumInterval: 0) != nil else { throw TypeDeletionFailure.backupRequired }
         }
-        let before = try PageEditSnapshotBuilder(documentID: workspace.documentID)
-        let after = try PageEditSnapshotBuilder(documentID: workspace.documentID)
+        let before = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: true)
+        let after = try PageEditSnapshotBuilder(documentID: workspace.documentID, preservingBaseReferences: true)
         let touchesInk = kinds.contains(.pen) || kinds.contains(.marker)
         var changed = 0, removed = 0
         for (offset, id) in preview.pageIDs.enumerated() {
             try Task.checkCancellation()
             var current = try await workspace.pageSnapshot(id)
             guard current.revision == preview.revisions[id] else { throw TypeDeletionFailure.changed }
+            if current.layers != nil {
+                if current.connectors?.isEmpty == false { current.refreshConnectorFallbacks(objects: DiagramObjects.make(current)) }
+                var pageCounts = PageDeletion.metadataCounts(in: current), next = PageDeletion.removing(kinds, from: current)
+                if touchesInk {
+                    for layer in PageLayers.ordered(in: current) where PageLayers.editable(layer.id, page: current) {
+                        try Task.checkCancellation()
+                        let data = try await workspace.drawing(current, layerID: layer.id), snapshot = next
+                        let result = try await Task.detached(priority: .userInitiated) {
+                            try TypeDeletionInk.process(data, page: snapshot, removing: kinds, layerID: layer.id, includeMetadata: false)
+                        }.value
+                        for (kind, count) in result.counts { pageCounts[kind, default: 0] += count }
+                        if let drawing = result.drawing {
+                            next.anchors = result.anchors
+                            if let i = next.layers?.firstIndex(where: { $0.id == layer.id }) { next.layers?[i].composition = result.composition }
+                            next = try await workspace.preparingLayerDrawing(drawing, in: next, layerID: layer.id)
+                        }
+                    }
+                }
+                let count = kinds.reduce(0) { $0 + pageCounts[$1, default: 0] }
+                if count > 0 {
+                    if current.connectors?.isEmpty == false { current.refreshConnectorFallbacks(objects: DiagramObjects.make(current)) }
+                    next.refreshConnectorFallbacks(objects: DiagramObjects.make(next))
+                    try await before.append(current, drawing: nil, sourcePackage: workspace.package)
+                    try await after.append(next, drawing: nil, sourcePackage: workspace.package)
+                    changed += 1; removed += count
+                }
+                progress("Preparazione \(offset + 1)/\(preview.pageIDs.count)")
+                continue
+            }
             let data = touchesInk ? try await workspace.drawing(current) : nil
             let result: TypeDeletionInk.Result
             if touchesInk {
@@ -80,7 +116,7 @@ extension EditorViewModel {
         guard changed > 0 else { return 0 }
         let oldState = try await before.finish(), newState = try await after.finish()
         let change = EditorDiskChange(before: oldState, after: newState, beforeOrder: order,
-            afterOrder: order, beforePage: focus, afterPage: focus)
+            afterOrder: order, beforePage: focus, afterPage: focus, beforeLayerID: drawingLayerID, afterLayerID: drawingLayerID)
         try Task.checkCancellation()
         progress("Salvataggio delle pagine…")
         try await applyDiskChange(change, label: "Elimina elementi per tipo")

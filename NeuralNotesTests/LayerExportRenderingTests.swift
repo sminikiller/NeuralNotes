@@ -102,4 +102,73 @@ final class LayerExportRenderingTests: XCTestCase {
         }
     }
 
+    @MainActor func testMergePreservesRealPixelsWholeGroupOpacityVectorInkAndExactUndoWithObjectsOnBothSidesOfInk() async throws {
+        try await fixture { workspace, original, layer in
+            var page = try PageLayerEditing.opacity(original.id, value: 0.6, in: original)
+            page = try PageLayerEditing.opacity(layer, value: 0.4, in: page)
+            var front = TextElement(text: "Base front"); front.x = 20; front.y = 60; front.width = 80; front.fontSize = 16
+            front.background = InkColor(0.2, 0.8, 0.4)
+            var under = TextElement(text: "Upper under"); under.x = 20; under.y = 20; under.width = 80; under.fontSize = 16
+            under.background = InkColor(0.8, 0.3, 0.2); under.layerID = layer
+            page.texts = [front, under]; page.aboveInkObjects = [front.id]
+            page = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
+            let lower = try await LayerDrawingReader.read(page: page, layerID: page.id, workspace: workspace)
+            let upper = try await LayerDrawingReader.read(page: page, layerID: layer, workspace: workspace)
+            let before = try await DocumentServices.compositeImage(page: page, workspace: workspace, maxDimension: 120)
+            let model = EditorViewModel(workspace: workspace); await model.open(); await model.selectLayer(layer)
+            do {
+                let merged = await model.performLayerOperation(.merge(layer)); XCTAssertTrue(merged)
+                let result = try XCTUnwrap(model.page); XCTAssertEqual(result.layers?.count, 1)
+                XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+                XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, PKDrawing(strokes: lower.drawing.strokes + upper.drawing.strokes)))
+                let after = try await DocumentServices.compositeImage(page: result, workspace: workspace, maxDimension: 120)
+                for y: CGFloat in [10, 30, 50, 70, 90] {
+                    let a = try self.pixel(before, y: y), b = try self.pixel(after, y: y)
+                    for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(a[channel]) - Int(b[channel])), 4) }
+                }
+                let pdf = try await DocumentServices.exportPDF(workspace: workspace)
+                defer { try? FileManager.default.removeItem(at: pdf) }
+                let vector = try XCTUnwrap(CGPDFDocument(pdf as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
+                XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
+                await model.performUndo()
+                XCTAssertEqual(model.drawingLayerID, layer); XCTAssertEqual(model.page?.layers?.count, 2)
+                XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, upper.drawing))
+                await model.performRedo()
+                XCTAssertEqual(model.drawingLayerID, page.id); XCTAssertEqual(model.page?.layers?.count, 1)
+                XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, PKDrawing(strokes: lower.drawing.strokes + upper.drawing.strokes)))
+                _ = await model.close()
+            } catch { _ = await model.close(); throw error }
+        }
+    }
+
+    @MainActor func testClipboardPreservesMergedOpacityInALegacyDestinationAndUndoRestoresItsEmptyNativeCanvas() async throws {
+        try await fixture { workspace, original, layer in
+            var page = try PageLayerEditing.opacity(original.id, value: 0.6, in: original)
+            page = try PageLayerEditing.opacity(layer, value: 0.4, in: page)
+            _ = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
+            let model = EditorViewModel(workspace: workspace); await model.open()
+            do {
+                let merged = await model.performLayerOperation(.merge(layer)); XCTAssertTrue(merged)
+                let source = try XCTUnwrap(model.page), native = model.canvas.drawing
+                let image = try await DocumentServices.compositeImage(page: source, workspace: workspace, maxDimension: 120)
+                model.selectAll(); XCTAssertTrue(model.copySelection())
+                var blank = PageSnapshot(); blank.width = 120; blank.height = 100
+                let destination = try await workspace.addPage(blank); model.pages = try await workspace.pages()
+                await model.select(destination); await model.pasteSelection()
+                XCTAssertEqual(model.page?.id, destination.id); XCTAssertNotNil(model.page?.layers?.first?.composition)
+                let pasted = try XCTUnwrap(model.page)
+                let result = try await DocumentServices.compositeImage(page: pasted, drawing: model.canvas.drawing, workspace: workspace, maxDimension: 120)
+                for y: CGFloat in [30, 70] {
+                    let a = try self.pixel(image, y: y), b = try self.pixel(result, y: y + 20)
+                    for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(a[channel]) - Int(b[channel])), 4) }
+                }
+                XCTAssertEqual(model.canvas.drawing.strokes.count, 2)
+                XCTAssertEqual(model.canvas.drawing.strokes[0].randomSeed, native.strokes[0].randomSeed)
+                XCTAssertEqual(model.canvas.drawing.strokes[0].path[0].force, native.strokes[0].path[0].force)
+                await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty); XCTAssertNil(model.page?.layers)
+                _ = await model.close()
+            } catch { _ = await model.close(); throw error }
+        }
+    }
+
 }

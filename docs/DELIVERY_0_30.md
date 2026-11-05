@@ -1,3 +1,37 @@
+# Fase0.30 — candidata completa da compilare e collaudare
+
+La beta pubblicata resta1.0.0(179), con PDF0.28.2 e testo0.29. Questo candidato0.30 è isolato: nessuna verifica Apple o distribuzione30 ancora conclusa. I controlli Windows sul grafo e sulla grammatica non sono compilazione né test eseguiti.
+
+## Stato del candidato
+
+- Livelli veri per pagina, fino a16, con Base senza migrazione dei file precedenti. Mostra/nascondi, blocca, rinomina, duplica, riordina, opacità, svuota ed elimina sono annullabili. Il nome attivo è visibile sotto la toolbar; gli strumenti e i menu oggetti sono limitati al proprietario attivo.
+- Pannello con miniature preparate una alla volta. Export PDF vettoriale/PNG/JPEG: tutti, visibili o scelti; export di un solo livello. Nativo e backup conservano anche livelli nascosti/bloccati. OCR e ricerca comprendono tutto il contenuto; la selezione parole interattiva esclude testi nascosti.
+- Unione modificabile: conserva PKStroke originali, pressione, maschere, randomSeed e tempi. Una piccola composizione interna conserva ordine oggetti/marker/penna/tape e opacità dei gruppi precedenti. Nessuna rasterizzazione dei dati. Massimo128nodi,4livelli annidati e200.000riferimenti di tratto per proprietario: oltre questi limiti l’operazione fallisce senza pubblicare il nuovoheader. Se la Base riordinata viene unita sotto, resta una Base vuota anziché cancellare l’identità della pagina.
+- Un solo canvas nativo con cache viewport12+36MiB; il dettaglio parte dopo il fallback e viene interrotto durante la scrittura. I buffer temporanei, l’inchiostro attivo, le anteprime e il backingUIView sono separati dal budget48MiB, quindi non chiamarlo picco totale. Il PDF resta sulla cache in background già verificata29. Baseline dell’inchiostro riusata per gesto, solo delta per campione; anche i gruppi uniti riusano la composizione immutabile durante l’aggiunta di un tratto.
+- Salvataggi/annulla perproprietario, staging di fileimmutabili per azioni tra pagine e cambioformato, cancellazione pertipi su tutti i livelli visibili/sbloccati, snapshot prima/dopo con un solojournal. Gli oggetti bloccati restano esclusi; nuovoformato ridimensiona esplicitamente tutti i proprietari, anche nascosti/bloccati, senza deformare le proporzioni.
+- Copia/incolla e trasferimento mantengono gruppi/opacità dei contenuti uniti, assegnano l’owner destinazione e validano prima di pubblicare. Gli eventuali rimandi audio di forme provenienti da un altro quaderno non vengono collegati a sessioni inesistenti. Le selezioni PNG mantengono alpha, senza probe opachi sullo sfondo.
+- Audio: ancore perowner/occorrenza, hit sulle curve di tutti i livelli visibili, replayreadonly con cache32MiB e frame riusato tra tick; nessun insieme residente di16PKDrawing. Nuove prove sugli owner uguali/copie, Native e giornale.
+- Formato pacchetto2 promosso atomicamente alla prima pagina con livelli, compresa cronologia/recupero. Nuovi quaderni senza livelli restano1. La promozione non viene annullata: una versione29 non deve aprire e risalvare un quaderno con dati30. iCloud/backend/firma/identità non sono stati modificati.
+
+## Gate prima della consegna
+
+1. Compilazione SDK e suite raggruppataCore/Native/UI, Release e pacchetto realePlaygrounds. Nessun esito previsto va riportato come superato.
+2. Controllare il test del testo digitato di un livello parzialmenteopaco: deve rimanere selezionabile UNA volta nelPDF. I probe vettoriali potrebbero duplicarlo; correggere se rilevato.
+3. Ispezionare screenshot UI Livelli e regressioni PDF/marker/Undo/zoom; confronti pixel Native prima/dopo unione, clipboard e export.
+4. Verificare CRC e sorgenti dello ZIP esatto CI e solo dopo caricare la beta con la corsia autorizzata. Registrare numero effettivo e upload, senza stimarlo.
+5. La prova fisica prolungata suPencil, audio lungo e standby rimane distinta dal simulatore.
+
+## Come provarla dopo una distribuzione verificata
+
+1. Apri un quaderno di prova, disegna una forma e apri l’icona Livelli.
+2. Crea un livello e scrivi lì. Nascondilo: il contenuto sotto deve tornare pulito. Annulla: ritornano contenuto e proprietario attivo.
+3. Blocca un livello, prova a selezionare e cancellare gli altri, poi sbloccalo. Trascina le righe del pannello per cambiarne l’ordine.
+4. Nel menu del livello modifica nome/opacità, duplica o unisci sotto. Annulla ogni operazione; i tratti originali devono essere esatti.
+5. Esporta prima solo visibili, poi tutti, poi un livello scelto. L’export non deve cambiare la pagina originale.
+
+---
+Documentazione di progetto e checkpoint storici conservati di seguito. Le loro diciture «ancora da implementare» non sostituiscono lo stato sopra.
+
 # Fase 0.30 — progetto di integrazione, prima di cambiare il modello
 
 Questo documento è preparazione; nessun livello è ancora attivato in produzione. Va promosso nel DELIVERY 0.30 solo dopo la consegna verificata di 0.29. Il codice corrente PDF resta sul ramo di consegna; il candidato 0.29 è nel worktree separato.

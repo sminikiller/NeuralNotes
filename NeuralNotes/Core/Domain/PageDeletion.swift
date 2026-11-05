@@ -33,17 +33,19 @@ public enum PageDeletion {
         case .lensNotes: values = page.texts.filter { $0.lensNote != nil }.map(\.id)
         case .pen, .audioLinks: values = []
         }
-        return Set(values).subtracting(page.lockedObjects ?? [])
+        let eligible = Set(PageLayers.ordered(in: page).filter { PageLayers.editable($0.id, page: page) }
+            .flatMap { PageLayers.ownedObjectIDs(in: page, layerID: $0.id) })
+        return Set(values).subtracting(page.lockedObjects ?? []).intersection(eligible)
     }
     public static func metadataCounts(in page: PageSnapshot) -> [PageDeletionKind: Int] {
         var counts = Dictionary(uniqueKeysWithValues: PageDeletionKind.allCases.map { ($0, objectIDs(in: page, kind: $0).count) })
-        let locked = Set(page.lockedObjects ?? [])
-        let shapes = (page.shapes ?? []).filter { !locked.contains($0.id) && $0.audioAnchor != nil }.count
-        let edges = (page.connectors ?? []).filter { !locked.contains($0.id) && $0.audioAnchor != nil }.count
-        counts[.audioLinks] = page.anchors.count + shapes + edges
+        let shapeIDs = objectIDs(in: page, kind: .shapes).union(objectIDs(in: page, kind: .marker)), edgeIDs = objectIDs(in: page, kind: .connectors)
+        let shapes = (page.shapes ?? []).filter { shapeIDs.contains($0.id) && $0.audioAnchor != nil }.count
+        let edges = (page.connectors ?? []).filter { edgeIDs.contains($0.id) && $0.audioAnchor != nil }.count
+        counts[.audioLinks] = page.anchors.filter { PageLayers.editable($0.layerID ?? page.id, page: page) }.count + shapes + edges
         // Existing PDF selection markup belongs to the same visible categories.
-        counts[.marker, default: 0] += (page.pdfMarkups ?? []).filter { $0.kind == .highlight }.count
-        counts[.pen] = (page.pdfMarkups ?? []).filter { $0.kind == .underline }.count
+        counts[.marker, default: 0] += (page.pdfMarkups ?? []).filter { $0.kind == .highlight && PageLayers.editable($0.layerID ?? page.id, page: page) }.count
+        counts[.pen] = (page.pdfMarkups ?? []).filter { $0.kind == .underline && PageLayers.editable($0.layerID ?? page.id, page: page) }.count
         return counts
     }
     /// Refresh connector fallbacks using the current rendered geometry before
@@ -56,21 +58,21 @@ public enum PageDeletion {
         page.shapes?.removeAll { ids.contains($0.id) }
         page.connectors?.removeAll { ids.contains($0.id) }
         page.tapes?.removeAll { ids.contains($0.id) }
-        if kinds.contains(.marker) { page.pdfMarkups?.removeAll { $0.kind == .highlight } }
-        if kinds.contains(.pen) { page.pdfMarkups?.removeAll { $0.kind == .underline } }
+        if kinds.contains(.marker) { page.pdfMarkups?.removeAll { $0.kind == .highlight && PageLayers.editable($0.layerID ?? original.id, page: original) } }
+        if kinds.contains(.pen) { page.pdfMarkups?.removeAll { $0.kind == .underline && PageLayers.editable($0.layerID ?? original.id, page: original) } }
         if !ids.isEmpty || kinds.contains(.pen) || kinds.contains(.marker) {
             // The old visual OCR must not make deleted content searchable.
             page.recognizedText = ""
         }
         if kinds.contains(.audioLinks) {
-            page.anchors = []
+            page.anchors.removeAll { PageLayers.editable($0.layerID ?? original.id, page: original) }
             let locked = Set(page.lockedObjects ?? [])
             if var shapes = page.shapes {
-                for i in shapes.indices where !locked.contains(shapes[i].id) { shapes[i].audioAnchor = nil }
+                for i in shapes.indices where !locked.contains(shapes[i].id) && PageLayers.editable(shapes[i].layerID ?? original.id, page: original) { shapes[i].audioAnchor = nil }
                 page.shapes = shapes
             }
             if var edges = page.connectors {
-                for i in edges.indices where !locked.contains(edges[i].id) { edges[i].audioAnchor = nil }
+                for i in edges.indices where !locked.contains(edges[i].id) && PageLayers.editable(edges[i].layerID ?? original.id, page: original) { edges[i].audioAnchor = nil }
                 page.connectors = edges
             }
         }

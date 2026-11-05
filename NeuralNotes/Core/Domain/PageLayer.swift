@@ -6,6 +6,7 @@ public struct PageLayer: Codable, Identifiable, Equatable, Sendable {
     public var isVisible: Bool
     public var isLocked: Bool
     public var opacity: Double?
+    public var composition: LayerComposition?
     public var drawingFile: String?
     public var previousDrawingFile: String?
     public init(id: UUID = UUID(), name: String, isVisible: Bool = true, isLocked: Bool = false) {
@@ -51,6 +52,10 @@ public enum PageLayers {
         ownership.append(contentsOf: (page.tapes ?? []).compactMap(\.layerID))
         ownership.append(contentsOf: (page.pdfMarkups ?? []).compactMap(\.layerID))
         guard ownership.allSatisfy(ids.contains), page.anchors.compactMap(\.layerID).allSatisfy(ids.contains) else { throw LibraryFailure.corruptDocument }
+        for layer in ordered {
+            try layer.composition?.validate(ownedObjects: ownedObjectIDs(in: page, layerID: layer.id),
+                ownedMarkups: Set((page.pdfMarkups ?? []).filter { canonical($0.layerID, page: page) == layer.id }.map(\.id)))
+        }
         let embedded = (page.shapes ?? []).compactMap(\.audioAnchor) + (page.connectors ?? []).compactMap(\.audioAnchor)
         guard embedded.compactMap(\.layerID).allSatisfy(ids.contains) else { throw LibraryFailure.corruptDocument }
         guard (page.anchors + embedded).allSatisfy({ $0.strokeOccurrence.map { (0...1_000_000).contains($0) } != false }) else { throw LibraryFailure.corruptDocument }

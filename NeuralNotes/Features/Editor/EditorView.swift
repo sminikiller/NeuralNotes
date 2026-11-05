@@ -7,7 +7,7 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, globalSearch, study, crop, pages, practice, storage, paper, workspace, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
+    case elements, audio, search, globalSearch, study, crop, pages, practice, storage, paper, workspace, layers, layerExport, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
     var id: String { rawValue }
 }
 
@@ -180,6 +180,8 @@ struct EditorView: View {
             navigationMenu
             Button { panel = .paper } label: { Label("Carta e formato", systemImage: "doc.text") }
                 .disabled(!model.hasLease || working || model.loading || model.navigating)
+            Button { Task { if await model.flush() { panel = .layers } } } label: { Label("Livelli", systemImage: "square.3.layers.3d") }
+                .disabled(model.navigating || !model.hasLease).accessibilityIdentifier("editorLayers")
             Button { Task { if await model.flush() { panel = .pages } } } label: { Label("Pagine", systemImage: "square.grid.2x2") }
                 .disabled(model.navigating || !model.hasLease)
             audioButton
@@ -311,6 +313,8 @@ struct EditorView: View {
 
     private var exportMenu: some View {
         Menu("Esporta", systemImage: "square.and.arrow.up") {
+            Button("Scegli livelli e formato…", systemImage: "square.3.layers.3d") { panel = .layerExport }
+                .accessibilityIdentifier("editorExportLayers")
             Button("PDF vettoriale", systemImage: "doc") { Task { await export(native: false) } }
             Button("PDF con aspetto PencilKit", systemImage: "paintbrush") { Task { await export(native: false, vector: false) } }
             Button("Quaderno nativo e backup", systemImage: "externaldrive") { Task { await export(native: true) } }
@@ -369,6 +373,8 @@ struct EditorView: View {
         case .connectorStyle: ConnectorStylePanel(model: model)
         case .shapeStyle: ShapeStylePanel(model: model)
         case .workspace: WorkspacePanel(model: model)
+        case .layers: LayersPanel(model: model)
+        case .layerExport: LayerExportPanel(model: model)
         case .paper: PageTemplatePanel(model: model)
         case .storage: StoragePanel(workspace: model.workspace, editor: model, metadata: notebook)
         case .pages: PageBrowser(model: model)
