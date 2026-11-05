@@ -82,6 +82,25 @@ final class PageWordIndex {
     func isReady(_ page: PageSnapshot) -> Bool { cache[key(page)] != nil }
     func isPreparing(_ page: PageSnapshot) -> Bool { running.contains { $0.contains("|\(page.id)|") } }
 
+    /// Optional cached OCR hints only when the page contains exclusively native
+    /// handwriting. PDF/photo/typed text and other owners must never dictate
+    /// how selected pen strokes are grouped. This starts no recognition work.
+    func handwritingLineHints(_ page: PageSnapshot) -> [SnapRect] {
+        guard page.layers == nil, page.pdfFile == nil, page.images.isEmpty, page.texts.isEmpty,
+              page.shapes?.isEmpty != false, page.connectors?.isEmpty != false,
+              let words = cache[key(page)] else { return [] }
+        var lines: [CGRect] = []
+        for word in words.prefix(1000).sorted(by: { $0.rect.midY < $1.rect.midY }) {
+            let box = word.rect
+            if let i = lines.indices.first(where: { index in
+                let overlap = min(lines[index].maxY, box.maxY) - max(lines[index].minY, box.minY)
+                return overlap >= 0.4 * (lines[index].height + box.height) / 2
+            }) { lines[i] = lines[i].union(box) }
+            else if lines.count < 256 { lines.append(box) }
+        }
+        return lines.map { SnapRect(x: $0.minX, y: $0.minY, width: $0.width, height: $0.height) }
+    }
+
     func pdfWords(_ page: PageSnapshot) -> [PageWord] { page.pdfFile == nil ? [] : digitalWords[key(page)] ?? [] }
     func markerWords(_ page: PageSnapshot) -> [PageWord] {
         guard page.pdfFile != nil else { return [] }

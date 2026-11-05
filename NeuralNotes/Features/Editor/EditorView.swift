@@ -71,7 +71,7 @@ struct EditorView: View {
             .onChange(of: model.openNotebookRequest) { _, _ in notebookSwitching?.open() }
             .onChange(of: model.closeNotebookRequest) { _, _ in notebookSwitching?.close(notebook.id) }
             .onChange(of: model.globalSearchDestinationRequest) { _, _ in Task { await model.consumeGlobalSearch() } }
-            .onChange(of: model.inkReplayActive) { _, active in if active { model.closeZoomWriting() } }
+            .onChange(of: model.inkReplayActive) { _, active in if active { model.cancelHandwriting(); model.closeZoomWriting() } }
     }
     private var editorEvents: some View {
         editorPresentations
@@ -438,7 +438,8 @@ struct EditorView: View {
             .overlay(alignment: toolbarAlignment) { toolbarLayer }
             .overlay { floatingLens }
             .overlay(alignment: .bottom) {
-                if model.currentWorkspace.showStatus { EditorActivityFeedback(message: model.status) }
+                if let session = model.handwriting { HandwritingPanel(session: session, cancel: model.cancelHandwriting) }
+                else if model.currentWorkspace.showStatus { EditorActivityFeedback(message: model.status) }
             }
     }
 

@@ -63,6 +63,7 @@ extension EditorViewModel {
         workspaces.profiles.removeAll { $0.id == id }; selectWorkspace(workspaces.profiles[0].id)
     }
     func chooseTool(_ item: WorkspaceTool) {
+        if handwriting != nil { cancelHandwriting() }
         laserActive = false
         guard !hasActiveStroke else { return }
         if zoomWritingOpen, item.draftingKind != nil || item == .protractor { closeZoomWriting() }

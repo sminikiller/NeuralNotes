@@ -74,6 +74,7 @@ extension EditorViewModel {
     func performRedo() async { await applyHistory(undo: false) }
 
     private func applyHistory(undo: Bool) async {
+        cancelHandwriting()
         let textBeingEdited = editingTextID
         let hadKeyboard = (pagePresenter as? CanvasHost)?.textInput?.view.isFirstResponder == true
         defer { restoreTextAfterHistory(textBeingEdited, keyboard: hadKeyboard) }

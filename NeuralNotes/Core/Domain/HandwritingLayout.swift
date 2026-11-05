@@ -30,9 +30,12 @@ public struct HandwritingAffine: Equatable, Sendable {
 public struct HandwritingStroke: Equatable, Sendable {
     public let id: Int
     public let points: [StrokeSample]
+    public let layoutPoints: [StrokeSample]
     public let bounds: SnapRect
-    public init(id: Int, points: [StrokeSample], bounds: SnapRect? = nil) {
-        self.id = id; self.points = points; self.bounds = bounds ?? HandwritingMath.bounds(points)
+    public init(id: Int, points: [StrokeSample], bounds: SnapRect? = nil, layoutPoints: [StrokeSample]? = nil) {
+        let visible = layoutPoints ?? points
+        self.id = id; self.points = points; self.layoutPoints = visible
+        self.bounds = bounds ?? HandwritingMath.bounds(visible)
     }
 }
 public struct HandwritingWord: Equatable, Sendable {
@@ -72,6 +75,7 @@ public struct HandwritingOptions: Equatable, Sendable {
     public var alignLeft = false
     public var paperSpacing: Double?
     public var paperOrigin = 0.0
+    public var reflowX: Double?
     public init() { }
 }
 public struct HandwritingAdjustment: Equatable, Sendable {
@@ -90,9 +94,14 @@ public struct HandwritingProposal: Equatable, Sendable {
 public enum HandwritingLayout {
     public static func analyze(_ strokes: [HandwritingStroke], lineHints: [SnapRect] = []) throws -> HandwritingAnalysis {
         guard !strokes.isEmpty, Set(strokes.map(\.id)).count == strokes.count,
-              strokes.allSatisfy({ !$0.points.isEmpty && $0.bounds.valid && $0.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) }) else { throw HandwritingFailure.invalidSelection }
+              strokes.allSatisfy({ valid($0) }) else { throw HandwritingFailure.invalidSelection }
         guard strokes.count <= 10_000, strokes.reduce(0, { $0 + $1.points.count }) <= 2_000_000 else { throw HandwritingFailure.tooLarge }
         return HandwritingGrouping.analyze(strokes, hints: Array(lineHints.filter(\.valid).prefix(256)))
+    }
+    private static func valid(_ stroke: HandwritingStroke) -> Bool {
+        !stroke.points.isEmpty && !stroke.layoutPoints.isEmpty && stroke.bounds.valid &&
+        stroke.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite && abs($0.x) <= 10_000_000 && abs($0.y) <= 10_000_000 }) &&
+        stroke.layoutPoints.allSatisfy({ $0.x.isFinite && $0.y.isFinite && abs($0.x) <= 10_000_000 && abs($0.y) <= 10_000_000 })
     }
     public static func propose(_ action: HandwritingAction, strokes: [HandwritingStroke], analysis: HandwritingAnalysis,
                                page: SnapRect, options: HandwritingOptions = HandwritingOptions()) throws -> HandwritingProposal {
@@ -124,14 +133,16 @@ public enum HandwritingLayout {
             for stroke in strokes { replacements[stroke.id] = HandwritingCleanup.points(stroke.points, strength: strength) }
         case .reflow(let width):
             guard width.isFinite, width > 0 else { throw HandwritingFailure.invalidSelection }
+            let startX = options.reflowX ?? analysis.bounds.x
+            guard startX.isFinite, startX >= page.x, startX < page.maxX else { throw HandwritingFailure.invalidSelection }
             let words = analysis.lines.flatMap(\.words)
             let minimum = words.map { $0.bounds.width }.max() ?? 1
-            let available = max(minimum, min(width, page.maxX - analysis.bounds.x))
+            let available = max(minimum, min(width, page.maxX - startX))
             let lineHeight = max(1, HandwritingMath.median(analysis.lines.map { $0.bounds.height }))
-            var x = analysis.bounds.x, y = analysis.bounds.y, tallest = lineHeight
+            var x = startX, y = analysis.bounds.y, tallest = lineHeight
             for word in words {
-                if x > analysis.bounds.x, x + word.bounds.width > analysis.bounds.x + available {
-                    x = analysis.bounds.x; y += tallest + analysis.lineGap; tallest = lineHeight
+                if x > startX, x + word.bounds.width > startX + available {
+                    x = startX; y += tallest + analysis.lineGap; tallest = lineHeight
                 }
                 let value = HandwritingAffine(tx: x - word.bounds.x, ty: y - word.bounds.y)
                 for id in word.strokeIDs { transforms[id] = value }

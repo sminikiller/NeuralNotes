@@ -141,6 +141,7 @@ struct EditorQuickToolbar: View {
                 Button { selectionOpen = false; model.selectionPageDragMode.toggle() } label: { Image(systemName: "rectangle.grid.1x2") }
                     .accessibilityLabel("Trascina sulle miniature").accessibilityIdentifier("selectionPageDrag").disabled(!hasSelection)
                 SelectionAlignmentMenu(model: model)
+                HandwritingMenu(model: model)
                 if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {
                     Button { model.editDiagramLabel(id) } label: { Image(systemName: "textformat") }.accessibilityLabel("Testo nella forma").accessibilityIdentifier("selectionDiagramLabel")
                 }
@@ -168,7 +169,7 @@ struct EditorQuickToolbar: View {
                 Button { model.duplicateSelectedObject() } label: { Image(systemName: "plus.square.on.square") }.accessibilityLabel("Duplica selezione").disabled(!hasSelection)
                 Button(role: .destructive) { model.deleteSelectedObject() } label: { Image(systemName: "trash") }.accessibilityLabel("Elimina selezione").disabled(!hasSelection)
             }.frame(minHeight: 44).padding(.horizontal, 16)
-        }
+        }.accessibilityIdentifier("selectionActionsScroll")
     }
 }
 

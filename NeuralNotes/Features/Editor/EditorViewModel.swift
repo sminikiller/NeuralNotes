@@ -100,7 +100,8 @@ final class EditorViewModel {
     var drawingShape = false
     @ObservationIgnored var movingObjects = false
     var hasActiveStroke: Bool { usingInkTool || drawingShape || movingObjects }
-    var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape || movingObjects }
+    var handwriting: HandwritingSession?
+    var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape || movingObjects || handwriting != nil }
     var fitPageRequest = 0
     var canvasZoomed = false
     var canvasViewportMoving = false
@@ -300,7 +301,7 @@ final class EditorViewModel {
             canvas.drawingGestureRecognizer.isEnabled = false
             canvas.panGestureRecognizer.isEnabled = false; canvas.pinchGestureRecognizer?.isEnabled = false
         }
-        if !canEditActiveLayer || inkReplayActive { canvas.drawingGestureRecognizer.isEnabled = false }
+        if !canEditActiveLayer || inkReplayActive || handwriting != nil { canvas.drawingGestureRecognizer.isEnabled = false }
         zoomWritingController?.configureTool()
         refreshDrawingGuides()
     }
@@ -331,6 +332,7 @@ final class EditorViewModel {
     }
 
     func close() async -> Bool {
+        cancelHandwriting()
         closeZoomWriting()
         guard !hasActiveStroke else { return false }
         cancelMaintenance()
@@ -500,6 +502,7 @@ final class EditorViewModel {
     }
 
     func select(_ target: PageSnapshot) async {
+        cancelHandwriting()
         guard hasLease, !loading, !navigating, !hasActiveStroke else { return }
         navigating = true; defer { navigating = false }
         guard await flush() else { return }
@@ -513,6 +516,7 @@ final class EditorViewModel {
     }
 
     func load(_ target: PageSnapshot) async throws {
+        cancelHandwriting()
         loading = true
         defer { loading = false }
         // Only the destination needs a fresh header. The workspace verifies
@@ -539,6 +543,7 @@ final class EditorViewModel {
     /// the live canvas before the previous owner has reached disk. A failed
     /// read/save leaves the current native timeline and owner unchanged.
     func selectLayer(_ id: UUID) async {
+        cancelHandwriting()
         guard hasLease, !loading, !navigating, !hasActiveStroke,
               let original = page, id != drawingLayerID,
               PageLayers.editable(id, page: original) else { return }

@@ -23,7 +23,7 @@ enum HandwritingMath {
     /// Quantile buckets suppress ascenders/descenders; the median pair slope
     /// (Theil–Sen) rejects an occasional low loop or dot. At most32buckets.
     static func baseline(_ points: [StrokeSample], bounds: SnapRect) -> (slope: Double, intercept: Double) {
-        let bins = min(32, max(3, Int(bounds.width / 10)))
+        let bins = Int(min(32, max(3, bounds.width / 10)))
         var values = Array(repeating: [Double](), count: bins)
         var positions = Array(repeating: [Double](), count: bins)
         for point in points {
@@ -62,8 +62,8 @@ enum HandwritingGrouping {
     }
     static func analyze(_ strokes: [HandwritingStroke], hints: [SnapRect]) -> HandwritingAnalysis {
         let measured = strokes.map { stroke -> Measure in
-            let step = max(1, stroke.points.count / 256)
-            let samples = stride(from: 0, to: stroke.points.count, by: step).map { stroke.points[$0] }
+            let step = max(1, stroke.layoutPoints.count / 256)
+            let samples = stride(from: 0, to: stroke.layoutPoints.count, by: step).map { stroke.layoutPoints[$0] }
             let fit = stroke.bounds.width >= stroke.bounds.height * 1.5 ? HandwritingMath.baseline(samples, bounds: stroke.bounds) : (slope: 0.0, intercept: stroke.bounds.maxY)
             let leveled = samples.map { StrokeSample(x: $0.x, y: $0.y - fit.slope * $0.x) }
             let threshold = HandwritingMath.quantile(leveled.map(\.y), 0.8)
@@ -71,7 +71,7 @@ enum HandwritingGrouping {
             let lowerFit = HandwritingMath.baseline(bottom, bounds: stroke.bounds)
             return Measure(stroke: stroke, samples: bottom, slope: lowerFit.slope, intercept: lowerFit.intercept, height: HandwritingMath.bounds(leveled).height)
         }
-        let bodyHeight = max(2, HandwritingMath.median(measured.map(\.height)))
+        let bodyHeight = max(0.5, HandwritingMath.median(measured.map(\.height)))
         var drafts: [Draft] = []
         let bodies = measured.filter { $0.height >= bodyHeight * 0.3 }.sorted { $0.stroke.bounds.midX < $1.stroke.bounds.midX }
         var assigned = Set<Int>()
@@ -121,17 +121,23 @@ enum HandwritingGrouping {
             let members = draft.members.map(\.stroke), box = HandwritingMath.union(members.map(\.bounds))
             let angle = atan(draft.slope), baseline = draft.slope * box.x + draft.intercept
             let rotation = HandwritingAffine.rotating(-angle, about: .init(x: box.x, y: baseline))
-            let projected = members.map { ($0, HandwritingMath.bounds($0.points.map(rotation.applying))) }.sorted { $0.1.x < $1.1.x }
+            let projected = members.map { ($0, HandwritingMath.bounds($0.layoutPoints.map(rotation.applying))) }.sorted { $0.1.x < $1.1.x }
             let xHeight = max(1, HandwritingMath.median(projected.map { $0.1.height }.filter { $0 >= bodyHeight * 0.3 }))
+            let heights = Dictionary(uniqueKeysWithValues: projected.map { ($0.0.id, $0.1.height) })
+            func makeWord(_ word: [HandwritingStroke]) -> HandwritingWord {
+                let bodyHeights = word.compactMap { heights[$0.id] }.filter { $0 >= bodyHeight * 0.3 }
+                return .init(strokeIDs: word.map(\.id), bounds: HandwritingMath.union(word.map(\.bounds)),
+                    xHeight: max(1, bodyHeights.isEmpty ? xHeight : HandwritingMath.median(bodyHeights)))
+            }
             var words: [HandwritingWord] = [], word: [HandwritingStroke] = [], right = -Double.infinity
             for (stroke, rect) in projected {
                 if !word.isEmpty, rect.x - right > 0.6 * xHeight {
-                    words.append(.init(strokeIDs: word.map(\.id), bounds: HandwritingMath.union(word.map(\.bounds)), xHeight: xHeight))
+                    words.append(makeWord(word))
                     gaps.append(rect.x - right); word = []
                 }
                 word.append(stroke); right = max(right, rect.maxX)
             }
-            if !word.isEmpty { words.append(.init(strokeIDs: word.map(\.id), bounds: HandwritingMath.union(word.map(\.bounds)), xHeight: xHeight)) }
+            if !word.isEmpty { words.append(makeWord(word)) }
             lines.append(.init(strokeIDs: members.map(\.id), bounds: box, baseline: baseline, angle: angle, xHeight: xHeight, words: words))
         }
         lines.sort { $0.baseline < $1.baseline }

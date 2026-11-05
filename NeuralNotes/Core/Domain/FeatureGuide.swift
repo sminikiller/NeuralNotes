@@ -28,6 +28,11 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("handwriting-refine", .writing, "Raddrizza e ripulisci la grafia", "pencil.and.scribble", "Un’anteprima geometrica, senza cambiare le parole.", [
+            "Con il lazo seleziona la grafia. Nella barra delle azioni apri Grafia: scegli Raddrizza, Uniforma dimensione o Ripulisci tratto. Gli oggetti e l’evidenziatore restano intatti.",
+            "Con Raddrizza puoi allineare a sinistra e appoggiare le basi sulla carta a righe. Ripulisci offre intensità Leggera, Media e Forte. Controlla sempre l’anteprima prima di applicare.",
+            "Riadatta alla larghezza mostra due maniglie laterali: trascinale per ridistribuire parole intere. Spazio tra le righe uniforma l’interlinea della sola selezione.",
+            "Applica crea un solo passo di annulla. Annulla nell’anteprima non modifica né salva gli appunti. Se il risultato supera il foglio, aumenta la larghezza o riduci l’interlinea." ], tools: [.lasso]),
         .init("text-scripts", .writing, "Pedice, apice e incolla", "textformat.superscript", "Formule e testo formattato, con annulla.", [
             "Scegli Testo, tocca il foglio e seleziona i caratteri. Nella barra usa Apice o Pedice; premi lo stesso comando per tornare alla riga normale.",
             "Da tastiera usa ⌘= per il pedice e ⇧⌘= per l’apice. ⌘B, ⌘I e ⌘U applicano grassetto, corsivo e sottolineato.",

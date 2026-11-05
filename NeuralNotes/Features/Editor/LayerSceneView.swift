@@ -183,6 +183,7 @@ final class LayerSceneView: UIView {
         else { isReady = false }
         accessibilityValue = isReady ? "Pronto" : "Preparazione"
         if isReady { spinner.stopAnimating() } else { spinner.startAnimating() }
+        host?.handwritingPreview.update()
     }
 
     override func draw(_ rect: CGRect) {

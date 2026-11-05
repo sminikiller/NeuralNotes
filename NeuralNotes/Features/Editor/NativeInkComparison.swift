@@ -21,7 +21,11 @@ enum NativeInkComparison {
             }
             for (x, y) in zip(a.path, b.path) {
                 guard x.location == y.location, x.size == y.size, x.timeOffset == y.timeOffset,
-                      x.opacity == y.opacity, x.force == y.force, x.azimuth == y.azimuth, x.altitude == y.altitude else { return false }
+                      x.opacity == y.opacity, x.force == y.force, x.azimuth == y.azimuth, x.altitude == y.altitude,
+                      x.secondaryScale == y.secondaryScale else { return false }
+                #if compiler(>=6.2)
+                if #available(iOS 26.0, *), x.threshold != y.threshold { return false }
+                #endif
             }
         }
         return true

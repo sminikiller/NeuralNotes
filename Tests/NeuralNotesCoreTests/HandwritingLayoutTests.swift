@@ -79,6 +79,31 @@ final class HandwritingLayoutTests: XCTestCase {
             XCTAssertEqual(value.transform.a, value.transform.d); XCTAssertNil(value.points)
         }
     }
+    func testDifferentWordsOnTheSameLineHaveIndependentHeightsAndBothAreRegularized() throws {
+        let strokes = [letter(id: 0, x: 40, baseline: 100, height: 10), letter(id: 1, x: 120, baseline: 100, height: 25)]
+        let analysis = try HandwritingLayout.analyze(strokes)
+        XCTAssertEqual(analysis.lines.count, 1)
+        XCTAssertEqual(analysis.lines[0].words.map(\.xHeight), [10, 25])
+        let result = try HandwritingLayout.propose(.uniformSize, strokes: strokes, analysis: analysis, page: page)
+        XCTAssertEqual(result.adjustments[0].transform.a, 1.25)
+        XCTAssertEqual(result.adjustments[1].transform.a, 0.8)
+    }
+    func testReflowLeftHandleMovesTheOriginAndTheWordsRemainWithinTheRequestedWidth() throws {
+        let strokes = line(start: 0, y: 100, words: 3), analysis = try HandwritingLayout.analyze(strokes)
+        var options = HandwritingOptions(); options.reflowX = 15
+        let result = try HandwritingLayout.propose(.reflow(width: 95), strokes: strokes, analysis: analysis, page: page, options: options)
+        XCTAssertEqual(result.bounds.x, 15, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(result.bounds.maxX, 110.001); XCTAssertTrue(result.fitsPage)
+    }
+    func testVeryThinSlopedPenLinesAreBodiesRatherThanDetachedDots() throws {
+        let points = (0..<30).map { StrokeSample(x: 50 + Double($0) * 5, y: 100 + Double($0)) }
+        let strokes = [HandwritingStroke(id: 0, points: points)]
+        let analysis = try HandwritingLayout.analyze(strokes)
+        XCTAssertEqual(analysis.lines.count, 1); XCTAssertGreaterThan(analysis.lines[0].angle, 0.1)
+        let result = try HandwritingLayout.propose(.straighten, strokes: strokes, analysis: analysis, page: page)
+        let transform = result.adjustments[0].transform
+        XCTAssertEqual(transform.applying(points[0]).y, transform.applying(points[29]).y, accuracy: 0.01)
+    }
     func testReflowWrapsCompleteWordsAndPreservesAllStrokeIdentitiesWithoutSplittingOneWord() throws {
         let strokes = line(start: 0, y: 100, words: 5)
         let analysis = try HandwritingLayout.analyze(strokes)

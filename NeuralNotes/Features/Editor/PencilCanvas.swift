@@ -12,6 +12,7 @@ final class CanvasHost: UIView {
     let emptyInkCover = VisiblePaperDetail()
     let foregroundObjects = ForegroundObjectsView()
     let layeredScene = LayerSceneView()
+    let handwritingPreview = HandwritingPreview()
     let inkReplay = InkReplayOverlay()
     let markerReadability = MarkerReadabilityOverlay()
     let zoomNavigator = ZoomNavigator()
@@ -59,6 +60,7 @@ final class CanvasHost: UIView {
         foregroundObjects.isUserInteractionEnabled = false; foregroundObjects.isOpaque = false; foregroundObjects.backgroundColor = .clear
         addSubview(foregroundObjects)
         addSubview(layeredScene)
+        handwritingPreview.attach(self); addSubview(handwritingPreview)
         canvas.backgroundColor = .clear; canvas.isOpaque = false
         canvas.alwaysBounceVertical = true
         pullHint.text = "Rilascia per avanzare · nuova pagina se sei all’ultima"
@@ -162,6 +164,7 @@ final class CanvasHost: UIView {
     /// canvas opacity/alpha: UIKit must keep dispatching the first touch and
     /// scrolling gestures to the live canvas even when its drawing is empty.
     func updateNativeInkVisibility() {
+        defer { handwritingPreview.update() }
         if model?.page?.layers != nil {
             if model?.inkReplayActive == true {
                 layeredScene.reset(); emptyInkCover.resetForPageChange(); paperDetail.resetForPageChange()
