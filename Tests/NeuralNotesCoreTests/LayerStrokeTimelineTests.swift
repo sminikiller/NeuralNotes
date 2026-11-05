@@ -1,0 +1,43 @@
+import XCTest
+@testable import NeuralNotesCore
+
+final class LayerStrokeTimelineTests: XCTestCase {
+    func testIdenticalNativeSignaturesOnDifferentLayersDoNotShareVisibilityOrHighlighting() {
+        let page = UUID(), layer = UUID(), session = UUID()
+        var base = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 10)
+        base.strokeOccurrence = 0
+        var upper = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 20); upper.layerID = layer; upper.strokeOccurrence = 0
+        let anchors = [base, upper]
+        XCTAssertEqual(LayerStrokeTimeline.visible(signatures: ["same"], anchors: anchors, pageID: page, layerID: nil, sessionID: session, seconds: 12), [0])
+        XCTAssertEqual(LayerStrokeTimeline.visible(signatures: ["same"], anchors: anchors, pageID: page, layerID: layer, sessionID: session, seconds: 12), [])
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: ["same"], anchors: anchors, pageID: page, layerID: layer, sessionID: session, seconds: 10.2), [])
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: ["same"], anchors: anchors, pageID: page, layerID: nil, sessionID: session, seconds: 10.2), [0])
+    }
+    func testMergeRebasesOccurrencesAndTimesWithoutChangingSignaturesOrOtherOwners() {
+        let page = UUID(), source = UUID(), untouched = UUID(), session = UUID()
+        let base = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 10)
+        var copied = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 20); copied.layerID = source
+        var other = StrokeAnchor(signature: "other", audioSessionID: session, seconds: 30); other.layerID = untouched
+        let original = [base, copied, other]
+        let merged = LayerStrokeTimeline.rebasingForMerge(anchors: original, targetSignatures: ["same", "same"], sourceSignatures: ["same"], pageID: page, targetID: page, sourceID: source)
+        XCTAssertEqual(merged.filter { $0.signature == "same" }.map(\.strokeOccurrence), [0, 1, 2])
+        XCTAssertEqual(merged.filter { $0.signature == "same" }.map(\.seconds), [10, 10, 20])
+        XCTAssertEqual(merged.last, other); XCTAssertEqual(Set(merged.map(\.id)).count, 4)
+        XCTAssertEqual(merged[0].id, base.id); XCTAssertEqual(merged[2].id, copied.id)
+        XCTAssertTrue(merged.prefix(3).allSatisfy { $0.layerID == nil })
+        XCTAssertEqual(LayerStrokeTimeline.visible(signatures: ["same", "same", "same"], anchors: merged, pageID: page, layerID: nil, sessionID: session, seconds: 12), [0, 1])
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: ["same", "same", "same"], anchors: merged, pageID: page, layerID: nil, sessionID: session, seconds: 20.1), [2])
+        XCTAssertNil(original[0].strokeOccurrence); XCTAssertEqual(original[1].layerID, source)
+    }
+    func testLegacyWildcardRemainsCompatibleAndOccurrenceIsOptionalInTheArchive() throws {
+        let page = UUID(), session = UUID(), anchor = StrokeAnchor(signature: "s", audioSessionID: session, seconds: 10)
+        let encoded = try JSONEncoder().encode(anchor)
+        XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains("strokeOccurrence"))
+        XCTAssertEqual(try JSONDecoder().decode(StrokeAnchor.self, from: encoded), anchor)
+        let signatures = ["s", "s", "unlinked"]
+        XCTAssertEqual(LayerStrokeTimeline.visible(signatures: signatures, anchors: [anchor], pageID: page, layerID: nil, sessionID: session, seconds: 5), AudioReplay.visible(signatures: signatures, anchors: [anchor], sessionID: session, seconds: 5))
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: signatures, anchors: [anchor], pageID: page, layerID: nil, sessionID: session, seconds: 10.5), AudioReplay.current(signatures: signatures, anchors: [anchor], sessionID: session, seconds: 10.5))
+        var snapshot = PageSnapshot(id: page), invalid = anchor; invalid.strokeOccurrence = -1; snapshot.anchors = [invalid]
+        XCTAssertThrowsError(try PageValidation.validate(snapshot))
+    }
+}

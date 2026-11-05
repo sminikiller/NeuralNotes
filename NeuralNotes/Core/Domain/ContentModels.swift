@@ -66,6 +66,8 @@ public struct Attachment: Codable, Identifiable, Equatable, Sendable {
 public struct StrokeAnchor: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID()
     public var layerID: UUID?
+    /// Zero-based occurrence of this signature within its owner. Nil keeps the legacy wildcard behavior.
+    public var strokeOccurrence: Int?
     public var signature: String
     public var audioSessionID: UUID
     public var seconds: Double

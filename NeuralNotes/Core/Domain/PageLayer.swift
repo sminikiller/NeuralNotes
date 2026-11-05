@@ -53,6 +53,7 @@ public enum PageLayers {
         guard ownership.allSatisfy(ids.contains), page.anchors.compactMap(\.layerID).allSatisfy(ids.contains) else { throw LibraryFailure.corruptDocument }
         let embedded = (page.shapes ?? []).compactMap(\.audioAnchor) + (page.connectors ?? []).compactMap(\.audioAnchor)
         guard embedded.compactMap(\.layerID).allSatisfy(ids.contains) else { throw LibraryFailure.corruptDocument }
+        guard (page.anchors + embedded).allSatisfy({ $0.strokeOccurrence.map { (0...1_000_000).contains($0) } != false }) else { throw LibraryFailure.corruptDocument }
     }
     public static func drawingFile(for id: UUID, in page: PageSnapshot) -> String? {
         id == page.id ? page.drawingFile : page.layers?.first(where: { $0.id == id })?.drawingFile
@@ -138,5 +139,8 @@ public enum LayerExportSelection: Equatable, Sendable {
 public struct LayerInkSignature: Hashable, Sendable {
     public let layerID: UUID
     public let signature: String
-    public init(layerID: UUID?, pageID: UUID, signature: String) { self.layerID = layerID ?? pageID; self.signature = signature }
+    public let occurrence: Int?
+    public init(layerID: UUID?, pageID: UUID, signature: String, occurrence: Int? = nil) {
+        self.layerID = layerID ?? pageID; self.signature = signature; self.occurrence = occurrence
+    }
 }
