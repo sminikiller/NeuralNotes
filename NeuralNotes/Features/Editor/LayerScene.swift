@@ -12,6 +12,7 @@ struct LayerScene {
     let fingerprint: PageSnapshot
     let inactiveFingerprint: PageSnapshot
     let ownerID: UUID
+    let activeGroup: LayerRenderGroup
     let bounds: CGRect
     let requestedScale: CGFloat
     let scale: CGFloat
@@ -92,7 +93,7 @@ struct LayerScene {
             PageRenderer.drawLayerAbove(active, page: page, package: workspace.package, in: $0, hidingObjectIDs: hiding, hidingTextID: hidingTextID)
         } : nil
         guard (!hasUnder || under != nil), (!hasOver || over != nil) else { throw WorkspaceFailure.oversizedImport }
-        let scene = LayerScene(fingerprint: signature, inactiveFingerprint: inactive, ownerID: owner, bounds: bounds,
+        let scene = LayerScene(fingerprint: signature, inactiveFingerprint: inactive, ownerID: owner, activeGroup: active, bounds: bounds,
             requestedScale: requestedScale, scale: scale, below: below, under: under, over: over, above: above,
             hiding: hiding, hidingTextID: hidingTextID)
         guard scene.byteCost <= budget else { throw WorkspaceFailure.oversizedImport }

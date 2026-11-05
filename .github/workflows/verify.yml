@@ -141,6 +141,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Verify Core before starting simulator tests
+        id: core_validation
         if: inputs.scope != 'ui' && inputs.scope != 'native'
         shell: bash
         run: |
@@ -148,6 +149,9 @@ jobs:
           mkdir -p .verification
           swift test 2>&1 | tee .verification/core-validation.log
       - name: Build, run Swift tests and iPad UI tests
+        # Collect independent SDK/UI errors even when a Core assertion fails.
+        # The failing Core step still makes the job fail; no outcome is masked.
+        if: ${{ !cancelled() && (success() || steps.core_validation.outcome == 'failure') }}
         env:
           NEURALNOTES_CORE_VALIDATED: '1'
           NEURALNOTES_FOCUSED_TESTS: ${{ inputs.scope == 'focused' && '1' || '0' }}

@@ -6,7 +6,7 @@ final class LayerRenderPlanTests: XCTestCase {
         var page = PageSnapshot(); page.drawingFile = "drawings/current.drawing"; page.previousDrawingFile = "drawings/previous.drawing"
         let first = TextElement(text: "Under"), foreground = TextElement(text: "Above")
         let tape = StudyTape()
-        var marker = ShapeElement(kind: .rectangle, x: 50, y: 80, width: 200, height: 20); marker.rectangularMarker = true
+        let marker = try XCTUnwrap(RectangularMarker.make(CGRect(x: 50, y: 80, width: 200, height: 20), color: .yellow))
         page.texts = [first, foreground]; page.shapes = [marker]; page.tapes = [tape]
         page.objectOrder = [tape.id, foreground.id, marker.id, first.id]; page.aboveInkObjects = [foreground.id]
         let original = page, plan = try LayerRenderPlan.make(page: page, activeLayerID: page.id)
@@ -47,7 +47,7 @@ final class LayerRenderPlanTests: XCTestCase {
         var under = TextElement(text: "Under"); under.layerID = owner
         var over = TextElement(text: "Over"); over.layerID = owner
         var tape = StudyTape(); tape.layerID = owner
-        var marker = ShapeElement(kind: .rectangle, x: 50, y: 80, width: 200, height: 20); marker.rectangularMarker = true; marker.layerID = owner
+        var marker = try XCTUnwrap(RectangularMarker.make(CGRect(x: 50, y: 80, width: 200, height: 20), color: .yellow)); marker.layerID = owner
         page.texts = [under, over]; page.shapes = [marker]; page.tapes = [tape]
         page.aboveInkObjects = [over.id, marker.id]; page.lockedObjects = [under.id]
         page = try PageLayerEditing.reordering([owner, page.id], in: page)

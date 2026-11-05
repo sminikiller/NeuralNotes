@@ -201,12 +201,12 @@ final class LayerSceneView: UIView {
         else { scene = nil }
         guard let scene else { return }
         scene.below?.draw(in: context, bounds: scene.bounds)
-        let active = PageLayers.ordered(in: page).first { $0.id == ownerID }
-        if let active, active.isVisible, (active.opacity ?? 1) > 0 {
+        let active = scene.activeGroup.layer
+        if active.isVisible, (active.opacity ?? 1) > 0 {
             let generation = sourceToken ?? (recognitionBaseline == nil ? model.inkDisplayGeneration : recognitionToken)
             let scale = max(0.01, contentScaleFactor * zoom)
-            if active.composition != nil,
-               let group = try? LayerRenderPlan.make(page: page, selection: .selected([ownerID])).first {
+            if active.composition != nil {
+                let group = scene.activeGroup
                 if ownerProgram == nil || ownerProgramToken != generation || ownerProgramLocalToken != inkGeneration ||
                     ownerProgramPage != signature || ownerProgramBounds != bounds || ownerProgramScale != scale || hidingTextID != ownerProgramTextID || hiding != ownerProgramHidden {
                     let appending = override != nil || recognitionBaseline != nil || ((model.tool == .pen || model.tool == .marker) && model.inkGestureBaseline != nil)
