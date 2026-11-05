@@ -4,6 +4,7 @@ import Foundation
 /// stroke; it never transforms or truncates that stroke's stored points.
 public struct ZoomWritingGeometry: Equatable, Sendable {
     public let pageWidth: Double, pageHeight: Double
+    private var panelWidth: Double
     public private(set) var leftMargin: Double, rightMargin: Double
     public private(set) var x: Double, y: Double, width: Double, height: Double, zoom: Double
     public private(set) var atEnd = false
@@ -12,6 +13,7 @@ public struct ZoomWritingGeometry: Equatable, Sendable {
         guard [pageWidth, pageHeight, panelWidth, panelHeight, zoom, leftMargin, rightMargin].allSatisfy(\.isFinite),
               (40...20_000).contains(pageWidth), (40...20_000).contains(pageHeight), panelWidth > 0, panelHeight > 0,
               (2...4).contains(zoom), leftMargin >= 0, rightMargin >= 0, leftMargin + rightMargin <= pageWidth - 20 else { return nil }
+        self.panelWidth = panelWidth
         self.pageWidth = pageWidth; self.pageHeight = pageHeight; self.leftMargin = leftMargin; self.rightMargin = rightMargin; self.zoom = zoom
         width = min(pageWidth - leftMargin - rightMargin, panelWidth / zoom); height = min(pageHeight, panelHeight / zoom)
         x = leftMargin; y = 0
@@ -23,12 +25,12 @@ public struct ZoomWritingGeometry: Equatable, Sendable {
     }
     public mutating func resize(panelWidth: Double, panelHeight: Double, zoom: Double) {
         guard panelWidth.isFinite, panelHeight.isFinite, panelWidth > 0, panelHeight > 0, zoom.isFinite, (2...4).contains(zoom) else { return }
+        self.panelWidth = panelWidth
         self.zoom = zoom; width = min(pageWidth - leftMargin - rightMargin, panelWidth / zoom); height = min(pageHeight, panelHeight / zoom)
         move(to: .init(x: x, y: y))
     }
     public mutating func margins(left: Double, right: Double) {
         guard left.isFinite, right.isFinite, left >= 0, right >= 0, left + right <= pageWidth - 20 else { return }
-        let panelWidth = width * zoom
         leftMargin = left; rightMargin = right; width = min(pageWidth - left - right, panelWidth / zoom)
         move(to: .init(x: x, y: y))
     }

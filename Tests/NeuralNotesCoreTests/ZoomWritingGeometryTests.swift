@@ -34,4 +34,14 @@ final class ZoomWritingGeometryTests: XCTestCase {
         let before = window; window.margins(left: 500, right: 500); window.resize(panelWidth: .nan, panelHeight: 200, zoom: 3)
         XCTAssertEqual(window, before); XCTAssertNil(window.pagePoint(fromPanel: .init(x: .nan, y: 0)))
     }
+    func testReducingMarginsRestoresTheActualPanelWidthAfterAClampedViewport() throws {
+        var window = try XCTUnwrap(ZoomWritingGeometry(pageWidth: 600, pageHeight: 800, panelWidth: 1200, panelHeight: 240, zoom: 2))
+        window.margins(left: 100, right: 100); XCTAssertEqual(window.width, 400)
+        window.margins(left: 0, right: 0); XCTAssertEqual(window.width, 600)
+        window.resize(panelWidth: 900, panelHeight: 240, zoom: 2)
+        window.margins(left: 200, right: 100); XCTAssertEqual(window.width, 300)
+        window.margins(left: 24, right: 24); XCTAssertEqual(window.width, 450)
+        XCTAssertLessThanOrEqual(window.x + window.width, 576)
+    }
+
 }

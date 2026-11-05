@@ -80,7 +80,7 @@ struct WorkspacePanel: View {
                     FocusToolsMenu(model: model, showLabel: true)
                     Text("Scegli fino a cinque strumenti nella mini toolbar della modalità Solo foglio.").font(.caption).foregroundStyle(.secondary)
                     NavigationLink { layout } label: { Label("Toolbar e pannelli", systemImage: "rectangle.3.group") }
-                    NavigationLink { gestures } label: { Label("Gesti e automatismi", systemImage: "hand.draw") }
+                    NavigationLink { gestures } label: { Label("Gesti e automatismi", systemImage: "hand.draw") }.accessibilityIdentifier("workspaceGestures")
                     NavigationLink { ToolPalettePanel(model: model).padding().navigationTitle("Colori per strumento") } label: { Label("Colori e spessori", systemImage: "paintpalette") }
                 }
                 Section { NavigationLink("Penne, preset e gomma") { WritingToolsPanel(model: model) } }

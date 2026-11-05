@@ -32,8 +32,8 @@ final class EditorQuickActionsUITests: XCTestCase {
         device.orientation = .portrait; defer { device.orientation = previous }
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorWorkspace"].tap()
-        let gestures = app.buttons["Gesti e automatismi"], list = app.collectionViews["workspaceList"]
-        for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
+        let gestures = app.buttons["workspaceGestures"], list = app.collectionViews["workspaceList"]
+        revealWorkspaceRow(gestures, in: list)
         XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
         let finger = app.switches["Scrittura con il dito"]; XCTAssertTrue(finger.waitForExistence(timeout: 5))
         finger.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap()
@@ -118,9 +118,9 @@ final class EditorQuickActionsUITests: XCTestCase {
         device.orientation = .portrait; defer { device.orientation = orientation }
         let app = XCUIApplication(); openEditor(app)
         app.buttons["editorWorkspace"].tap()
-        let gestures = app.buttons["Gesti e automatismi"]
+        let gestures = app.buttons["workspaceGestures"]
         let list = app.collectionViews["workspaceList"]
-        for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
+        revealWorkspaceRow(gestures, in: list)
         XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
         let finger = app.switches["Scrittura con il dito"]
         XCTAssertTrue(finger.waitForExistence(timeout: 5))

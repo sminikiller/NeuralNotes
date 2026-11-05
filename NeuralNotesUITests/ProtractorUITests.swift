@@ -12,8 +12,8 @@ final class ProtractorUITests: XCTestCase {
         let book = app.buttons.matching(NSPredicate(format: "label == %@", "Goniometro")).firstMatch
         XCTAssertTrue(book.waitForExistence(timeout: 8)); book.tap(); app.buttons["openEditorButton"].tap()
         app.buttons["editorWorkspace"].tap(); app.buttons["Matematica"].tap()
-        let gestures = app.buttons["Gesti e automatismi"], list = app.collectionViews["workspaceList"]
-        for _ in 0..<8 where !(gestures.exists && gestures.isHittable) { list.swipeUp() }
+        let gestures = app.buttons["workspaceGestures"], list = app.collectionViews["workspaceList"]
+        revealWorkspaceRow(gestures, in: list)
         XCTAssertTrue(gestures.waitForExistence(timeout: 5)); gestures.tap()
         let finger = app.switches["Scrittura con il dito"]; XCTAssertTrue(finger.waitForExistence(timeout: 5))
         finger.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap()
