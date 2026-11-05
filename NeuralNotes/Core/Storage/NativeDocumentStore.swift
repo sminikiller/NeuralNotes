@@ -79,7 +79,7 @@ public struct NativeDocumentStore: Sendable {
         // Inspect the version before decoding the rest: a newer schema may change fields.
         struct Header: Decodable { let schemaVersion: Int }
         let version = try decoder.decode(Header.self, from: data).schemaVersion
-        guard version == DocumentManifest.currentVersion else {
+        guard DocumentManifest.supports(version) else {
             throw LibraryFailure.unsupportedVersion(version)
         }
         let manifest = try decoder.decode(DocumentManifest.self, from: data)

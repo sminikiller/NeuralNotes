@@ -28,12 +28,15 @@ enum PageEditRecovery {
         let pointer = try NativeArchive.fileURL(path, in: package)
         guard FileManager.default.fileExists(atPath: pointer.path) else { return }
         let journal: PageEditJournal = try read(path, package: package)
-        let manifest: DocumentManifest = try read("manifest.json", package: package)
+        var manifest: DocumentManifest = try read("manifest.json", package: package)
         try validate(journal, manifest: manifest)
+        var usesLayers = false
         for entry in journal.entries {
             let next: PageSnapshot = try read(journal.header(entry.pageID), package: package)
             try validate(entry, next: next, package: package)
+            usesLayers = usesLayers || next.layers != nil
         }
+        if usesLayers { manifest = try NativePackageFormat.requiringLayers(in: package, manifest: manifest) }
         // A crash from here forward leaves the validated pointer in place and
         // accepts a mixture of expected and already-written headers next time.
         for entry in journal.entries {
@@ -53,7 +56,7 @@ enum PageEditRecovery {
     }
     private static func validate(_ journal: PageEditJournal, manifest: DocumentManifest) throws {
         let old = Set(journal.oldOrder), new = Set(journal.newOrder)
-        guard journal.format == 1, manifest.schemaVersion == 1,
+        guard journal.format == 1, DocumentManifest.supports(manifest.schemaVersion),
               journal.documentID == manifest.documentID, journal.notebookID == manifest.notebookID,
               (1...maximumPages).contains(journal.entries.count),
               (1...maximumPages).contains(journal.oldOrder.count), (1...maximumPages).contains(journal.newOrder.count),

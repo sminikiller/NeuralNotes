@@ -30,7 +30,7 @@ enum PageBatchRecovery {
         let manifestFile = try NativeArchive.fileURL("manifest.json", in: package)
         guard (try manifestFile.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 16 * 1024 * 1024 else { throw NativeArchiveFailure.limit }
         let manifest = try decoder.decode(DocumentManifest.self, from: Data(contentsOf: manifestFile))
-        guard journal.format == 1, manifest.schemaVersion == 1, manifest.documentID == journal.documentID, manifest.notebookID == journal.notebookID,
+        guard journal.format == 1, DocumentManifest.supports(manifest.schemaVersion), manifest.documentID == journal.documentID, manifest.notebookID == journal.notebookID,
               Set(manifest.pageIDs).count == manifest.pageIDs.count,
               (2...8).contains(journal.entries.count), Set(journal.entries.map { $0.page.id }).count == journal.entries.count else { throw LibraryFailure.corruptDocument }
         // Validate every destination and every referenced asset before touching
@@ -50,6 +50,9 @@ enum PageBatchRecovery {
             }
         }
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.sortedKeys]
+        if journal.entries.contains(where: { $0.page.layers != nil }) {
+            _ = try NativePackageFormat.requiringLayers(in: package, manifest: manifest)
+        }
         for entry in journal.entries {
             try encoder.encode(entry.page).write(to: NativeArchive.fileURL("pages/\(entry.page.id).json", in: package), options: .atomic)
         }
@@ -85,6 +88,9 @@ public extension DocumentWorkspace {
         guard try encoder.encode(journal).count <= 8 * 1024 * 1024 else { throw WorkspaceFailure.oversizedImport }
         for i in changes.indices { try changes[i].drawing.write(to: url(entries[i].page.drawingFile!), options: .atomic) }
         try FileManager.default.createDirectory(at: url("recovery"), withIntermediateDirectories: true)
+        if entries.contains(where: { $0.page.layers != nil }) {
+            _ = try NativePackageFormat.requiringLayers(in: package, manifest: manifest)
+        }
         try write(journal, PageBatchRecovery.path)
         markPendingPageBatch()
         try settlePageBatch()

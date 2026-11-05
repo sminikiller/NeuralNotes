@@ -43,7 +43,7 @@ public enum NativePackageInspector {
             }
         }
         let manifest: DocumentManifest = try read("manifest.json")
-        guard manifest.schemaVersion == 1 else { throw LibraryFailure.unsupportedVersion(manifest.schemaVersion) }
+        guard DocumentManifest.supports(manifest.schemaVersion) else { throw LibraryFailure.unsupportedVersion(manifest.schemaVersion) }
         guard Set(manifest.pageIDs).count == manifest.pageIDs.count else { throw LibraryFailure.corruptDocument }
         for id in manifest.pageIDs {
             let page: PageSnapshot = try read("pages/\(id).json")

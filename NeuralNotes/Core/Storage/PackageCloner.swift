@@ -13,7 +13,7 @@ extension NativeDocumentStore {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         let manifest = try decoder.decode(DocumentManifest.self,
             from: Data(contentsOf: source.appendingPathComponent("manifest.json")))
-        guard manifest.schemaVersion == 1, Set(manifest.pageIDs).count == manifest.pageIDs.count else {
+        guard DocumentManifest.supports(manifest.schemaVersion), Set(manifest.pageIDs).count == manifest.pageIDs.count else {
             throw LibraryFailure.corruptDocument
         }
         guard let enumerator = FileManager.default.enumerator(at: source,
@@ -51,6 +51,7 @@ extension NativeDocumentStore {
             for index in catalog.attachments.indices { catalog.attachments[index].id = UUID() }
             try encoder.encode(catalog).write(to: catalogURL, options: .atomic)
             var pageIDs: [UUID] = []
+            var copiedLayers = false
             var linkedPageIDs: [UUID] = []
             var pageMap: [UUID: UUID] = [:]
             let activePageIDs = Set(manifest.pageIDs)
@@ -67,6 +68,7 @@ extension NativeDocumentStore {
                 let oldURL = destination.appendingPathComponent("pages/\(original).json")
                 var page = try decoder.decode(PageSnapshot.self, from: Data(contentsOf: oldURL))
                 guard page.id == original else { throw LibraryFailure.corruptDocument }
+                copiedLayers = copiedLayers || page.layers != nil
                 page.id = UUID(); page.renewLayerIDs(from: original)
                 pageMap[original] = page.id
                 if page.texts.contains(where: { $0.pageLink != nil || $0.lensNote?.source != nil }) || (page.shapes ?? []).contains(where: { $0.pageLink != nil }) { linkedPageIDs.append(page.id) }
@@ -98,7 +100,8 @@ extension NativeDocumentStore {
                 if activePageIDs.contains(original) { pageIDs.append(page.id) }
                 try FileManager.default.removeItem(at: oldURL)
             }
-            let updated = DocumentManifest(documentID: documentID, notebookID: notebookID, pageIDs: pageIDs)
+            let updated = DocumentManifest(documentID: documentID, notebookID: notebookID, pageIDs: pageIDs,
+                schemaVersion: copiedLayers ? DocumentManifest.layersVersion : manifest.schemaVersion)
             // Resolve forward links only after every destination page ID exists.
             for id in linkedPageIDs {
                 let file = destination.appendingPathComponent("pages/\(id).json")

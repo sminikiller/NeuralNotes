@@ -33,6 +33,7 @@ public actor DocumentWorkspace {
     var drawingReachability: DrawingReachability?
     var drawingReferenceScanFailed = false
     private var pageBatchSettled = false
+    private var layerFormatReady = false
     func markPendingPageBatch() { pageBatchSettled = false; invalidateDrawingReachability() }
     func settlePageBatch() throws {
         guard !pageBatchSettled else { return }
@@ -139,7 +140,8 @@ public actor DocumentWorkspace {
     public func manifest() throws -> DocumentManifest {
         try settlePageBatch()
         let value: DocumentManifest = try read("manifest.json")
-        guard value.schemaVersion == 1, value.documentID == documentID,
+        guard DocumentManifest.supports(value.schemaVersion) else { throw LibraryFailure.unsupportedVersion(value.schemaVersion) }
+        guard value.documentID == documentID,
               value.notebookID == notebookID, Set(value.pageIDs).count == value.pageIDs.count else {
             throw LibraryFailure.corruptDocument
         }
@@ -495,11 +497,28 @@ public actor DocumentWorkspace {
     }
 
     func write<T: Encodable>(_ value: T, _ path: String) throws {
-        if let page = value as? PageSnapshot { try PageValidation.validate(page) }
+        if let page = value as? PageSnapshot {
+            try PageValidation.validate(page)
+        }
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(value)
+        let data: Data
+        if let input = value as? DocumentManifest, path == "manifest.json" {
+            guard DocumentManifest.supports(input.schemaVersion) else { throw LibraryFailure.unsupportedVersion(input.schemaVersion) }
+            var next = input
+            // addPage/order may hold a v1 header from before the page write
+            // promoted its package. Never publish that stale v1 over v2.
+            if let current: DocumentManifest = try? read(path) {
+                guard DocumentManifest.supports(current.schemaVersion) else { throw LibraryFailure.unsupportedVersion(current.schemaVersion) }
+                next = input.retainingFormat(atLeast: current.schemaVersion)
+            }
+            data = try encoder.encode(next)
+        } else { data = try encoder.encode(value) }
         if path.hasSuffix(".json"), data.count > 16 * 1024 * 1024 { throw WorkspaceFailure.oversizedMetadata }
+        if let page = value as? PageSnapshot, page.layers != nil && !layerFormatReady {
+            _ = try NativePackageFormat.requiringLayers(in: package, manifest: manifest())
+            layerFormatReady = true
+        }
         searchDirty = true
         cachedCloudDigest = nil
         if path == "catalog.json" { try CatalogRecovery.preserveCurrent(in: package) }
@@ -508,7 +527,7 @@ public actor DocumentWorkspace {
             let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
             if let previous = try? Data(contentsOf: current),
                let manifest = try? decoder.decode(DocumentManifest.self, from: previous),
-               manifest.schemaVersion == 1, manifest.documentID == documentID, manifest.notebookID == notebookID {
+               DocumentManifest.supports(manifest.schemaVersion), manifest.documentID == documentID, manifest.notebookID == notebookID {
                 try previous.write(to: url("manifest.previous.json"), options: .atomic)
             }
         }
