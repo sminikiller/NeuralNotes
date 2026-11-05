@@ -6,7 +6,9 @@ final class LayersUITests: XCTestCase {
         app.launchArguments = ["--ui-testing", "--reset-ui-storage", "--ui-light"]; app.launch()
         let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
         let name = app.textFields["notebookNameField"]; XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap(); name.typeText("Livelli test"); app.buttons["saveNotebookButton"].tap()
+        name.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 8))
+        name.typeText("Livelli test"); app.buttons["saveNotebookButton"].tap()
         let book = app.buttons.matching(NSPredicate(format: "label == %@", "Livelli test")).firstMatch
         XCTAssertTrue(book.waitForExistence(timeout: 8)); book.tap(); app.buttons["openEditorButton"].tap()
         let focus = app.buttons["editorFocus"]

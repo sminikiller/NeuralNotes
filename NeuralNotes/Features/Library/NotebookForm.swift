@@ -11,6 +11,7 @@ struct NotebookForm: View {
     @State private var folderID: UUID?
     @State private var formError: String?
     @State private var template = PageTemplate()
+    @FocusState private var nameFocused: Bool
 
     init(model: LibraryViewModel, notebook: Notebook? = nil) {
         self.model = model
@@ -25,6 +26,7 @@ struct NotebookForm: View {
             Form {
                 Section("Quaderno") {
                     TextField("Nome del quaderno", text: $title)
+                        .focused($nameFocused)
                         .accessibilityIdentifier("notebookNameField")
                         .onSubmit { save() }
                     Picker("Cartella", selection: $folderID) {
@@ -59,6 +61,7 @@ struct NotebookForm: View {
             }
         }
         .interactiveDismissDisabled(!title.isEmpty)
+        .task { await Task.yield(); if !Task.isCancelled { nameFocused = true } }
     }
 
     private func save() {

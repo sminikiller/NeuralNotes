@@ -14,6 +14,9 @@ final class LayerBlendCompositorTests: XCTestCase {
         let outlines = image(background: .white) { context in
             LayerPDFText.layout(true) { LayerPDFText.outlines(true) { LayerPDFText.draw(value, in: box, context: context) } }
         }
+        for (name, value) in [("layer-pdf-text-final-glyphs", normal), ("layer-pdf-text-coefficient-outlines", outlines)] {
+            let attachment = XCTAttachment(image: value); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        }
         var total = 0, samples = 0, inkNormal = 0, inkOutlines = 0
         for y in stride(from: 20, to: 90, by: 2) { for x in stride(from: 5, to: 115, by: 2) {
             let a = try pixel(normal, at: CGPoint(x: x, y: y)), b = try pixel(outlines, at: CGPoint(x: x, y: y))
@@ -23,6 +26,21 @@ final class LayerBlendCompositorTests: XCTestCase {
         XCTAssertGreaterThan(inkNormal, 50); XCTAssertGreaterThan(inkOutlines, 50)
         XCTAssertLessThanOrEqual(Double(total) / Double(samples), 3)
         XCTAssertLessThanOrEqual(abs(inkNormal - inkOutlines), max(3, inkNormal / 10))
+    }
+    @MainActor func testPreparedNativeMarkerUsesMultiplyOverBlackTextRatherThanPaintingItsWhiteMatte() throws {
+        let a = PKStrokePoint(location: CGPoint(x: 10, y: 20), timeOffset: 0, size: CGSize(width: 22, height: 22), opacity: 0.4, force: 1, azimuth: 0, altitude: .pi / 2)
+        let b = PKStrokePoint(location: CGPoint(x: 110, y: 20), timeOffset: 1, size: CGSize(width: 22, height: 22), opacity: 0.4, force: 1, azimuth: 0, altitude: .pi / 2)
+        let stroke = PKStroke(ink: PKInk(.marker, color: .yellow), path: PKStrokePath(controlPoints: [a, b], creationDate: Date(timeIntervalSince1970: 1000)))
+        let prepared = PreparedLayerInk(drawing: PKDrawing(strokes: [stroke]), bounds: bounds, scale: 1)
+        let result = image(background: .white) { context in
+            context.setFillColor(UIColor.black.cgColor); context.fill(CGRect(x: 30, y: 10, width: 20, height: 25))
+            prepared.drawMarkers(in: context)
+        }
+        let black = try pixel(result, at: CGPoint(x: 40, y: 20))
+        XCTAssertTrue(black.prefix(3).allSatisfy { $0 < 3 }, "The marker matte must never replace existing black PDF text")
+        let paper = try pixel(result, at: CGPoint(x: 80, y: 20))
+        XCTAssertGreaterThan(Int(paper[0]), Int(paper[2]) + 20)
+        XCTAssertTrue(try pixel(result, at: CGPoint(x: 5, y: 95)).prefix(3).allSatisfy { $0 > 250 })
     }
     private let bounds = CGRect(x: 0, y: 0, width: 120, height: 100)
     @MainActor private func image(background: UIColor, drawing: (CGContext) -> Void) -> UIImage {
