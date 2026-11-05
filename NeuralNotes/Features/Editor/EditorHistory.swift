@@ -30,8 +30,8 @@ enum EditorEdit {
 
 @MainActor
 extension EditorViewModel {
-    var canUndo: Bool { history.undo != nil }
-    var canRedo: Bool { history.redo != nil }
+    var canUndo: Bool { handwriting != nil || history.undo != nil }
+    var canRedo: Bool { handwriting == nil && history.redo != nil }
 
     func captureEdit(ink: Bool = false) -> EditorContentState? {
         page.map { EditorContentState(page: $0, drawing: ink ? canvas.drawing.dataRepresentation() : nil, layerID: activeLayerID) }
@@ -75,7 +75,9 @@ extension EditorViewModel {
     func performRedo() async { await applyHistory(undo: false) }
 
     private func applyHistory(undo: Bool) async {
-        cancelHandwriting()
+        // A preview is not a document edit: Undo dismisses it first and must
+        // not also erase the last real stroke or move the history cursor.
+        if handwriting != nil { cancelHandwriting(); return }
         let textBeingEdited = editingTextID
         let hadKeyboard = (pagePresenter as? CanvasHost)?.textInput?.view.isFirstResponder == true
         defer { restoreTextAfterHistory(textBeingEdited, keyboard: hadKeyboard) }

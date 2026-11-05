@@ -5,6 +5,20 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class HandwritingSessionTests: XCTestCase {
+    @MainActor func testUndoDuringPreviewOnlyCancelsTheProposalAndLeavesThePreviousRealActionInHistory() async throws {
+        try await fixture { model in
+            let original = model.canvas.drawing, title = model.page?.title
+            model.mutatePage("Titolo pagina") { $0.title = "Prima" }
+            XCTAssertNotNil(model.history.undo)
+            model.beginHandwriting(.straighten); _ = try await self.ready(model)
+            await model.performUndo()
+            XCTAssertNil(model.handwriting); XCTAssertEqual(model.page?.title, "Prima")
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, original))
+            XCTAssertNotNil(model.history.undo); XCTAssertNil(model.history.redo)
+            await model.performUndo(); XCTAssertEqual(model.page?.title, title)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, original))
+        }
+    }
     @MainActor func testWidthChangesCoalesceToTheLatestProposalAndACancelledSessionCannotRestart() async throws {
         try await fixture { model in
             let original = model.canvas.drawing
@@ -76,10 +90,10 @@ final class HandwritingSessionTests: XCTestCase {
     @MainActor func testPreviewDoesNotSaveAndApplyIsOneUndoWithExactNativeRestorationAndUnchangedOCR() async throws {
         try await fixture { model in
             let original = model.canvas.drawing, header = try XCTUnwrap(model.page)
-            XCTAssertFalse(model.canUndo); XCTAssertFalse(model.dirty)
+            XCTAssertFalse(model.canUndo); XCTAssertNil(model.history.undo); XCTAssertFalse(model.dirty)
             model.beginHandwriting(.straighten); let session = try await self.ready(model)
             XCTAssertTrue(NativeInkComparison.equal(original, model.canvas.drawing)); XCTAssertEqual(model.page, header)
-            XCTAssertFalse(model.canUndo); XCTAssertFalse(model.dirty)
+            XCTAssertTrue(model.canUndo); XCTAssertNil(model.history.undo); XCTAssertFalse(model.dirty)
             XCTAssertNotNil(session.preview); session.apply()
             XCTAssertNil(model.handwriting); XCTAssertTrue(model.canUndo)
             XCTAssertEqual(model.page?.recognizedText, header.recognizedText)
