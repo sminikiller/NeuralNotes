@@ -1,6 +1,6 @@
 # NeuralNotes 0.29 — testo e scrittura assistita
 
-Stato: fase verificata con SDK Apple, QA delle immagini e pacchetto esatto conclusi. La distribuzione TestFlight è in corso; non è ancora dichiarato un upload riuscito. La beta PDF 0.28.2 è stata firmata e caricata come TestFlight 1.0.0 (177). Le correzioni 0.28.1 rimangono conservate.
+Stato: fase verificata e consegnata come beta **1.0.0 (179)**, firmata e caricata il 5 novembre 2026. Elaborazione e disponibilità Apple non ancora confermate. La beta PDF 0.28.2 è stata firmata e caricata come TestFlight 1.0.0 (177). Le correzioni 0.28.1 rimangono conservate.
 
 ## Contenuto della fase
 
@@ -57,3 +57,10 @@ Distribuzione autorizzata [42007068881](https://github.com/sminikiller/NeuralNot
 5. Apri Indice, comprimi e sposta una sezione, poi annulla. Nell’audio prova Segui, Mostra tutto e i punti importanti senza alterare la registrazione.
 
 Le vecchie pagine restano sul formato esistente; pressione/latenza con Pencil reale e rotazione durante scrittura richiedono ancora il dispositivo fisico. La penna Calligrafica nativa richiede iPadOS26: sul precedente iPadOS18 non compare. Backend e iCloud non vengono ampliati o attivati.
+
+
+## Consegna effettiva
+
+**Beta 1.0.0 (179)**: [distribuzione42007068881](https://github.com/sminikiller/NeuralNotes/actions/runs/42007068881) SUCCESS, firma verificata e messaggi `Upload succeeded` / `UPLOAD_COMMAND_SUCCEEDED` alle10:07UTC del5novembre2026. Sorgenti archivio1f00e9c, identici per l’app alla verificaab73. Identità, firma e corsia già esistenti conservate; iCloud disattivato come nella beta precedente. Il campo uploaded=false dell’archive-proof è precedente all’upload: il risultato effettivo è documentato dal log successivo. Elaborazione e disponibilità in TestFlight non vengono dedotte automaticamente dall’esito dell’upload.
+
+Pacchetto Playgrounds esatto anche in `.verification/NeuralNotes-iPad-0.29.0.zip`;339file, SHA256 indicato sopra. La fase0.30 (livelli) e0.31 (trasformazione grafia) rimangono separate e non consegnate. Le prove di aggiornamento e conservazione dei quaderni della suite completa restano valide: nessuna migrazione dei file è introdotta da0.29.
