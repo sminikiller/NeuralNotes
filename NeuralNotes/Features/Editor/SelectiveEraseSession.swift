@@ -9,6 +9,7 @@ final class SelectiveEraseSession {
     private weak var model: EditorViewModel?
     private let before: EditorContentState?, original: PKDrawing, originalPage: PageSnapshot?
     private let pageID: UUID?, target: EraserTarget, width: Double, whole: Bool, includeObjects: Bool
+    private let layerID: UUID?
     private var native: [UUID: PKStroke] = [:], visible: [UUID: CGPath] = [:]
     private var order: [UUID] = [], originalIndices: [UUID: Int] = [:]
     private var objectRegions: [UUID: CGPath] = [:], boxes: [UUID: SnapRect] = [:]
@@ -20,14 +21,15 @@ final class SelectiveEraseSession {
     private(set) var outlineBuilds = 0
     init(model: EditorViewModel) {
         self.model = model; before = model.captureEdit(ink: true); original = model.canvas.drawing; originalPage = model.page; pageID = model.page?.id
+        layerID = model.drawingLayerID
         target = model.writingOptions.effectiveEraserTarget; width = model.writingOptions.eraserWidth; whole = model.writingOptions.eraser == .stroke
         includeObjects = model.writingOptions.erasesObjects
-        if let page = model.page { objectRegions = EraserObjectGeometry.regions(page: page, target: target, includeObjects: includeObjects) }
+        if let page = model.page { objectRegions = EraserObjectGeometry.regions(page: page, target: target, includeObjects: includeObjects, layerID: model.activeLayerID) }
         for (id, path) in objectRegions { boxes[id] = SnapRect(path.boundingBoxOfPath.insetBy(dx: -0.5, dy: -0.5)) }
         for (offset, stroke) in original.strokes.enumerated() {
             var id = UUID(); while boxes[id] != nil || native[id] != nil { id = UUID() }
             native[id] = stroke; order.append(id); originalIndices[id] = offset
-            if target.includesInk && (target == .all || (target == .marker) == (stroke.ink.inkType == .marker)) {
+            if model.canEditActiveLayer && target.includesInk && (target == .all || (target == .marker) == (stroke.ink.inkType == .marker)) {
                 boxes[id] = SnapRect(stroke.renderBounds.insetBy(dx: -1, dy: -1))
             }
         }
@@ -43,7 +45,7 @@ final class SelectiveEraseSession {
         }
     }
     private func process() {
-        guard let model, model.page?.id == pageID, !queued.isEmpty else { return }
+        guard let model, model.page?.id == pageID, model.drawingLayerID == layerID, !queued.isEmpty else { return }
         let samples = tail.map { [$0] + queued } ?? queued; tail = queued.last; queued = []
         guard let area = EraserStrokeGeometry.area(samples: samples, width: width) else { return }
         let candidates = index.candidates(in: SnapRect(area.boundingBoxOfPath.insetBy(dx: -0.5, dy: -0.5)))
@@ -68,7 +70,7 @@ final class SelectiveEraseSession {
             // Detaching an end can change its route. Refresh object geometry
             // only after a deletion, not for every coalesced pointer sample.
             for id in objectRegions.keys { boxes[id] = nil }
-            objectRegions = EraserObjectGeometry.regions(page: page, target: target, includeObjects: includeObjects)
+            objectRegions = EraserObjectGeometry.regions(page: page, target: target, includeObjects: includeObjects, layerID: model.activeLayerID)
             for (id, region) in objectRegions { boxes[id] = SnapRect(region.boundingBoxOfPath.insetBy(dx: -0.5, dy: -0.5)) }
             index = EraserSpatialIndex(boxes: boxes)
         }
@@ -78,18 +80,24 @@ final class SelectiveEraseSession {
         guard !finished else { return }; finished = true; frame?.cancel(); frame = nil
         guard let model else { return }
         defer { model.eraserCompositionToken = nil; model.drawingShape = false; model.configureTool() }
-        guard model.page?.id == pageID else { return }
+        guard model.page?.id == pageID, model.drawingLayerID == layerID else { return }
         if cancelled { model.page = originalPage; model.installNativeInk(original); return }
         process()
         model.drawingShape = false
         if changed {
             let drawing = PKDrawing(strokes: order.compactMap { native[$0] })
             let oldKeys = EditorInkSignatures.make(original), newKeys = EditorInkSignatures.make(drawing)
-            let anchors = Dictionary(grouping: originalPage?.anchors ?? [], by: \.signature)
             let retained = order.filter { native[$0] != nil }
-            model.page?.anchors = retained.enumerated().flatMap { offset, id in
-                guard let originalIndex = originalIndices[id] else { return [] as [StrokeAnchor] }
-                return (anchors[oldKeys[originalIndex]] ?? []).map { anchor in var value = anchor; value.signature = newKeys[offset]; return value }
+            if let page = originalPage, page.layers != nil {
+                model.page?.anchors = LayerStrokeTimeline.replacing(anchors: page.anchors, oldSignatures: oldKeys,
+                    newSignatures: newKeys, retainedOriginalIndices: retained.compactMap { originalIndices[$0] },
+                    pageID: page.id, layerID: layerID)
+            } else {
+                let anchors = Dictionary(grouping: originalPage?.anchors ?? [], by: \.signature)
+                model.page?.anchors = retained.enumerated().flatMap { offset, id in
+                    guard let originalIndex = originalIndices[id] else { return [] as [StrokeAnchor] }
+                    return (anchors[oldKeys[originalIndex]] ?? []).map { anchor in var value = anchor; value.signature = newKeys[offset]; return value }
+                }
             }
             model.installNativeInk(drawing); model.selectedIDs.formIntersection(model.page?.objectIDs ?? [])
             model.recordEdit(before, label: "Gomma · \(target.title)"); model.drawingChanged(preservingRecognizedWords: target == .marker)

@@ -541,11 +541,12 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private var lensTolerance: CGFloat { 10 / max(host?.canvas.zoomScale ?? 1, 0.1) }
 
     private var allIDs: [UUID] {
-        guard let page = model?.page else { return [] }
+        guard let model, let page = model.page else { return [] }
         let locked = Set(page.lockedObjects ?? [])
+        let eligible = page.layers == nil ? nil : PageLayers.editableObjectIDs(in: page, layerID: model.activeLayerID ?? page.id)
         let above = Set(page.aboveInkObjects ?? []), tapes = Set((page.tapes ?? []).map(\.id)), ordered = page.orderedObjectIDs
         let visualOrder = ordered.filter { !above.contains($0) && !tapes.contains($0) } + ordered.filter { above.contains($0) && !tapes.contains($0) } + ordered.filter { tapes.contains($0) }
-        return visualOrder.filter { !locked.contains($0) }
+        return visualOrder.filter { !locked.contains($0) && (eligible?.contains($0) ?? true) }
     }
     func hit(_ point: CGPoint) -> UUID? {
         guard let host, let model else { return nil }

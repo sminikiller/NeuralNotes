@@ -13,7 +13,7 @@ extension EditorViewModel {
     func selectAll() {
         guard let page else { return }
         selectedIDs = Set(page.objectIDs).subtracting(page.lockedObjects ?? [])
-        selectionIncludesInk = !canvas.drawing.strokes.isEmpty
+        selectionIncludesInk = canEditActiveLayer && !canvas.drawing.strokes.isEmpty
         selectedStrokeIndices = nil
     }
     func rotateSelectedImage() {

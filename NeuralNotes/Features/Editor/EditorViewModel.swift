@@ -111,7 +111,15 @@ final class EditorViewModel {
     var searchFocus: SearchFocusRequest?
     var editingTextID: UUID?
     @ObservationIgnored var textEditBefore: EditorContentState?
-    var selectedIDs: Set<UUID> = []
+    private var selectedObjectStorage: Set<UUID> = []
+    var selectedIDs: Set<UUID> {
+        get { selectedObjectStorage }
+        set {
+            if let page, page.layers != nil {
+                selectedObjectStorage = newValue.intersection(PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id))
+            } else { selectedObjectStorage = newValue }
+        }
+    }
     var selectionPageDragMode = false { didSet { configureTool() } }
     var selectionDragCopy = false
     var selectionDropPending = false
@@ -206,6 +214,10 @@ final class EditorViewModel {
     // until the inactive-layer compositor and scoped tools are installed.
     var activeLayerID: UUID?
     var drawingLayerID: UUID? { page.map { activeLayerID ?? $0.id } }
+    var canEditActiveLayer: Bool {
+        guard let page else { return false }
+        return page.layers == nil || PageLayers.editable(activeLayerID ?? page.id, page: page)
+    }
     @ObservationIgnored private let pageWriter: @MainActor (PageSnapshot, Data, Bool) async throws -> PageSnapshot
 
     init(workspace: DocumentWorkspace, pageWriter: (@MainActor (PageSnapshot, Data, Bool) async throws -> PageSnapshot)? = nil) {
@@ -284,6 +296,7 @@ final class EditorViewModel {
             canvas.drawingGestureRecognizer.isEnabled = false
             canvas.panGestureRecognizer.isEnabled = false; canvas.pinchGestureRecognizer?.isEnabled = false
         }
+        if !canEditActiveLayer { canvas.drawingGestureRecognizer.isEnabled = false }
         zoomWritingController?.configureTool()
         refreshDrawingGuides()
     }
@@ -330,7 +343,7 @@ final class EditorViewModel {
     }
 
     func strokeBegan() {
-        guard hasLease, !loading, !navigating else { return }
+        guard hasLease, !loading, !navigating, canEditActiveLayer else { return }
         cancelMaintenance()
         searchFocus = nil
         recognitionNoticeTask?.cancel(); recognitionNotice = nil
@@ -513,6 +526,9 @@ final class EditorViewModel {
               PageLayers.editable(id, page: original) else { return }
         navigating = true; defer { navigating = false }
         closeZoomWriting()
+        (pagePresenter as? CanvasHost)?.textInput?.view.resignFirstResponder()
+        endTextEdit()
+        (pagePresenter as? CanvasHost)?.textInput?.refresh()
         guard await flush(), let current = page, current.id == original.id,
               PageLayers.editable(id, page: current) else { return }
         do {

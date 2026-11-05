@@ -11,7 +11,7 @@ final class RectangularMarkerSession {
     private let snap: Bool
     private var rectangles: [CGRect] = []
     init?(host: CanvasHost, model: EditorViewModel, at point: CGPoint) {
-        guard let page = model.page else { return nil }
+        guard model.canEditActiveLayer, let page = model.page else { return nil }
         self.host = host; self.model = model; self.page = page; self.before = model.canvas.drawing
         start = point; color = InkColor(model.ink)
         snap = page.pdfFile != nil && model.writingOptions.rectangleSnapLines == true

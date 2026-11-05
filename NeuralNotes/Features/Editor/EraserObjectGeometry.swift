@@ -3,8 +3,11 @@ import NeuralNotesCore
 
 @MainActor
 enum EraserObjectGeometry {
-    static func regions(page: PageSnapshot, target: EraserTarget, includeObjects: Bool = true) -> [UUID: CGPath] {
-        let locked = Set(page.lockedObjects ?? []), objects = page.connectors?.isEmpty == false ? DiagramObjects.make(page) : [:]
+    static func regions(page: PageSnapshot, target: EraserTarget, includeObjects: Bool = true, layerID: UUID? = nil) -> [UUID: CGPath] {
+        let eligible = page.layers == nil ? nil : PageLayers.editableObjectIDs(in: page, layerID: layerID ?? page.id)
+        let locked = Set(page.lockedObjects ?? []).union(eligible.map { Set(page.objectIDs).subtracting($0) } ?? [])
+        let objects = page.connectors?.isEmpty == false ? DiagramObjects.make(page) : [:]
+        let eligibleMarks = page.layers == nil ? nil : PageLayers.editableMarkupIDs(in: page, layerID: layerID ?? page.id)
         var regions: [UUID: CGPath] = [:]
         if includeObjects && (target == .all || target == .text) {
             for text in page.texts where !locked.contains(text.id) && (target == .all || text.lensNote == nil) {
@@ -38,6 +41,7 @@ enum EraserObjectGeometry {
             }
         }
         for markup in page.pdfMarkups ?? [] where target == .all || (target == .marker && markup.kind == .highlight) || (target == .pen && markup.kind == .underline) {
+            if let eligibleMarks, !eligibleMarks.contains(markup.id) { continue }
             let box = CGRect(x: markup.x, y: markup.y, width: markup.width, height: markup.height)
             regions[markup.id] = CGPath(rect: markup.kind == .highlight ? box : CGRect(x: box.minX, y: box.maxY - 0.5, width: box.width, height: 1), transform: nil)
         }

@@ -5,7 +5,8 @@ import Foundation
 /// layers without making those targets editable. Legacy pages pass through.
 public enum LayerObjectEdits {
     public static func restricted(_ proposed: PageSnapshot, from original: PageSnapshot, activeLayerID: UUID) -> PageSnapshot {
-        guard original.layers != nil, proposed.id == original.id else { return proposed }
+        guard original.layers != nil else { return proposed }
+        guard proposed.id == original.id else { return original }
         guard proposed != original else { return original }
         let editable = PageLayers.editableObjectIDs(in: original, layerID: activeLayerID)
         let mayInsert = PageLayers.editable(activeLayerID, page: original)

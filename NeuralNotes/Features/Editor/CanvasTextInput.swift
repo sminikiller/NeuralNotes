@@ -4,10 +4,12 @@ import NeuralNotesCore
 @MainActor
 extension EditorViewModel {
     func beginTextEdit(at point: CGPoint) {
-        guard hasLease, !loading, !navigating, !hasActiveStroke, let page else { return }
+        guard hasLease, !loading, !navigating, !hasActiveStroke, canEditActiveLayer, let page else { return }
         cancelMaintenance()
         endTextEdit()
+        let eligible = page.layers == nil ? nil : PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id)
         let hit = page.texts.reversed().first { text in
+            if let eligible, !eligible.contains(text.id) { return false }
             let box = RichText.bounds(text, pageHeight: page.height).insetBy(dx: 0, dy: -6)
             return box.contains(point.applying(RichText.rotation(text, pageHeight: page.height).inverted()))
         }
@@ -25,10 +27,12 @@ extension EditorViewModel {
     }
     func updateLiveText(_ value: String) {
         guard let id = editingTextID, let i = page?.texts.firstIndex(where: { $0.id == id }) else { return }
+        if let page, page.layers != nil, !PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id).contains(id) { return }
         page?.texts[i].text = value; drawingChanged()
     }
     func updateLiveText(_ value: NSAttributedString) {
         guard let id = editingTextID, let i = page?.texts.firstIndex(where: { $0.id == id }) else { return }
+        if let page, page.layers != nil, !PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id).contains(id) { return }
         page?.texts[i].text = value.string; page?.texts[i].rtf = RichText.data(value); drawingChanged()
     }
     func commitTextEdit() {

@@ -46,7 +46,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         host.canvas.addGestureRecognizer(monitor)
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard let model, (!model.zoomWritingOpen || zoomWritingInput), model.hasLease, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
+        guard let model, (!model.zoomWritingOpen || zoomWritingInput), model.hasLease, model.canEditActiveLayer, !model.loading, !model.navigating, model.editingTextID == nil else { return false }
         if model.audio?.replayInk == true && model.audio?.playingSessionID != nil { return false }
         if zoomWritingInput { return (model.markerCustomInput || model.tool == .eraser) && (touch.type == .pencil || (model.fingerDrawing && touch.type == .direct)) }
         let enabled = model.tool == .shape || model.markerCustomInput || (model.tool == .eraser) || ((model.tool == .pen || model.tool == .marker) && (model.rulerActive || model.protractorActive || model.recognitionMode != .off))

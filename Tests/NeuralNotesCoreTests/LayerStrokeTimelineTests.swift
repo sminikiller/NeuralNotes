@@ -2,6 +2,38 @@ import XCTest
 @testable import NeuralNotesCore
 
 final class LayerStrokeTimelineTests: XCTestCase {
+    func testPartialEraseRebasesOnlyTheRetainedOccurrenceAndKeepsOtherOwnersAndTimes() {
+        let page = UUID(), layer = UUID(), session = UUID()
+        let base = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 5)
+        var erased = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 10)
+        erased.layerID = layer; erased.strokeOccurrence = 0
+        var retained = erased; retained.id = UUID(); retained.seconds = 20; retained.strokeOccurrence = 1
+        var orphan = retained; orphan.id = UUID(); orphan.strokeOccurrence = 4
+        let original = [base, erased, retained, orphan]
+        let result = LayerStrokeTimeline.replacing(anchors: original, oldSignatures: ["same", "same"], newSignatures: ["cut"],
+            retainedOriginalIndices: [1], pageID: page, layerID: layer)
+        XCTAssertEqual(result.count, 3); XCTAssertEqual(result[0], base)
+        XCTAssertEqual(result[1].id, retained.id); XCTAssertEqual(result[1].seconds, 20)
+        XCTAssertEqual(result[1].layerID, layer); XCTAssertEqual(result[1].signature, "cut"); XCTAssertEqual(result[1].strokeOccurrence, 0)
+        XCTAssertEqual(result[2].id, orphan.id); XCTAssertEqual(result[2].seconds, 20)
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: ["cut"], anchors: result, pageID: page, layerID: layer, sessionID: session, seconds: 20.2), [0])
+        XCTAssertEqual(original[2].signature, "same")
+        XCTAssertEqual(LayerStrokeTimeline.replacing(anchors: original, oldSignatures: ["same"], newSignatures: ["cut"],
+            retainedOriginalIndices: [99], pageID: page, layerID: layer), original)
+    }
+
+    func testEraseExpandsLegacyWildcardsWithoutDuplicateIDsAndDoesNotAttachAnOrphanToANewSignature() {
+        let page = UUID(), layer = UUID(), session = UUID()
+        var wildcard = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 10); wildcard.layerID = layer
+        var orphan = StrokeAnchor(signature: "cut", audioSessionID: session, seconds: 2); orphan.layerID = layer
+        let result = LayerStrokeTimeline.replacing(anchors: [wildcard, orphan], oldSignatures: ["same", "same"],
+            newSignatures: ["cut", "cut"], retainedOriginalIndices: [0, 1], pageID: page, layerID: layer)
+        XCTAssertEqual(result.count, 3); XCTAssertEqual(Set(result.map(\.id)).count, 3)
+        XCTAssertEqual(result.prefix(2).map(\.strokeOccurrence), [0, 1]); XCTAssertEqual(result.prefix(2).map(\.seconds), [10, 10])
+        XCTAssertEqual(result.last?.id, orphan.id); XCTAssertEqual(result.last?.strokeOccurrence, 2)
+        XCTAssertEqual(LayerStrokeTimeline.visible(signatures: ["cut", "cut"], anchors: result, pageID: page, layerID: layer, sessionID: session, seconds: 5), [])
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: ["cut", "cut"], anchors: result, pageID: page, layerID: layer, sessionID: session, seconds: 2.2), [])
+    }
     func testIdenticalNativeSignaturesOnDifferentLayersDoNotShareVisibilityOrHighlighting() {
         let page = UUID(), layer = UUID(), session = UUID()
         var base = StrokeAnchor(signature: "same", audioSessionID: session, seconds: 10)

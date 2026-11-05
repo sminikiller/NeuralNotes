@@ -155,6 +155,7 @@ extension EditorViewModel {
 
     private func restoreTextAfterHistory(_ id: UUID?, keyboard: Bool) {
         guard let id, hasLease, !loading, tool == .text, page?.texts.contains(where: { $0.id == id }) == true else { return }
+        if let page, page.layers != nil, !PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id).contains(id) { return }
         editingTextID = id; textEditBefore = captureEdit()
         let input = (pagePresenter as? CanvasHost)?.textInput
         input?.refresh()

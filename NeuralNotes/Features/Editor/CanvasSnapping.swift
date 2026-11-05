@@ -10,7 +10,8 @@ extension EditorViewModel {
         }
     }
     func snapObjects(_ page: PageSnapshot) -> [SnapObject] {
-        let locked = Set(page.lockedObjects ?? [])
+        let eligible = page.layers == nil ? nil : PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id)
+        let locked = Set(page.lockedObjects ?? []).union(eligible.map { Set(page.objectIDs).subtracting($0) } ?? [])
         var values: [SnapObject] = []
         func append(_ id: UUID, _ rect: CGRect, _ rotation: Double = 0) {
             values.append(.init(id: id, rect: SnapRect(rect), rotation: rotation, locked: locked.contains(id)))

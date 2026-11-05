@@ -4,6 +4,39 @@ import Foundation
 /// owner and occurrence distinguish exact copies, including after a merge.
 /// Nil occurrence keeps existing documents' "all matching signatures" behavior.
 public enum LayerStrokeTimeline {
+    /// A partial eraser may change native signatures or remove occurrences.
+    /// Retained indices identify the original strokes without touching their
+    /// paths, masks or pressure. Anchors belonging to other owners stay exact.
+    public static func replacing(anchors: [StrokeAnchor], oldSignatures: [String], newSignatures: [String], retainedOriginalIndices: [Int], pageID: UUID, layerID: UUID?) -> [StrokeAnchor] {
+        guard newSignatures.count == retainedOriginalIndices.count,
+              Set(retainedOriginalIndices).count == retainedOriginalIndices.count,
+              retainedOriginalIndices.allSatisfy(oldSignatures.indices.contains) else { return anchors }
+        let owner = layerID ?? pageID
+        let oldKeys = keys(signatures: oldSignatures, pageID: pageID, layerID: owner)
+        let newKeys = keys(signatures: newSignatures, pageID: pageID, layerID: owner)
+        let positions = Dictionary(grouping: oldKeys.indices, by: { oldKeys[$0].signature })
+        let retained = Dictionary(uniqueKeysWithValues: retainedOriginalIndices.enumerated().map { ($0.element, $0.offset) })
+        let newCounts = newSignatures.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        var result: [StrokeAnchor] = []
+        for anchor in anchors {
+            guard (anchor.layerID ?? pageID) == owner else { result.append(anchor); continue }
+            let old = positions[anchor.signature] ?? []
+            let matched = old.filter { anchor.strokeOccurrence == nil || oldKeys[$0].occurrence == anchor.strokeOccurrence }
+            if matched.isEmpty {
+                var orphan = anchor
+                orphan.strokeOccurrence = newCounts[anchor.signature, default: 0] + max(0, (anchor.strokeOccurrence ?? old.count) - old.count)
+                result.append(orphan); continue
+            }
+            let survivors = matched.compactMap { retained[$0] }
+            for (copyIndex, newIndex) in survivors.enumerated() {
+                var copy = anchor
+                if copyIndex > 0 { copy.id = UUID() }
+                copy.signature = newKeys[newIndex].signature; copy.strokeOccurrence = newKeys[newIndex].occurrence
+                result.append(copy)
+            }
+        }
+        return result
+    }
     public static func keys(signatures: [String], pageID: UUID, layerID: UUID?) -> [LayerInkSignature] {
         var counts: [String: Int] = [:]
         return signatures.map { signature in

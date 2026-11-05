@@ -113,6 +113,30 @@ final class LayerEditorOwnershipTests: XCTestCase {
         }
     }
 
+    @MainActor func testTextCommitAndSelectionsStayOnTheirOwnerDuringAHandoff() async throws {
+        try await fixture { model, layer, base, _ in
+            let pageID = try XCTUnwrap(model.page?.id)
+            model.addText()
+            let baseText = try XCTUnwrap(model.selectedObjectID)
+            await model.selectLayer(layer)
+            model.selectAll(); XCTAssertFalse(model.selectedIDs.contains(baseText))
+            model.selectedObjectID = baseText; XCTAssertNil(model.selectedObjectID)
+            model.beginTextEdit(at: CGPoint(x: 300, y: 400))
+            let textID = try XCTUnwrap(model.editingTextID)
+            XCTAssertEqual(model.page?.texts.first(where: { $0.id == textID })?.layerID, layer)
+            model.updateLiveText("Notes on upper layer")
+            await model.selectLayer(pageID)
+            XCTAssertNil(model.editingTextID); XCTAssertNil(model.textEditBefore)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, base))
+            let stored = try await model.workspace.pageSnapshot(pageID)
+            XCTAssertEqual(stored.texts.first(where: { $0.id == textID })?.text, "Notes on upper layer")
+            await model.performUndo()
+            XCTAssertEqual(model.drawingLayerID, layer)
+            XCTAssertEqual(model.page?.texts.first(where: { $0.id == textID })?.text, "")
+            XCTAssertTrue(model.page?.texts.contains(where: { $0.id == baseText }) == true)
+        }
+    }
+
     @MainActor func testDuplicateAndDeleteKeepIndependentNativeFilesAndUndoRestoresTheDeletedVectors() async throws {
         try await fixture { model, originalID, base, upper in
             await model.selectLayer(originalID)

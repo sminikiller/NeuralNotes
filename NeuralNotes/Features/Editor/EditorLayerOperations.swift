@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import NeuralNotesCore
 
 /// Kept internal until rendering and every editing tool use the same owner
@@ -28,9 +29,12 @@ enum EditorLayerOperation {
 extension EditorViewModel {
     @discardableResult
     func performLayerOperation(_ operation: EditorLayerOperation) async -> Bool {
-        guard hasLease, !loading, !navigating, !hasActiveStroke, !interactionBusy else { return false }
+        guard hasLease, !loading, !navigating, !hasActiveStroke else { return false }
         navigating = true; defer { navigating = false }
         closeZoomWriting()
+        (pagePresenter as? CanvasHost)?.textInput?.view.resignFirstResponder()
+        endTextEdit()
+        (pagePresenter as? CanvasHost)?.textInput?.refresh()
         guard await flush(), let current = page else { return false }
         do {
             let previousOwner = drawingLayerID ?? current.id
