@@ -15,9 +15,17 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
         do { try await test(model); _ = await model.close() } catch { _ = await model.close(); throw error }
     }
     @MainActor private func stroke(x: CGFloat, y: CGFloat) -> PKStroke {
-        let points = (0...8).map { i in PKStrokePoint(location: CGPoint(x: x + CGFloat(i) * 3, y: y), timeOffset: Double(i) * 0.01,
-            size: CGSize(width: 3 + Double(i) / 4, height: 3), opacity: 0.9, force: 0.5 + CGFloat(i) / 20,
-            azimuth: 0.3, altitude: 0.9) }
+        var points: [PKStrokePoint] = []
+        for index in 0...8 {
+            let step = CGFloat(index)
+            let location = CGPoint(x: x + step * 3, y: y)
+            let size = CGSize(width: 3 + step / 4, height: 3)
+            let time: TimeInterval = Double(index) * 0.01
+            let force: CGFloat = 0.5 + step / 20
+            let point = PKStrokePoint(location: location, timeOffset: time, size: size,
+                opacity: 0.9, force: force, azimuth: 0.3, altitude: 0.9)
+            points.append(point)
+        }
         return PKStroke(ink: PKInk(.pen, color: .black), path: PKStrokePath(controlPoints: points, creationDate: Date(timeIntervalSince1970: 900)))
     }
     @MainActor func testNativeChildWritesPageCoordinatesAndUndoThenNewStrokeNeverRevivesOldInk() async throws {
@@ -52,7 +60,12 @@ final class ZoomWritingAndRectangleTests: XCTestCase {
             let first = self.stroke(x: 90, y: 120)
             controller.canvasViewDidBeginUsingTool(controller.host.canvas)
             controller.host.canvas.drawing = PKDrawing(strokes: [first])
-            let points = (0...40).map { StrokeSample(x: 90 + Double($0) * 4, y: 120 + sin(Double($0)) * 0.5) }
+            var points: [StrokeSample] = []
+            for index in 0...40 {
+                let step = Double(index), x = 90 + Double(index) * 4
+                let y = 120 + sin(step) * 0.5
+                points.append(StrokeSample(x: x, y: y))
+            }
             model.pendingHeldShape = (try XCTUnwrap(model.page?.id), .line, points)
             controller.canvasViewDidEndUsingTool(controller.host.canvas)
             // Begin synchronously, before the previous asynchronous end fence.
