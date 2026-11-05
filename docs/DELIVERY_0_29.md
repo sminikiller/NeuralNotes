@@ -1,6 +1,6 @@
 # NeuralNotes 0.29 — testo e scrittura assistita
 
-Stato: candidata compilata con SDK Apple; il collaudo finale raggruppato è in corso, quindi non ancora consegnata. La beta PDF 0.28.2 è stata firmata e caricata come TestFlight 1.0.0 (177). Le correzioni 0.28.1 rimangono conservate.
+Stato: fase verificata con SDK Apple, QA delle immagini e pacchetto esatto conclusi. La distribuzione TestFlight è in corso; non è ancora dichiarato un upload riuscito. La beta PDF 0.28.2 è stata firmata e caricata come TestFlight 1.0.0 (177). Le correzioni 0.28.1 rimangono conservate.
 
 ## Contenuto della fase
 
@@ -36,3 +36,24 @@ L'audit ha anche corretto un caso dei margini della finestra zoom: dopo un viewp
 
 
 QA visiva del set colori: esaminata la PNG originale della prova UI già passata (725F9891-C92E-4856-A9EF-CA1E41E01A2C, run41992864208). Selezione Biologia, cinque colori, modifica/creazione e descrizione delle preferenze per strumento visibili; pannello entro lo schermo, navigatore pagine compatto e canvas integri. Non sostituisce la prova ancora aperta della finestra zoom.
+
+
+## Verifica finale conclusa e pacchetto esatto
+
+La [run42001223527](https://github.com/sminikiller/NeuralNotes/actions/runs/42001223527) è SUCCESS:386XCTest Core+98SwiftTesting,239test nativi critici e7UI con zero fallimenti, Release, PlaygroundsRelease dispositivo/simulatore e60controlli di avvio. Il nuovo test dei margini è presente nel log e passato. Questi7completano i40scenariUI già passati nella suite intera; non sono stati ripetuti per il helper di scorrimento. Le quattro rotazioniPDF mantengono le asserzioni numeriche originali.
+
+Viste11PNG finali: finestra zoom, parola tipografica evidenziata, PDF immediato e stabilizzato, goniometro, nessuna resurrezione del tratto, gomma selettiva e coppie vettore/cache a0°/270°. La finestra lascia il foglio principale ampio e il pannello sotto circa30%; il riquadro si trova intenzionalmente sotto il tratto perché la prova ha premuto Nuova riga e Avanti. Il PDF mantiene testo nitido e penna visibile; i sottili segmenti grigi sono il contenuto della fixture sintetica. Il set colori è stato ispezionato nella precedente provaUI riuscita.
+
+ZIPCIesatto339file, CRC e sorgenti/resources confrontati conab73e4f5bd9bb12f615cda1791ac373473c530c9. SHA256: `d158271ee72257a47827d1f3f7835f9debd527e4ac2d9a6b4fbdc3420bf132c0`. Nessun codice dei livelli0.30è incluso.
+
+Distribuzione autorizzata [42007068881](https://github.com/sminikiller/NeuralNotes/actions/runs/42007068881), `verified_sha=ab73e4f5bd9bb12f615cda1791ac373473c530c9`. In corso: attendere log di upload effettivo e numero reale della build.
+
+## Come provare la fase sull’iPad
+
+1. In un quaderno, apri Azioni (⋯) e Finestra di scrittura. Scrivi nel pannello in basso: il tratto compare alla stessa posizione sul foglio. Prova Annulla, Ripristina, Nuova riga, Avanti e Chiudi. Chiudendo, il foglio recupera lo spazio.
+2. Workspace→Colori per materia: crea un set e sceglilo. Passa da penna a evidenziatore per controllare che i colori personali dei due strumenti restino distinti.
+3. Nel testo, seleziona alcuni caratteri e applica apice/pedice; annulla e ripristina. Incolla testo formattato oppure semplice con⇧⌘V se usi una tastiera.
+4. Tieni premuto Evidenziatore, scegli Rettangolo e trascina: selezionalo poi col lazo per modificarlo; controlla che il testo nero sotto rimanga leggibile.
+5. Apri Indice, comprimi e sposta una sezione, poi annulla. Nell’audio prova Segui, Mostra tutto e i punti importanti senza alterare la registrazione.
+
+Le vecchie pagine restano sul formato esistente; pressione/latenza con Pencil reale e rotazione durante scrittura richiedono ancora il dispositivo fisico. La penna Calligrafica nativa richiede iPadOS26: sul precedente iPadOS18 non compare. Backend e iCloud non vengono ampliati o attivati.
