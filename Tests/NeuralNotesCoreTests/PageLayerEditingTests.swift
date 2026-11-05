@@ -64,4 +64,35 @@ final class PageLayerEditingTests: XCTestCase {
         XCTAssertEqual(removed.anchors.count, 1); XCTAssertEqual(removed.anchors.first?.layerID, result.layerID)
         try PageValidation.validate(removed)
     }
+    func testLayerHeaderCommitAndDuplicateRetainNativeBytesAndRejectAStaleOrMissingReference() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = DocumentManifest(documentID: UUID(), notebookID: UUID()), store = try NativeDocumentStore(root: root)
+        try store.create(manifest)
+        let package = store.packageURL(for: manifest.documentID)
+        let workspace = DocumentWorkspace(package: package, documentID: manifest.documentID, notebookID: manifest.notebookID)
+        var page = try await workspace.addPage(); page.revision += 1
+        let bytes = Data((0...255).map { UInt8($0) })
+        page = try await workspace.save(page, drawing: bytes)
+        let originalFile = try XCTUnwrap(page.drawingFile), original = page
+        let added = try PageLayerEditing.adding(to: page, name: "Blank")
+        page = try await workspace.saveLayerMetadata(added.page, expectedRevision: page.revision)
+        XCTAssertEqual(page.drawingFile, originalFile); XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(originalFile)), bytes)
+        do { _ = try await workspace.saveLayerMetadata(original, expectedRevision: original.revision); XCTFail("Stale header overwrote a newer layer") }
+        catch { XCTAssertTrue(error is WorkspaceFailure) }
+        let copy = try await workspace.duplicateLayer(pageID: page.id, layerID: page.id, name: "Base copy")
+        let copiedFile = try XCTUnwrap(copy.page.layers?.first(where: { $0.id == copy.layerID })?.drawingFile)
+        XCTAssertNotEqual(copiedFile, originalFile); XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(copiedFile)), bytes)
+        let before = copy.page
+        var invalid = before; invalid.layers?[1].drawingFile = "drawings/missing.drawing"
+        do { _ = try await workspace.saveLayerMetadata(invalid, expectedRevision: before.revision); XCTFail("Missing vector reference was published") }
+        catch {}
+        let retained = try await workspace.pageSnapshot(page.id); XCTAssertEqual(retained, before)
+        XCTAssertNoThrow(try NativePackageInspector.inspect(package))
+        let removed = try PageLayerEditing.removing(copy.layerID, in: before)
+        _ = try await workspace.saveLayerMetadata(removed, expectedRevision: before.revision)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: package.appendingPathComponent(copiedFile).path))
+        XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent(originalFile)), bytes)
+    }
+
 }
