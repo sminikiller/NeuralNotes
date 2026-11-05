@@ -51,7 +51,10 @@ extension EditorViewModel {
         commitTextEdit()
         guard hasLease, !navigating, !loading, !hasActiveStroke, var value = page else { return }
         let before = captureEdit()
-        action(&value); value.pruneObjectReferences(); page = value; recordEdit(before, label: label); drawingChanged()
+        let original = value
+        action(&value)
+        value = LayerObjectEdits.restricted(value, from: original, activeLayerID: activeLayerID ?? original.id)
+        value.pruneObjectReferences(); page = value; recordEdit(before, label: label); drawingChanged()
     }
 
     func recordOrder(_ before: [UUID], selectedBefore: UUID?, label: String) {
