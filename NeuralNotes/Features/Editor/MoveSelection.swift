@@ -144,7 +144,8 @@ extension EditorViewModel {
                     original: destinationBefore, originalInk: EditorInkSignatures.make(destinationInk))
             }
             if !copy, let index = source.layers?.firstIndex(where: { $0.id == sourceOwner }) {
-                source.layers?[index].composition = source.layers?[index].composition?.replacingStrokes(old: oldSignatures,
+                let composition = source.layers?[index].composition
+                source.layers?[index].composition = composition?.replacingStrokes(old: oldSignatures,
                     new: keptSignatures, retainedIndices: keptIndices)
             }
             source.recognizedText = ""; destination.recognizedText = ""

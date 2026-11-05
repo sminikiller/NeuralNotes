@@ -139,8 +139,20 @@ public extension PageSnapshot {
         func owner(_ value: UUID?) -> UUID? { value.flatMap { map[$0] } }
         for i in texts.indices { texts[i].layerID = owner(texts[i].layerID) }
         for i in images.indices { images[i].layerID = owner(images[i].layerID) }
-        if var list = shapes { for i in list.indices { list[i].layerID = owner(list[i].layerID); list[i].audioAnchor?.layerID = owner(list[i].audioAnchor?.layerID) }; shapes = list }
-        if var list = connectors { for i in list.indices { list[i].layerID = owner(list[i].layerID); list[i].audioAnchor?.layerID = owner(list[i].audioAnchor?.layerID) }; connectors = list }
+        if var list = shapes {
+            for i in list.indices {
+                var item = list[i]; item.layerID = owner(item.layerID)
+                if var anchor = item.audioAnchor { anchor.layerID = owner(anchor.layerID); item.audioAnchor = anchor }
+                list[i] = item
+            }; shapes = list
+        }
+        if var list = connectors {
+            for i in list.indices {
+                var item = list[i]; item.layerID = owner(item.layerID)
+                if var anchor = item.audioAnchor { anchor.layerID = owner(anchor.layerID); item.audioAnchor = anchor }
+                list[i] = item
+            }; connectors = list
+        }
         if var list = tapes { for i in list.indices { list[i].layerID = owner(list[i].layerID) }; tapes = list }
         if var list = pdfMarkups { for i in list.indices { list[i].layerID = owner(list[i].layerID) }; pdfMarkups = list }
         for i in anchors.indices { anchors[i].layerID = owner(anchors[i].layerID) }
