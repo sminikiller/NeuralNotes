@@ -464,3 +464,12 @@ Incluse nella beta TestFlight **1.0.0 (165)**, firmata e caricata su Apple il 2 
 - **Strumenti non nei preferiti:** premi + nella toolbar. Tieni premuto un elemento o premi il suo pulsante opzioni; non serve aggiungerlo al Workspace.
 - **Righello e squadre:** trascina con un dito, ruota con due, pizzica per cambiare dimensione. Se scrivi col dito, usa due dita anche per lo spostamento. Parti con Pencil dal lato desiderato: l’aggancio rimane su quel lato fino al rilascio. Le squadre 45° e 30°/60° sono nell’elenco Guide da disegno.
 - **Evidenziatore:** Parole seleziona le parole come la Lente; Tratto libero segue la punta anche prima del rilascio. Colore e trasparenza sono uniformi nelle due modalità. Gli appunti e il testo del PDF rimangono leggibili.
+
+
+## Novità della beta 1.0.0 (179)
+
+La finestra di scrittura si apre da **Azioni (⋯) → Finestra di scrittura**. Il pannello inferiore ingrandisce l’area azzurra del foglio; scrivi lì e usa Nuova riga o Avanti per spostare il riquadro. Chiudi con × per recuperare lo spazio. Annulla e Ripristina rimangono quelli del quaderno.
+
+In **Workspace → Colori per materia** puoi creare, scegliere, rinominare e riordinare set di colori. I recenti/preferiti di penna ed evidenziatore restano distinti. Il testo supporta apice/pedice e incolla formattato; l’evidenziatore propone anche Rettangolo, modificabile con il lazo. In Indice puoi comprimere e spostare intere sezioni. La Calligrafica nativa compare soltanto da iPadOS 26.
+
+La beta è stata caricata su Apple il 5 novembre; la comparsa in TestFlight richiede l’elaborazione Apple. I livelli e la pulizia geometrica della grafia non sono inclusi in questa build.
