@@ -32,7 +32,7 @@ fi
 python3 - "$simulator_id" <<'PYBOOT'
 import subprocess, sys
 try:
-    subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=180)
+    subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=600)
 except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
     sys.exit(f"Simulator boot did not complete; tests were not started: {error}")
 print("SIMULATOR_BOOT_READY", flush=True)
