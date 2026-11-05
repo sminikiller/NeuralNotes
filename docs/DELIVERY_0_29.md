@@ -1,6 +1,6 @@
 # NeuralNotes 0.29 — testo e scrittura assistita
 
-Stato: implementazione candidata locale, non ancora compilata con SDK Apple e non pubblicata. La beta PDF 0.28.2 viene verificata e consegnata separatamente. Il precedente lavoro 0.28.1 rimane disponibile.
+Stato: candidata compilata con SDK Apple; il collaudo finale raggruppato è in corso, quindi non ancora consegnata. La beta PDF 0.28.2 è stata firmata e caricata come TestFlight 1.0.0 (177). Le correzioni 0.28.1 rimangono conservate.
 
 ## Contenuto della fase
 
@@ -17,7 +17,7 @@ Stato: implementazione candidata locale, non ancora compilata con SDK Apple e no
 
 ## Controlli da concludere prima della consegna
 
-Eseguire l’intera fase con SDK26.6: test Core geometria/compatibilità/riordino/palette/audio, test nativi RTF/PDF e annulla campo attivo, canvas figlio/annulla-nuovo tratto/marker/gomma/coordinata, pixel moltiplica e rendering replay. Eseguire le prove UI della finestra con tratto vero, annulla/ripristina e ripristino del layout, palette, mantenendo le regressioni PDF, riconoscimento e marcatura già verdi. Ispezionare gli screenshot, verificare lo ZIP esatto della CI, quindi usare la corsia TestFlight esistente. Nessun risultato SDK ancora dichiarato per 0.29.
+Eseguire l’intera fase con SDK26.6: test Core geometria/compatibilità/riordino/palette/audio, test nativi RTF/PDF e annulla campo attivo, canvas figlio/annulla-nuovo tratto/marker/gomma/coordinata, pixel moltiplica e rendering replay. Eseguire le prove UI della finestra con tratto vero, annulla/ripristina e ripristino del layout, palette, mantenendo le regressioni PDF, riconoscimento e marcatura già verdi. Ispezionare gli screenshot, verificare lo ZIP esatto della CI, quindi usare la corsia TestFlight esistente. I risultati SDK già conclusi e i controlli finali ancora aperti sono riportati sotto; nessun upload 0.29 è ancora dichiarato.
 
 Restano da misurare su iPad fisico pressione Apple Pencil, latenza e rotazione durante una scrittura reale. Non sono verificabili con il solo parser Windows.
 
@@ -33,3 +33,6 @@ Il filmato CI della finestra zoom mostra che gli swipe lunghi saltavano direttam
 L'audit ha anche corretto un caso dei margini della finestra zoom: dopo un viewport limitato dalla pagina, ridurre i margini ripristina la vera larghezza del pannello. Una provaCore controlla il roundtrip. La formula è locale alla finestra facoltativa e non cambia doppio tap o cachePDF. Un controllo statico intercetta dichiarazioni multiple incompatibili con Observable prima di iniziare AppleCI.
 
 [Verifica finale42001223527](https://github.com/sminikiller/NeuralNotes/actions/runs/42001223527), sorgentiab73e4f5bd9bb12f615cda1791ac373473c530c9: Core completo, nativi critici con tutte le nuove classi, i sette scenariUI ancora da concludere, Release e pacchettoPlaygroundsRelease con avvio. Riutilizza i quaranta scenariUI già conclusi, evitando di ripeterli per la sola formula dei margini o per il helper di scorrimento. In corso: non è dichiarato alcun nuovo PASS o upload0.29. La beta realmente caricata rimane1.0.0(177), PDF0.28.2.
+
+
+QA visiva del set colori: esaminata la PNG originale della prova UI già passata (725F9891-C92E-4856-A9EF-CA1E41E01A2C, run41992864208). Selezione Biologia, cinque colori, modifica/creazione e descrizione delle preferenze per strumento visibili; pannello entro lo schermo, navigatore pagine compatto e canvas integri. Non sostituisce la prova ancora aperta della finestra zoom.
