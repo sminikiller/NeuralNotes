@@ -54,7 +54,14 @@ public enum LayerStrokeTimeline {
                 var copy = anchor
                 if index > 0 { copy.id = UUID() }
                 copy.layerID = targetID == pageID ? nil : targetID
-                copy.strokeOccurrence = ordinal.map { $0 + offset }
+                let ownCount = counts[anchor.signature, default: 0]
+                let total = targetCounts[anchor.signature, default: 0] + sourceCounts[anchor.signature, default: 0]
+                if let ordinal, ordinal < ownCount { copy.strokeOccurrence = ordinal + offset }
+                else {
+                    // An orphan must not attach to a newly merged stroke with
+                    // the same native signature. Retain its time off the end.
+                    copy.strokeOccurrence = total + max(0, (ordinal ?? ownCount) - ownCount)
+                }
                 result.append(copy)
             }
         }

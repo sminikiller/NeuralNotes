@@ -40,4 +40,16 @@ final class LayerStrokeTimelineTests: XCTestCase {
         var snapshot = PageSnapshot(id: page), invalid = anchor; invalid.strokeOccurrence = -1; snapshot.anchors = [invalid]
         XCTAssertThrowsError(try PageValidation.validate(snapshot))
     }
+    func testOrphanAnchorCannotAttachItselfToANewlyMergedIdenticalSignature() {
+        let page = UUID(), source = UUID(), session = UUID()
+        let orphan = StrokeAnchor(signature: "s", audioSessionID: session, seconds: 10)
+        let merged = LayerStrokeTimeline.rebasingForMerge(anchors: [orphan], targetSignatures: [], sourceSignatures: ["s"], pageID: page, targetID: page, sourceID: source)
+        XCTAssertEqual(merged.first?.seconds, 10); XCTAssertEqual(merged.first?.strokeOccurrence, 1)
+        XCTAssertEqual(LayerStrokeTimeline.visible(signatures: ["s"], anchors: merged, pageID: page, layerID: nil, sessionID: session, seconds: 5), [0])
+        XCTAssertEqual(LayerStrokeTimeline.current(signatures: ["s"], anchors: merged, pageID: page, layerID: nil, sessionID: session, seconds: 10.5), [])
+        var invalidOrdinal = orphan; invalidOrdinal.strokeOccurrence = 1
+        let shifted = LayerStrokeTimeline.rebasingForMerge(anchors: [invalidOrdinal], targetSignatures: ["s"], sourceSignatures: ["s"], pageID: page, targetID: page, sourceID: source)
+        XCTAssertEqual(shifted.first?.strokeOccurrence, 2)
+    }
+
 }
