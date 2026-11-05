@@ -14,9 +14,18 @@ public struct LayerComposition: Codable, Equatable, Sendable {
                 strokes: [String]? = nil, objects: [UUID]? = nil, markups: [UUID]? = nil) {
         self.opacity = opacity; self.children = children; self.strokes = strokes; self.objects = objects; self.markups = markups
     }
-    public var strokeReferences: Set<String> { children.map { Set($0.flatMap { $0.strokeReferences }) } ?? Set(strokes ?? []) }
-    public var objectReferences: Set<UUID> { children.map { Set($0.flatMap { $0.objectReferences }) } ?? Set(objects ?? []) }
-    public var markupReferences: Set<UUID> { children.map { Set($0.flatMap { $0.markupReferences }) } ?? Set(markups ?? []) }
+    public var strokeReferences: Set<String> {
+        guard let children else { return Set(strokes ?? []) }
+        var result = Set<String>(); for child in children { result.formUnion(child.strokeReferences) }; return result
+    }
+    public var objectReferences: Set<UUID> {
+        guard let children else { return Set(objects ?? []) }
+        var result = Set<UUID>(); for child in children { result.formUnion(child.objectReferences) }; return result
+    }
+    public var markupReferences: Set<UUID> {
+        guard let children else { return Set(markups ?? []) }
+        var result = Set<UUID>(); for child in children { result.formUnion(child.markupReferences) }; return result
+    }
 
     public func validate(ownedObjects: Set<UUID>, ownedMarkups: Set<UUID>) throws {
         var nodes = 0, inkCount = 0, ink = Set<String>(), ids = Set<UUID>(), marks = Set<UUID>()

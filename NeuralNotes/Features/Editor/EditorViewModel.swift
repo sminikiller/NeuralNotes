@@ -300,7 +300,7 @@ final class EditorViewModel {
             canvas.drawingGestureRecognizer.isEnabled = false
             canvas.panGestureRecognizer.isEnabled = false; canvas.pinchGestureRecognizer?.isEnabled = false
         }
-        if !canEditActiveLayer { canvas.drawingGestureRecognizer.isEnabled = false }
+        if !canEditActiveLayer || inkReplayActive { canvas.drawingGestureRecognizer.isEnabled = false }
         zoomWritingController?.configureTool()
         refreshDrawingGuides()
     }

@@ -30,8 +30,8 @@ enum LayerAudioHit {
                 let key = keys[index]
                 let matches = page.anchors.filter { ($0.layerID ?? page.id) == layer.id && $0.signature == key.signature }
                 guard let anchor = matches.first(where: { $0.strokeOccurrence == key.occurrence }) ?? matches.first(where: { $0.strokeOccurrence == nil }) else { continue }
-                let distance = distance(point, to: stroke)
-                if distance <= tolerance, nearest == nil || distance < nearest!.1 { nearest = (anchor, distance) }
+                let separation = distance(point, to: stroke)
+                if separation <= tolerance, nearest == nil || separation < nearest!.1 { nearest = (anchor, separation) }
             }
         }
         return nearest?.0
