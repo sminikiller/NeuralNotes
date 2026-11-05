@@ -71,7 +71,9 @@ final class LayerSceneView: UIView {
     @discardableResult
     func prepareForInput(_ host: CanvasHost) async -> Bool {
         update(host)
-        await fallbackTask?.value; await detailTask?.value
+        // The complete fallback is the input barrier. Detail is deliberately
+        // independent and can be cancelled as soon as the user starts writing.
+        await fallbackTask?.value
         return isReady
     }
     func showRecognitionBaseline(_ drawing: PKDrawing?) {

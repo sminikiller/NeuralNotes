@@ -5,6 +5,25 @@ import PencilKit
 @testable import NeuralNotes
 
 final class LayerBlendCompositorTests: XCTestCase {
+    @MainActor func testPDFCoefficientGlyphOutlinesMatchTheFinalTextLayoutWithoutEmittingExtraText() throws {
+        let value = NSAttributedString(string: "Layer text", attributes: [.font: UIFont.systemFont(ofSize: 24), .foregroundColor: UIColor.black])
+        let box = CGRect(x: 5, y: 20, width: 110, height: 75)
+        let normal = image(background: .white) { context in
+            LayerPDFText.layout(true) { LayerPDFText.draw(value, in: box, context: context) }
+        }
+        let outlines = image(background: .white) { context in
+            LayerPDFText.layout(true) { LayerPDFText.outlines(true) { LayerPDFText.draw(value, in: box, context: context) } }
+        }
+        var total = 0, samples = 0, inkNormal = 0, inkOutlines = 0
+        for y in stride(from: 20, to: 90, by: 2) { for x in stride(from: 5, to: 115, by: 2) {
+            let a = try pixel(normal, at: CGPoint(x: x, y: y)), b = try pixel(outlines, at: CGPoint(x: x, y: y))
+            for channel in 0..<3 { total += abs(Int(a[channel]) - Int(b[channel])); samples += 1 }
+            if a[0] < 128 { inkNormal += 1 }; if b[0] < 128 { inkOutlines += 1 }
+        } }
+        XCTAssertGreaterThan(inkNormal, 50); XCTAssertGreaterThan(inkOutlines, 50)
+        XCTAssertLessThanOrEqual(Double(total) / Double(samples), 3)
+        XCTAssertLessThanOrEqual(abs(inkNormal - inkOutlines), max(3, inkNormal / 10))
+    }
     private let bounds = CGRect(x: 0, y: 0, width: 120, height: 100)
     @MainActor private func image(background: UIColor, drawing: (CGContext) -> Void) -> UIImage {
         let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true; format.preferredRange = .standard

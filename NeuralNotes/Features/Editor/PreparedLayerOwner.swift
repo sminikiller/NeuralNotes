@@ -96,7 +96,7 @@ struct PreparedLayerOwner {
     }
     private func blend(_ opacity: Double, in context: CGContext, isolated: Bool, content: (CGContext) -> Void) {
         if isolated { LayerBlendCompositor.drawIsolatedGroup(opacity: opacity, in: context, content: content) }
-        else { LayerBlendCompositor.drawGroup(opacity: opacity, bounds: bounds, in: context, content: content) }
+        else { LayerBlendCompositor.drawGroup(opacity: opacity, bounds: bounds, in: context, uniqueText: vector, content: content) }
     }
     private func draw(_ leaf: Leaf, in context: CGContext, marker: CGPath? = nil, color: UIColor? = nil) {
         PageRenderer.drawLayerContent(leaf.group, page: page, package: package, in: context,

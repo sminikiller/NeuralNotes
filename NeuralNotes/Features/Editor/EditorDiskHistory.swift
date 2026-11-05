@@ -60,6 +60,7 @@ extension EditorViewModel {
                     }
                 }
             }
+            await prepareLayerPresentation()
         } catch { self.error = "Modifica salvata. Riapri il quaderno per aggiornare la visualizzazione: \(error.localizedDescription)" }
         scheduleMaintenance()
     }

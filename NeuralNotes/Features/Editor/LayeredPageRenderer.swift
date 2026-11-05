@@ -43,7 +43,7 @@ enum LayeredPageRenderer {
                 withContext(context) {
                     let owner = PreparedLayerOwner(group: group, page: page, package: workspace.package, drawing: drawing,
                         bounds: bounds, scale: scale, vector: vector)
-                    LayerBlendCompositor.drawGroup(opacity: group.opacity, bounds: bounds, in: context) { owner.draw(in: $0) }
+                    LayerBlendCompositor.drawGroup(opacity: group.opacity, bounds: bounds, in: context, uniqueText: vector) { owner.draw(in: $0) }
                 }
             }
             await Task.yield()

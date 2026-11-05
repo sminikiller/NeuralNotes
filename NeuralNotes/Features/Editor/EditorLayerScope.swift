@@ -3,6 +3,13 @@ import NeuralNotesCore
 
 @MainActor
 extension EditorViewModel {
+    func prepareLayerPresentation() async {
+        guard page?.layers != nil, let host = pagePresenter as? CanvasHost else { return }
+        host.synchronizePage()
+        if !(await host.layeredScene.prepareForInput(host)) {
+            error = error ?? "Modifica salvata. Riapri il quaderno per preparare la visualizzazione dei livelli."
+        }
+    }
     func scopedSelectionIDs(in page: PageSnapshot, includingConnectors: Bool = true) -> Set<UUID> {
         let ids = includingConnectors ? page.includingInternalConnectors(selectedIDs) : selectedIDs
         guard page.layers != nil else { return ids }

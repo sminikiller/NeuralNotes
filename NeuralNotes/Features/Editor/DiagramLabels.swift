@@ -104,6 +104,6 @@ enum DiagramLabels {
         return .init(text: proxy, value: value, box: box, transform: .identity)
     }
     static func draw(_ layout: DiagramLabelLayout, context: CGContext) {
-        context.saveGState(); context.concatenate(layout.transform); layout.value.draw(in: layout.box); context.restoreGState()
+        context.saveGState(); context.concatenate(layout.transform); LayerPDFText.draw(layout.value, in: layout.box, context: context); context.restoreGState()
     }
 }

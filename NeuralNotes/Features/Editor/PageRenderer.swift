@@ -135,7 +135,7 @@ enum PageRenderer {
             } else {
                 context.setFillColor(UIColor(red: 1, green: 0.82, blue: 0.25, alpha: 1).cgColor)
                 context.fill(box)
-                ("Tocca per scoprire" as NSString).draw(in: box.insetBy(dx: 8, dy: 5), withAttributes: [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.darkGray])
+                LayerPDFText.draw(NSAttributedString(string: "Tocca per scoprire", attributes: [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.darkGray]), in: box.insetBy(dx: 8, dy: 5), context: context)
             }
             context.restoreGState()
         }
@@ -167,7 +167,7 @@ enum PageRenderer {
                 context.setFillColor(UIColor(red: color.red, green: color.green, blue: color.blue, alpha: 1).cgColor)
                 context.addPath(UIBezierPath(roundedRect: local.insetBy(dx: -8, dy: -8), cornerRadius: 6).cgPath); context.fillPath()
             }
-            if id != hidingTextID { value.draw(in: local) }
+            if id != hidingTextID { LayerPDFText.draw(value, in: local, context: context) }
             context.restoreGState()
         }
     }
@@ -185,7 +185,7 @@ enum PageRenderer {
         context.addPath(shape); context.strokePath()
         let glyph = NSAttributedString(string: "💡", attributes: [.font: UIFont.systemFont(ofSize: 14)])
         let size = glyph.size()
-        glyph.draw(at: CGPoint(x: box.midX - size.width / 2, y: box.midY - size.height / 2))
+        LayerPDFText.draw(glyph, in: CGRect(x: box.midX - size.width / 2, y: box.midY - size.height / 2, width: size.width, height: size.height), context: context)
         context.restoreGState()
     }
 }
