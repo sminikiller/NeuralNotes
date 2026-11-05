@@ -17,16 +17,28 @@ La cache precedente riutilizzava il documento PDF aperto, ma non i pixel già di
 - Anche la prima preparazione delle parole su un PDF scansionato usa i pixel preparati in background prima di avviare l'OCR. Cambio pagina, revisione e chiusura invalidano il risultato in ritardo.
 - L'esportazione mantiene il percorso originale vettoriale e il testo PDF selezionabile. Le nuove cache sono derivate e non modificano gli originali o i backup.
 
-## Verifica
+## Verifica conclusa
 
-Controlli locali: struttura del progetto, grammatica Swift, risorse, nove controlli di preflight e composizione dello ZIP. Questi controlli non compilano contro l'SDK Apple.
+Sorgenti dell'app: `780cc5902ea935a5e848d14ebb0962265caab99e`; i due successivi commit modificano solo la preparazione del simulatore. La [verifica Apple41502998310](https://github.com/sminikiller/NeuralNotes/actions/runs/41502998310) ha passato Core373XCTest+98SwiftTesting, tutti220 test nativi, Release e PlaygroundsRelease per dispositivo e simulatore con60 controlli di avvio. Include il backingstore PDF reale dipinto subito dopo il primo tratto, prima di qualsiasi layout, oltre alle quattro rotazioni con criteri originali di contrasto e geometria.
 
-Prove Apple aggiunte: PDF denso con cento frame e piccoli spostamenti a cache calda; budget ridotto senza ridisegni ciclici; cambio pagina e invalidazione con risultato tardivo; testo a zoom elevato nelle quattro rotazioni; venti nuove composizioni dell'evidenziatore senza decodifica PDF sincrona; diciotto pagine, file non valido e avviso memoria; importazione reale con penna, annulla/ripristina, nuova pagina e PDF esportato ancora selezionabile. Un test UI usa un PDF denso reale per zoom, scorrimento, evidenziazione, scrittura e annulla, controllando i pixel oltre ai comandi.
+Il solo test UI ha richiesto una ripresa. L'attesa di lancio del simulatore ha evidenziato una migrazione CoreLocation ancora in corso; il setup ora attende la fine del primo avvio prima di chiedere a XCTest di lanciare l'app. Non sono cambiati gesti, zoom, soglie pixel o asserzioni UI. La [ripresa41993405959](https://github.com/sminikiller/NeuralNotes/actions/runs/41993405959) ha completato il test reale di PDF denso: zoom, scorrimento, evidenziatore leggibile, annulla, penna e annulla della penna,97.168s,zero fallimenti.
 
-La prima verifica ha compilato Debug, Release e il pacchetto Playgrounds per dispositivo e simulatore, avviandolo per sessanta controlli; tutti i nove test UI pertinenti sono passati, incluso il PDF denso. Il nuovo test dei caratteri ruotati ha rilevato un ricampionamento aggiuntivo dei bordi: le immagini diagnostiche hanno confermato che la geometria e la quantità di inchiostro restano corrette, mentre il contrasto dei pixel interni si riduceva. Il controllo di contrasto originale è conservato; sono aggiunti anche i limiti geometrici a livello di pixel. Una prova ulteriore usa un PDF realmente composto da un'immagine e verifica il contenuto ricevuto dall'OCR senza decodifica PDF sul main actor.
+Sono state ispezionate entrambe le immagini CI, immediatamente dopo il primo tratto e a salvataggio concluso: i caratteri sono nitidi, il tratto nativo è visibile e le due immagini sono identiche. Il campo di1800 righe grigie è la fixture di stress intenzionale. La revisione precedente aveva rilevato un blur transitorio: togliendo il telo antiresidui al primo tratto, il dettaglio PDF nascosto non veniva riattivato fino al prossimo layout. Il dettaglio ora viene ripristinato nella stessa callback, conservando opacità e hit testing nativi.
 
-**Verifica SDK finale e nuova distribuzione: in attesa.** La latenza fisica della Pencil e la fluidità percepita sull'iPad non sono misurate dai controlli strutturali. Non presentare lo ZIP precedente come il pacchetto dell'ultimo sorgente o questa fase come già presente nella beta 165.
+ZIP compilato esatto: `.verification/NeuralNotes-iPad-0.28.2.zip`,325file,CRC e contenuti confrontati con il commit780. SHA256: `6822dd9c1fbbab24e216180e255bb2dd825c737c04c1a924b5016d3b3643b149`. Il pacchetto precedente196 è conservato separatamente. Prove: `phase0282-final-delivery-package-proof.json` e `phase0282-firststroke-visual-proof.json` nella cartella.verification.
 
-La verifica a0b6194 ha passato Core373+98, tutti gli altri219 test nativi (incluso OCR reale su scansione), i tre test UI e Release; Playgrounds Release dispositivo/simulatore e60 controlli di avvio sono passati. Il solo test delle quattro rotazioni ha trovato un eccesso di pixel molto scuri dello0,1–0,6% oltre il limite superiore, con geometria corretta. Il controllo originale resta invariato; il campionamento dei dettagli viene portato a bilineare. Nessuna modifica agli input o al doppio tap.
+## Distribuzione
 
-La verifica238 ha superato Core373+98,220Native (comprese le quattro rotazioni),PDFPerformanceUI eRelease. La revisione delle immagini ha però rilevato un caso transitorio ulteriore: al primo tratto il telo che nasconde i vecchi tile viene tolto prima che il dettaglio PDF nascosto sia riattivato. CanvasHost ora riattiva quel dettaglio nella stessa callback, conservando opacità e hit testing nativi; un’asserzione prima di qualsiasi layout/synchronizePage copre la regressione. Il test UI conserva sia la prima immagine dopo la scrittura sia quella a salvataggio concluso. La nuova verifica riguarda questo reale problema visivo, non ripete i controlli senza una modifica.
+La beta **1.0.0 (177)** è stata firmata e caricata su Apple il5novembre2026 alle08:46:58UTC con la [corsia TestFlight41996320635](https://github.com/sminikiller/NeuralNotes/actions/runs/41996320635), conclusa con successo. I log riportano `Upload succeeded` e `UPLOAD_COMMAND_SUCCEEDED`; `archive-proof.json` è stato generato prima dell'upload e riporta per questo uploaded=false. Versione, numero build, BundleID e firma sono stati confrontati col vero archivio. Elaborazione Apple e disponibilità nel gruppo TestFlight non ancora confermate. iCloud resta escluso dalla beta, come nelle precedenti.
+
+Prova del caricamento: `.verification/phase0282-testflight-status.json`.
+
+## Come provarla sull'iPad dopo la disponibilità in TestFlight
+
+1. Apri un quaderno con PDF importato, mantenendo i tuoi appunti esistenti.
+2. Ingrandisci, scorri la pagina e torna a pagina intera col doppio tap.
+3. Scrivi alcune parole e sottolinea una riga: lo sfondo viene riutilizzato mentre i nuovi tratti si aggiornano.
+4. Annulla e riscrivi, poi passa a una pagina vuota e torna al PDF.
+5. Esporta un PDF: il documento originale rimane vettoriale e il testo selezionabile.
+
+Non è misurata la latenza fisica della Pencil sull'iPad10. Nessun limite di un secondo promesso per ogni PDF. Le prove sintetiche e sul simulatore verificano cache, memoria, geometria, isolamento delle pagine, leggibilità, annulla e integrità dell'export; il confronto di fluidità percepita resta fisico. Formato dei quaderni, media originali e backup sono conservati.

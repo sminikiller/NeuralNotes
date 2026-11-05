@@ -4,6 +4,17 @@ Generata dal catalogo dei tutorial incluso nell’app. La guida interattiva è i
 
 Le istruzioni dei servizi remoti indicano i requisiti: non significano che il backend pubblico o iCloud firmato siano già attivi.
 
+## Collaudo dei PDF — beta 1.0.0 (177)
+
+Questa build è stata caricata su Apple il5novembre2026; attendi che compaia in TestFlight per aggiornare. L'elaborazione Apple non è ancora confermata. Il rendering dei PDF importati prepara i dettagli in background e li conserva in una cache limitata.
+
+1. Apri un quaderno con un PDF importato e ingrandisci una zona con testo.
+2. Scorri e torna a pagina intera con il doppio tap.
+3. Scrivi e sottolinea, quindi annulla e riscrivi.
+4. Cambia pagina, anche passando da un PDF a un foglio vuoto, e torna indietro.
+
+I controlli automatici e le immagini hanno verificato nitidezza, leggibilità, isolamento delle pagine, annulla e PDF esportato selezionabile. La fluidità percepita sull'iPad fisico rimane da confrontare. Dettagli e prove in [DELIVERY_0_28_2.md](DELIVERY_0_28_2.md).
+
 ## Libreria
 
 ### Crea e organizza i quaderni

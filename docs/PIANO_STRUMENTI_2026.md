@@ -597,7 +597,7 @@ Scrivimi alla fine di ogni fase, in italiano semplice:
 
 
 ---
-## Stato di esecuzione — aggiornamento 2 novembre 2026
+## Stato di esecuzione — aggiornamento 5 novembre 2026
 
 Il testo del piano sopra è conservato integralmente.
 
@@ -607,8 +607,9 @@ Il testo del piano sopra è conservato integralmente.
 - ✅ 0.27 — §5 diagrammi e connettori, più correzioni evidenziatore/riconoscimento: implementata e verificata. [41093624706](https://github.com/sminikiller/NeuralNotes/actions/runs/41093624706), sei job verdi, 507 test nativi (2 saltati, zero errori), 98 Swift Testing e tutti i 35 test UI superati. Beta **1.0.0 (142)** firmata e caricata con [41103296975](https://github.com/sminikiller/NeuralNotes/actions/runs/41103296975); elaborazione Apple non confermata. ZIP esatto e prove in docs/DELIVERY_0_27.md.
 - ✅ 0.28 — §6 selezioni, gomme e goniometro, più correzioni evidenziatore, gomma sugli oggetti e frecce rapide: implementata e verificata. [41248574248](https://github.com/sminikiller/NeuralNotes/actions/runs/41248574248), sei job verdi, 587 XCTest sul simulatore (2 saltati, zero errori), 98 SwiftTesting e43 UI superate. Beta **1.0.0 (159)** firmata e caricata il1 novembre2026 con [41264713554](https://github.com/sminikiller/NeuralNotes/actions/runs/41264713554); elaborazione Apple non confermata. ZIP esatto e prove in docs/DELIVERY_0_28.md. Compasso facoltativo escluso.
 - ✅ 0.28.1 — otto correzioni dell’editor: pagine senza residui, lazo misto, stile diretto, righello e squadre, riconoscimento e anteprima evidenziatore. Suite completa con 44 UI superate, controlli dell’ultimo fix e build Release conclusi; prove e limiti documentati in [DELIVERY_0_28_1.md](DELIVERY_0_28_1.md). Beta **1.0.0 (165)** firmata e caricata il 2 novembre 2026 con [41468355039](https://github.com/sminikiller/NeuralNotes/actions/runs/41468355039); elaborazione Apple non ancora confermata.
-- ❌ 0.29 — §7 testo e finestra di zoom: successiva.
-- ❌ 0.30 — §8 livelli: successiva.
+- ✅ 0.28.2 — ottimizzazione PDF importati: cache48MiB e rendering in background, dettaglio nitido anche al primo tratto. Core373+98,220Native,Release ePlaygroundsRelease+60avvii passati in [41502998310](https://github.com/sminikiller/NeuralNotes/actions/runs/41502998310); provaUI PDF reale eQA visiva conclusi in [41993405959](https://github.com/sminikiller/NeuralNotes/actions/runs/41993405959). Beta **1.0.0 (177)** firmata e caricata il5novembre2026 con [41996320635](https://github.com/sminikiller/NeuralNotes/actions/runs/41996320635), disponibilità Apple non ancora confermata. ZIP esatto e limiti in [DELIVERY_0_28_2.md](DELIVERY_0_28_2.md).
+- 🛠 0.29 — §7 testo e finestra di zoom: candidata completa su ramo separato; Release/Playgrounds/upgrade conservazione quaderni/Core passati, collaudo finale Native/UI in corso in [41992864208](https://github.com/sminikiller/NeuralNotes/actions/runs/41992864208). Non ancora distribuita.
+- 🛠 0.30 — §8 livelli: fondazione isolata in sviluppo, senza UI attiva e senza collaudo SDK. Non distribuita.
 - ❌ 0.31 — §9 trasformazioni della grafia: successiva.
 
 Nessuna modifica a identità, firma, segreti NN_* o corsia TestFlight. Nessuna attivazione iCloud. Ogni fase è verificata e consegnata separatamente. Tempi fisici di fluidità e falsi positivi su grafia reale rimangono distinti dalle prove sintetiche e sul simulatore.
