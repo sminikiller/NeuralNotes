@@ -46,9 +46,7 @@ import NeuralNotesCore
               let context = CGContext(consumer: consumer, mediaBox: &media, nil) else { throw CocoaError(.fileWriteUnknown) }
         context.beginPDFPage(nil)
         context.saveGState(); context.translateBy(x: 0, y: bounds.height); context.scaleBy(x: 1, y: -1)
-        UIGraphicsPushContext(context)
-        ElementRendering.preservingPDFImages(owned) { draw(context) }
-        UIGraphicsPopContext()
+        UIGraphicsPushContext(context); draw(context); UIGraphicsPopContext()
         context.restoreGState(); context.endPDFPage(); context.closePDF()
         guard let document = CGPDFDocument(temporary as CFURL), let page = document.page(at: 1) else { throw CocoaError(.fileWriteUnknown) }
         // Array/dictionary/stream references belong to their CGPDFDocument;
