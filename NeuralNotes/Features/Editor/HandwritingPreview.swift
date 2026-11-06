@@ -7,8 +7,8 @@ import NeuralNotesCore
 @MainActor final class HandwritingPreview: UIView {
     private weak var host: CanvasHost?
     private let composition = MarkerCompositionCache()
-    private let leftHandle = UIView()
-    private let rightHandle = UIView()
+    private let leftHandle = HandwritingWidthHandle()
+    private let rightHandle = HandwritingWidthHandle()
     private var dragLeft = false
     private var dragStart = CGPoint.zero
     private var dragWidth = 0.0
@@ -27,6 +27,8 @@ import NeuralNotesCore
             handle.layer.borderColor = UIColor.white.cgColor; handle.layer.borderWidth = 2
             handle.isAccessibilityElement = true; handle.accessibilityLabel = index == 0 ? "Larghezza grafia: bordo sinistro" : "Larghezza grafia: bordo destro"
             handle.accessibilityIdentifier = index == 0 ? "handwritingLeftHandle" : "handwritingRightHandle"
+            handle.accessibilityTraits = .adjustable
+            handle.adjust = { [weak self] delta in self?.adjustWidth(fromLeft: index == 0, delta: delta) }
             handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(nnHandwritingWidth(_:))))
             addSubview(handle)
         }
@@ -54,8 +56,19 @@ import NeuralNotesCore
         for (handle, x) in [(leftHandle, x0), (rightHandle, x1)] {
             handle.frame = CGRect(x: x - 10, y: y - 18, width: 20, height: 36)
             handle.isHidden = session.command != .reflow || x < 0 || x > bounds.width
+            let position = handle === leftHandle ? session.left : session.left + session.width
+            handle.accessibilityValue = "\(Int(position.rounded())) punti; larghezza \(Int(session.width.rounded())) punti"
         }
         setNeedsDisplay()
+    }
+    private func adjustWidth(fromLeft: Bool, delta: Double) {
+        guard let session = host?.model?.handwriting, session.command == .reflow else { return }
+        if fromLeft {
+            let end = session.left + session.width
+            session.left = max(0, min(end - session.minimumWidth, session.left + delta))
+            session.width = end - session.left
+        } else { session.width = max(session.minimumWidth, min(session.maximumWidth, session.width + delta)) }
+        session.recompute(); update()
     }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden else { return nil }
@@ -110,4 +123,11 @@ import NeuralNotesCore
             context.strokePath()
         }
     }
+}
+
+/// The same width controls work without a drag when VoiceOver is active.
+@MainActor private final class HandwritingWidthHandle: UIView {
+    var adjust: ((Double) -> Void)?
+    override func accessibilityIncrement() { adjust?(8) }
+    override func accessibilityDecrement() { adjust?(-8) }
 }

@@ -6,6 +6,26 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class HandwritingSessionTests: XCTestCase {
+    @MainActor func testBothWidthHandlesSupportVoiceOverAdjustmentWithoutEditingTheNativeDrawing() async throws {
+        try await fixture { model in
+            let host = CanvasHost(canvas: model.canvas); host.model = model; model.pagePresenter = host
+            host.surface.package = model.workspace.package; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 700, height: 900); host.setNeedsLayout(); host.layoutIfNeeded()
+            let original = model.canvas.drawing
+            model.beginHandwriting(.reflow); let session = try await self.ready(model)
+            let handles = host.handwritingPreview.subviews
+            let left = try XCTUnwrap(handles.first { $0.accessibilityIdentifier == "handwritingLeftHandle" })
+            let right = try XCTUnwrap(handles.first { $0.accessibilityIdentifier == "handwritingRightHandle" })
+            XCTAssertTrue(left.accessibilityTraits.contains(.adjustable)); XCTAssertTrue(right.accessibilityTraits.contains(.adjustable))
+            let origin = session.left, width = session.width
+            right.accessibilityIncrement(); _ = try await self.ready(model)
+            XCTAssertEqual(session.width, width + 8, accuracy: 0.01)
+            left.accessibilityIncrement(); _ = try await self.ready(model)
+            XCTAssertEqual(session.left, origin + 8, accuracy: 0.01); XCTAssertEqual(session.width, width, accuracy: 0.01)
+            XCTAssertTrue(NativeInkComparison.equal(model.canvas.drawing, original)); XCTAssertFalse(model.dirty)
+            model.cancelHandwriting()
+        }
+    }
     @MainActor func test030FixtureKeepsItsNativeHandwritingThroughRefinementReopenPDFAndBackupImport() async throws {
         try await fixture { model in
             let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
