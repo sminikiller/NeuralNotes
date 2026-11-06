@@ -87,10 +87,12 @@ if [ -d "$result_dir/NeuralNotes.xcresult" ]; then
   xcrun xcresulttool export attachments --path "$result_dir/NeuralNotes.xcresult" \
     --output-path "$result_dir/screenshots" || echo "Screenshot export unavailable; original xcresult retained."
 fi
-if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ]; then
+if [ "${NEURALNOTES_UI_ONLY:-0}" != 1 ] && [ "${NEURALNOTES_NATIVE_ONLY:-0}" != 1 ] && [ "$verification_status" -eq 0 ]; then
   xcodebuild build -project NeuralNotes.xcodeproj -scheme NeuralNotes \
     -configuration Release -destination 'generic/platform=iOS' \
     -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO || verification_status=1
+elif [ "$verification_status" -ne 0 ]; then
+  echo "Release compilation skipped because tests/build already failed; verification remains FAILED."
 fi
 if [ "$verification_status" -ne 0 ]; then
   echo "Apple verification failed; inspect the logs for each phase."
