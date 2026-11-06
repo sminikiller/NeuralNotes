@@ -621,4 +621,4 @@ La beta è stata caricata su Apple il 5 novembre; la comparsa in TestFlight rich
 3. Nel menu del livello puoi rinominare, duplicare, riordinare, svuotare, eliminare, unire al livello sotto e regolare l’opacità. Annulla ripristina la modifica.
 4. **Esporta solo questo livello** oppure scegli tutti, visibili o alcuni nell’export. Il formato nativo conserva anche contenuti nascosti e bloccati.
 
-La verifica automatica della fase è conclusa; la build TestFlight effettiva viene riportata nella consegna dopo il caricamento.
+Inclusi nella beta **1.0.0 (190)**, firmata e caricata su Apple il6novembre2026. Attendi l’elaborazione Apple per aggiornare in TestFlight.
