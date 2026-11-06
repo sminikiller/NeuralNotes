@@ -16,9 +16,9 @@ final class LayerExportRenderingTests: XCTestCase {
                 context.setFillColor(UIColor.red.cgColor); context.fill(CGRect(x: 0, y: 0, width: 120, height: 40))
                 context.endTransparencyLayer()
             }
-            let file = try await workspace.url("pdfs/source.pdf"); try source.write(to: file)
+            let file = try await workspace.url("attachments/source.pdf"); try source.write(to: file)
             var page = try PageLayerEditing.opacity(layer, value: 0.5, in: original)
-            page.pdfFile = "pdfs/source.pdf"; page.pdfIndex = 0
+            page.pdfFile = "attachments/source.pdf"; page.pdfIndex = 0
             page = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
             let image = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 120)
             let output = try await DocumentServices.exportPDF(workspace: workspace)
@@ -27,7 +27,7 @@ final class LayerExportRenderingTests: XCTestCase {
             let rendered = pdf.thumbnail(of: bounds.size, for: .mediaBox)
             for y: CGFloat in [20, 70] {
                 let expected = try self.pixel(image, y: y), actual = try self.pixel(rendered, y: y)
-                for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(expected[channel]) - Int(actual[channel])), 4) }
+                for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(expected[channel]) - Int(actual[channel])), 4, "Source y=\(y), bitmap \(expected), PDF \(actual)") }
             }
             XCTAssertEqual(try Data(contentsOf: file), source, "Color normalization must never rewrite the imported PDF")
             let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
@@ -51,9 +51,16 @@ final class LayerExportRenderingTests: XCTestCase {
             defer { try? FileManager.default.removeItem(at: output) }
             let pdf = try XCTUnwrap(PDFDocument(url: output)?.page(at: 0))
             let rendered = pdf.thumbnail(of: CGSize(width: 120, height: 100), for: .mediaBox)
+            for (name, value) in [("layer-photo-native-bitmap", bitmap), ("layer-photo-exported-pdf", rendered), ("layer-photo-original", photo)] {
+                let attachment = XCTAttachment(image: value); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+            }
+            let source = XCTAttachment(data: try Data(contentsOf: output), uniformTypeIdentifier: "com.adobe.pdf")
+            source.name = "layer-photo-source-pdf"; source.lifetime = .keepAlways; add(source)
+            let info = XCTAttachment(string: "original=\(String(describing: photo.cgImage?.colorSpace?.name)), bitmap=\(String(describing: bitmap.cgImage?.colorSpace?.name)), PDF=\(String(describing: rendered.cgImage?.colorSpace?.name))")
+            info.name = "layer-photo-color-spaces"; info.lifetime = .keepAlways; add(info)
             for y: CGFloat in [15, 35, 70] {
                 let a = try self.pixel(bitmap, y: y), b = try self.pixel(rendered, y: y)
-                for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(a[channel]) - Int(b[channel])), 4) }
+                for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(a[channel]) - Int(b[channel])), 4, "Photo y=\(y), bitmap \(a), PDF \(b)") }
             }
             let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
             XCTAssertTrue(PDFResourceProbe.hasImages(dictionary), "Keep the actual photo, not a flattened page substitute")
