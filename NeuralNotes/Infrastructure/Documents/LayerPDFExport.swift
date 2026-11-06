@@ -15,8 +15,10 @@ import NeuralNotesCore
             var forms: [Int] = []
             // Imported content is copied in a separate, unmodified scope. Never
             // relabel a source PDF's own transparency or embedded ICC profile.
-            forms.append(try form(archive: archive, bounds: bounds, owned: false) { context in
-                PageRenderer.drawPaper(page, package: workspace.package, in: context)
+            forms.append(try autoreleasepool {
+                try form(archive: archive, bounds: bounds, owned: false) { context in
+                    PageRenderer.drawPaper(page, package: workspace.package, in: context)
+                }
             })
             for group in try LayerRenderPlan.make(page: page, selection: selection) where group.opacity > 0 {
                 let drawing = try await LayerDrawingReader.read(page: page, layerID: group.layer.id, workspace: workspace).drawing

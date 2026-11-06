@@ -7,7 +7,9 @@ final class PDFVectorCloner {
     private final class Entries { var values: [(Data, CGPDFObjectRef)] = [] }
     private let archive: PDFVectorArchive
     private let normalizeOwnedGroups: Bool
-    private var references: [OpaquePointer: Int] = [:]
+    private var arrays: [CGPDFArrayRef: Int] = [:]
+    private var dictionaries: [CGPDFDictionaryRef: Int] = [:]
+    private var streams: [CGPDFStreamRef: Int] = [:]
     private var depth = 0
     init(archive: PDFVectorArchive, normalizeOwnedGroups: Bool) {
         self.archive = archive; self.normalizeOwnedGroups = normalizeOwnedGroups
@@ -33,15 +35,16 @@ final class PDFVectorCloner {
             return Self.name(Self.bytes(name))
         case .string:
             var string: CGPDFStringRef?
-            guard CGPDFObjectGetValue(object, .string, &string), let string,
-                  let bytes = CGPDFStringGetBytePtr(string) else { throw invalid }
+            guard CGPDFObjectGetValue(object, .string, &string), let string else { throw invalid }
+            if CGPDFStringGetLength(string) == 0 { return "<>" }
+            guard let bytes = CGPDFStringGetBytePtr(string) else { throw invalid }
             let data = Data(bytes: bytes, count: CGPDFStringGetLength(string))
             return "<" + data.map { String(format: "%02x", $0) }.joined() + ">"
         case .array:
             var array: CGPDFArrayRef?
             guard CGPDFObjectGetValue(object, .array, &array), let array else { throw invalid }
-            if let known = references[array] { return "\(known) 0 R" }
-            let id = try archive.reserve(); references[array] = id
+            if let known = arrays[array] { return "\(known) 0 R" }
+            let id = try archive.reserve(); arrays[array] = id
             var entries: [String] = []
             for index in 0..<CGPDFArrayGetCount(array) {
                 var item: CGPDFObjectRef?
@@ -53,19 +56,26 @@ final class PDFVectorCloner {
         case .dictionary:
             var dictionary: CGPDFDictionaryRef?
             guard CGPDFObjectGetValue(object, .dictionary, &dictionary), let dictionary else { throw invalid }
-            if let known = references[dictionary] { return "\(known) 0 R" }
-            let id = try archive.reserve(); references[dictionary] = id
+            if let known = dictionaries[dictionary] { return "\(known) 0 R" }
+            let id = try archive.reserve(); dictionaries[dictionary] = id
             try archive.writeObject(id, body: "<< " + entries(dictionary) + " >>")
             return "\(id) 0 R"
         case .stream:
             var stream: CGPDFStreamRef?
             guard CGPDFObjectGetValue(object, .stream, &stream), let stream else { throw invalid }
-            if let known = references[stream] { return "\(known) 0 R" }
+            if let known = streams[stream] { return "\(known) 0 R" }
+            guard let dictionary = CGPDFStreamGetDictionary(stream) else { throw invalid }
+            var subtype: UnsafePointer<CChar>?
+            if CGPDFDictionaryGetName(dictionary, "Subtype", &subtype), subtype.map({ String(cString: $0) == "Image" }) == true {
+                var width: CGPDFInteger = 0, height: CGPDFInteger = 0
+                guard CGPDFDictionaryGetInteger(dictionary, "Width", &width), CGPDFDictionaryGetInteger(dictionary, "Height", &height),
+                      width > 0, height > 0, Double(width) * Double(height) <= 40_000_000 else { throw invalid }
+            }
             var format = CGPDFDataFormat.raw
             guard let copied = CGPDFStreamCopyData(stream, &format), CFDataGetLength(copied) <= 128 * 1024 * 1024 else { throw invalid }
             let skipped: Set<String> = format == .raw ? ["Length", "Filter", "DecodeParms", "F", "FFilter", "FDecodeParms"] : ["Length"]
-            let body = try entries(CGPDFStreamGetDictionary(stream), skipping: skipped)
-            let id = try archive.stream(entries: body, data: copied as Data); references[stream] = id
+            let body = try entries(dictionary, skipping: skipped)
+            let id = try archive.stream(entries: body, data: copied as Data); streams[stream] = id
             return "\(id) 0 R"
         @unknown default: throw invalid
         }
@@ -76,8 +86,7 @@ final class PDFVectorCloner {
             guard let info else { return }
             Unmanaged<Entries>.fromOpaque(info).takeUnretainedValue().values.append((PDFVectorCloner.bytes(key), object))
         }, Unmanaged.passUnretained(entries).toOpaque())
-        var kind: UnsafePointer<CChar>?
-        let group = normalizeOwnedGroups && CGPDFDictionaryGetName(dictionary, "S", &kind) && kind.map { String(cString: $0) == "Transparency" } == true
+        let group = normalizeOwnedGroups && Self.isRGBTransparency(dictionary)
         var result: [String] = []
         for (key, object) in entries.values.sorted(by: { $0.0.lexicographicallyPrecedes($1.0) }) {
             let label = String(decoding: key, as: UTF8.self)
@@ -87,6 +96,21 @@ final class PDFVectorCloner {
         }
         if group && !entries.values.contains(where: { $0.0 == Data("CS".utf8) }) { result.append("/CS \(archive.colorSpaceID) 0 R") }
         return result.joined(separator: " ")
+    }
+    private static func isRGBTransparency(_ dictionary: CGPDFDictionaryRef) -> Bool {
+        var kind: UnsafePointer<CChar>?
+        guard CGPDFDictionaryGetName(dictionary, "S", &kind), kind.map({ String(cString: $0) == "Transparency" }) == true else { return false }
+        var name: UnsafePointer<CChar>?
+        if CGPDFDictionaryGetName(dictionary, "CS", &name) { return name.map { String(cString: $0) == "DeviceRGB" } == true }
+        var array: CGPDFArrayRef?
+        guard CGPDFDictionaryGetArray(dictionary, "CS", &array), let array, CGPDFArrayGetCount(array) >= 2,
+              CGPDFArrayGetName(array, 0, &name), let name else { return false }
+        if String(cString: name) == "CalRGB" { return true }
+        var profile: CGPDFStreamRef?, components: CGPDFInteger = 0
+        guard String(cString: name) == "ICCBased", CGPDFArrayGetStream(array, 1, &profile), let profile,
+              let values = CGPDFStreamGetDictionary(profile), CGPDFDictionaryGetInteger(values, "N", &components) else { return false }
+        // Grayscale/luminosity mask groups must retain their own spaces.
+        return components == 3
     }
     static func pageContent(_ dictionary: CGPDFDictionaryRef) throws -> Data {
         var object: CGPDFObjectRef?
