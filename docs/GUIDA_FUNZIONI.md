@@ -613,3 +613,12 @@ La finestra di scrittura si apre da **Azioni (⋯) → Finestra di scrittura**. 
 In **Workspace → Colori per materia** puoi creare, scegliere, rinominare e riordinare set di colori. I recenti/preferiti di penna ed evidenziatore restano distinti. Il testo supporta apice/pedice e incolla formattato; l’evidenziatore propone anche Rettangolo, modificabile con il lazo. In Indice puoi comprimere e spostare intere sezioni. La Calligrafica nativa compare soltanto da iPadOS 26.
 
 La beta è stata caricata su Apple il 5 novembre; la comparsa in TestFlight richiede l’elaborazione Apple. I livelli e la pulizia geometrica della grafia non sono inclusi in questa build.
+
+## Livelli per pagina — 0.30
+
+1. Premi **Livelli** nella barra superiore. **Nuovo livello** separa i prossimi appunti dalla Base; tocca un nome per scegliere dove lavorare.
+2. Penna, gomma, lazo, forme e testo agiscono sul livello attivo. L’occhio nasconde; il lucchetto protegge. Il PDF di sfondo rimane intatto.
+3. Nel menu del livello puoi rinominare, duplicare, riordinare, svuotare, eliminare, unire al livello sotto e regolare l’opacità. Annulla ripristina la modifica.
+4. **Esporta solo questo livello** oppure scegli tutti, visibili o alcuni nell’export. Il formato nativo conserva anche contenuti nascosti e bloccati.
+
+La verifica automatica della fase è conclusa; la build TestFlight effettiva viene riportata nella consegna dopo il caricamento.
