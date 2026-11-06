@@ -6,6 +6,59 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class LayerExportRenderingTests: XCTestCase {
+    @MainActor func testLayerPDFKeepsTheImportedPDFBlendSpaceAndOriginalFileWhileItsOwnOpacityMatchesTheImage() async throws {
+        try await fixture { workspace, original, layer in
+            let bounds = CGRect(x: 0, y: 0, width: 120, height: 100)
+            let source = UIGraphicsPDFRenderer(bounds: bounds).pdfData { renderer in
+                renderer.beginPage(); let context = renderer.cgContext
+                context.setFillColor(UIColor.blue.cgColor); context.fill(CGRect(x: 0, y: 0, width: 120, height: 40))
+                context.setAlpha(0.5); context.beginTransparencyLayer(auxiliaryInfo: nil)
+                context.setFillColor(UIColor.red.cgColor); context.fill(CGRect(x: 0, y: 0, width: 120, height: 40))
+                context.endTransparencyLayer()
+            }
+            let file = try await workspace.url("pdfs/source.pdf"); try source.write(to: file)
+            var page = try PageLayerEditing.opacity(layer, value: 0.5, in: original)
+            page.pdfFile = "pdfs/source.pdf"; page.pdfIndex = 0
+            page = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
+            let image = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 120)
+            let output = try await DocumentServices.exportPDF(workspace: workspace)
+            defer { try? FileManager.default.removeItem(at: output) }
+            let pdf = try XCTUnwrap(PDFDocument(url: output)?.page(at: 0))
+            let rendered = pdf.thumbnail(of: bounds.size, for: .mediaBox)
+            for y: CGFloat in [20, 70] {
+                let expected = try self.pixel(image, y: y), actual = try self.pixel(rendered, y: y)
+                for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(expected[channel]) - Int(actual[channel])), 4) }
+            }
+            XCTAssertEqual(try Data(contentsOf: file), source, "Color normalization must never rewrite the imported PDF")
+            let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
+            XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
+        }
+    }
+    @MainActor func testLayerPDFRetainsPhotoImageResourcesAndTheirPixelsUnderWholeOwnerOpacity() async throws {
+        try await fixture { workspace, original, layer in
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true
+            let photo = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24), format: format).image { renderer in
+                UIColor.green.setFill(); renderer.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
+                UIColor.blue.setFill(); renderer.fill(CGRect(x: 0, y: 12, width: 24, height: 12))
+            }
+            let file = try await workspace.url("images/photo.png"); try XCTUnwrap(photo.pngData()).write(to: file)
+            var page = try PageLayerEditing.opacity(layer, value: 0.5, in: original)
+            var image = ImageElement(file: "images/photo.png", width: 40, height: 40)
+            image.x = 40; image.y = 5; image.layerID = layer; page.images = [image]
+            page = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
+            let bitmap = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 120)
+            let output = try await DocumentServices.exportPDF(workspace: workspace)
+            defer { try? FileManager.default.removeItem(at: output) }
+            let pdf = try XCTUnwrap(PDFDocument(url: output)?.page(at: 0))
+            let rendered = pdf.thumbnail(of: CGSize(width: 120, height: 100), for: .mediaBox)
+            for y: CGFloat in [15, 35, 70] {
+                let a = try self.pixel(bitmap, y: y), b = try self.pixel(rendered, y: y)
+                for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(a[channel]) - Int(b[channel])), 4) }
+            }
+            let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
+            XCTAssertTrue(PDFResourceProbe.hasImages(dictionary), "Keep the actual photo, not a flattened page substitute")
+        }
+    }
     @MainActor private func fixture(_ body: (DocumentWorkspace, PageSnapshot, UUID) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -45,10 +45,13 @@ import CoreText
                 // Both coefficient and final passes paint identical contours;
                 // font raster hinting must not change their blend equations.
                 context.saveGState()
-                context.setFont(CTFontCopyGraphicsFont(native, nil)); context.setFontSize(font.pointSize)
-                context.textMatrix = textMatrix; context.setTextDrawingMode(.invisible)
-                context.showGlyphs(Array(UnsafeBufferPointer(start: glyphs, count: glyphCount)),
-                    at: Array(UnsafeBufferPointer(start: positions, count: glyphCount)))
+                // Let TextKit retain its Unicode/font mapping and placement;
+                // bare CGFont glyph emission loses that layout information.
+                // The tiny alpha also protects against a text renderer which
+                // selects its own drawing mode; it cannot affect 8-bit pixels.
+                context.setAlpha(0.000001); context.setTextDrawingMode(.invisible)
+                super.showCGGlyphs(glyphs, positions: positions, count: glyphCount, font: font,
+                    textMatrix: textMatrix, attributes: attributes, in: context)
                 context.restoreGState()
             }
             if let color = attributes[.foregroundColor] as? UIColor { context.setFillColor(color.cgColor) }
