@@ -237,6 +237,9 @@ enum DocumentServices {
                           pageIDs: Set<UUID>? = nil) async throws -> URL {
         let pages = try await workspace.pages().filter { pageIDs?.contains($0.id) ?? true }
         guard !pages.isEmpty else { throw WorkspaceFailure.emptyDocument }
+        if pages.contains(where: { $0.layers != nil }) || (layers != .visible && layers != .all) {
+            return try await LayerPDFExport.write(pages: pages, workspace: workspace, selection: layers, vectorInk: vectorInk)
+        }
         // Load each drawing only as its page is emitted; never rasterize an entire notebook.
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("NeuralNotes-\(UUID()).pdf")
         var bounds = CGRect(x: 0, y: 0, width: pages[0].width, height: pages[0].height)
