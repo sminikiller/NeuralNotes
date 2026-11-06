@@ -1,6 +1,6 @@
 # NeuralNotes 0.30 — livelli per pagina
 
-La fase è implementata e verificata sul commit **da31bc198ae6f29d86383d4855cf171dd2cffdaa**. Il caricamento TestFlight deve ancora concludersi; fino alla prova di upload la beta effettiva resta **1.0.0 (179)**.
+La fase è implementata e verificata sul commit **da31bc198ae6f29d86383d4855cf171dd2cffdaa**. La beta **1.0.0 (190)** è stata firmata e caricata su Apple il6novembre2026 alle13:38UTC con [42226140084](https://github.com/sminikiller/NeuralNotes/actions/runs/42226140084). Log Upload succeeded e UPLOAD_COMMAND_SUCCEEDED presenti. Elaborazione e disponibilità in TestFlight non ancora confermate.
 
 ## Cosa cambia
 
