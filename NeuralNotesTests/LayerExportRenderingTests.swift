@@ -58,7 +58,11 @@ final class LayerExportRenderingTests: XCTestCase {
             source.name = "layer-photo-source-pdf"; source.lifetime = .keepAlways; add(source)
             let info = XCTAttachment(string: "original=\(String(describing: photo.cgImage?.colorSpace?.name)), bitmap=\(String(describing: bitmap.cgImage?.colorSpace?.name)), PDF=\(String(describing: rendered.cgImage?.colorSpace?.name))")
             info.name = "layer-photo-color-spaces"; info.lifetime = .keepAlways; add(info)
-            for y: CGFloat in [15, 35, 70] {
+            // Sample solid photo interiors and the center of the ink overlap.
+            // At y35 the lower textured native pen still has a soft fringe,
+            // whereas its public vector reconstruction ends at y33.5. That
+            // fringe cannot be used as an oracle for the photograph's color.
+            for y: CGFloat in [15, 30, 40, 70] {
                 let a = try self.pixel(bitmap, y: y), b = try self.pixel(rendered, y: y)
                 for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(a[channel]) - Int(b[channel])), 4, "Photo y=\(y), bitmap \(a), PDF \(b)") }
             }
