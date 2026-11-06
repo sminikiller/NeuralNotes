@@ -4,16 +4,130 @@ Generata dal catalogo dei tutorial incluso nell’app. La guida interattiva è i
 
 Le istruzioni dei servizi remoti indicano i requisiti: non significano che il backend pubblico o iCloud firmato siano già attivi.
 
-## Collaudo dei PDF — beta 1.0.0 (177)
+## Pagine e PDF
 
-Questa build è stata caricata su Apple il5novembre2026; attendi che compaia in TestFlight per aggiornare. L'elaborazione Apple non è ancora confermata. Il rendering dei PDF importati prepara i dettagli in background e li conserva in una cache limitata.
+### Lavora su livelli separati
 
-1. Apri un quaderno con un PDF importato e ingrandisci una zona con testo.
-2. Scorri e torna a pagina intera con il doppio tap.
-3. Scrivi e sottolinea, quindi annulla e riscrivi.
-4. Cambia pagina, anche passando da un PDF a un foglio vuoto, e torna indietro.
+Mostra, proteggi e riordina gli appunti senza modificare il PDF.
 
-I controlli automatici e le immagini hanno verificato nitidezza, leggibilità, isolamento delle pagine, annulla e PDF esportato selezionabile. La fluidità percepita sull'iPad fisico rimane da confrontare. Dettagli e prove in [DELIVERY_0_28_2.md](DELIVERY_0_28_2.md).
+1. Apri Livelli nella barra superiore del quaderno. Nuovo livello separa i prossimi appunti da quelli della Base; il nome del livello attivo compare sotto la toolbar.
+2. Tocca il nome per scegliere dove lavorare. Penna, gomma, lazo, testo e forme modificano soltanto il livello attivo. L’occhio nasconde; il lucchetto protegge il contenuto.
+3. Nel menu del livello puoi rinominare, duplicare, svuotare, eliminare o unire al livello sotto. Regola l’opacità e riordina l’elenco; Annulla ripristina l’operazione.
+4. Esporta livelli permette di scegliere tutti, visibili o alcuni livelli; Esporta solo questo livello prepara una sola selezione. Il backup nativo conserva anche i livelli nascosti e bloccati. Il PDF di sfondo resta intatto.
+
+## Scrittura
+
+### Raddrizza e ripulisci la grafia
+
+Un’anteprima geometrica, senza cambiare le parole.
+
+1. Con il lazo seleziona la grafia. Nella barra delle azioni apri Grafia: scegli Raddrizza, Uniforma dimensione o Ripulisci tratto. Gli oggetti e l’evidenziatore restano intatti.
+2. Con Raddrizza puoi allineare a sinistra e appoggiare le basi sulla carta a righe. Ripulisci offre intensità Leggera, Media e Forte. Controlla sempre l’anteprima prima di applicare.
+3. Riadatta alla larghezza mostra due maniglie laterali: trascinale per ridistribuire parole intere, oppure regolale con VoiceOver. Spazio tra le righe uniforma l’interlinea della sola selezione.
+4. Applica crea un solo passo di annulla. Annulla nell’anteprima non modifica né salva gli appunti. Se il risultato supera il foglio, aumenta la larghezza o riduci l’interlinea.
+
+### Pedice, apice e incolla
+
+Formule e testo formattato, con annulla.
+
+1. Scegli Testo, tocca il foglio e seleziona i caratteri. Nella barra usa Apice o Pedice; premi lo stesso comando per tornare alla riga normale.
+2. Da tastiera usa ⌘= per il pedice e ⇧⌘= per l’apice. ⌘B, ⌘I e ⌘U applicano grassetto, corsivo e sottolineato.
+3. Incolla mantiene la formattazione RTF; ⇧⌘V usa lo stile della destinazione. Ogni formattazione si annulla separatamente. Nelle opzioni Testo scegli Resta attivo per creare più caselle.
+
+### Colori per materia
+
+Set nominati senza cambiare i recenti personali.
+
+1. Apri Workspace → Colori per materia → Nuovo set. Assegna un nome, scegli fino a dodici colori distinti e salva.
+2. Tocca il set per usarlo nell’attività attuale. La tavolozza mostra quel set insieme a preferiti e recenti, separati per strumento.
+3. Usa Modifica per riordinare o eliminare set e colori. Cambiare materia non cancella i colori personali.
+
+### Evidenziatore rettangolare
+
+Aree trasparenti modificabili e testo leggibile.
+
+1. Tieni premuto Evidenziatore e scegli Rettangolo. Trascina tra due angoli: l’area usa lo stesso colore trasparente degli altri evidenziatori.
+2. Su un PDF attiva Aggancia alle righe del PDF se vuoi aree distinte attorno alle righe selezionate.
+3. Con il lazo seleziona il rettangolo per spostarlo o ridimensionarlo. Stile cambia colore e opacità. Gomma Solo evidenziatore o Elimina per tipo lo trattano come evidenziatore, senza contarlo due volte.
+
+### Finestra di scrittura ingrandita
+
+Scrivi in una zona 2–4× mantenendo la panoramica.
+
+1. Da Azioni apri Finestra di scrittura. Il pannello inferiore mostra la zona delimitata dal riquadro turchese sulla pagina.
+2. Trascina quel riquadro con un dito per spostarti. Nel pannello scrivi con penna o evidenziatore oppure cancella con la gomma; i tratti rimangono nelle coordinate originali del foglio.
+3. Regola zoom e margini nelle opzioni. Usa le frecce o Nuova riga. Avanza dopo il tratto sposta la zona quando scrivi nell’ultimo 15% a destra; sulla carta a righe rispetta l’interlinea.
+4. Chiudi per tornare all’editor intero. Annulla e Ripristina lavorano sugli stessi tratti. Il pannello si chiude salvando il tratto consegnato quando cambi pagina, strumento incompatibile o passi in background.
+
+## Audio
+
+### Mostra tutto e punti chiave
+
+Tre modi di seguire la scrittura registrata.
+
+1. Nel pannello Audio avvia la riproduzione con i tratti sincronizzati e scegli Segui in tempo reale, Mostra tutto oppure Punti chiave.
+2. Mostra tutto mantiene l’inchiostro completo e colora temporaneamente di turchese il tratto del momento: non cambia il file salvato.
+3. Nei Punti chiave usa precedente e successivo per saltare tra segnalibri e riprese del parlato nella trascrizione. Nessun audio viene tagliato automaticamente.
+
+## Pagine e PDF
+
+### Indice comprimibile e riordinabile
+
+Organizza sezioni e sottosezioni conservando le pagine.
+
+1. Apri l’indice del quaderno. La freccia a fianco del titolo comprime o espande tutte le sottosezioni.
+2. Con Modifica trascina la maniglia per riordinare una sezione insieme ai suoi figli. Nel menu usa Rientra per inserirla sotto la precedente o Riduci rientro per riportarla fuori.
+3. Annulla ripristina l’organizzazione precedente, senza riscrivere gli audio o gli altri dati aggiunti nel frattempo.
+
+## Scrittura
+
+### Squadre da disegno
+
+Traccia lungo un bordo a 45° oppure 30°/60°.
+
+1. Apri Tutti gli strumenti e scegli Squadra 45° oppure Squadra 30°/60°. Il pulsante opzioni e la pressione prolungata funzionano anche senza aggiungerla ai preferiti.
+2. Trascina il corpo con un dito per spostarlo. Ruota con due dita e pizzica per ridimensionare. Con scrittura a dito attiva, usa due dita anche per spostare la guida.
+3. Con la penna parti vicino al lato desiderato e traccia. Quel lato resta agganciato fino al rilascio anche se ti allontani; Annulla rimuove l’intero tratto in un passo.
+
+### Aggancio e allineamento
+
+Sposta con precisione e distribuisci gli oggetti.
+
+1. Nel Workspace apri Aggancio. Scegli oggetti, griglia, linee guida e Mantieni proporzioni. Le opzioni sono separate per attività.
+2. Con Oggetti trascina vicino a bordi, centri, margini o griglia. Le guide sottili indicano gli allineamenti; due segni = mostrano spaziature uguali tra oggetti.
+3. Appoggia un secondo dito durante il trascinamento, o tieni premuto ⌥, per sospendere l’aggancio. Avviare lo scorrimento con due dita continua a spostare la pagina.
+4. Seleziona almeno due oggetti e apri Allinea e distribuisci nella barra di selezione o nel menu contestuale. Per distribuire servono tre oggetti. Un solo Annulla ripristina tutta l’operazione.
+5. Il lazo tratta i tratti selezionati come un riquadro. Gli oggetti bloccati o ruotati non attraggono il trascinamento.
+
+## Libreria
+
+### Informazioni e crediti
+
+Controlla versione e build prima di inviare una segnalazione.
+
+1. Nella libreria apri Informazioni su NeuralNotes, accanto alla guida; la trovi anche in Account e servizi.
+2. Leggi versione e build oppure premi Copia informazioni. Il testo contiene solo versione, sistema e modello del dispositivo, senza appunti o dati dell’account.
+3. Consulta ringraziamenti, privacy e licenze. Se l’indirizzo è configurato, usa Invia un feedback o Segnala un problema.
+
+## Scrittura
+
+### Forme e maniglie
+
+Rombi, poligoni, stelle e archi modificabili.
+
+1. Tieni premuto uno strumento forma o apri Inserisci foto o forma. Scegli la figura; per poligoni e stelle imposta il numero di lati o punte nelle opzioni.
+2. Trascina tra due angoli. Per frecce e linee parti dalla coda; per un arco trascina tra gli estremi della corda.
+3. Passa a Oggetti e seleziona il contorno. Trascina angoli, rotazione o maniglie specifiche. Sul poligono libero tieni premuto un lato per aggiungere un vertice, o un vertice per rimuoverlo.
+4. Con una o più forme selezionate apri Stile forme. Scegli contorno, riempimento, tratteggio e punte, poi Applica. Annulla ripristina lo stile precedente in un passo.
+
+### Riconoscimento automatico delle forme
+
+Scegli quando correggere e se ottenere una forma o inchiostro.
+
+1. Nel Workspace apri Riconoscimento forme. Scegli Spento, Tieni ferma la punta oppure Automatico al rilascio; puoi farlo anche dalle opzioni della penna.
+2. Scegli quali figure riconoscere e se ottenere una Forma modificabile o un Tratto di penna. L’evidenziatore rimane un tratto diritto.
+3. In modalità Tieni ferma la punta disegna la figura, fermati per circa mezzo secondo e solleva. In Automatico solleva normalmente: le figure riconosciute con sicurezza si correggono.
+4. L’avviso Corretto in… offre Annulla per ripristinare il tratto originale. Il riconoscimento è prudente vicino alla scrittura; puoi sempre usare gli strumenti forma espliciti.
 
 ## Libreria
 
@@ -63,15 +177,16 @@ Colori dedicati e cancellazione selettiva.
 
 Cancella parti di inchiostro o tratti con un gesto.
 
-1. Tieni premuta la gomma per scegliere modalità, dimensione e cancellazione del solo evidenziatore.
-2. Per cancellare con la penna abilita Scarabocchio nel workspace e fai passate ravvicinate sopra i tratti da eliminare.
-3. Usa Annulla in caso di errore. Il testo convertito usa invece i gesti Scribble di iPadOS quando disponibili.
+1. Tieni premuta la gomma, anche nella mini toolbar di Solo foglio. In Cancella scegli Tutto, Solo evidenziatore, Solo penna, Solo forme e connettori, Solo testo e post-it oppure Solo immagini. Con Cancella anche gli oggetti includi o proteggi foto, testi e forme. Regola dimensione e modalità parziale o tratto intero.
+2. La modalità parziale ritaglia soltanto l’inchiostro; gli oggetti toccati vengono eliminati interi. I blocchi proteggono gli oggetti e ogni passata si annulla in un passo.
+3. Per cancellare con la penna abilita Scarabocchio nel workspace e fai passate ravvicinate sopra i tratti da eliminare.
+4. Usa Annulla in caso di errore. Il testo convertito usa invece i gesti Scribble di iPadOS quando disponibili.
 
 ### Annulla e ripristina
 
 Cronologia di inchiostro, testo, immagini e pagine.
 
-1. Dopo aver concluso un tratto o una modifica premi Annulla nel piccolo overlay in alto a sinistra del foglio, disponibile anche in Solo foglio. Le frecce restano anche nella toolbar.
+1. Premi Annulla nell’overlay in alto a sinistra del foglio: le due frecce sono disponibili anche in Solo foglio e non riducono lo spazio della pagina.
 2. Ripristina riapplica l’azione annullata. Una nuova modifica dopo Annulla scarta il ramo da ripristinare.
 3. Le modifiche della pagina corrente appaiono subito e poi vengono salvate. Le operazioni fra pagine attendono anche il disco; controlla l’icona di stato.
 
@@ -122,6 +237,38 @@ Guida orientabile per disegnare rette.
 1. Attiva Righello dalla toolbar. Spostalo e ruotalo con le dita; usa i controlli disponibili per la dimensione.
 2. Inizia il tratto vicino al bordo con la penna e scorri lungo la guida: l’aggancio mantiene la linea sul bordo.
 3. Disattiva Righello per tornare alla scrittura libera. Usa Annulla se desideri rifare una linea.
+
+### Goniometro: archi, raggi e misure
+
+Una guida da 180 o 360 gradi, alternativa al righello.
+
+1. Scegli Goniometro da Tutti gli strumenti o dal Workspace Matematica. Tieni premuta l’icona per scegliere 180° o 360°, dimensione e modalità Misura.
+2. Trascina il corpo con un dito, ruota con due dita e pizzica per ridimensionare. Quando disegni con le dita, usa due dita anche per spostare la guida.
+3. Parti con la penna vicino al bordo per un arco preciso, oppure dal centro per un raggio agganciato ai gradi. Puoi allontanarti dal bordo: il tratto resta guidato fino al rilascio e si annulla in un passo.
+4. In Misura traccia due raggi dal centro e leggi l’angolo; non vengono aggiunti tratti al foglio. Righello e goniometro sono guide visive e non compaiono nei PDF esportati.
+
+## Pagine e PDF
+
+### Copia o sposta la selezione tra pagine
+
+Scegli una miniatura o crea una nuova pagina, con un solo annulla.
+
+1. Con Oggetti seleziona inchiostro, immagini, testo o forme. Premi Copia o sposta in un’altra pagina nella barra della selezione.
+2. Scegli Sposta oppure Copia. Tocca la miniatura di destinazione, cercala per numero o titolo, oppure scegli Nuova dopo la pagina di origine oppure Nuova alla fine del quaderno.
+3. Per trascinare senza aprire finestre premi Trascina sulle miniature nella barra della selezione. In Solo foglio apri gli strumenti essenziali e Azioni sulla selezione. Tieni premuta la selezione sul foglio e trascinala sopra una miniatura; scegli prima Sposta o Copia. Puoi anche toccare la miniatura, oppure chiudere la striscia per tornare a muovere normalmente gli oggetti.
+4. La selezione viene proporzionata se lo spazio disponibile è più piccolo. Una sola azione Annulla ripristina origine e destinazione; se hai creato una pagina nuova, la rimuove dall’ordine attivo.
+5. Per incollare altrove solo gli elementi selezionati, usa Copia come immagine dal menu Trasforma selezione. Condividi immagine apre il foglio di condivisione: il PNG è trasparente e a risoluzione doppia, senza carta o PDF di sfondo.
+
+### Elimina elementi di un tipo
+
+Conteggio preventivo, scelta delle pagine e annulla unico.
+
+1. Dal menu della pagina oppure da Azioni, Documento apri Elimina elementi per tipo. Dalla griglia pagine puoi avviarlo anche sulle pagine selezionate.
+2. Scegli questa pagina, pagine selezionate o tutto il quaderno. Attendi i conteggi e attiva i tipi desiderati: penna, evidenziatore, forme, connettori, testo, immagini, nastri, note della Lente o collegamenti audio.
+3. Conferma il numero di elementi. Per tutto il quaderno viene creato prima un backup; se il backup non riesce, la modifica viene rifiutata. Concludi registrazione o compressione prima di procedere.
+4. Una sola azione Annulla ripristina gli elementi su tutte le pagine. Gli oggetti bloccati sono esclusi; Collegamenti audio rimuove i rimandi, conservando registrazioni e trascrizioni.
+
+## Scrittura
 
 ### Workspace e toolbar personale
 
@@ -383,6 +530,25 @@ Nascondi una risposta e prova a ricordarla.
 2. Posiziona e ridimensiona il nastro sopra il testo da nascondere usando lo strumento Oggetti.
 3. Usa il controllo del nastro per mostrare o nascondere il contenuto mentre ripassi. Puoi spostarlo o eliminarlo dal menu della selezione.
 
+## Scrittura
+
+### Diagrammi con i punti blu
+
+Blocchi collegati, con testo modificabile.
+
+1. Disegna una forma e selezionala con Oggetti: compaiono quattro punti blu. Tocca un punto per creare un blocco uguale collegato, a 48 punti di distanza se c’è spazio.
+2. Trascina un punto su un altro oggetto per collegarlo. Nel vuoto nasce un blocco; trattieni circa mezzo secondo per lasciare invece un estremo libero. Gli estremi seguono spostamenti, dimensioni e rotazione.
+3. Fai doppio tocco dentro un blocco o su un connettore per scrivere. Usa Aa per elenchi e rientri; puoi ridurre il carattere automaticamente. Dal menu del connettore scegli Dritto, Curvo, A gomito e lo stile.
+4. Copia più blocchi per includere anche i collegamenti interni. Le mappe create da uno schema AI si modificano con gli stessi strumenti. Annulla torna indietro di un’operazione.
+
+### Evidenziatore sottile e parole PDF
+
+Larghezza reale e parole agganciate, senza coprire il testo.
+
+1. Tieni premuto Evidenziatore: Larghezza reale scende fino a 1 punto. Questo valore è lo spessore effettivo sulla pagina, indipendente dallo zoom.
+2. Scegli Parole: sottolinea come con la Lente per evidenziare singole parole di PDF, testi inseriti, etichette e scansioni. Attendi la lettura iniziale di grafia e scansioni; se non è pronta ripassa dopo il messaggio. Una passata vuota non aggiunge segni. Per disegnare liberamente scegli Tratto libero, con larghezza minima di 1 pt.
+3. Il colore viene composto con il foglio e il PDF senza schiarire le lettere nere; l’inchiostro della penna resta sopra. Lo stesso criterio si usa nelle anteprime e nell’esportazione. Un solo annulla rimuove l’intera evidenziazione.
+
 ## Pagine e PDF
 
 ### Testo ed evidenziazioni del PDF
@@ -393,43 +559,17 @@ Seleziona testo digitale e conserva i riferimenti.
 2. Seleziona le righe da copiare o evidenziare con i controlli PDF disponibili; usa l’indice per raggiungere una sezione.
 3. Riporta le parti utili negli appunti e controlla il risultato. Per un tratto libero sopra la pagina usa invece l’evidenziatore dell’editor.
 
+## Collaudo dei PDF — beta 1.0.0 (177)
 
-## Novità 0.25 — Crediti, forme e riconoscimento
+Questa build è stata caricata su Apple il5novembre2026; attendi che compaia in TestFlight per aggiornare. L'elaborazione Apple non è ancora confermata. Il rendering dei PDF importati prepara i dettagli in background e li conserva in una cache limitata.
 
-### Informazioni su NeuralNotes
-1. Nella libreria apri **Informazioni su NeuralNotes**, accanto alla guida; la stessa voce è in **Account e servizi**.
-2. Controlla versione e build e premi **Copia informazioni** per una segnalazione: il testo non contiene appunti né dati dell’account.
-3. Consulta ringraziamenti e licenze. Email, privacy e assistenza dipendono dalla configurazione della build; i collegamenti mancanti non diventano pulsanti rotti.
+1. Apri un quaderno con un PDF importato e ingrandisci una zona con testo.
+2. Scorri e torna a pagina intera con il doppio tap.
+3. Scrivi e sottolinea, quindi annulla e riscrivi.
+4. Cambia pagina, anche passando da un PDF a un foglio vuoto, e torna indietro.
 
-### Nuove forme e stile
-1. Apri **Inserisci foto o forma** oppure tieni premuto uno strumento forma. Scegli rombo, poligono, poligono libero, stella o arco.
-2. Trascina sul foglio; per linee e frecce parti dalla coda. Per l’arco il gesto indica la corda iniziale.
-3. Passa a **Oggetti**, seleziona il contorno e usa le maniglie. Nella stella regoli il raggio interno; nell’arco inizio, fine e curvatura. Sul poligono libero tieni premuto un lato per aggiungere un vertice o un vertice per rimuoverlo.
-4. Con una o più forme selezionate apri **Stile forme**: imposta contorno, tratteggio, opacità, riempimento, angoli e punte; premi **Applica**. **Usa come predefinito** salva lo stile nel Workspace del quaderno.
-5. **Annulla** e **Ripristina** agiscono sulla modifica intera, senza passare da ogni movimento del cursore.
+I controlli automatici e le immagini hanno verificato nitidezza, leggibilità, isolamento delle pagine, annulla e PDF esportato selezionabile. La fluidità percepita sull'iPad fisico rimane da confrontare. Dettagli e prove in [DELIVERY_0_28_2.md](DELIVERY_0_28_2.md).
 
-### Riconoscimento delle forme
-1. In **Workspace → Riconoscimento forme** scegli **Spento**, **Tieni ferma la punta** o **Automatico al rilascio**. Le opzioni rapide sono anche nel menu della penna.
-2. Scegli le figure abilitate e il risultato: **Forma modificabile** o **Tratto di penna**. Con l’evidenziatore viene corretta solo la linea, conservando l’inchiostro.
-3. Disegna la figura. Nella modalità con attesa ferma la punta per circa mezzo secondo, poi solleva; in modalità automatica solleva normalmente.
-4. Una correzione automatica mostra **Corretto in… · Annulla**. Annulla ripristina il tratto originale; un successivo annulla può rimuoverlo.
-5. Il sistema evita tratti molto rapidi e la vicinanza alla scrittura recente. Quando una figura non viene riconosciuta, usa lo strumento esplicito: gli appunti rimangono tuoi.
-
-## Aggancio e allineamento (0.26)
-1. Workspace → Aggancio: attiva oggetti, griglia e guide per questa attività. Quadretti, puntini, millimetri e isometrica usano il passo della carta; sulle altre carte la griglia opzionale è da 8 pt.
-2. Con Oggetti trascina vicino a bordi o centri: le guide sono temporanee e non entrano nei file o nel PDF. Tra due oggetti compaiono = e la distanza quando gli spazi coincidono.
-3. Durante un trascinamento già iniziato, appoggia un secondo dito oppure tieni premuto ⌥ per sospendere l’aggancio. Due dita all’inizio continuano a scorrere la pagina.
-4. Con due elementi selezionati apri Allinea e distribuisci. Scegli bordo, centro o dimensione; con tre elementi puoi distribuire in orizzontale o verticale. Il lazo tratta l’inchiostro selezionato come un elemento.
-5. Le maniglie delle forme agganciano bordi e griglia; la rotazione usa passi di 15° e un richiamo più forte entro 3° dagli angoli retti. Mantieni proporzioni conserva il rapporto durante il ridimensionamento.
-6. Gli oggetti bloccati sono esclusi. Gli oggetti ruotati non sono riferimenti di aggancio. Annulla ripristina l’intera operazione in un solo passo.
-
-
-## Diagrammi e connettori — 0.27
-Seleziona una forma con **Oggetti**. I quattro punti blu creano blocchi uguali e già collegati; un trascinamento collega un oggetto esistente. Rilasciando nel vuoto nasce un blocco, mentre trattenendo per mezzo secondo lasci un estremo libero. Gli estremi seguono spostamenti, dimensioni e rotazione. Doppio tocco nel blocco o sul collegamento apre l’etichetta, con testo ricco, elenchi, rientri e riduzione facoltativa del carattere. Nel menu del collegamento scegli tracciato e stile. Copia e sposta conservano i collegamenti tra i blocchi selezionati, con nuove identità per le copie. Le mappe AI diventano diagrammi modificabili, mantenendo i rimandi alle fonti.
-
-## Evidenziatore e riconoscimento — correzioni 0.27
-Tieni premuto **Evidenziatore** e scegli **Parole** o **Tratto libero**. In **Parole** sottolinea o passa sulle parole come con la Lente: viene usato lo stesso selettore per PDF, testo inserito, etichette, scansioni e grafia riconosciuta. Il riconoscimento parte selezionando lo strumento; se non è pronto appare un messaggio e puoi ripassare quando termina. Una passata senza parole non lascia segni liberi accidentali. Le evidenziazioni sono rettangoli vettoriali per parola, separati dall’inchiostro; ripassare con lo stesso colore non scurisce. Un annulla rimuove la passata intera. In **Tratto libero** la larghezza arriva a **1 pt**, con tre spessori recenti indipendenti dalla penna. Il colore non schiarisce il nero del PDF e la penna nativa resta sopra. Anteprime e PDF esportati condividono il rendering; l’originale PDF rimane intatto.
-Il riconoscimento tenendo la punta ferma rimane confermato fino al rilascio anche con piccoli movimenti. La conversione chiude la sessione nativa d’inchiostro per evitare che il tratto grezzo ritorni alla scrittura successiva. Annulla prima il nuovo tratto; un ulteriore annulla della correzione recupera il tratto originale al posto della forma.
 
 ## Selezioni, gomme e misure — 0.28
 

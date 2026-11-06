@@ -28,10 +28,15 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("page-layers", .pages, "Lavora su livelli separati", "square.3.layers.3d", "Mostra, proteggi e riordina gli appunti senza modificare il PDF.", [
+            "Apri Livelli nella barra superiore del quaderno. Nuovo livello separa i prossimi appunti da quelli della Base; il nome del livello attivo compare sotto la toolbar.",
+            "Tocca il nome per scegliere dove lavorare. Penna, gomma, lazo, testo e forme modificano soltanto il livello attivo. L’occhio nasconde; il lucchetto protegge il contenuto.",
+            "Nel menu del livello puoi rinominare, duplicare, svuotare, eliminare o unire al livello sotto. Regola l’opacità e riordina l’elenco; Annulla ripristina l’operazione.",
+            "Esporta livelli permette di scegliere tutti, visibili o alcuni livelli; Esporta solo questo livello prepara una sola selezione. Il backup nativo conserva anche i livelli nascosti e bloccati. Il PDF di sfondo resta intatto." ]),
         .init("handwriting-refine", .writing, "Raddrizza e ripulisci la grafia", "pencil.and.scribble", "Un’anteprima geometrica, senza cambiare le parole.", [
             "Con il lazo seleziona la grafia. Nella barra delle azioni apri Grafia: scegli Raddrizza, Uniforma dimensione o Ripulisci tratto. Gli oggetti e l’evidenziatore restano intatti.",
             "Con Raddrizza puoi allineare a sinistra e appoggiare le basi sulla carta a righe. Ripulisci offre intensità Leggera, Media e Forte. Controlla sempre l’anteprima prima di applicare.",
-            "Riadatta alla larghezza mostra due maniglie laterali: trascinale per ridistribuire parole intere. Spazio tra le righe uniforma l’interlinea della sola selezione.",
+            "Riadatta alla larghezza mostra due maniglie laterali: trascinale per ridistribuire parole intere, oppure regolale con VoiceOver. Spazio tra le righe uniforma l’interlinea della sola selezione.",
             "Applica crea un solo passo di annulla. Annulla nell’anteprima non modifica né salva gli appunti. Se il risultato supera il foglio, aumenta la larghezza o riduci l’interlinea." ], tools: [.lasso]),
         .init("text-scripts", .writing, "Pedice, apice e incolla", "textformat.superscript", "Formule e testo formattato, con annulla.", [
             "Scegli Testo, tocca il foglio e seleziona i caratteri. Nella barra usa Apice o Pedice; premi lo stesso comando per tornare alla riga normale.",
