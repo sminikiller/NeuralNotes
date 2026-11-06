@@ -240,8 +240,17 @@ enum DocumentServices {
         // Load each drawing only as its page is emitted; never rasterize an entire notebook.
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("NeuralNotes-\(UUID()).pdf")
         var bounds = CGRect(x: 0, y: 0, width: pages[0].width, height: pages[0].height)
+        // An unprofiled PDF context interprets device RGB in its generic space.
+        // Explicit sRGB output intent keeps non-isolated layer blending in the
+        // same display space as the bitmap/viewport output. This is an output
+        // profile, not a declaration of PDF/X conformance.
+        let profile = CGColorSpace(name: CGColorSpace.sRGB)!
+        let intent: [String: Any] = [kCGPDFXOutputIntentSubtype as String: "GTS_PDFX",
+            kCGPDFXOutputConditionIdentifier as String: "sRGB IEC61966-2.1",
+            kCGPDFXDestinationOutputProfile as String: profile]
+        let info = [kCGPDFContextOutputIntent as String: intent] as CFDictionary
         guard let consumer = CGDataConsumer(url: output as CFURL),
-              let context = CGContext(consumer: consumer, mediaBox: &bounds, nil) else {
+              let context = CGContext(consumer: consumer, mediaBox: &bounds, info) else {
             try? FileManager.default.removeItem(at: output); throw CocoaError(.fileWriteUnknown)
         }
         var completed = false, closed = false

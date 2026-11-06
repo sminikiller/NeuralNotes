@@ -71,11 +71,19 @@ final class LayerExportRenderingTests: XCTestCase {
             XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
             let bitmap = try await LayeredPageRenderer.image(page: page, workspace: workspace, maxDimension: 120, selection: .selected([layer]))
             let preview = first.thumbnail(of: CGSize(width: 120, height: 100), for: .mediaBox)
+            for (name, image) in [("layer-opacity-native-bitmap", bitmap), ("layer-opacity-exported-pdf", preview)] {
+                let attachment = XCTAttachment(image: image); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+            }
+            let pdfAttachment = XCTAttachment(data: try Data(contentsOf: output), uniformTypeIdentifier: "com.adobe.pdf")
+            pdfAttachment.name = "layer-opacity-source-pdf"; pdfAttachment.lifetime = .keepAlways; add(pdfAttachment)
             let imageRed = try self.pixel(bitmap, y: 70), pdfRed = try self.pixel(preview, y: 70)
             for channel in 0..<3 { XCTAssertLessThanOrEqual(abs(Int(imageRed[channel]) - Int(pdfRed[channel])), 4, "Bitmap \(imageRed), PDF \(pdfRed)") }
             XCTAssertGreaterThan(Int(pdfRed[0]), Int(pdfRed[2]) + 80)
             let baseAbsent = try self.pixel(preview, y: 30)
             XCTAssertTrue(baseAbsent.prefix(3).allSatisfy { $0 > 245 })
+            var intents: CGPDFArrayRef?
+            XCTAssertTrue(CGPDFDictionaryGetArray(vector.catalog!, "OutputIntents", &intents))
+            XCTAssertGreaterThan(CGPDFArrayGetCount(try XCTUnwrap(intents)), 0)
         }
     }
 
@@ -96,13 +104,15 @@ final class LayerExportRenderingTests: XCTestCase {
     @MainActor func testPartialLayerTypedTextRemainsSelectableOnceAndDoesNotRasterizeIntoThePDF() async throws {
         try await fixture { workspace, original, layer in
             var page = try PageLayerEditing.opacity(layer, value: 0.5, in: original)
-            var text = TextElement(text: "LAYER UNIQUE"); text.layerID = layer
+            let source = "LAYER UNIQUE Caffè più già"
+            var text = TextElement(text: source); text.layerID = layer
             text.x = 5; text.y = 5; text.width = 110; text.fontSize = 12; page.texts.append(text)
             page = try await workspace.saveLayerMetadata(page, expectedRevision: original.revision)
             let output = try await DocumentServices.exportPDF(workspace: workspace, layers: .selected([layer]))
             defer { try? FileManager.default.removeItem(at: output) }
             let pdf = try XCTUnwrap(PDFDocument(url: output)), extracted = try XCTUnwrap(pdf.page(at: 0)?.string)
-            XCTAssertEqual(extracted.components(separatedBy: "LAYER UNIQUE").count - 1, 1)
+            let normalized = extracted.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            XCTAssertEqual(normalized.components(separatedBy: source).count - 1, 1)
             let vector = try XCTUnwrap(CGPDFDocument(output as CFURL)), dictionary = try XCTUnwrap(vector.page(at: 1)?.dictionary)
             XCTAssertFalse(PDFResourceProbe.hasImages(dictionary))
         }

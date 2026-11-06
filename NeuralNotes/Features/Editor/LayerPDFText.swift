@@ -31,15 +31,26 @@ import CoreText
         override func showCGGlyphs(_ glyphs: UnsafePointer<CGGlyph>, positions: UnsafePointer<CGPoint>,
                                   count glyphCount: Int, font: UIFont, textMatrix: CGAffineTransform,
                                   attributes: [NSAttributedString.Key: Any] = [:], in context: CGContext) {
-            guard outlinesOnly else {
+            let native = font as CTFont
+            if CTFontGetSymbolicTraits(native).contains(.traitColorGlyphs) {
                 super.showCGGlyphs(glyphs, positions: positions, count: glyphCount, font: font,
                     textMatrix: textMatrix, attributes: attributes, in: context); return
             }
             // Preserve the resolved font instance, including optical-size and
             // variation axes. Recreating a system font by name can change its
             // glyph outlines while the layout still uses the original metrics.
-            let native = font as CTFont
             context.saveGState(); defer { context.restoreGState() }
+            if !outlinesOnly {
+                // Emit selectable glyphs exactly once, without painting them.
+                // Both coefficient and final passes paint identical contours;
+                // font raster hinting must not change their blend equations.
+                context.saveGState()
+                context.setFont(CTFontCopyGraphicsFont(native, nil)); context.setFontSize(font.pointSize)
+                context.textMatrix = textMatrix; context.setTextDrawingMode(.invisible)
+                context.showGlyphs(Array(UnsafeBufferPointer(start: glyphs, count: glyphCount)),
+                    at: Array(UnsafeBufferPointer(start: positions, count: glyphCount)))
+                context.restoreGState()
+            }
             if let color = attributes[.foregroundColor] as? UIColor { context.setFillColor(color.cgColor) }
             if let color = attributes[.strokeColor] as? UIColor { context.setStrokeColor(color.cgColor) }
             let stroke = (attributes[.strokeWidth] as? NSNumber)?.doubleValue ?? 0
@@ -52,11 +63,6 @@ import CoreText
                         context.addPath(positioned)
                         context.drawPath(using: stroke == 0 ? .fill : stroke < 0 ? .fillStroke : .stroke)
                     }
-                } else if CTFontGetSymbolicTraits(native).contains(.traitColorGlyphs) {
-                    // Color glyphs use their native artwork; spaces intentionally
-                    // emit no PDF text in the coefficient passes.
-                    super.showCGGlyphs(glyphs.advanced(by: index), positions: positions.advanced(by: index),
-                        count: 1, font: font, textMatrix: textMatrix, attributes: attributes, in: context)
                 }
             }
         }
