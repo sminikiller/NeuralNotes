@@ -127,10 +127,18 @@ final class HandwritingSessionTests: XCTestCase {
         var page = try await workspace.addPage(); page.recognizedText = "Le parole originali non cambiano"; page.revision += 1
         var strokes: [PKStroke] = []
         for row in 0..<5 {
-            let controls = (0..<20).map { index in
-                PKStrokePoint(location: CGPoint(x: 80 + Double(index) * 9, y: 100 + Double(row) * 70 + Double(index) * Double(row + 1) * 0.6),
-                    timeOffset: Double(index) * 0.02, size: CGSize(width: 4, height: 4), opacity: 1,
-                    force: CGFloat(index % 7) / 8, azimuth: 0.2, altitude: 1.1, secondaryScale: 0.75)
+            let baseline: CGFloat = 100 + CGFloat(row) * 70
+            let slope: CGFloat = CGFloat(row + 1) * 0.6
+            var controls: [PKStrokePoint] = []
+            for index in 0..<20 {
+                let x: CGFloat = 80 + CGFloat(index) * 9
+                let y: CGFloat = baseline + CGFloat(index) * slope
+                let timeOffset: TimeInterval = Double(index) * 0.02
+                let force: CGFloat = CGFloat(index % 7) / 8
+                let point = PKStrokePoint(location: CGPoint(x: x, y: y),
+                    timeOffset: timeOffset, size: CGSize(width: 4, height: 4), opacity: 1,
+                    force: force, azimuth: 0.2, altitude: 1.1, secondaryScale: 0.75)
+                controls.append(point)
             }
             strokes.append(PKStroke(ink: PKInk(.pen, color: .black), path: PKStrokePath(controlPoints: controls,
                 creationDate: Date(timeIntervalSince1970: Double(1000 + row))), transform: .identity, mask: nil, randomSeed: UInt32(row + 20)))
