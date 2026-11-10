@@ -597,7 +597,7 @@ Scrivimi alla fine di ogni fase, in italiano semplice:
 
 
 ---
-## Stato di esecuzione — aggiornamento 5 novembre 2026
+## Stato di esecuzione — aggiornamento 10 novembre 2026
 
 Il testo del piano sopra è conservato integralmente.
 
@@ -610,7 +610,6 @@ Il testo del piano sopra è conservato integralmente.
 - ✅ 0.28.2 — ottimizzazione PDF importati: cache48MiB e rendering in background, dettaglio nitido anche al primo tratto. Core373+98,220Native,Release ePlaygroundsRelease+60avvii passati in [41502998310](https://github.com/sminikiller/NeuralNotes/actions/runs/41502998310); provaUI PDF reale eQA visiva conclusi in [41993405959](https://github.com/sminikiller/NeuralNotes/actions/runs/41993405959). Beta **1.0.0 (177)** firmata e caricata il5novembre2026 con [41996320635](https://github.com/sminikiller/NeuralNotes/actions/runs/41996320635), disponibilità Apple non ancora confermata. ZIP esatto e limiti in [DELIVERY_0_28_2.md](DELIVERY_0_28_2.md).
 - ✅ 0.29 — §7 testo e finestra di scrittura: verificata e consegnata. Core 386 + 98, 239 test nativi critici e 7 UI finali verdi nella [run42001223527](https://github.com/sminikiller/NeuralNotes/actions/runs/42001223527), insieme ai 40 UI precedenti. QA immagini e ZIP esatto conclusi. Beta **1.0.0 (179)** firmata e caricata il 5 novembre 2026 con [42007068881](https://github.com/sminikiller/NeuralNotes/actions/runs/42007068881); disponibilità Apple non ancora confermata. Dettagli in docs/DELIVERY_0_29.md.
 - ✅ 0.30 — §8 livelli: implementata e verificata. [42221285845](https://github.com/sminikiller/NeuralNotes/actions/runs/42221285845): Core430+98,271Native e2UI finali senza errori, Release ePGRelease+60avvii passati; QA ed esatto ZIP367file conclusi. Beta **1.0.0 (190)** firmata e caricata il6novembre2026 con [42226140084](https://github.com/sminikiller/NeuralNotes/actions/runs/42226140084); disponibilità Apple non ancora confermata. Dettagli in docs/DELIVERY_0_30.md.
-- 🟡 0.31 — §9 grafia: candidata completa nella worktree isolata,17Core12Native2UI nuovi presenti ma non ancora eseguiti con SDK. Non distribuita.
-- ❌ 0.31 — §9 trasformazioni della grafia: successiva.
 
 Nessuna modifica a identità, firma, segreti NN_* o corsia TestFlight. Nessuna attivazione iCloud. Ogni fase è verificata e consegnata separatamente. Tempi fisici di fluidità e falsi positivi su grafia reale rimangono distinti dalle prove sintetiche e sul simulatore.
+- ✅ 0.31 — §9 grafia implementata e verificata. Superati 448 XCTest Core, 98 Swift Testing, 283 Native e 2 UI della grafia. Release, Playgrounds Release e avvio simulatore superati. QA e ZIP esatto con 373 file verificati. Upload TestFlight in preparazione. [Verifica finale](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466) · [Consegna](DELIVERY_0_31.md)
