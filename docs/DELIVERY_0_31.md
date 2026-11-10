@@ -1,6 +1,8 @@
 # Fase 0.31 — rifinitura della grafia
 
-La 0.31.0 è verificata con Xcode 26.6 e pronta per l’upload TestFlight. Sorgenti verificati `bd8bd29b8790bf1612a263b34b23d7101645904a`. [Verifica finale](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466)
+La 0.31.0 è verificata con Xcode 26.6. La beta **1.0.0 (195)** è stata firmata e caricata su Apple il 10 novembre 2026 alle 20:16 italiane. La disponibilità nel gruppo TestFlight dipende dall’elaborazione Apple. [Upload TestFlight](https://github.com/sminikiller/NeuralNotes/actions/runs/42882255145)
+
+Sorgenti verificati `bd8bd29b8790bf1612a263b34b23d7101645904a`. [Verifica finale](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466)
 
 ## Come provare la grafia sull’iPad
 
