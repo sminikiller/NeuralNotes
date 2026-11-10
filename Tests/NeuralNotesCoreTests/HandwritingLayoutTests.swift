@@ -123,6 +123,15 @@ final class HandwritingLayoutTests: XCTestCase {
         let transform = result.adjustments[0].transform
         XCTAssertEqual(transform.applying(points[0]).y, transform.applying(points[29]).y, accuracy: 0.01)
     }
+    func testBaselineRoundoffDoesNotDiscardMostSamplesOfAnExactlyStraightLine() throws {
+        let points = (0..<20).map { StrokeSample(x: 80 + Double($0) * 9, y: 380 + Double($0) * 3) }
+        let strokes = [HandwritingStroke(id: 0, points: points)]
+        let analysis = try HandwritingLayout.analyze(strokes)
+        let proposal = try HandwritingLayout.propose(.straighten, strokes: strokes, analysis: analysis, page: page)
+        let transform = try XCTUnwrap(proposal.adjustments.first).transform
+        let height = transform.applying(points[0]).y
+        for point in points { XCTAssertEqual(transform.applying(point).y, height, accuracy: 0.01) }
+    }
     func testReflowWrapsCompleteWordsAndPreservesAllStrokeIdentitiesWithoutSplittingOneWord() throws {
         let strokes = line(start: 0, y: 100, words: 5)
         let analysis = try HandwritingLayout.analyze(strokes)

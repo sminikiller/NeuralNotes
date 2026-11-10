@@ -67,7 +67,9 @@ enum HandwritingGrouping {
             let fit = stroke.bounds.width >= stroke.bounds.height * 1.5 ? HandwritingMath.baseline(samples, bounds: stroke.bounds) : (slope: 0.0, intercept: stroke.bounds.maxY)
             let leveled = samples.map { StrokeSample(x: $0.x, y: $0.y - fit.slope * $0.x) }
             let threshold = HandwritingMath.quantile(leveled.map(\.y), 0.8)
-            let bottom = zip(samples, leveled).filter { $0.1.y >= threshold }.map { $0.0 }
+            // Keep samples on the same baseline together despite rounding in
+            // y - slope * x. Losing most of a thin line biases the second fit.
+            let bottom = zip(samples, leveled).filter { $0.1.y >= threshold - 0.01 }.map { $0.0 }
             let lowerFit = HandwritingMath.baseline(bottom, bounds: stroke.bounds)
             return Measure(stroke: stroke, samples: bottom, slope: lowerFit.slope, intercept: lowerFit.intercept, height: HandwritingMath.bounds(leveled).height)
         }

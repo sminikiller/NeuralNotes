@@ -2,7 +2,7 @@ import XCTest
 import UIKit
 
 final class HandwritingUITests: XCTestCase {
-    @MainActor private func open(_ app: XCUIApplication) async throws -> XCUIElement {
+    @MainActor private func open(_ app: XCUIApplication) -> XCUIElement {
         continueAfterFailure = false; XCUIDevice.shared.orientation = .landscapeLeft
         app.launchArguments = ["--ui-testing", "--reset-ui-storage", "--ui-light"]; app.launch()
         let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
@@ -20,7 +20,7 @@ final class HandwritingUITests: XCTestCase {
         gestures.tap()
         let finger = app.switches["Scrittura con il dito"]; XCTAssertTrue(finger.waitForExistence(timeout: 5))
         if finger.value as? String != "1" { finger.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap() }
-        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: finger)], timeout: 5)
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: finger)], timeout: 5)
         app.navigationBars["Gesti e automatismi"].buttons["Workspace"].tap(); app.buttons["Fine"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 8))
@@ -35,41 +35,46 @@ final class HandwritingUITests: XCTestCase {
         if !menu.isHittable {
             app.scrollViews["selectionActionsScroll"].swipeLeft()
         }
-        XCTAssertTrue(menu.waitForExistence(timeout: 5)); XCTAssertTrue(menu.isEnabled); menu.tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5)); XCTAssertTrue(menu.isEnabled)
         return canvas
+    }
+    @MainActor private func choose(_ command: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons["handwritingMenu"].tap()
+        app.buttons[command].tap()
+        let apply = app.buttons["handwritingApply"]
+        let ready = NSPredicate(format: "exists == true AND enabled == true AND isHittable == true")
+        wait(for: [XCTNSPredicateExpectation(predicate: ready, object: apply)], timeout: 30)
+        return apply
     }
     @MainActor private func shot(_ app: XCUIApplication, _ name: String) {
         let item = XCTAttachment(screenshot: app.screenshot()); item.name = name; item.lifetime = .keepAlways; add(item)
     }
-    @MainActor func testPreviewCancelAndApplyKeepThePageViewportAndUseOneHistoryAction() async throws {
-        let app = XCUIApplication(); let canvas = try await open(app), frame = canvas.frame
-        app.buttons["Raddrizza"].tap()
+    @MainActor func testPreviewCancelAndApplyKeepThePageViewportAndUseOneHistoryAction() {
+        let app = XCUIApplication(); let canvas = open(app), frame = canvas.frame
+        _ = choose("Raddrizza", in: app)
         let panel = app.descendants(matching: .any)["handwritingPanel"].firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 8))
-        let apply = app.buttons["handwritingApply"]
-        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: apply)], timeout: 10)
         XCTAssertEqual(canvas.frame, frame); shot(app, "handwriting-straighten-preview")
         app.buttons["handwritingCancel"].tap(); XCTAssertFalse(panel.exists); XCTAssertEqual(canvas.frame, frame)
-        app.buttons["handwritingMenu"].tap(); app.buttons["Raddrizza"].tap()
-        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: apply)], timeout: 10)
+        let apply = choose("Raddrizza", in: app)
         apply.tap(); XCTAssertFalse(panel.exists)
         let undo = app.buttons["quickUndo"], redo = app.buttons["quickRedo"]
-        XCTAssertTrue(undo.isEnabled); undo.tap(); XCTAssertTrue(redo.isEnabled); redo.tap()
+        XCTAssertTrue(undo.isEnabled); undo.tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)], timeout: 10)
+        redo.tap()
         XCTAssertEqual(canvas.frame, frame); shot(app, "handwriting-applied-redo")
     }
-    @MainActor func testReflowExposesTwoRealHandlesAndAllowsCancelWithoutResizingCanvas() async throws {
-        let app = XCUIApplication(); let canvas = try await open(app), frame = canvas.frame
-        app.buttons["Riadatta alla larghezza"].tap()
-        let apply = app.buttons["handwritingApply"]
-        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: apply)], timeout: 10)
+    @MainActor func testReflowExposesTwoRealHandlesAndAllowsCancelWithoutResizingCanvas() {
+        let app = XCUIApplication(); let canvas = open(app), frame = canvas.frame
+        _ = choose("Riadatta alla larghezza", in: app)
         let left = app.descendants(matching: .any)["handwritingLeftHandle"].firstMatch
         let right = app.descendants(matching: .any)["handwritingRightHandle"].firstMatch
         XCTAssertTrue(left.waitForExistence(timeout: 5)); XCTAssertTrue(right.waitForExistence(timeout: 5))
         let oldX = right.frame.midX
         right.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: 0.5)).press(forDuration: 0.05,
             thenDragTo: right.coordinate(withNormalizedOffset: .init(dx: 3, dy: 0.5)))
-        let deadline = Date().addingTimeInterval(5)
-        while right.frame.midX <= oldX + 10 && Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        let moved = NSPredicate { _, _ in right.exists && right.frame.midX > oldX + 10 }
+        wait(for: [XCTNSPredicateExpectation(predicate: moved, object: right)], timeout: 5)
         XCTAssertGreaterThan(right.frame.midX, oldX + 10)
         XCTAssertEqual(canvas.frame, frame); shot(app, "handwriting-width-handles")
         app.buttons["handwritingCancel"].tap(); XCTAssertFalse(app.buttons["handwritingApply"].exists)

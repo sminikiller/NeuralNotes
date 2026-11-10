@@ -131,11 +131,18 @@ final class HandwritingSession {
             message = "Gli appunti sono cambiati. Annulla l’anteprima e selezionali di nuovo."; return
         }
         let metadata = (try? JSONEncoder().encode(before.page).count) ?? 0
-        let cost = (before.drawing?.count ?? 0) + preview.dataRepresentation().count + metadata * 2
+        let archive = preview.dataRepresentation()
+        let cost = (before.drawing?.count ?? 0) + archive.count + metadata * 2
         guard model.history.accepts(cost: cost) else { message = HandwritingFailure.tooLarge.localizedDescription; return }
+        // Commit the native archive representation that history and reopening
+        // will read. PencilKit can round affine coefficients when encoding.
+        guard let committed = try? PKDrawing(data: archive) else {
+            message = "Impossibile preparare la grafia per il salvataggio."
+            return
+        }
         model.cancelHandwriting()
-        guard !NativeInkComparison.equal(preview, original) else { model.status = "La grafia è già regolare"; return }
-        model.installNativeInk(preview)
+        guard !NativeInkComparison.equal(committed, original) else { model.status = "La grafia è già regolare"; return }
+        model.installNativeInk(committed)
         model.recordEdit(before, label: command.rawValue)
         // Recognized text is content, not geometry. Keep it; invalidate its
         // old spatial index so future Pencil hits never use obsolete boxes.
@@ -153,6 +160,7 @@ final class HandwritingSession {
     }
     func beginHandwriting(_ command: HandwritingCommand) {
         finishInkGesture(); endTextEdit(); closeZoomWriting()
+        canvas.window?.endEditing(true)
         guard canRefineHandwriting, hasLease, !navigating, !loading, let before = captureEdit(ink: true) else { return }
         let selected = selectedStrokeIndices ?? Set(canvas.drawing.strokes.indices)
         let session = HandwritingSession(command: command, model: self, before: before, selected: selected)
@@ -199,11 +207,11 @@ final class HandwritingSession {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.15)))
             .shadow(color: .black.opacity(0.15), radius: 12, y: 4).padding(12)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("handwritingPanel")
             .onChange(of: session.alignLeft) { _, _ in session.recompute() }
             .onChange(of: session.onPaperLines) { _, _ in session.recompute() }
             .onChange(of: session.strength) { _, _ in session.recompute() }
-            .onChange(of: session.width) { _, _ in session.recompute() }
             .onChange(of: session.lineSpacing) { _, _ in session.recompute() }
     }
     @ViewBuilder private var options: some View {
@@ -219,7 +227,9 @@ final class HandwritingSession {
             }.pickerStyle(.segmented)
         case .reflow:
             Text("Trascina le maniglie ai lati oppure regola la larghezza.").font(.caption).foregroundStyle(.secondary)
-            Slider(value: $session.width, in: session.minimumWidth...max(session.minimumWidth + 1, session.maximumWidth))
+            Slider(value: Binding(get: { session.width }, set: { width in
+                session.width = width; session.recompute()
+            }), in: session.minimumWidth...max(session.minimumWidth + 1, session.maximumWidth))
                 .accessibilityLabel("Larghezza della grafia")
         case .spacing:
             HStack { Text("Interlinea"); Slider(value: $session.lineSpacing, in: 0.5...2); Text(session.lineSpacing, format: .number.precision(.fractionLength(1))).monospacedDigit() }
