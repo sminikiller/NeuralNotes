@@ -1,4 +1,22 @@
-# NeuralNotes 0.24.1 — preparazione delivery e TestFlight
+# NeuralNotes 0.31.0 — beta TestFlight 1.0.0 (195)
+
+La cartella di lavoro corrente è `AppAppunti`. Il ramo aggiornato e predefinito su GitHub è **`codex/photo-perspective-sync-center`**. Le precedenti cartelle `AppAppunti-claude`, `AppAppunti-testflight` e i worktree delle fasi 0.29–0.31 erano copie di sviluppo superate; non usarle come sorgente della versione corrente.
+
+Il piano degli strumenti di scrittura fino alla **0.31** è implementato e consegnato: strumenti e geometria, ottimizzazioni PDF, testo e finestra di scrittura, livelli e rifinitura della grafia. [Stato del piano](docs/PIANO_STRUMENTI_2026.md) · [Guida delle funzioni](docs/GUIDA_FUNZIONI.md) · [Consegna 0.31 e limiti](docs/DELIVERY_0_31.md).
+
+- **Sorgenti verificati:** `bd8bd29b8790bf1612a263b34b23d7101645904a`; gli aggiornamenti successivi della consegna riguardano la documentazione.
+- **Verifica Apple:** [42878279466](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466), 448 XCTest Core + 98 Swift Testing, 283 test nativi e 2 UI Grafia, Release e Playgrounds Release; cinque regressioni UI già passate nella verifica precedente sono documentate nella consegna.
+- **Upload effettivo:** [42882255145](https://github.com/sminikiller/NeuralNotes/actions/runs/42882255145), beta **1.0.0 (195)** ricevuta da Apple il 10 novembre 2026. Disponibilità dopo l'elaborazione Apple, distinta dall'upload verificato.
+- **ZIP Playgrounds:** `NeuralNotes-iPad-0.31.0.zip`, 373 file verificati, SHA-256 `c37e25b1af15e8c88d181ecf2d4f82df84474bc82dd07b6234e6aed48b14bbff`. [Artefatto esatto della CI](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466/artifacts/13793134439). La copia locale è in `.verification/` e non è inclusa nel repository.
+- **Distribuzione senza Mac:** [procedura TestFlight](release/TESTFLIGHT_SENZA_MAC.md). Identità, firma e segreti già configurati non vanno ricreati.
+
+Restano distinti i collaudi prolungati su iPad fisico. La beta non attiva iCloud; l'implementazione e i test locali dei servizi account/AI non ne attestano la pubblicazione online.
+
+## Note storiche delle versioni precedenti
+
+Le sezioni seguenti descrivono lo stato al momento di ciascuna vecchia consegna. Indicazioni su build non firmate, blocchi CI e verifiche ancora aperte non sostituiscono lo stato corrente riportato sopra.
+
+### 0.24.1 — preparazione delivery e TestFlight
 
 **0.24.1/build 52:** pipeline Xcode 26.6 e archivio Store 1.0.0/build 114 verificati senza firma; privacy e assistenza nell’app, manifest con le motivazioni delle API effettivamente usate e controlli per firma/upload. [Consegna e prove](docs/DELIVERY_0_24_1.md), [percorso operativo](release/DELIVERY.md), [metadati Store](release/APP_STORE_IT.md).
 
