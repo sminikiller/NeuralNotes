@@ -5,6 +5,26 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class LayerSceneTests: XCTestCase {
+    @MainActor func testLayeredPanningRetainsItsViewportUntilNewContentIsExposed() async throws {
+        try await fixture { model, _ in
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.surface.package = model.workspace.package; host.surface.page = try XCTUnwrap(model.page)
+            host.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
+            host.setNeedsLayout(); host.layoutIfNeeded()
+            let ready = await host.layeredScene.prepareForInput(host); XCTAssertTrue(ready)
+            host.canvas.zoomScale = 6; host.canvas.contentOffset = CGPoint(x: 300, y: 300); host.alignSurface()
+            let before = host.layeredScene.viewportRedrawRequests
+            let ink = model.canvas.drawing
+            for step in 1...60 {
+                host.canvas.contentOffset = CGPoint(x: 300 + step, y: 300 + step); host.alignSurface()
+            }
+            XCTAssertEqual(host.layeredScene.viewportRedrawRequests, before)
+            host.canvas.contentOffset = CGPoint(x: 600, y: 600); host.alignSurface()
+            XCTAssertGreaterThan(host.layeredScene.viewportRedrawRequests, before)
+            XCTAssertTrue(NativeInkComparison.equal(ink, model.canvas.drawing))
+            host.layeredScene.reset()
+        }
+    }
     @MainActor func testHidingTheActiveOwnerAndUndoPrepareTheRealHostWithoutAnExtraTouchOrLayout() async throws {
         try await fixture { model, owner in
             let host = CanvasHost(canvas: model.canvas); host.model = model; model.pagePresenter = host

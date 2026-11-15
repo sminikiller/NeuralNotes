@@ -27,6 +27,9 @@ final class LayerSceneView: UIView {
     private var zoom: CGFloat = 1
     private var origin = CGPoint.zero
     private var visiblePage = CGRect.zero
+    private var lastPaintToken: UUID?
+    private var lastLocalPaintToken: UUID?
+    private(set) var viewportRedrawRequests = 0
     private var hiding = Set<UUID>()
     private var hidingTextID: UUID?
     private var inkGeneration = UUID()
@@ -65,6 +68,7 @@ final class LayerSceneView: UIView {
         fallbackTask?.cancel(); detailTask?.cancel(); fallbackTask = nil; detailTask = nil
         epoch = UUID(); failedFallbackEpoch = nil; recognitionBaseline = nil; detailTicket = UUID(); detailRequest = nil
         fallback = nil; detail = nil; page = nil; ownerID = nil; signature = nil; lastRawPage = nil
+        visiblePage = .zero; lastPaintToken = nil; lastLocalPaintToken = nil
         inkCache.clear(); ownerProgram = nil; ownerProgramPage = nil; ownerProgramToken = nil
         isReady = false; isHidden = true; layer.contents = nil; spinner.stopAnimating()
     }
@@ -100,6 +104,8 @@ final class LayerSceneView: UIView {
         let viewport = CGRect(origin: at, size: CGSize(width: visible.width / nextZoom, height: visible.height / nextZoom))
         if viewport != visiblePage || nextZoom != zoom { detailSuspended = false }
         let identityChanged = page?.id != next.id || ownerID != owner
+        let geometryChanged = identityChanged || nextZoom != zoom || !visiblePage.contains(viewport)
+        var repaint = geometryChanged || page != next || lastPaintToken != model.inkDisplayGeneration || lastLocalPaintToken != inkGeneration
         if identityChanged { reset(); self.host = host }
         if lastRawPage != next || identityChanged {
             let normalized = LayerScene.fingerprint(next, owner: owner)
@@ -110,16 +116,23 @@ final class LayerSceneView: UIView {
             }
             lastRawPage = next
         }
-        page = next; ownerID = owner; frame = visible; zoom = nextZoom; origin = at; visiblePage = viewport
+        if geometryChanged {
+            visiblePage = viewport.insetBy(dx: -128 / nextZoom, dy: -128 / nextZoom)
+                .intersection(CGRect(x: 0, y: 0, width: next.width, height: next.height))
+        }
+        page = next; ownerID = owner; zoom = nextZoom; origin = visiblePage.origin
+        frame = CGRect(x: host.surface.frame.minX + origin.x * zoom, y: host.surface.frame.minY + origin.y * zoom,
+            width: visiblePage.width * zoom, height: visiblePage.height * zoom)
         var hiddenIDs = host.surface.allHiddenObjectIDs
         if let id = host.surface.hiddenObjectID { hiddenIDs.insert(id) }
         if hiddenIDs != hiding || host.surface.hiddenTextID != hidingTextID {
+            repaint = true
             hiding = hiddenIDs; hidingTextID = host.surface.hiddenTextID
             epoch = UUID(); fallbackTask?.cancel(); fallbackTask = nil
             detailTask?.cancel(); detailTask = nil; detailRequest = nil; detailTicket = UUID()
         }
         let screenScale = host.window?.screen.scale ?? UIScreen.main.scale
-        contentScaleFactor = min(screenScale, sqrt(6_000_000 / max(1, visible.width * visible.height)))
+        contentScaleFactor = min(screenScale, sqrt(6_000_000 / max(1, bounds.width * bounds.height)))
         spinner.center = CGPoint(x: bounds.midX, y: min(30, bounds.midY))
         isHidden = false
         if let signature {
@@ -127,15 +140,17 @@ final class LayerSceneView: UIView {
                 prepareFallback(next, owner: owner, model: model, signature: signature)
             }
             let wantedScale = max(0.01, contentScaleFactor * zoom)
-            let covered = matches(detail, signature: signature) && detail?.bounds.contains(viewport) == true &&
+            let covered = matches(detail, signature: signature) && detail?.bounds.contains(visiblePage) == true &&
                 (detail?.requestedScale ?? 0) >= wantedScale / 1.25
             if !covered && !detailSuspended && !detailBlockedByInk && matches(fallback, signature: signature) {
-                let expanded = viewport.insetBy(dx: -viewport.width * 0.15, dy: -viewport.height * 0.15)
+                let expanded = visiblePage.insetBy(dx: -visiblePage.width * 0.15, dy: -visiblePage.height * 0.15)
                     .intersection(CGRect(x: 0, y: 0, width: next.width, height: next.height))
                 prepareDetail(next, owner: owner, model: model, signature: signature, region: expanded, scale: wantedScale)
             }
         }
-        refreshReady(); setNeedsDisplay()
+        refreshReady()
+        lastPaintToken = model.inkDisplayGeneration; lastLocalPaintToken = inkGeneration
+        if repaint { viewportRedrawRequests += 1; setNeedsDisplay() }
     }
 
     private func matches(_ scene: LayerScene?, signature: PageSnapshot) -> Bool {

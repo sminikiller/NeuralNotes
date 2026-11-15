@@ -186,7 +186,7 @@ struct EditorView: View {
                 .disabled(model.navigating || !model.hasLease)
             audioButton
             Button { panel = .study } label: { Label("Studia", systemImage: "sparkles") }
-            Button { toggleSidePDF() } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }
+            Button { toggleSidePDF() } label: { Label("PDF affiancato", systemImage: "rectangle.split.2x1") }.accessibilityIdentifier("editorSidePDF")
             lensMenu
             actionsMenu
         }
@@ -489,9 +489,7 @@ struct EditorView: View {
     }
     private var pdfInspector: some View {
         VStack(spacing: 0) {
-            HStack { Spacer(); Button("Chiudi pannello", systemImage: "xmark") { sideOpen = false }.accessibilityIdentifier("closeStudyInspector") }
-                .padding(.horizontal).padding(.vertical, 8)
-            PDFStudyPanel(model: model)
+            PDFStudyPanel(model: model, close: { sideOpen = false })
             // A question about the PDF opens under it, so the PDF stays in view.
             if !lensFloating, let session = model.lensSession { pdfLens(session) }
         }
@@ -556,7 +554,7 @@ struct EditorView: View {
             .popover(isPresented: $jumpingToPage) {
                 PageJumpPopover(count: model.pages.count, currentIndex: pageIndex, select: selectPage)
             }
-            EditorPageScrubber(pageIDs: model.pages.map(\.id), currentIndex: pageIndex, select: selectPage)
+            EditorPageScrubber(pageIDs: model.pages.map(\.id), currentIndex: pageIndex, select: selectPage, model: model)
                 .padding(.horizontal, 4)
             if showSteps { pageStep(1) }
             Button { Task { await model.addPage() } } label: {

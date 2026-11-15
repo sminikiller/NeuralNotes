@@ -78,6 +78,23 @@ final class PDFRasterCacheTests: XCTestCase {
         XCTAssertEqual(cache.mainThreadRasterizations, 0)
         XCTAssertEqual(cache.queuedCount, 0); XCTAssertLessThanOrEqual(cache.cachedBytes, cache.maximumBytes)
     }
+    @MainActor func testPDFDetailPanningRepositionsCachedSurfaceWithoutRepaintingEveryFrame() async throws {
+        let (root, pages) = try source(dense: true); defer { try? FileManager.default.removeItem(at: root) }
+        let host = CanvasHost(canvas: PKCanvasView()); host.surface.page = pages[0]; host.surface.package = root
+        host.frame = CGRect(x: 0, y: 0, width: 800, height: 600); host.layoutIfNeeded()
+        host.canvas.zoomScale = 3; host.canvas.contentOffset = CGPoint(x: 300, y: 360); host.alignSurface()
+        host.paperDetail.update(from: host, force: true)
+        let before = host.paperDetail.redrawRequests
+        for step in 1...60 {
+            host.canvas.contentOffset = CGPoint(x: 300 + step, y: 360 + step)
+            host.alignSurface(); host.paperDetail.update(from: host, force: true)
+        }
+        XCTAssertEqual(host.paperDetail.redrawRequests, before, "Small pans must move a retained bitmap, not repaint the entire viewport sixty times")
+        host.canvas.contentOffset = CGPoint(x: 600, y: 750); host.alignSurface()
+        host.paperDetail.update(from: host, force: true)
+        XCTAssertGreaterThan(host.paperDetail.redrawRequests, before, "Leaving overscan must prepare the newly exposed PDF region")
+    }
+
     @MainActor func testVisibleSetFitsTheBudgetAndDoesNotStartAnEvictionRenderingLoop() async throws {
         let (root, pages) = try source(); defer { try? FileManager.default.removeItem(at: root) }
         let cache = PDFRasterCache(maximumBytes: 4 * 1024 * 1024), page = pages[0]

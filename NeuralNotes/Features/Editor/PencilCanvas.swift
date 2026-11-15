@@ -182,7 +182,7 @@ final class CanvasHost: UIView {
             emptyInkCover.resetForPageChange(); return
         }
         canvas.layer.opacity = 1
-        if canvas.drawing.strokes.isEmpty {
+        if canvas.drawing.strokes.isEmpty && model?.nativeInkInProgress != true {
             emptyInkCover.update(from: self, force: true)
             // The cover already renders the visible PDF/text at screen resolution.
             paperDetail.isHidden = true; paperDetail.layer.contents = nil
@@ -384,7 +384,7 @@ struct PencilCanvas: UIViewRepresentable {
             host?.publishViewportState()
         }
         func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
-            host?.publishViewportState()
+            host?.alignSurface(); host?.publishViewportState()
         }
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             host?.alignSurface()

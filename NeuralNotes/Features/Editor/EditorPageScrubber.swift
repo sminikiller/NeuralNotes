@@ -7,6 +7,7 @@ struct EditorPageScrubber: View {
     let pageIDs: [UUID]
     let currentIndex: Int
     let select: (Int) -> Void
+    var model: EditorViewModel? = nil
     @GestureState private var preview: Int?
     @Environment(\.layoutDirection) private var direction
 
@@ -29,13 +30,20 @@ struct EditorPageScrubber: View {
             .contentShape(Rectangle())
             .overlay(alignment: .topLeading) {
                 if preview != nil {
-                    Text("\(displayedIndex + 1) / \(pageIDs.count)")
-                        .font(.subheadline.weight(.semibold).monospacedDigit())
-                        .padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(.regularMaterial, in: Capsule())
-                        .overlay(Capsule().stroke(.primary.opacity(0.12)))
+                    VStack(spacing: 6) {
+                        if let model, model.pages.indices.contains(displayedIndex) {
+                            PageScrubberPreview(page: model.pages[displayedIndex], model: model)
+                                .frame(width: 112, height: 136)
+                        }
+                        Text("\(displayedIndex + 1) / \(pageIDs.count)")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                    }
+                        .padding(8)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.primary.opacity(0.12)))
+                        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
                         .fixedSize()
-                        .position(x: min(max(54, x), max(54, geometry.size.width - 54)), y: -20)
+                        .position(x: min(max(68, x), max(68, geometry.size.width - 68)), y: model == nil ? -20 : -92)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -106,5 +114,39 @@ struct PageJumpPopover: View {
     private func jump() {
         guard let index = PageScrubberPosition.pageNumber(number, count: count) else { return }
         dismiss(); select(index)
+    }
+}
+
+/// A cancelled scrub never opens a page or writes it. Throttle expensive previews
+/// until the finger pauses briefly; do not enqueue all 1,500 pages along its path.
+@MainActor
+private struct PageScrubberPreview: View {
+    let page: PageSnapshot
+    let model: EditorViewModel
+    @State private var image: UIImage?
+    @State private var imagePage: UUID?
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 4).fill(.white)
+            if imagePage == page.id, let image { Image(uiImage: image).resizable().scaledToFit() }
+            else { ProgressView().tint(.gray) }
+        }
+        .accessibilityIdentifier("pageScrubberPreview")
+        .task(id: "\(page.id)-\(page.revision)") {
+            image = nil; imagePage = nil
+            do {
+                try await Task.sleep(for: .milliseconds(90))
+                let current = model.page?.id == page.id
+                let source = current ? (model.page ?? page) : page
+                let drawing = current ? model.canvas.drawing : nil
+                await PDFRasterCache.shared.preparePreview(page: source, package: model.workspace.package)
+                try Task.checkCancellation()
+                let result = try await DocumentServices.compositeImage(page: source, drawing: drawing,
+                    drawingLayerID: current ? model.drawingLayerID : nil, workspace: model.workspace,
+                    maxDimension: 280, pdfMode: .preview)
+                try Task.checkCancellation()
+                image = result; imagePage = page.id
+            } catch { /* Only a derived preview. Navigation remains available. */ }
+        }
     }
 }

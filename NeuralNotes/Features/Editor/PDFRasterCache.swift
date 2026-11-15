@@ -143,7 +143,9 @@ final class PDFRasterCache: NSObject {
         let jobs = detailRequests(source, clip: clip, scale: Double(scale))
         // Reuse the last available resolution while pinch/scroll asks for new
         // detail. Fixed tile coordinates avoid rerasterizing each moved viewport.
-        let available = entries.filter { $0.key.source == source && !$0.key.part.isPreview && $0.value.bounds.intersects(clip) }
+        let complete = jobs.allSatisfy { entries[$0.key] != nil }
+        let exactKeys = Set(jobs.map(\.key))
+        let available = entries.filter { $0.key.source == source && !$0.key.part.isPreview && $0.value.bounds.intersects(clip) && (!complete || exactKeys.contains($0.key)) }
             .sorted { lhs, rhs in
                 if case .tile(let a, _, _) = lhs.key.part, case .tile(let b, _, _) = rhs.key.part { return a < b }
                 return false

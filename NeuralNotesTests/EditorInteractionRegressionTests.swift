@@ -128,6 +128,24 @@ final class EditorInteractionRegressionTests: XCTestCase {
             XCTAssertEqual(try PKDrawing(data: XCTUnwrap(original)).strokes.count, 1)
         }
     }
+    @MainActor func testFirstPencilContactUncoversLiveInkBeforePencilKitPublishesAStroke() async throws {
+        try await fixture { model, host in
+            model.page?.paper = .plain; host.synchronizePage(); host.layoutIfNeeded()
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
+            XCTAssertFalse(host.emptyInkCover.isHidden)
+            model.strokeBegan()
+            XCTAssertTrue(model.canvas.drawing.strokes.isEmpty, "A live Pencil contact has not yet published its stroke")
+            XCTAssertTrue(host.emptyInkCover.isHidden, "The anti-residue cover must not hide the first live stroke until lift-off")
+            host.alignSurface(); XCTAssertTrue(host.emptyInkCover.isHidden)
+            model.canvas.drawing = PKDrawing(strokes: [ink()]); model.drawingChanged(); model.strokeEnded(); model.finishInkGesture()
+            await model.performUndo()
+            host.synchronizePage(); XCTAssertFalse(host.emptyInkCover.isHidden)
+            model.strokeBegan(); XCTAssertTrue(host.emptyInkCover.isHidden)
+            model.canvas.drawing = PKDrawing(strokes: [ink()]); model.drawingChanged(); model.strokeEnded(); model.finishInkGesture()
+            XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
+        }
+    }
+
     @MainActor func testEmptyInkCoverHidesTheOriginalObjectDuringDragWithoutChangingStoredObjects() async throws {
         try await fixture { model, host in
             var shape = ShapeElement(kind: .rectangle, x: 100, y: 100, width: 200, height: 150)

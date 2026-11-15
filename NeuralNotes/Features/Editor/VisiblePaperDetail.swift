@@ -14,6 +14,8 @@ final class VisiblePaperDetail: UIView {
     @objc private func nnPDFDetailReady(_ note: Notification) {
         if let page, !isHidden, PDFRasterCache.affects(note, page: page, package: package) { setNeedsDisplay() }
     }
+    private(set) var redrawRequests = 0
+    private var region = CGRect.zero
     private var page: PageSnapshot?
     private var package = URL(fileURLWithPath: "/")
     private var zoom: CGFloat = 1
@@ -22,7 +24,7 @@ final class VisiblePaperDetail: UIView {
     private var hiddenObjectID: UUID?
     private var hiddenObjectIDs = Set<UUID>()
     func resetForPageChange() {
-        page = nil; hiddenTextID = nil; layer.contents = nil; isHidden = true
+        page = nil; region = .zero; hiddenTextID = nil; layer.contents = nil; isHidden = true
     }
     func update(from host: CanvasHost, force: Bool = false) {
         if host.surface.page.layers != nil { if !isHidden || page != nil { resetForPageChange() }; return }
@@ -30,15 +32,32 @@ final class VisiblePaperDetail: UIView {
         isHidden = (!force && z <= 1 && host.surface.page.pdfFile == nil) || rect.isNull || rect.isEmpty
         guard !isHidden else { return }
         let at = CGPoint(x: (rect.minX - host.surface.frame.minX) / z, y: (rect.minY - host.surface.frame.minY) / z)
-        let changed = frame != rect || page != host.surface.page || package != host.surface.package || zoom != z || origin != at || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs
-        frame = rect; isUserInteractionEnabled = false
-        let budget = sqrt(8_000_000 / max(1, rect.width * rect.height))
+        let visible = CGRect(origin: at, size: CGSize(width: rect.width / z, height: rect.height / z))
+        let moving = host.canvas.isDragging || host.canvas.isDecelerating || host.canvas.isZooming || host.viewportAnimationActive
+        let contentChanged = page != host.surface.page || package != host.surface.package || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs
+        let needsResolution = zoom != z && (!moving || z / zoom > 1.5 || z / zoom < 0.67)
+        let rebuild = contentChanged || !region.contains(visible) || needsResolution
+        if rebuild {
+            // Overscan retains the same backing bitmap while panning. Only the
+            // layer position moves, instead of compositing every PDF tile on each frame.
+            region = visible.insetBy(dx: -128 / z, dy: -128 / z)
+                .intersection(CGRect(x: 0, y: 0, width: host.surface.page.width, height: host.surface.page.height))
+            zoom = z; origin = region.origin
+            page = host.surface.page; package = host.surface.package
+            hiddenTextID = host.surface.hiddenTextID; hiddenObjectID = host.surface.hiddenObjectID
+            hiddenObjectIDs = host.surface.allHiddenObjectIDs
+        }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        bounds = CGRect(origin: .zero, size: CGSize(width: region.width * zoom, height: region.height * zoom))
+        transform = CGAffineTransform(scaleX: z / zoom, y: z / zoom)
+        center = CGPoint(x: host.surface.frame.minX + region.midX * z, y: host.surface.frame.minY + region.midY * z)
+        isUserInteractionEnabled = false
+        let budget = sqrt(8_000_000 / max(1, bounds.width * bounds.height))
         contentScaleFactor = min(host.window?.screen.scale ?? UIScreen.main.scale, budget)
-        page = host.surface.page; package = host.surface.package; zoom = z; origin = at; hiddenTextID = host.surface.hiddenTextID
-        hiddenObjectIDs = host.surface.allHiddenObjectIDs
-        hiddenObjectID = host.surface.hiddenObjectID
-        if changed { setNeedsDisplay() }
+        CATransaction.commit()
+        if rebuild { redrawRequests += 1; setNeedsDisplay() }
     }
+
     override func draw(_ rect: CGRect) {
         guard let page, let context = UIGraphicsGetCurrentContext() else { return }
         context.scaleBy(x: zoom, y: zoom); context.translateBy(x: -origin.x, y: -origin.y)

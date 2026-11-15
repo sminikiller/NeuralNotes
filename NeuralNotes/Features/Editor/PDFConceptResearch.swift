@@ -12,6 +12,21 @@ struct PDFResearchTerm: Identifiable {
 @MainActor
 final class ConceptPDFView: PDFView {
     var conceptMode = false { didSet { conceptGesture.isEnabled = conceptMode } }
+    var snippetURL: URL?
+    var onSnippet: ((PDFSnippetRequest) -> Void)?
+    var snippetMode = false {
+        didSet {
+            snippetOverlay.isHidden = !snippetMode
+            if !snippetMode { snippetOverlay.reset() }
+            else { bringSubviewToFront(snippetOverlay) }
+        }
+    }
+    private lazy var snippetOverlay = PDFSnippetOverlay(pdfView: self)
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        snippetOverlay.frame = bounds
+        if snippetMode { bringSubviewToFront(snippetOverlay) }
+    }
     var onConcept: ((String) -> Void)?
     private var trace: [StrokeSample] = []
     private weak var tracePage: PDFPage?
@@ -29,6 +44,7 @@ final class ConceptPDFView: PDFView {
     }()
     override init(frame: CGRect) {
         super.init(frame: frame)
+        snippetOverlay.isHidden = true; addSubview(snippetOverlay)
         addGestureRecognizer(conceptGesture)
         traceLayer.fillColor = UIColor.clear.cgColor; traceLayer.strokeColor = UIColor.systemTeal.cgColor
         traceLayer.lineWidth = 2; traceLayer.lineCap = .round; layer.addSublayer(traceLayer)

@@ -99,6 +99,7 @@ final class EditorViewModel {
     }
     var drawingShape = false
     @ObservationIgnored var movingObjects = false
+    var nativeInkInProgress: Bool { usingInkTool }
     var hasActiveStroke: Bool { usingInkTool || drawingShape || movingObjects }
     var handwriting: HandwritingSession?
     var interactionBusy: Bool { usingInkTool || editingTextID != nil || drawingShape || movingObjects || handwriting != nil }
@@ -356,6 +357,8 @@ final class EditorViewModel {
         finishInkGesture()
         rememberPalette()
         usingInkTool = true
+        // PencilKit publishes the finished PKStroke later. Uncover its live ink now.
+        (canvas.superview as? CanvasHost)?.updateNativeInkVisibility()
         (canvas.superview as? CanvasHost)?.layeredScene.pauseDetailForInk()
         editBeforeGesture = captureEdit(ink: true)
         inkGestureBaseline = canvas.drawing; inkGestureGeneration = UUID()
