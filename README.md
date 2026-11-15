@@ -1,16 +1,16 @@
-# NeuralNotes 0.31.0 — beta TestFlight 1.0.0 (195)
+# NeuralNotes 0.32.0 — beta TestFlight 1.0.0 (199)
 
-La cartella di lavoro corrente è `AppAppunti`. Il ramo aggiornato e predefinito su GitHub è **`codex/photo-perspective-sync-center`**. Le precedenti cartelle `AppAppunti-claude`, `AppAppunti-testflight` e i worktree delle fasi 0.29–0.31 erano copie di sviluppo superate; non usarle come sorgente della versione corrente.
+La cartella di lavoro corrente è `AppAppunti`. Il ramo aggiornato e predefinito su GitHub è **`codex/photo-perspective-sync-center`**. Le precedenti cartelle e i worktree delle fasi 0.29–0.31 erano copie di sviluppo superate; non usarle come sorgente della versione corrente.
 
-Il piano degli strumenti di scrittura fino alla **0.31** è implementato e consegnato: strumenti e geometria, ottimizzazioni PDF, testo e finestra di scrittura, livelli e rifinitura della grafia. [Stato del piano](docs/PIANO_STRUMENTI_2026.md) · [Guida delle funzioni](docs/GUIDA_FUNZIONI.md) · [Consegna 0.31 e limiti](docs/DELIVERY_0_31.md).
+La **0.32** aggiunge riuso del rendering durante lo spostamento sui PDF, miniatura nella barra pagine, pannello PDF affiancato compatto con ritaglio negli appunti e correzione della visibilità del primo tratto Pencil. Il piano degli strumenti fino alla **0.31** resta consegnato. [Consegna 0.32 e prova rapida](docs/DELIVERY_0_32.md) · [Piano strumenti](docs/PIANO_STRUMENTI_2026.md) · [Guida](docs/GUIDA_FUNZIONI.md).
 
-- **Sorgenti verificati:** `bd8bd29b8790bf1612a263b34b23d7101645904a`; gli aggiornamenti successivi della consegna riguardano la documentazione.
-- **Verifica Apple:** [42878279466](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466), 448 XCTest Core + 98 Swift Testing, 283 test nativi e 2 UI Grafia, Release e Playgrounds Release; cinque regressioni UI già passate nella verifica precedente sono documentate nella consegna.
-- **Upload effettivo:** [42882255145](https://github.com/sminikiller/NeuralNotes/actions/runs/42882255145), beta **1.0.0 (195)** ricevuta da Apple il 10 novembre 2026. Disponibilità dopo l'elaborazione Apple, distinta dall'upload verificato.
-- **ZIP Playgrounds:** `NeuralNotes-iPad-0.31.0.zip`, 373 file verificati, SHA-256 `c37e25b1af15e8c88d181ecf2d4f82df84474bc82dd07b6234e6aed48b14bbff`. [Artefatto esatto della CI](https://github.com/sminikiller/NeuralNotes/actions/runs/42878279466/artifacts/13793134439). La copia locale è in `.verification/` e non è inclusa nel repository.
+- **Sorgenti verificati:** `ec58c7ac770cf871f82635e321fe56a79c4e4af0`; gli aggiornamenti successivi della consegna riguardano la documentazione.
+- **Verifica Apple:** [43723684538](https://github.com/sminikiller/NeuralNotes/actions/runs/43723684538), 448 XCTest Core + 98 Swift Testing, 289 test nativi e UI finale della barra, zero fallimenti; Release e Playgrounds Release con 60 osservazioni di avvio. Cinque altre regressioni UI passate su sorgenti app identici sono documentate nella consegna.
+- **Upload effettivo:** [43725854393](https://github.com/sminikiller/NeuralNotes/actions/runs/43725854393), beta **1.0.0 (199)** ricevuta da Apple il 15 novembre 2026 alle 14:49:47 UTC. Disponibilità dopo l'elaborazione Apple, distinta dall'upload verificato.
+- **ZIP Playgrounds:** `NeuralNotes-iPad-0.32.0.zip`, 374 file verificati, SHA-256 `ca8873e788a243404b1099e39c58b097b49948694d8fcf6bf524c2b72e625059`. [Artefatto esatto della CI](https://github.com/sminikiller/NeuralNotes/actions/runs/43723684538/artifacts/14165184490). La copia locale è in `.verification/` e non è inclusa nel repository.
 - **Distribuzione senza Mac:** [procedura TestFlight](release/TESTFLIGHT_SENZA_MAC.md). Identità, firma e segreti già configurati non vanno ricreati.
 
-Restano distinti i collaudi prolungati su iPad fisico. La beta non attiva iCloud; l'implementazione e i test locali dei servizi account/AI non ne attestano la pubblicazione online.
+Restano distinti i collaudi prolungati su iPad fisico e la fluidità sui PDF personali. La beta non attiva iCloud; l'implementazione e i test locali dei servizi account/AI non ne attestano la pubblicazione online.
 
 ## Note storiche delle versioni precedenti
 
