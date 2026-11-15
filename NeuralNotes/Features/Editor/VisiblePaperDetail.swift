@@ -5,8 +5,12 @@ import NeuralNotesCore
 /// full-page bitmap at 8x zoom and keeps PDF/text sharp within a bounded viewport.
 @MainActor
 final class VisiblePaperDetail: UIView {
+    private let retained = RetainedPaperRaster()
     init() {
         super.init(frame: .zero)
+        clipsToBounds = true; isUserInteractionEnabled = false; isOpaque = false
+        retained.paint = { [weak self] context in self?.paint(in: context) }
+        addSubview(retained)
         NotificationCenter.default.addObserver(self, selector: #selector(nnPDFDetailReady(_:)), name: PDFRasterCache.didRender, object: nil)
     }
     required init?(coder: NSCoder) { nil }
@@ -23,8 +27,14 @@ final class VisiblePaperDetail: UIView {
     private var hiddenTextID: UUID?
     private var hiddenObjectID: UUID?
     private var hiddenObjectIDs = Set<UUID>()
+    override func setNeedsDisplay() {
+        super.setNeedsDisplay(); retained.setNeedsDisplay()
+    }
+    /// Explicit display fence for snapshot tests; UIKit normally displays the
+    /// retained child with the rest of the view hierarchy at the frame boundary.
+    func displayPaperIfNeeded() { layer.displayIfNeeded(); retained.layer.displayIfNeeded() }
     func resetForPageChange() {
-        page = nil; region = .zero; hiddenTextID = nil; layer.contents = nil; isHidden = true
+        page = nil; region = .zero; hiddenTextID = nil; layer.contents = nil; retained.layer.contents = nil; isHidden = true
     }
     func update(from host: CanvasHost, force: Bool = false) {
         if host.surface.page.layers != nil { if !isHidden || page != nil { resetForPageChange() }; return }
@@ -48,19 +58,31 @@ final class VisiblePaperDetail: UIView {
             hiddenObjectIDs = host.surface.allHiddenObjectIDs
         }
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        bounds = CGRect(origin: .zero, size: CGSize(width: region.width * zoom, height: region.height * zoom))
-        transform = CGAffineTransform(scaleX: z / zoom, y: z / zoom)
-        center = CGPoint(x: host.surface.frame.minX + region.midX * z, y: host.surface.frame.minY + region.midY * z)
-        isUserInteractionEnabled = false
-        let budget = sqrt(8_000_000 / max(1, bounds.width * bounds.height))
+        // The public viewport stays strictly inside the host. Only its clipped
+        // child has overscan, so cached pixels can never cover toolbar/adjacent pages.
+        frame = rect
+        retained.bounds = CGRect(origin: .zero, size: CGSize(width: region.width * zoom, height: region.height * zoom))
+        retained.transform = CGAffineTransform(scaleX: z / zoom, y: z / zoom)
+        retained.center = CGPoint(x: host.surface.frame.minX + region.midX * z - rect.minX,
+                                  y: host.surface.frame.minY + region.midY * z - rect.minY)
+        let budget = sqrt(8_000_000 / max(1, retained.bounds.width * retained.bounds.height))
         contentScaleFactor = min(host.window?.screen.scale ?? UIScreen.main.scale, budget)
+        retained.contentScaleFactor = contentScaleFactor
         CATransaction.commit()
         if rebuild { redrawRequests += 1; setNeedsDisplay() }
     }
 
-    override func draw(_ rect: CGRect) {
-        guard let page, let context = UIGraphicsGetCurrentContext() else { return }
+    private func paint(in context: CGContext) {
+        guard let page else { return }
         context.scaleBy(x: zoom, y: zoom); context.translateBy(x: -origin.x, y: -origin.y)
         PageRenderer.draw(page, package: package, in: context, hidingTextID: hiddenTextID, hidingObjectID: hiddenObjectID, hidingObjectIDs: hiddenObjectIDs, pdfMode: .interactive)
+    }
+}
+
+@MainActor
+private final class RetainedPaperRaster: UIView {
+    var paint: ((CGContext) -> Void)?
+    override func draw(_ rect: CGRect) {
+        if let context = UIGraphicsGetCurrentContext() { paint?(context) }
     }
 }

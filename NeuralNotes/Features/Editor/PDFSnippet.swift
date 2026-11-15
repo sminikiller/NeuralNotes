@@ -73,6 +73,9 @@ final class PDFSnippetOverlay: UIView {
         self.pdfView = pdfView
         super.init(frame: .zero)
         isOpaque = false; backgroundColor = .clear
+        isAccessibilityElement = true
+        accessibilityLabel = "Seleziona un ritaglio del PDF"
+        accessibilityHint = "Trascina dal primo all'ultimo angolo della zona da inserire nel foglio."
         accessibilityIdentifier = "studyPDFCropOverlay"
         border.fillColor = UIColor.systemTeal.withAlphaComponent(0.16).cgColor
         border.strokeColor = UIColor.systemTeal.cgColor; border.lineWidth = 2

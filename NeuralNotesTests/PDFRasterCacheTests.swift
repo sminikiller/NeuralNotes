@@ -216,10 +216,10 @@ final class PDFRasterCacheTests: XCTestCase {
         let cache = PDFRasterCache.shared
         let page = try XCTUnwrap(model.page)
         XCTAssertNotNil(page.pdfFile)
-        host.emptyInkCover.layer.displayIfNeeded(); host.paperDetail.layer.displayIfNeeded()
+        host.emptyInkCover.displayPaperIfNeeded(); host.paperDetail.displayPaperIfNeeded()
         await cache.waitUntilIdle()
-        host.emptyInkCover.setNeedsDisplay(); host.emptyInkCover.layer.displayIfNeeded()
-        host.paperDetail.setNeedsDisplay(); host.paperDetail.layer.displayIfNeeded()
+        host.emptyInkCover.setNeedsDisplay(); host.emptyInkCover.displayPaperIfNeeded()
+        host.paperDetail.setNeedsDisplay(); host.paperDetail.displayPaperIfNeeded()
         await cache.waitUntilIdle()
         let count = cache.rasterizations
         let points = [CGPoint(x: 130, y: 150), CGPoint(x: 240, y: 180)].enumerated().map { index, point in
@@ -234,7 +234,7 @@ final class PDFRasterCacheTests: XCTestCase {
         // the empty cover with its high-resolution PDF detail immediately.
         XCTAssertTrue(host.emptyInkCover.isHidden)
         XCTAssertFalse(host.paperDetail.isHidden, "The first pen stroke must not expose only the blurry PDF preview until the next save/layout")
-        host.paperDetail.layer.displayIfNeeded()
+        host.paperDetail.displayPaperIfNeeded()
         let detailFormat = UIGraphicsImageRendererFormat(); detailFormat.scale = 1; detailFormat.opaque = true
         let firstStrokeBackground = UIGraphicsImageRenderer(size: host.paperDetail.bounds.size, format: detailFormat).image { output in
             UIColor.white.setFill(); output.fill(host.paperDetail.bounds)
@@ -247,7 +247,7 @@ final class PDFRasterCacheTests: XCTestCase {
         XCTAssertTrue(host.hitTest(CGPoint(x: 500, y: 400), with: nil)?.isDescendant(of: model.canvas) == true)
         await model.performUndo(); XCTAssertTrue(model.canvas.drawing.strokes.isEmpty)
         await model.performRedo(); XCTAssertEqual(model.canvas.drawing.strokes.count, 1)
-        host.synchronizePage(); host.emptyInkCover.layer.displayIfNeeded(); host.paperDetail.layer.displayIfNeeded()
+        host.synchronizePage(); host.emptyInkCover.displayPaperIfNeeded(); host.paperDetail.displayPaperIfNeeded()
         await cache.waitUntilIdle()
         XCTAssertEqual(cache.rasterizations, count, "Ink/undo must not invalidate the immutable PDF background")
         XCTAssertEqual(cache.mainThreadRasterizations, 0)
@@ -263,7 +263,7 @@ final class PDFRasterCacheTests: XCTestCase {
         // A completion for the previous PDF must not draw its red block on a
         // newly created sheet, even if it arrives after the page switch.
         await cache.prepareDetail(page: page, package: workspace.package, bounds: CGRect(x: 400, y: 0, width: 200, height: 200), scale: 4)
-        host.emptyInkCover.layer.displayIfNeeded()
+        host.emptyInkCover.displayPaperIfNeeded()
         let format = UIGraphicsImageRendererFormat(); format.scale = 1
         let fresh = UIGraphicsImageRenderer(size: host.emptyInkCover.bounds.size, format: format).image { host.emptyInkCover.layer.render(in: $0.cgContext) }
         let white = try pixel(fresh, at: CGPoint(x: fresh.size.width * 0.83, y: fresh.size.height * 0.125))

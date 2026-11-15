@@ -152,7 +152,7 @@ final class EditorInteractionRegressionTests: XCTestCase {
             shape.fill = .red; shape.fillOpacity = 1; model.page?.paper = .plain; model.page?.shapes = [shape]
             host.synchronizePage(); host.layoutIfNeeded()
             @MainActor func redPixels() throws -> Int {
-                host.emptyInkCover.layer.displayIfNeeded()
+                host.emptyInkCover.displayPaperIfNeeded()
                 let format = UIGraphicsImageRendererFormat(); format.scale = 1
                 let image = UIGraphicsImageRenderer(size: host.emptyInkCover.bounds.size, format: format).image { host.emptyInkCover.layer.render(in: $0.cgContext) }
                 let source = try XCTUnwrap(image.cgImage)
@@ -180,7 +180,7 @@ final class EditorInteractionRegressionTests: XCTestCase {
             var shape = ShapeElement(kind: .rectangle, x: 100, y: 150, width: 200, height: 100)
             shape.fill = .blue; shape.fillOpacity = 1
             model.page?.paper = .plain; model.page?.shapes = [shape]; model.page?.aboveInkObjects = [shape.id]
-            host.synchronizePage(); host.layoutIfNeeded(); host.emptyInkCover.layer.displayIfNeeded(); host.foregroundObjects.layer.displayIfNeeded()
+            host.synchronizePage(); host.layoutIfNeeded(); host.emptyInkCover.displayPaperIfNeeded(); host.foregroundObjects.layer.displayIfNeeded()
             @MainActor func bluePixels() throws -> Int {
                 let format = UIGraphicsImageRendererFormat(); format.scale = 1
                 let image = UIGraphicsImageRenderer(size: host.bounds.size, format: format).image { host.layer.render(in: $0.cgContext) }

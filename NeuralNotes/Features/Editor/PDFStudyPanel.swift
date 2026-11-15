@@ -185,6 +185,7 @@ struct PDFStudyPanel: View {
             if controller.hasSelection { selectionCommands }
             if inserting { ProgressView("Inserimento ritaglio…").font(.caption).padding(6) }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("pdfStudyPanel")
         .onAppear { selectedFile = model.page?.pdfFile ?? files.first ?? "" }
         .task(id: selectedFile + "|" + query) {

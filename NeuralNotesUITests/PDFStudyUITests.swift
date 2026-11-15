@@ -51,7 +51,8 @@ final class PDFStudyUITests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 6 di 6"), object: counter)], timeout: 12)
         XCTAssertEqual(canvas.frame.height, original.height, accuracy: 2)
         XCTAssertEqual(canvas.frame.width, original.width, accuracy: 2)
-        let strip = app.descendants(matching: .any)["editorPageStrip"].firstMatch
+        // Measure the controls, not the material extended behind the home indicator.
+        let strip = app.descendants(matching: .any)["editorPageControls"].firstMatch
         XCTAssertLessThanOrEqual(strip.frame.height, 56)
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "page-preview-scrubber-after-release"; shot.lifetime = .keepAlways; add(shot)
     }

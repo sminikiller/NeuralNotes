@@ -564,6 +564,8 @@ struct EditorView: View {
         }
         .buttonStyle(.plain).foregroundStyle(Brand.accent)
         .frame(height: 48)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("editorPageControls")
     }
 
     private func pageStep(_ offset: Int) -> some View {
