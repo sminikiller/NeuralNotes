@@ -101,7 +101,8 @@ enum StudyNoteRendering {
     }
     static func drawTape(_ tape: StudyTape, context: CGContext) {
         let box = CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)
-        let color = (tape.color ?? .yellow).ink.studyUIColor
+        // Old notebooks have no palette value: retain their original amber cover.
+        let color = tape.color?.ink.studyUIColor ?? UIColor(red: 1, green: 0.82, blue: 0.25, alpha: 1)
         context.saveGState(); defer { context.restoreGState() }
         if tape.revealed {
             context.setStrokeColor(color.cgColor); context.setLineWidth(1)

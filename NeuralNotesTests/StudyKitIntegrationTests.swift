@@ -52,6 +52,12 @@ final class StudyKitIntegrationTests: XCTestCase {
             await model.performUndo(); XCTAssertEqual(model.page?.shapes?.first, first)
             await model.performUndo(); XCTAssertTrue(model.page?.shapes?.isEmpty ?? true)
             await model.performRedo(); XCTAssertEqual(model.page?.connectors, initial.connectors)
+            let target = PageLinkTarget(documentID: model.workspace.documentID, pageID: UUID())
+            model.mutatePage("Collega nodo") { $0.shapes?[0].pageLink = target }
+            model.removePageLink(from: first.id)
+            XCTAssertNil(model.page?.shapes?.first?.pageLink)
+            await model.performUndo(); XCTAssertEqual(model.page?.shapes?.first?.pageLink, target)
+            await model.performRedo(); XCTAssertNil(model.page?.shapes?.first?.pageLink)
             model.insertStudyList("Organi\n  Cuore\nTessuti", title: "Anatomia", kind: 2, color: .yellow)
             let list = try XCTUnwrap(model.page?.texts.last)
             XCTAssertTrue(list.text.contains("☐ Cuore")); XCTAssertNotNil(list.rtf)

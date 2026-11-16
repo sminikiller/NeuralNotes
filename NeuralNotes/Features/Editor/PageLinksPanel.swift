@@ -3,6 +3,13 @@ import NeuralNotesCore
 
 @MainActor
 extension EditorViewModel {
+    func removePageLink(from objectID: UUID) {
+        guard let page, PageLayers.editableObjectIDs(in: page, layerID: activeLayerID ?? page.id).contains(objectID) else { return }
+        mutatePage("Rimuovi collegamento") { page in
+            if let i = page.texts.firstIndex(where: { $0.id == objectID }) { page.texts[i].pageLink = nil }
+            if let i = page.shapes?.firstIndex(where: { $0.id == objectID }) { page.shapes?[i].pageLink = nil }
+        }
+    }
     func openPageLink(_ target: PageLinkTarget) async {
         guard target.documentID == workspace.documentID else { error = "Questo collegamento appartiene a un altro quaderno. Apri il quaderno di origine dalla libreria."; return }
         guard let targetPage = pages.first(where: { $0.id == target.pageID }) else { error = "La pagina collegata è stata rimossa. Puoi ripristinarla con Annulla o dal recupero del quaderno."; return }
@@ -34,7 +41,7 @@ struct PageLinksPanel: View {
                 Section("Da questa pagina · \(outgoing.count)") {
                     ForEach(outgoing) { link in
                         Button { Task { await model.openPageLink(link.target); if model.page?.id == link.target.pageID { dismiss() } } } label: { Label(link.label, systemImage: "arrow.up.forward") }
-                            .swipeActions { Button("Rimuovi collegamento", role: .destructive) { model.mutatePage("Rimuovi collegamento") { page in if let i = page.texts.firstIndex(where: { $0.id == link.textID }) { page.texts[i].pageLink = nil } } } }
+                            .swipeActions { Button("Rimuovi collegamento", role: .destructive) { model.removePageLink(from: link.textID) } }
                     }
                 }
                 Section("Collegamenti in entrata · \(incoming.count)") {
