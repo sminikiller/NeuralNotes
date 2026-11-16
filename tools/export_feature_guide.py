@@ -28,5 +28,8 @@ for row in rows:
         lines += [f"{index}. {json.loads(step)}"]
     lines.append("")
 destination = ROOT / "docs/GUIDA_FUNZIONI.md"
-destination.write_text("\n".join(lines), encoding="utf-8")
+existing = destination.read_text(encoding="utf-8") if destination.exists() else ""
+marker = "## Collaudo dei PDF"
+appendix = "\n" + existing[existing.index(marker):] if marker in existing else ""
+destination.write_text("\n".join(lines) + appendix, encoding="utf-8")
 print(f"Exported {len(rows)} tutorials: {destination}")

@@ -31,6 +31,8 @@ final class EditorViewModel {
     var pages: [PageSnapshot] = []
     var sections: [NotebookSection] = []
     var page: PageSnapshot?
+    var studyReview = false
+    var studyToolBeforeReview = InkTool.pen
     var tool = InkTool.pen
     @ObservationIgnored var toolBeforeLens = InkTool.pen
     var lensArea: CGRect?
@@ -276,6 +278,7 @@ final class EditorViewModel {
     }
 
     func configureTool() {
+        if studyReview && tool != .audioLink { studyReview = false }
         if tool != .text { endTextEdit() }
         if tool != .objects { selectionIncludesInk = false; selectedStrokeIndices = nil }
         PaperInk.configure(canvas)
@@ -303,6 +306,7 @@ final class EditorViewModel {
             canvas.panGestureRecognizer.isEnabled = false; canvas.pinchGestureRecognizer?.isEnabled = false
         }
         if !canEditActiveLayer || inkReplayActive || handwriting != nil { canvas.drawingGestureRecognizer.isEnabled = false }
+        if studyReview { canvas.drawingGestureRecognizer.isEnabled = false }
         zoomWritingController?.configureTool()
         refreshDrawingGuides()
     }

@@ -8,6 +8,7 @@ struct EditorQuickToolbar: View {
     let workspace: () -> Void
     var lens = LensBarActions()
     @State private var paletteOpen = false
+    @State private var studyKitOpen = false
     @State private var selectionOpen = false
     @State private var lensOpen = false
     @State private var optionsTool: WorkspaceTool?
@@ -40,6 +41,7 @@ struct EditorQuickToolbar: View {
                     Menu {
                         Button("Inserisci foto", systemImage: "photo.badge.plus", action: photo)
                         Button("Scatta foto", systemImage: "camera", action: camera)
+                        Button("Studio: schemi, scotch e capitoli", systemImage: "square.grid.2x2") { studyKitOpen = true }.accessibilityIdentifier("openStudyKit")
                         Button("Post-it", systemImage: "note.text") { model.addStickyNote() }
                         Button("Nastro per il ripasso", systemImage: "rectangle.fill") { model.addStudyTape() }
                         Menu("Timbri", systemImage: "seal") {
@@ -48,7 +50,7 @@ struct EditorQuickToolbar: View {
                         ForEach(ShapeKind.allCases, id: \.self) { kind in
                             Button(kind.title, systemImage: kind.icon) { model.chooseShape(kind) }
                         }
-                    } label: { Image(systemName: "photo.badge.plus").frame(width: 44, height: 44) }.accessibilityLabel("Inserisci foto o forma")
+                    } label: { Image(systemName: "photo.badge.plus").frame(width: 44, height: 44) }.accessibilityLabel("Inserisci").accessibilityIdentifier("editorInsertMenu")
                     if !vertical && usesInk {
                         ForEach(Array(quickColors.enumerated()), id: \.offset) { row in colorButton(row.element) }
                     }
@@ -76,6 +78,7 @@ struct EditorQuickToolbar: View {
             // The Lens commands sit right under the toolbar, not over the page.
             if model.tool == .lens && !vertical { LensModeBar(model: model, actions: lens) }
         }.buttonStyle(EditorIconButtonStyle())
+            .sheet(isPresented: $studyKitOpen) { StudyKitPanel(model: model) }
     }
     /// With the toolbar on a side, selection and Lens commands open from one button each.
     @ViewBuilder private var verticalExtras: some View {
@@ -133,6 +136,13 @@ struct EditorQuickToolbar: View {
                     .accessibilityLabel(model.selectedShapes.isEmpty ? "Modifica selezione" : "Stile forme")
                     .accessibilityIdentifier("selectionShapeStyle").disabled(!hasSelection)
                 if model.selectionIncludesInk { HandwritingMenu(model: model) }
+                if model.page?.tapes?.contains(where: { $0.id == model.selectedObjectID }) == true {
+                    Button("Stile scotch", systemImage: "rectangle.fill") { studyKitOpen = true }
+                }
+                if let note = model.page?.texts.first(where: { $0.id == model.selectedObjectID }), note.studyNote != nil {
+                    Button(note.studyNote?.collapsed == true ? "Apri post-it" : "Richiudi post-it", systemImage: "note.text") { model.toggleStudyNote(note.id) }
+                    Button("Post-it del quaderno", systemImage: "list.bullet.rectangle") { studyKitOpen = true }
+                }
 
                 Toggle(isOn: $model.multiSelection) { Image(systemName: "checkmark.circle") }.toggleStyle(.button).accessibilityLabel("Selezione multipla")
                 Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")

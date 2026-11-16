@@ -4,6 +4,18 @@ Generata dal catalogo dei tutorial incluso nell’app. La guida interattiva è i
 
 Le istruzioni dei servizi remoti indicano i requisiti: non significano che il backend pubblico o iCloud firmato siano già attivi.
 
+## Studio e AI
+
+### Scotch, mappe e post-it
+
+Organizza e ripeti gli appunti senza servizi esterni.
+
+1. Apri Inserisci nella toolbar, poi Studio: schemi, scotch e capitoli. Inserisci offre sei schemi modificabili e la creazione di elenchi puntati, numerati e checklist. Due spazi iniziali creano un sottoelenco; Crea mappa conserva i collegamenti tra voci e sottoelenchi, fino a 15 voci.
+2. Seleziona un nodo con Oggetti: trascina dai punti sul bordo per collegarlo o tocca il + per creare un ramo. Doppio tap su nodi e frecce modifica l’etichetta; Stile forma cambia aspetto. Le frecce seguono i nodi. Collegamenti e fonti può collegare il nodo selezionato a una pagina.
+3. In Ripasso scegli colore, dimensioni e aspetto dello scotch. Oggetti lo sposta e ridimensiona; con altri strumenti un tocco del dito scopre la risposta. Inizia ripasso blocca la scrittura e offre Scopri prossima, Ricopri e Fine. Le operazioni rispettano il livello attivo e si annullano.
+4. Post-it crea richiami Importante, Da ripassare, Dubbio ed Esempio. Puoi richiuderli in linguette dalla selezione; un tocco con il dito li riapre. L’elenco del quaderno porta alla pagina del richiamo. Per modificare testo e colore usa Modifica selezione.
+5. Capitoli organizza le sezioni esistenti, assegna la pagina e attiva le linguette colorate sul bordo. Crea o modifica una sezione per scegliere il colore. Nell’esportazione PDF dei livelli scegli scotch come sul foglio, coperture piene o senza scotch; gli originali restano intatti.
+
 ## Pagine e PDF
 
 ### Lavora su livelli separati

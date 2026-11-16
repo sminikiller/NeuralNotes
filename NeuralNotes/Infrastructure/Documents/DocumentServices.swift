@@ -234,8 +234,8 @@ enum DocumentServices {
     }
 
     static func exportPDF(workspace: DocumentWorkspace, vectorInk: Bool = true, layers: LayerExportSelection = .visible,
-                          pageIDs: Set<UUID>? = nil) async throws -> URL {
-        let pages = try await workspace.pages().filter { pageIDs?.contains($0.id) ?? true }
+                          pageIDs: Set<UUID>? = nil, studyTapes: StudyTapeExport = .current) async throws -> URL {
+        let pages = try await workspace.pages().filter { pageIDs?.contains($0.id) ?? true }.map { studyTapes.applying(to: $0) }
         guard !pages.isEmpty else { throw WorkspaceFailure.emptyDocument }
         if pages.contains(where: { $0.layers != nil }) || (layers != .visible && layers != .all) {
             return try await LayerPDFExport.write(pages: pages, workspace: workspace, selection: layers, vectorInk: vectorInk)

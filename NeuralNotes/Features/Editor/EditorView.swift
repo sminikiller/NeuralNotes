@@ -437,6 +437,8 @@ struct EditorView: View {
             .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in dropped(providers, at: location) }
             .overlay(alignment: toolbarAlignment) { toolbarLayer }
             .overlay { floatingLens }
+            .overlay(alignment: model.currentWorkspace.dock == .trailing ? .leading : .trailing) { StudyChapterTabs(model: model).padding(.trailing, 6) }
+            .overlay(alignment: .bottomLeading) { if model.studyReview { StudyReviewControls(model: model).padding(10) } }
             .overlay(alignment: .bottom) {
                 if let session = model.handwriting { HandwritingPanel(session: session, cancel: model.cancelHandwriting) }
                 else if model.currentWorkspace.showStatus { EditorActivityFeedback(message: model.status) }

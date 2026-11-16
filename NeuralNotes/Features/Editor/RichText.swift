@@ -29,6 +29,7 @@ enum RichText {
         return RichTextScript.appendMetadata(to: rtf, value: text)
     }
     static func bounds(_ text: TextElement, pageHeight: Double) -> CGRect {
+        if text.studyNote?.collapsed == true { return CGRect(x: text.x, y: text.y, width: min(160, text.width), height: 36) }
         // A Lens note reduced to 💡 takes only the room of its icon.
         if text.lensNote?.isCollapsed == true { return LensNotes.badge(x: text.x, y: text.y) }
         let measured = attributed(text).boundingRect(with: CGSize(width: text.width, height: max(0, pageHeight - text.y)), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)

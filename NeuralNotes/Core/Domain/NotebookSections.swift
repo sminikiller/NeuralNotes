@@ -7,6 +7,7 @@ public struct NotebookSection: Codable, Identifiable, Equatable, Sendable {
     public var title: String
     public var parentID: UUID?
     public var pageIDs: [UUID]
+    public var color: StudyColor?
     public init(id: UUID = UUID(), title: String, parentID: UUID? = nil, pageIDs: [UUID] = []) {
         self.id = id; self.title = title; self.parentID = parentID; self.pageIDs = pageIDs
     }

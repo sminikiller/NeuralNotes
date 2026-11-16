@@ -28,6 +28,12 @@ public struct FeatureGuide: Identifiable, Sendable {
         String(data: (try? JSONEncoder().encode(ids.intersection(Set(catalog.map(\.id))).sorted())) ?? Data(), encoding: .utf8) ?? "[]"
     }
     public static let catalog: [FeatureGuide] = [
+        .init("study-kit", .study, "Scotch, mappe e post-it", "square.grid.2x2", "Organizza e ripeti gli appunti senza servizi esterni.", [
+            "Apri Inserisci nella toolbar, poi Studio: schemi, scotch e capitoli. Inserisci offre sei schemi modificabili e la creazione di elenchi puntati, numerati e checklist. Due spazi iniziali creano un sottoelenco; Crea mappa conserva i collegamenti tra voci e sottoelenchi, fino a 15 voci.",
+            "Seleziona un nodo con Oggetti: trascina dai punti sul bordo per collegarlo o tocca il + per creare un ramo. Doppio tap su nodi e frecce modifica l’etichetta; Stile forma cambia aspetto. Le frecce seguono i nodi. Collegamenti e fonti può collegare il nodo selezionato a una pagina.",
+            "In Ripasso scegli colore, dimensioni e aspetto dello scotch. Oggetti lo sposta e ridimensiona; con altri strumenti un tocco del dito scopre la risposta. Inizia ripasso blocca la scrittura e offre Scopri prossima, Ricopri e Fine. Le operazioni rispettano il livello attivo e si annullano.",
+            "Post-it crea richiami Importante, Da ripassare, Dubbio ed Esempio. Puoi richiuderli in linguette dalla selezione; un tocco con il dito li riapre. L’elenco del quaderno porta alla pagina del richiamo. Per modificare testo e colore usa Modifica selezione.",
+            "Capitoli organizza le sezioni esistenti, assegna la pagina e attiva le linguette colorate sul bordo. Crea o modifica una sezione per scegliere il colore. Nell’esportazione PDF dei livelli scegli scotch come sul foglio, coperture piene o senza scotch; gli originali restano intatti." ]),
         .init("page-layers", .pages, "Lavora su livelli separati", "square.3.layers.3d", "Mostra, proteggi e riordina gli appunti senza modificare il PDF.", [
             "Apri Livelli nella barra superiore del quaderno. Nuovo livello separa i prossimi appunti da quelli della Base; il nome del livello attivo compare sotto la toolbar.",
             "Tocca il nome per scegliere dove lavorare. Penna, gomma, lazo, testo e forme modificano soltanto il livello attivo. L’occhio nasconde; il lucchetto protegge il contenuto.",

@@ -55,6 +55,13 @@ struct PageLinksPanel: View {
     private func add() {
         guard let id = UUID(uuidString: destination), model.pages.contains(where: { $0.id == id }) else { return }
         let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = PageLinkTarget(documentID: model.workspace.documentID, pageID: id)
+        if let selected = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == selected }) == true || model.page?.texts.contains(where: { $0.id == selected }) == true {
+            model.mutatePage("Collega oggetto alla pagina") { page in
+                if let i = page.shapes?.firstIndex(where: { $0.id == selected }) { page.shapes?[i].pageLink = target }
+                if let i = page.texts.firstIndex(where: { $0.id == selected }) { page.texts[i].pageLink = target }
+            }; destination = ""; return
+        }
         var text = TextElement(text: "↗ " + (name.isEmpty ? title(id) : String(name.prefix(240))))
         text.pageLink = PageLinkTarget(documentID: model.workspace.documentID, pageID: id)
         model.mutatePage("Inserisci collegamento") { $0.texts.append(text) }; label = ""; destination = ""

@@ -16,6 +16,7 @@ extension EditorViewModel {
         if let hit {
             // A Lens note reduced to 💡 opens before its text can be edited.
             if hit.lensNote?.isCollapsed == true { setLensNote(hit.id, collapsed: false) }
+            if hit.studyNote?.collapsed == true { toggleStudyNote(hit.id) }
             editingTextID = hit.id
         } else {
             var text = TextElement(text: "")

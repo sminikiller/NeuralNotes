@@ -25,6 +25,7 @@ public struct TextElement: Codable, Identifiable, Equatable, Sendable {
     public var rtf: Data?
     public var rotation: Double?
     public var background: InkColor?
+    public var studyNote: StudyNoteInfo?
     public var pageLink: PageLinkTarget?
     /// Set on notes written by the Lens AI; older notebooks decode it as nil.
     public var lensNote: LensNoteInfo?

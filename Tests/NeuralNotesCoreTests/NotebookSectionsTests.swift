@@ -52,16 +52,19 @@ final class NotebookSectionsTests: XCTestCase {
 
     func testCloneAndMergeRemapSectionsAndPageIdentities() async throws {
         let (root, store, workspace) = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
-        let page = try await workspace.addPage(), section = NotebookSection(title: "Lezioni")
+        let page = try await workspace.addPage()
+        var section = NotebookSection(title: "Lezioni"); section.color = .pink
         try await workspace.saveSection(section); try await workspace.assignPages([page.id], toSection: section.id)
         let copyID = UUID(), copyBook = UUID()
         try await workspace.clone(to: store, documentID: copyID, notebookID: copyBook)
         let copy = DocumentWorkspace(package: store.packageURL(for: copyID), documentID: copyID, notebookID: copyBook)
         let copiedPages = try await copy.pages(), copied = try await copy.catalog()
+        XCTAssertEqual(copied.sections?.first?.color, .pink)
         XCTAssertNotEqual(copied.sections?.first?.id, section.id)
         XCTAssertEqual(copied.sections?.first?.pageIDs, copiedPages.map(\.id))
         let imported = try await workspace.appendNative(from: copy.package)
         let merged = try await workspace.catalog()
+        XCTAssertEqual(merged.sections?.last?.color, .pink)
         XCTAssertEqual(merged.sections?.count, 2)
         XCTAssertEqual(merged.sections?.last?.pageIDs, imported.map(\.id))
         XCTAssertNotEqual(merged.sections?.last?.id, copied.sections?.first?.id)

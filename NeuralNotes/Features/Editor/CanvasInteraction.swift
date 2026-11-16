@@ -148,6 +148,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
            model.checklistHit(at: gesture.location(in: host.surface)) != nil { return true }
         if gesture is UITapGestureRecognizer, gesture !== fitTap, gesture !== pointerFitTap,
            model.tapeHit(at: gesture.location(in: host.surface)) != nil { return true }
+        if gesture === objectTap, model.studyNoteHit(at: gesture.location(in: host.surface)) != nil { return true }
         // A Lens note opens from its 💡 and closes from its round control with any tool.
         if gesture === objectTap, let note = model.lensNoteHit(at: gesture.location(in: host.surface), tolerance: lensTolerance), note.part != .body { return true }
         if gesture === fitTap || gesture === pointerFitTap { return model.editingTextID == nil }
@@ -218,6 +219,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             model.lensTap(at: point, anchor: host.surface.convert(CGRect(x: point.x - 70, y: point.y - 22, width: 140, height: 44), to: host),
                           tolerance: lensTolerance); return
         }
+        if let id = model.studyNoteHit(at: point), model.tool != .objects && model.tool != .text { model.toggleStudyNote(id); return }
+        if model.studyReview { if let id = model.tapeHit(at: point) { model.toggleTape(id) }; return }
         if model.toggleChecklist(at: point) { return }
         if let tape = model.tapeHit(at: point), model.tool != .objects { model.toggleTape(tape); return }
         if model.tool == .text { model.beginTextEdit(at: point); host.textInput?.refresh() }

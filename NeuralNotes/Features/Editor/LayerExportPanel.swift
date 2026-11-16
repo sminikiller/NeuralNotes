@@ -13,6 +13,7 @@ struct LayerExportPanel: View {
     @State private var contents = Contents.visible
     @State private var chosen = Set<UUID>()
     @State private var notebook = false
+    @State private var studyTapes = StudyTapeExport.current
     @State private var working = false
     @State private var failure: String?
     @State private var shared: Shared?
@@ -27,6 +28,9 @@ struct LayerExportPanel: View {
                 Section("Formato") {
                     Picker("File", selection: $format) { ForEach(Format.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
                     if format == .pdf, only == nil, contents != .selected { Toggle("Tutto il quaderno", isOn: $notebook) }
+                }
+                if format == .pdf {
+                    Picker("Scotch nel PDF", selection: $studyTapes) { ForEach(StudyTapeExport.allCases, id: \.self) { Text($0.title).tag($0) } }
                 }
                 Section("Livelli") {
                     if let only {
@@ -68,7 +72,7 @@ struct LayerExportPanel: View {
             case .pdf:
                 let whole = notebook && only == nil && contents != .selected
                 output = try await DocumentServices.exportPDF(workspace: model.workspace, layers: selection,
-                    pageIDs: whole ? nil : [pageID])
+                    pageIDs: whole ? nil : [pageID], studyTapes: studyTapes)
             case .png: output = try await model.exportPageImage(layers: selection)
             case .jpeg: output = try await model.exportPageImage(jpeg: true, layers: selection)
             }

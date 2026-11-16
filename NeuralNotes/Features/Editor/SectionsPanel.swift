@@ -7,6 +7,7 @@ struct SectionsPanel: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editing: NotebookSection?
     @State private var title = ""
+    @State private var color = StudyColor.blue
     @State private var parent = ""
     @State private var formVisible = false
     @State private var busy = false
@@ -48,6 +49,7 @@ struct SectionsPanel: View {
     private var sectionForm: some View {
         Section(editing == nil ? "Nuova sezione" : "Modifica sezione") {
             TextField("Titolo", text: $title).accessibilityIdentifier("sectionTitleField")
+            Picker("Colore linguetta", selection: $color) { ForEach(StudyColor.allCases, id: \.self) { Text($0.title).tag($0) } }
             Picker("Dentro", selection: $parent) {
                 Text("Livello principale").tag("")
                 ForEach(parents, id: \.section.id) { row in Text(String(repeating: "  ", count: row.depth) + row.section.title).tag(row.section.id.uuidString) }
@@ -56,7 +58,7 @@ struct SectionsPanel: View {
                 Button("Annulla", role: .cancel) { formVisible = false }
                 Spacer()
                 Button("Salva") {
-                    let section = NotebookSection(id: editing?.id ?? UUID(), title: title, parentID: UUID(uuidString: parent))
+                    var section = NotebookSection(id: editing?.id ?? UUID(), title: title, parentID: UUID(uuidString: parent)); section.color = color
                     Task {
                         busy = true; defer { busy = false }
                         if await model.changeSections({ try await $0.saveSection(section) }) { formVisible = false; error = nil }
@@ -122,6 +124,7 @@ struct SectionsPanel: View {
         }
     }
     private func edit(_ section: NotebookSection?) {
+        color = section?.color ?? .blue
         editing = section; title = section?.title ?? ""; parent = section?.parentID?.uuidString ?? ""; formVisible = true
     }
 }

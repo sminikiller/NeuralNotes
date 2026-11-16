@@ -20,6 +20,10 @@ struct ElementEditor: View {
                 ForEach($texts) { $text in
                     Section(model.selectedIDs.contains(text.id) ? "Testo selezionato" : "Testo") {
                         RichTextEditor(text: $text).frame(minHeight: 150)
+                        if text.studyNote != nil {
+                            ColorPicker("Colore post-it", selection: Binding(get: { (text.background ?? StudyColor.yellow.ink).color }, set: { text.background = InkColor($0) }), supportsOpacity: false)
+                            Toggle("Richiudi in linguetta", isOn: Binding(get: { text.studyNote?.collapsed == true }, set: { text.studyNote?.collapsed = $0 }))
+                        }
                         position(x: $text.x, y: $text.y, width: $text.width)
                         Stepper("Dimensione \(Int(text.fontSize)) pt", value: $text.fontSize, in: 10...96)
                         Button("Rimuovi testo", role: .destructive) { texts.removeAll { $0.id == text.id } }

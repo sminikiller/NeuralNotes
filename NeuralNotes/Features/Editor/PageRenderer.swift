@@ -126,20 +126,9 @@ enum PageRenderer {
         drawTapes((page.tapes ?? []).filter { tapes.contains($0.id) }, in: context)
     }
     private static func drawTapes(_ tapes: [StudyTape], in context: CGContext) {
-        for tape in tapes {
-            let box = CGRect(x: tape.x, y: tape.y, width: tape.width, height: tape.height)
-            context.saveGState()
-            if tape.revealed {
-                context.setStrokeColor(UIColor.systemOrange.withAlphaComponent(0.5).cgColor); context.setLineWidth(1)
-                context.setLineDash(phase: 0, lengths: [4, 3]); context.stroke(box)
-            } else {
-                context.setFillColor(UIColor(red: 1, green: 0.82, blue: 0.25, alpha: 1).cgColor)
-                context.fill(box)
-                LayerPDFText.draw(NSAttributedString(string: "Tocca per scoprire", attributes: [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.darkGray]), in: box.insetBy(dx: 8, dy: 5), context: context)
-            }
-            context.restoreGState()
-        }
+        for tape in tapes { StudyNoteRendering.drawTape(tape, context: context) }
     }
+
     @MainActor private struct ObjectLookup {
         let texts: [UUID: TextElement], images: [UUID: ImageElement], shapes: [UUID: ShapeElement]
         let connectors: [UUID: ConnectorElement], diagramObjects: [UUID: ConnectorObject]
@@ -156,6 +145,7 @@ enum PageRenderer {
         else if let shape = objects.shapes[id] { ElementRendering.drawShape(shape, context: context, page: page) }
         else if let connector = objects.connectors[id] { ConnectorRendering.draw(connector, objects: objects.diagramObjects, page: page, context: context) }
         else if let text = objects.texts[id] {
+            if text.studyNote?.collapsed == true { StudyNoteRendering.drawBadge(text, context: context); return }
             if text.lensNote?.isCollapsed == true { drawLensBadge(text, context: context); return }
             let tone = page.appearance?.tone ?? .white
             let value = RichText.attributed(text, color: text.background != nil ? .black : tone == .slate && page.pdfFile == nil ? .white : .black)

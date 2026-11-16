@@ -151,8 +151,9 @@ extension NativeDocumentStore {
             if let sections = catalog.sections {
                 let sectionMap = Dictionary(uniqueKeysWithValues: sections.map { ($0.id, UUID()) })
                 catalog.sections = sections.map { section in
-                    NotebookSection(id: sectionMap[section.id]!, title: section.title,
-                        parentID: section.parentID.flatMap { sectionMap[$0] }, pageIDs: section.pageIDs.compactMap { pageMap[$0] })
+                    var copy = section; copy.id = sectionMap[section.id]!
+                    copy.parentID = section.parentID.flatMap { sectionMap[$0] }
+                    copy.pageIDs = section.pageIDs.compactMap { pageMap[$0] }; return copy
                 }
             }
             if var glossary = catalog.glossary {
