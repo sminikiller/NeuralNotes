@@ -546,7 +546,7 @@ struct EditorView: View {
         }
         .frame(maxWidth: 760).frame(height: 48)
         .padding(.horizontal, 8).frame(maxWidth: .infinity)
-        .padding(.bottom, 8)
+        .padding(.bottom, 4)
         .background(.bar)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editorPageStrip")
