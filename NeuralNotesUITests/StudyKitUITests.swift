@@ -62,6 +62,7 @@ final class StudyKitUITests: XCTestCase {
         let pen = app.buttons["tool-Penna"], toolbar = app.scrollViews["editorToolbarScroll"]
         let workspace = app.buttons["editorWorkspace"], library = app.buttons["editorReturnToLibrary"]
         let scrubber = app.descendants(matching: .any)["editorPageScrubber"].firstMatch
+        let strip = app.descendants(matching: .any)["editorPageStrip"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
         let normalReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             pen.isHittable && focus.isHittable && abs(pen.frame.midY - focus.frame.midY) <= 2
@@ -75,9 +76,11 @@ final class StudyKitUITests: XCTestCase {
         XCTAssertLessThanOrEqual(undo.frame.minY - canvas.frame.minY, 24)
         XCTAssertLessThan(workspace.frame.minX, toolbar.frame.maxX)
         XCTAssertLessThanOrEqual(library.frame.minY - app.frame.minY, 12)
+        XCTAssertEqual(strip.frame.maxY, app.frame.maxY, accuracy: 2)
+        // Keep the touch target close to the edge while leaving room for the Home gesture.
         let bottomClearance = app.frame.maxY - scrubber.frame.maxY
         XCTAssertGreaterThanOrEqual(bottomClearance, 6)
-        XCTAssertLessThanOrEqual(bottomClearance, 12)
+        XCTAssertLessThanOrEqual(bottomClearance, 16)
 
         let previousHeight = canvas.frame.height
         focus.tap()
