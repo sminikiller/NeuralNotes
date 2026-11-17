@@ -5,52 +5,42 @@ import NeuralNotesCore
 struct FocusControl: View {
     @Bindable var model: EditorViewModel
     @Binding var focus: Bool
-    @SceneStorage("focus.position.x") private var savedX = 0.0
-    @SceneStorage("focus.position.y") private var savedY = 0.0
-    @GestureState private var translation = CGSize.zero
+    let openStudy: () -> Void
     @State private var expanded = false
     var body: some View {
-        GeometryReader { geometry in
-            let toolsWidth = CGFloat(model.currentWorkspace.effectiveFocusTools.count * 48 + 192 + (model.tool == .objects ? 48 : 0))
-            let width: CGFloat = min(max(48, geometry.size.width - 24), !focus ? 48 : expanded ? toolsWidth : 102)
-            let right = max(width + 12, min(geometry.size.width - 12, geometry.size.width - 12 + CGFloat(savedX) + translation.width))
-            let y = max(36, min(geometry.size.height - 36, 36 + CGFloat(savedY) + translation.height))
-            HStack(spacing: 4) {
-                if focus {
-                    if expanded {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 4) {
-                        ForEach(model.currentWorkspace.effectiveFocusTools, id: \.self) { item in
-                            FocusToolButton(model: model, item: item)
-                        }
-                        if model.tool == .objects { FocusSelectionActions(model: model) }
-                        Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 44) }
-                            .disabled(!model.canUndo).accessibilityLabel("Annulla")
-                        FocusToolsMenu(model: model)
-                            }
-                        }.frame(maxWidth: .infinity)
-                    }
-                    Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
-                        Image(systemName: expanded ? "chevron.compact.right" : "pencil.tip.crop.circle").frame(width: 44, height: 44)
-                    }.accessibilityLabel(expanded ? "Riduci strumenti essenziali" : "Strumenti essenziali").accessibilityIdentifier("editorMiniToolbar")
+        HStack(spacing: 4) {
+            if focus {
+                if expanded {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        expandedTools
+                    }.frame(maxWidth: CGFloat(model.currentWorkspace.effectiveFocusTools.count * 48 + 76 + (model.tool == .objects ? 48 : 0)))
                 }
-                Button { withAnimation(.easeInOut(duration: 0.25)) { focus.toggle(); expanded = false } } label: {
-                    Image(systemName: focus ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 48, height: 48)
-                        .overlay(alignment: .topTrailing) { if model.audio?.recording == true { Circle().fill(.red).frame(width: 8, height: 8).padding(4) } }
-                }.accessibilityLabel(focus ? "Mostra strumenti" : "Solo foglio").accessibilityIdentifier("editorFocus")
+                Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                    Image(systemName: expanded ? "chevron.compact.right" : "pencil.tip.crop.circle").frame(width: 44, height: 44)
+                }.accessibilityLabel(expanded ? "Riduci strumenti essenziali" : "Strumenti essenziali").accessibilityIdentifier("editorMiniToolbar")
             }
-            .font(.system(size: 17, weight: .medium)).buttonStyle(.plain)
-            .frame(width: width, height: 48)
-            .background(.regularMaterial, in: Capsule()).overlay(Capsule().stroke(.gray.opacity(0.25)))
-            .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
-            .position(x: right - width / 2, y: y)
-            .simultaneousGesture(DragGesture(minimumDistance: 14, coordinateSpace: .named("focus-area"))
-                .updating($translation) { value, state, _ in state = value.translation }
-                .onEnded { value in
-                    savedX = max(-max(0, Double(geometry.size.width - width - 24)), min(0, savedX + Double(value.translation.width)))
-                    savedY = max(0, min(max(0, Double(geometry.size.height - 72)), savedY + Double(value.translation.height)))
-                })
-        }.coordinateSpace(name: "focus-area")
+            Button { withAnimation(.easeInOut(duration: 0.25)) { focus.toggle(); expanded = false } } label: {
+                Image(systemName: focus ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 44, height: 44)
+            }.accessibilityLabel(focus ? "Mostra strumenti" : "Solo foglio").accessibilityIdentifier("editorFocus")
+        }
+        .padding(4)
+        .font(.system(size: 17, weight: .medium)).buttonStyle(.plain)
+        .background(.regularMaterial, in: Capsule()).overlay(Capsule().stroke(.gray.opacity(0.25)))
+        .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
+        .onChange(of: focus) { _, value in if !value { expanded = false } }
+    }
+
+    private var expandedTools: some View {
+        HStack(spacing: 4) {
+            ForEach(model.currentWorkspace.effectiveFocusTools, id: \.self) { item in
+                FocusToolButton(model: model, item: item)
+            }
+            if model.tool == .objects { FocusSelectionActions(model: model) }
+            Button(action: openStudy) {
+                Image(systemName: "point.3.connected.trianglepath.dotted").frame(width: 36, height: 44)
+            }.accessibilityLabel("Studio").accessibilityIdentifier("focusStudyKit")
+            FocusToolsMenu(model: model)
+        }
     }
 }
 
@@ -89,9 +79,10 @@ struct RecordingIndicator: View {
         Button(action: open) {
             HStack(spacing: 6) {
                 Circle().fill(audio.recording ? .red : Brand.accent).frame(width: 8, height: 8)
-                if audio.recording { Text("REC \(Int(audio.elapsed) / 60):\(String(format: "%02d", Int(audio.elapsed) % 60))").monospacedDigit() }
-                else { Text("Trascrizione \(Int(audio.transcriptionProgress * 100))%") }
-            }.font(.caption.weight(.semibold)).padding(.horizontal, 10).padding(.vertical, 7)
+                if audio.recording { Text("REC \(Int(audio.elapsed) / 60):\(String(format: "%02d", Int(audio.elapsed) % 60))") }
+                else { Text("Trascr. \(Int(audio.transcriptionProgress * 100))%") }
+            }.font(.caption.weight(.semibold)).monospacedDigit().fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 64, minHeight: 44).padding(4)
                 .background(.regularMaterial, in: Capsule()).overlay(Capsule().stroke(.gray.opacity(0.2)))
         }.buttonStyle(.plain).accessibilityLabel(audio.recording ? "Registrazione in corso" : "Trascrizione in corso")
             .accessibilityIdentifier("editorRecordingIndicator")

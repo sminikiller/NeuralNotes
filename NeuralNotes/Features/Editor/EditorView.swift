@@ -7,7 +7,7 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, globalSearch, study, crop, pages, practice, storage, paper, workspace, layers, layerExport, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
+    case elements, audio, search, globalSearch, study, studyKit, crop, pages, practice, storage, paper, workspace, layers, layerExport, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
     var id: String { rawValue }
 }
 
@@ -103,12 +103,7 @@ struct EditorView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: focus)
-        .overlay { FocusControl(model: model, focus: $focus).allowsHitTesting(!model.navigating && !working && model.hasLease) }
-        .overlay(alignment: .topLeading) {
-            VStack(alignment: .leading, spacing: 4) { QuickHistoryOverlay(model: model); recordingBadge }
-                .padding(.leading, !focus && model.currentWorkspace.dock == .leading ? 80 : 12)
-                .padding(.top, historyTopInset)
-        }
+        .ignoresSafeArea(.container, edges: focus || (!model.currentWorkspace.showPages && !model.currentWorkspace.showStatus) ? .bottom : [])
         .overlay(alignment: .bottom) {
             if model.selectionPageDragMode { SelectionPageDropRail(model: model).padding(.horizontal, 12).padding(.bottom, 54) }
         }
@@ -124,14 +119,24 @@ struct EditorView: View {
             Task { _ = await model.flush() }
         }
     }
-    private var historyTopInset: CGFloat {
-        guard !focus, model.currentWorkspace.dock == .top else { return 12 }
-        return model.tool == .objects || model.tool == .lens ? 144 : 82
+    private var topControls: some View {
+        HStack(alignment: .top, spacing: 6) {
+            QuickHistoryOverlay(model: model).disabled(working)
+            Spacer(minLength: 0)
+            if !focus && model.currentWorkspace.dock == .top {
+                floatingToolbar.transition(.opacity)
+            }
+            Spacer(minLength: 0)
+            recordingBadge
+            FocusControl(model: model, focus: $focus, openStudy: openStudyKit)
+                .disabled(model.navigating || working || !model.hasLease)
+        }.padding(.horizontal, 8).padding(.top, 4)
     }
 
     @ViewBuilder private var recordingBadge: some View {
         if let audio = model.audio, audio.recording || audio.transcribingSessionID != nil {
-            RecordingIndicator(audio: audio) { panel = .audio }.padding(12)
+            RecordingIndicator(audio: audio) { panel = .audio }
+                .fixedSize().disabled(!model.hasLease)
         }
     }
 
@@ -255,6 +260,7 @@ struct EditorView: View {
 
     private var actionsMenu: some View {
         Menu {
+            Button("Studio sul foglio", systemImage: "point.3.connected.trianglepath.dotted", action: openStudyKit)
             Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
             Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
             Button(model.zoomWritingOpen ? "Chiudi finestra di scrittura" : "Finestra di scrittura", systemImage: "rectangle.bottomthird.inset.filled") { model.toggleZoomWriting() }
@@ -267,6 +273,8 @@ struct EditorView: View {
         } label: { Label("Azioni", systemImage: "ellipsis.circle") }
             .disabled(working || model.loading || model.navigating || !model.hasLease)
     }
+
+    private func openStudyKit() { panel = .studyKit }
 
     private var laserBinding: Binding<Bool> {
         Binding(get: { model.laserActive }, set: { model.setLaserActive($0) })
@@ -386,6 +394,7 @@ struct EditorView: View {
             GlobalSearchPanel(library: library) { book, reference, query in pendingGlobalSearch = (book, reference, query) }
         case .search: DocumentSearchPanel(model: model)
         case .study: StudyPanel(model: model, notebook: notebook, library: library)
+        case .studyKit: StudyKitPanel(model: model)
         case .crop:
             if let page = model.page { areaRecognition(page) }
         }
@@ -435,7 +444,8 @@ struct EditorView: View {
         DocumentPageViewport(model: model)
             .allowsHitTesting(model.hasLease && !model.loading && !model.navigating && !working)
             .onDrop(of: [.pdf, .image, .text, .url, .fileURL], isTargeted: nil) { providers, location in dropped(providers, at: location) }
-            .overlay(alignment: toolbarAlignment) { toolbarLayer }
+            .overlay(alignment: toolbarAlignment) { alternateToolbar }
+            .overlay(alignment: .top) { topControls }
             .overlay { floatingLens }
             .overlay(alignment: model.currentWorkspace.dock == .trailing ? .leading : .trailing) { StudyChapterTabs(model: model).padding(.trailing, 6) }
             .overlay(alignment: .bottomLeading) { if model.studyReview { StudyReviewControls(model: model).padding(10) } }
@@ -452,8 +462,14 @@ struct EditorView: View {
         return model.hasLease
     }
 
-    @ViewBuilder private var toolbarLayer: some View {
-        if !focus { floatingToolbar.transition(.opacity.combined(with: .scale(scale: 0.96))) }
+    @ViewBuilder private var alternateToolbar: some View {
+        let dock = model.currentWorkspace.dock
+        if !focus && dock != .top {
+            floatingToolbar.padding(.horizontal, 8)
+                .padding(.top, dock.vertical ? 60 : 0)
+                .padding(.bottom, 6)
+                .transition(.opacity)
+        }
     }
 
     /// The floating Lens window: it can be dragged and docked again on the right.
@@ -510,14 +526,10 @@ struct EditorView: View {
         }
     }
     private var floatingToolbar: some View {
-        let dock = model.currentWorkspace.dock
-        let along: CGFloat = dock.vertical ? 72 : 12
-        let trailing: CGFloat = dock.vertical ? 0 : 60
-        let top: CGFloat = model.audio?.recording == true && dock == .top ? 42 : 0
-        return EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
-                                  text: startTyping, edit: { panel = .elements }, crop: { openImageCrop() }, workspace: { panel = .workspace }, lens: lensActions)
+        EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
+                           text: startTyping, edit: { panel = .elements }, crop: { openImageCrop() },
+                           workspace: { panel = .workspace }, study: openStudyKit, lens: lensActions)
             .disabled(!model.hasLease || model.loading || model.navigating || working)
-            .padding(.horizontal, 12).padding(.vertical, along).padding(.trailing, trailing).padding(.top, top)
     }
     private func startTyping() { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }
     private var lensActions: LensBarActions {

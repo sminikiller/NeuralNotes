@@ -4,12 +4,19 @@ import NeuralNotesCore
 @MainActor
 struct ToolCatalogPanel: View {
     let model: EditorViewModel
+    let openStudy: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var options: WorkspaceTool?
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Strumenti").font(.headline)
+                Button(action: openStudy) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label("Studio", systemImage: "point.3.connected.trianglepath.dotted").font(.subheadline.weight(.semibold))
+                        Text("Mappe, elenchi, scotch, post-it e capitoli").font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+                }.buttonStyle(.plain).foregroundStyle(Brand.accent).accessibilityIdentifier("catalogStudyKit")
                 Text("Tocca per usare · tieni premuto per le opzioni").font(.caption).foregroundStyle(.secondary)
                 group("Scrittura", [.pen, .marker, .eraser, .text])
                 group("Selezione e studio", [.lasso, .objects, .lens, .audioLink])

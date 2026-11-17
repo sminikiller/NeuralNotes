@@ -19,7 +19,12 @@ final class StudyKitUITests: XCTestCase {
             let kit = app.buttons["openStudyKit"]
             XCTAssertTrue(kit.waitForExistence(timeout: 5)); kit.tap()
         }
-        openKit()
+        let catalog = app.buttons["allWritingTools"]
+        XCTAssertTrue(catalog.waitForExistence(timeout: 8))
+        catalog.tap()
+        let catalogStudy = app.buttons["catalogStudyKit"]
+        XCTAssertTrue(catalogStudy.waitForExistence(timeout: 5))
+        catalogStudy.tap()
         let add = app.buttons["insertStudyDiagram"]
         XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
         XCTAssertTrue(app.buttons["quickUndo"].waitForExistence(timeout: 5))
@@ -40,5 +45,55 @@ final class StudyKitUITests: XCTestCase {
         app.buttons["Fine"].tap()
         XCTAssertEqual(canvas.frame.width, original.width, accuracy: 2)
         XCTAssertEqual(canvas.frame.height, original.height, accuracy: 2)
+    }
+
+    @MainActor func testEditorControlsAlignAndFocusUsesTheBottomEdge() {
+        continueAfterFailure = false
+        let device = XCUIDevice.shared, previous = device.orientation
+        device.orientation = .landscapeLeft
+        defer { device.orientation = previous }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--reset-ui-storage", "--ui-pdf-fixture", "--ui-dark"]
+        app.launch()
+        let book = app.buttons.matching(NSPredicate(format: "label == %@", "PDF performance test")).firstMatch
+        XCTAssertTrue(book.waitForExistence(timeout: 15)); book.tap(); app.buttons["openEditorButton"].tap()
+        let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
+        let undo = app.buttons["quickUndo"], redo = app.buttons["quickRedo"], focus = app.buttons["editorFocus"]
+        let pen = app.buttons["tool-Penna"], toolbar = app.scrollViews["editorToolbarScroll"]
+        let workspace = app.buttons["editorWorkspace"]
+        XCTAssertTrue(canvas.waitForExistence(timeout: 10))
+        let normalReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            pen.isHittable && focus.isHittable && abs(pen.frame.midY - focus.frame.midY) <= 2
+                && abs(undo.frame.midY - focus.frame.midY) <= 2
+                && toolbar.frame.maxX <= focus.frame.minX
+        }, object: focus)
+        wait(for: [normalReady], timeout: 10)
+        XCTAssertEqual(redo.frame.midY, focus.frame.midY, accuracy: 2)
+        XCTAssertLessThan(undo.frame.minY - canvas.frame.minY, 12)
+        XCTAssertLessThan(workspace.frame.minX, toolbar.frame.maxX)
+        capture("editor-aligned-chrome", app)
+
+        let previousHeight = canvas.frame.height
+        focus.tap()
+        let focusReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            !pen.exists && abs(undo.frame.midY - focus.frame.midY) <= 2
+                && canvas.frame.height > previousHeight + 40
+                && abs(canvas.frame.maxY - app.frame.maxY) <= 2
+        }, object: focus)
+        wait(for: [focusReady], timeout: 10)
+        app.buttons["editorMiniToolbar"].tap()
+        let studio = app.buttons["focusStudyKit"]
+        XCTAssertTrue(studio.waitForExistence(timeout: 5))
+        XCTAssertEqual(studio.frame.midY, undo.frame.midY, accuracy: 2)
+        capture("editor-focus-aligned-chrome", app)
+        studio.tap()
+        XCTAssertTrue(app.buttons["insertStudyDiagram"].waitForExistence(timeout: 5))
+    }
+
+    private func capture(_ name: String, _ app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

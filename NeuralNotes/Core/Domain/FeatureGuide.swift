@@ -29,7 +29,7 @@ public struct FeatureGuide: Identifiable, Sendable {
     }
     public static let catalog: [FeatureGuide] = [
         .init("study-kit", .study, "Scotch, mappe e post-it", "square.grid.2x2", "Organizza e ripeti gli appunti senza servizi esterni.", [
-            "Apri Inserisci nella toolbar, poi Studio: schemi, scotch e capitoli. Inserisci offre sei schemi modificabili e la creazione di elenchi puntati, numerati e checklist. Due spazi iniziali creano un sottoelenco; Crea mappa conserva i collegamenti tra voci e sottoelenchi, fino a 15 voci.",
+            "Tocca il + cerchiato nella toolbar, poi Studio. Qui trovi sei schemi modificabili ed elenchi puntati, numerati e checklist. Due spazi iniziali creano un sottoelenco. Crea mappa conserva i collegamenti tra voci e sottoelenchi, fino a 15 voci. In Solo foglio trovi Studio negli strumenti essenziali.",
             "Seleziona un nodo con Oggetti: trascina dai punti sul bordo per collegarlo o tocca il + per creare un ramo. Doppio tap su nodi e frecce modifica l’etichetta; Stile forma cambia aspetto. Le frecce seguono i nodi. Collegamenti e fonti può collegare il nodo selezionato a una pagina.",
             "In Ripasso scegli colore, dimensioni e aspetto dello scotch. Oggetti lo sposta e ridimensiona; con altri strumenti un tocco del dito scopre la risposta. Inizia ripasso blocca la scrittura e offre Scopri prossima, Ricopri e Fine. Le operazioni rispettano il livello attivo e si annullano.",
             "Post-it crea richiami Importante, Da ripassare, Dubbio ed Esempio. Puoi richiuderli in linguette dalla selezione; un tocco con il dito li riapre. L’elenco del quaderno porta alla pagina del richiamo. Per modificare testo e colore usa Modifica selezione.",

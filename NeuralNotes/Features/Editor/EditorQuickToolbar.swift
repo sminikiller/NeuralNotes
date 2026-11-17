@@ -6,13 +6,15 @@ struct EditorQuickToolbar: View {
     @Bindable var model: EditorViewModel
     let photo: () -> Void, camera: () -> Void, text: () -> Void, edit: () -> Void, crop: () -> Void
     let workspace: () -> Void
+    let study: () -> Void
     var lens = LensBarActions()
     @State private var paletteOpen = false
-    @State private var studyKitOpen = false
+    @State private var rowWidth: CGFloat = 0
     @State private var selectionOpen = false
     @State private var lensOpen = false
     @State private var optionsTool: WorkspaceTool?
     @State private var allToolsOpen = false
+    @State private var openStudyAfterCatalog = false
     private var vertical: Bool { model.currentWorkspace.dock.vertical }
     private var popoverEdge: Edge {
         switch model.currentWorkspace.dock { case .trailing: return .trailing; case .leading: return .leading; case .bottom: return .bottom; case .top: return .top }
@@ -30,18 +32,22 @@ struct EditorQuickToolbar: View {
                     Button { allToolsOpen = true } label: { Image(systemName: "plus.circle").frame(width: 44, height: 44) }
                         .accessibilityLabel("Tutti gli strumenti").accessibilityIdentifier("allWritingTools")
                         .popover(isPresented: $allToolsOpen, arrowEdge: popoverEdge) {
-                            ToolCatalogPanel(model: model)
+                            ToolCatalogPanel(model: model, openStudy: {
+                                openStudyAfterCatalog = true
+                                allToolsOpen = false
+                            }).onDisappear {
+                                if openStudyAfterCatalog {
+                                    openStudyAfterCatalog = false
+                                    study()
+                                }
+                            }
                         }
-                    Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) }
-                        .disabled(!model.canUndo).keyboardShortcut("z", modifiers: .command).accessibilityLabel("Annulla").accessibilityIdentifier("editorUndo")
-                    Button { Task { await model.performRedo() } } label: { Image(systemName: "arrow.uturn.forward").frame(width: 44, height: 44) }
-                        .disabled(!model.canRedo).keyboardShortcut("z", modifiers: [.command, .shift]).accessibilityLabel("Ripristina").accessibilityIdentifier("editorRedo")
                     Button(action: text) { Image(systemName: "text.badge.plus").frame(width: 44, height: 44) }
                         .accessibilityLabel("Inserisci testo").accessibilityIdentifier("editorAddText")
                     Menu {
                         Button("Inserisci foto", systemImage: "photo.badge.plus", action: photo)
                         Button("Scatta foto", systemImage: "camera", action: camera)
-                        Button("Studio: schemi, scotch e capitoli", systemImage: "square.grid.2x2") { studyKitOpen = true }.accessibilityIdentifier("openStudyKit")
+                        Button("Studio: schemi, scotch e capitoli", systemImage: "point.3.connected.trianglepath.dotted", action: study).accessibilityIdentifier("openStudyKit")
                         Button("Post-it", systemImage: "note.text") { model.addStickyNote() }
                         Button("Nastro per il ripasso", systemImage: "rectangle.fill") { model.addStudyTape() }
                         Menu("Timbri", systemImage: "seal") {
@@ -62,9 +68,10 @@ struct EditorQuickToolbar: View {
                     verticalExtras
                     Button(action: workspace) { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44) }
                         .accessibilityLabel("Workspace \(model.currentWorkspace.name)").accessibilityIdentifier("editorWorkspace")
-                }.padding(6)
+                }.padding(4)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
             }
-            .frame(maxWidth: vertical ? 56 : 900, maxHeight: vertical ? 560 : 56)
+            .frame(maxWidth: vertical ? 56 : (rowWidth > 0 ? rowWidth : 900), maxHeight: vertical ? 560 : 52)
             .accessibilityIdentifier("editorToolbarScroll")
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 23).stroke(.white.opacity(0.18)))
@@ -78,7 +85,6 @@ struct EditorQuickToolbar: View {
             // The Lens commands sit right under the toolbar, not over the page.
             if model.tool == .lens && !vertical { LensModeBar(model: model, actions: lens) }
         }.buttonStyle(EditorIconButtonStyle())
-            .sheet(isPresented: $studyKitOpen) { StudyKitPanel(model: model) }
     }
     /// With the toolbar on a side, selection and Lens commands open from one button each.
     @ViewBuilder private var verticalExtras: some View {
@@ -137,11 +143,11 @@ struct EditorQuickToolbar: View {
                     .accessibilityIdentifier("selectionShapeStyle").disabled(!hasSelection)
                 if model.selectionIncludesInk { HandwritingMenu(model: model) }
                 if model.page?.tapes?.contains(where: { $0.id == model.selectedObjectID }) == true {
-                    Button("Stile scotch", systemImage: "rectangle.fill") { studyKitOpen = true }
+                    Button("Stile scotch", systemImage: "rectangle.fill", action: study)
                 }
                 if let note = model.page?.texts.first(where: { $0.id == model.selectedObjectID }), note.studyNote != nil {
                     Button(note.studyNote?.collapsed == true ? "Apri post-it" : "Richiudi post-it", systemImage: "note.text") { model.toggleStudyNote(note.id) }
-                    Button("Post-it del quaderno", systemImage: "list.bullet.rectangle") { studyKitOpen = true }
+                    Button("Post-it del quaderno", systemImage: "list.bullet.rectangle", action: study)
                 }
 
                 Toggle(isOn: $model.multiSelection) { Image(systemName: "checkmark.circle") }.toggleStyle(.button).accessibilityLabel("Selezione multipla")

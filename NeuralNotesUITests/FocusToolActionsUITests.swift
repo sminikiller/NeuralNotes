@@ -19,7 +19,7 @@ final class FocusToolActionsUITests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 2 di 2"), object: counter)], timeout: 30)
         tapReady(app.buttons["editorPreviousPage"])
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Pagina 1 di 2"), object: counter)], timeout: 30)
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.35)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.5)))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
