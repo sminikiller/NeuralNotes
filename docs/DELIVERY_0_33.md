@@ -1,6 +1,6 @@
 # NeuralNotes 0.33 — strumenti per studiare
 
-Stato: implementata; verifica Apple e upload TestFlight da completare.
+Stato: implementata, verificata e caricata su TestFlight come **1.0.0 (202)**. Apple ha ricevuto l’upload il **17 novembre 2026 alle 07:52:12 UTC** ([run 44040872993](https://github.com/sminikiller/NeuralNotes/actions/runs/44040872993), `Upload succeeded` ed `EXPORT SUCCEEDED`). La disponibilità dopo l’elaborazione Apple non è stata osservata direttamente.
 
 ## Funzioni
 
@@ -16,6 +16,21 @@ Stato: implementata; verifica Apple e upload TestFlight da completare.
 
 ## Verifiche
 
-Controlli locali del progetto, sintassi e pacchetto; test Core su compatibilità dei vecchi scotch, metadati, template su più formati, gerarchie, duplicazione e copie di esportazione. Test nativi su Undo/Redo, riapertura, RTF, frecce dopo spostamento, ripasso ed export non distruttivo. UI sul percorso Inserisci → mappa → scotch → ripasso e regressioni PDF/layout. Esiti Apple e numero TestFlight saranno registrati solo dopo la loro conclusione.
+- [Verifica finale 43976555572](https://github.com/sminikiller/NeuralNotes/actions/runs/43976555572), sorgenti `b71e5297214f945e23636cd1f62b3e566e1295b4`: **452 XCTest Core + 98 Swift Testing, 291 test nativi e un test UI Studio**, zero fallimenti. Compilazioni native Debug/Release e Playgrounds Release per dispositivo/simulatore riuscite; avvio dal vero ZIP con 60 osservazioni superato.
+- I test coprono compatibilità dei vecchi scotch, metadati, template su più formati, gerarchie, duplicazione, Undo/Redo, riapertura, RTF, frecce dopo spostamento, rimozione dei collegamenti dai nodi, ripasso ed export non distruttivo.
+- Nella [verifica precedente 43918783878](https://github.com/sminikiller/NeuralNotes/actions/runs/43918783878) erano passate tutte e tre le UI Studio/PDF denso/barra pagine. L’unico test nativo fallito riguardava il colore dello scotch storico: ripristinato il colore originale senza cambiare l’asserzione, poi superato nella verifica finale. Il runner Playgrounds precedente era indisponibile, non un errore del codice.
+- Ispezionate le schermate finali della mappa e del ripasso, quelle precedenti di PDF/barra pagine e la schermata di avvio del pacchetto.
+- **ZIP esatto:** [artefatto 14281671880](https://github.com/sminikiller/NeuralNotes/actions/runs/43976555572/artifacts/14281671880), `NeuralNotes-iPad-0.33.0.zip`, 377 file con CRC e confronto di tutti i sorgenti/risorse superati. SHA-256 `63ef58580ce27495c7d0c5a2331d67320eb21da185a4613257acf7419b2bf910`.
 
 La beta mantiene identità, firma e servizi esistenti. Nessuna nuova dipendenza da backend o AI. Le prove fisiche con Pencil e PDF personali restano distinte da quelle automatiche.
+
+## Prova rapida sull’iPad
+
+1. Apri un quaderno e usa **Inserisci → Studio: schemi, scotch e capitoli**.
+2. Inserisci una mappa, sposta un nodo e modifica la sua etichetta: le frecce devono seguirlo. Prova Annulla/Ripristina.
+3. In **Ripasso**, inserisci uno scotch su una parola, scegli colore e stile, poi avvia il ripasso. Prova **Scopri prossima**, **Ricopri** e **Fine**.
+4. Inserisci un post-it, richiudilo in linguetta e riaprilo; ritrovalo nell’elenco **Post-it** dopo aver cambiato pagina.
+5. Crea un capitolo colorato e assegna alcune pagine: la linguetta laterale deve portare alla prima pagina del capitolo.
+6. Inserisci un elenco con un sottoelenco, quindi prova la conversione in mappa. Chiudi e riapri il quaderno per verificare il mantenimento dei contenuti.
+
+Per il collaudo delle ottimizzazioni precedenti: prova un tuo PDF pesante, scrivi sul foglio e scorri le pagine. I test automatici su simulatore non misurano la fluidità della tua Pencil e dei tuoi documenti sul dispositivo fisico.
