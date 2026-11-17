@@ -60,7 +60,8 @@ final class StudyKitUITests: XCTestCase {
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         let undo = app.buttons["quickUndo"], redo = app.buttons["quickRedo"], focus = app.buttons["editorFocus"]
         let pen = app.buttons["tool-Penna"], toolbar = app.scrollViews["editorToolbarScroll"]
-        let workspace = app.buttons["editorWorkspace"]
+        let workspace = app.buttons["editorWorkspace"], library = app.buttons["editorReturnToLibrary"]
+        let scrubber = app.descendants(matching: .any)["editorPageScrubber"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
         let normalReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             pen.isHittable && focus.isHittable && abs(pen.frame.midY - focus.frame.midY) <= 2
@@ -73,12 +74,17 @@ final class StudyKitUITests: XCTestCase {
         // The canvas AX wrapper includes the navigation bar's scroll-edge inset.
         XCTAssertLessThanOrEqual(undo.frame.minY - canvas.frame.minY, 24)
         XCTAssertLessThan(workspace.frame.minX, toolbar.frame.maxX)
+        XCTAssertLessThanOrEqual(library.frame.minY - app.frame.minY, 12)
+        let bottomClearance = app.frame.maxY - scrubber.frame.maxY
+        XCTAssertGreaterThanOrEqual(bottomClearance, 6)
+        XCTAssertLessThanOrEqual(bottomClearance, 12)
 
         let previousHeight = canvas.frame.height
         focus.tap()
         let focusReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             !pen.exists && abs(undo.frame.midY - focus.frame.midY) <= 2
                 && canvas.frame.height > previousHeight + 40
+                && abs(canvas.frame.minY - app.frame.minY) <= 2
                 && abs(canvas.frame.maxY - app.frame.maxY) <= 2
         }, object: focus)
         wait(for: [focusReady], timeout: 10)

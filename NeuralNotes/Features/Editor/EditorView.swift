@@ -103,12 +103,11 @@ struct EditorView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: focus)
-        .ignoresSafeArea(.container, edges: focus || (!model.currentWorkspace.showPages && !model.currentWorkspace.showStatus) ? .bottom : [])
+        .ignoresSafeArea(.container, edges: focus ? [.top, .bottom] : .bottom)
         .overlay(alignment: .bottom) {
             if model.selectionPageDragMode { SelectionPageDropRail(model: model).padding(.horizontal, 12).padding(.bottom, 54) }
         }
         .toolbar(focus ? .hidden : .visible, for: .navigationBar)
-        .statusBarHidden(focus)
         .navigationTitle(notebook.title)
         .onAppear { model.backupMetadata = notebook }
         .navigationBarTitleDisplayMode(.inline)
@@ -547,6 +546,7 @@ struct EditorView: View {
         }
         .frame(maxWidth: 760).frame(height: 48)
         .padding(.horizontal, 8).frame(maxWidth: .infinity)
+        .padding(.bottom, 8)
         .background(.bar)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editorPageStrip")

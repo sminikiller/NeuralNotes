@@ -46,6 +46,7 @@ struct NotebookDesk: View {
                 )).id(active.id).disabled(switching)
             }
         }
+        .statusBarHidden(true)
         .interactiveDismissDisabled()
         .task {
             guard !restored else { return }; restored = true
