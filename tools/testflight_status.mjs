@@ -30,13 +30,12 @@ const builds = await get('builds', { 'filter[app]': app.id, 'filter[version]': b
 const groups = await get('betaGroups', { 'filter[app]': app.id, limit: '200' });
 const report = { checkedAt: new Date().toISOString(), app: { id: app.id, name: app.attributes.name, bundleId: app.attributes.bundleId }, buildNumber, builds: [], groups: [] };
 for (const build of builds.data) {
-  const assigned = await get(`builds/${build.id}/betaGroups`);
   const related = name => builds.included?.find(v => v.id === build.relationships[name]?.data?.id && v.type === build.relationships[name]?.data?.type)?.attributes;
-  report.builds.push({ id: build.id, ...build.attributes, preReleaseVersion: related('preReleaseVersion'), betaDetail: related('buildBetaDetail'), groupIDs: assigned.data.map(g => g.id) });
+  report.builds.push({ id: build.id, ...build.attributes, preReleaseVersion: related('preReleaseVersion'), betaDetail: related('buildBetaDetail') });
 }
 for (const group of groups.data) {
-  const linked = await get(`betaGroups/${group.id}/builds`, { 'filter[version]': buildNumber, limit: '200' });
-  report.groups.push({ id: group.id, name: group.attributes.name, isInternalGroup: group.attributes.isInternalGroup, hasAccessToAllBuilds: group.attributes.hasAccessToAllBuilds, matchingBuildIDs: linked.data.map(b => b.id) });
+  const linked = await get(`betaGroups/${group.id}/builds`, { limit: '200' });
+  report.groups.push({ id: group.id, name: group.attributes.name, isInternalGroup: group.attributes.isInternalGroup, hasAccessToAllBuilds: group.attributes.hasAccessToAllBuilds, matchingBuildIDs: linked.data.filter(b => b.attributes.version === buildNumber).map(b => b.id), moreBuilds: Boolean(linked.links?.next) });
 }
 mkdirSync('.verification', { recursive: true });
 writeFileSync('.verification/testflight-status.json', JSON.stringify(report, null, 2));
