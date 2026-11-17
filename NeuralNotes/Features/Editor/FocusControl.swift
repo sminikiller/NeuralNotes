@@ -17,15 +17,18 @@ struct FocusControl: View {
                 }
                 Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
                     Image(systemName: expanded ? "chevron.compact.right" : "pencil.tip.crop.circle").frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }.accessibilityLabel(expanded ? "Riduci strumenti essenziali" : "Strumenti essenziali").accessibilityIdentifier("editorMiniToolbar")
             }
             Button { withAnimation(.easeInOut(duration: 0.25)) { focus.toggle(); expanded = false } } label: {
                 Image(systemName: focus ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }.accessibilityLabel(focus ? "Mostra strumenti" : "Solo foglio").accessibilityIdentifier("editorFocus")
         }
         .padding(4)
         .font(.system(size: 17, weight: .medium)).buttonStyle(.plain)
-        .background(.regularMaterial, in: Capsule()).overlay(Capsule().stroke(.gray.opacity(0.25)))
+        .background(.regularMaterial, in: Capsule())
+        .overlay { Capsule().stroke(.gray.opacity(0.25)).allowsHitTesting(false) }
         .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
         .onChange(of: focus) { _, value in if !value { expanded = false } }
     }
@@ -38,6 +41,7 @@ struct FocusControl: View {
             if model.tool == .objects { FocusSelectionActions(model: model) }
             Button(action: openStudy) {
                 Image(systemName: "point.3.connected.trianglepath.dotted").frame(width: 36, height: 44)
+                    .contentShape(Rectangle())
             }.accessibilityLabel("Studio").accessibilityIdentifier("focusStudyKit")
             FocusToolsMenu(model: model)
         }

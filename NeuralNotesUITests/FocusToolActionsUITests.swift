@@ -23,7 +23,8 @@ final class FocusToolActionsUITests: XCTestCase {
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.35)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.5)))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
-        app.buttons["editorFocus"].tap(); app.buttons["editorMiniToolbar"].tap()
+        tapReady(focus)
+        tapReady(app.buttons["editorMiniToolbar"])
         let eraser = app.buttons["focusTool-eraser"]; XCTAssertTrue(eraser.waitForExistence(timeout: 5)); eraser.press(forDuration: 0.6)
         let options = app.descendants(matching: .any)["toolOptions-eraser"].firstMatch
         XCTAssertTrue(options.waitForExistence(timeout: 5)); XCTAssertTrue(app.buttons["eraserTarget"].exists)

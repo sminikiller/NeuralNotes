@@ -69,9 +69,10 @@ final class StudyKitUITests: XCTestCase {
         }, object: focus)
         wait(for: [normalReady], timeout: 10)
         XCTAssertEqual(redo.frame.midY, focus.frame.midY, accuracy: 2)
-        XCTAssertLessThan(undo.frame.minY - canvas.frame.minY, 12)
-        XCTAssertLessThan(workspace.frame.minX, toolbar.frame.maxX)
         capture("editor-aligned-chrome", app)
+        // The canvas AX wrapper includes the navigation bar's scroll-edge inset.
+        XCTAssertLessThanOrEqual(undo.frame.minY - canvas.frame.minY, 24)
+        XCTAssertLessThan(workspace.frame.minX, toolbar.frame.maxX)
 
         let previousHeight = canvas.frame.height
         focus.tap()

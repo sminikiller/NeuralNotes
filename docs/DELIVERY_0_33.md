@@ -1,6 +1,6 @@
 # NeuralNotes 0.33 — strumenti per studiare
 
-Stato: implementata, verificata e caricata su TestFlight come **1.0.0 (202)**. Apple ha ricevuto l’upload il **17 novembre 2026 alle 07:52:12 UTC** ([run 44040872993](https://github.com/sminikiller/NeuralNotes/actions/runs/44040872993), `Upload succeeded` ed `EXPORT SUCCEEDED`). La disponibilità dopo l’elaborazione Apple non è stata osservata direttamente.
+Stato: implementata, verificata e caricata su TestFlight come **1.0.0 (202)**. Apple ha ricevuto l’upload il **17 novembre 2026 alle 07:52:12 UTC** ([run 44040872993](https://github.com/sminikiller/NeuralNotes/actions/runs/44040872993)). App Store Connect ha confermato la build valida e disponibile per il gruppo interno `io` ([controllo 44050145644](https://github.com/sminikiller/NeuralNotes/actions/runs/44050145644)).
 
 ## Funzioni
 
