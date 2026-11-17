@@ -1,13 +1,13 @@
-# NeuralNotes 0.33.0 — beta TestFlight 1.0.0 (202)
+# NeuralNotes 0.33.1 — beta TestFlight 1.0.0 (205)
 
 La cartella di lavoro corrente è `AppAppunti`. Il ramo aggiornato e predefinito su GitHub è **`codex/photo-perspective-sync-center`**. Le precedenti cartelle e i worktree delle fasi 0.29–0.31 erano copie di sviluppo superate; non usarle come sorgente della versione corrente.
 
-La **0.33** aggiunge **Inserisci → Studio**: mappe con frecce agganciate, elenchi formattati e conversione gerarchica in mappa, scotch colorati e ripasso, post-it richiudibili e capitoli con linguette colorate. Conserva le ottimizzazioni PDF, la miniatura della barra pagine e il ritaglio dal PDF affiancato della **0.32**. [Consegna 0.33 e prova rapida](docs/DELIVERY_0_33.md) · [Consegna 0.32](docs/DELIVERY_0_32.md) · [Piano strumenti](docs/PIANO_STRUMENTI_2026.md) · [Guida](docs/GUIDA_FUNZIONI.md).
+La **0.33.1** allinea cronologia, toolbar e comandi REC/Focus, estende il foglio al bordo inferiore in Solo foglio e rende **Studio** la prima voce del **+ cerchiato**. Studio raccoglie mappe, elenchi, scotch, post-it e capitoli. [Consegna 0.33.1 e prova rapida](docs/DELIVERY_0_33_1.md) · [Consegna 0.33](docs/DELIVERY_0_33.md) · [Consegna 0.32](docs/DELIVERY_0_32.md) · [Piano strumenti](docs/PIANO_STRUMENTI_2026.md) · [Guida](docs/GUIDA_FUNZIONI.md).
 
-- **Sorgenti verificati:** `b71e5297214f945e23636cd1f62b3e566e1295b4`; gli aggiornamenti successivi della consegna riguardano la documentazione.
-- **Verifica Apple:** [43976555572](https://github.com/sminikiller/NeuralNotes/actions/runs/43976555572), 452 XCTest Core + 98 Swift Testing, 291 test nativi e UI Studio, zero fallimenti; Release e Playgrounds Release con 60 osservazioni di avvio. Le regressioni UI PDF/barra pagine passate nella verifica precedente sono documentate nella consegna.
-- **Upload effettivo:** [44040872993](https://github.com/sminikiller/NeuralNotes/actions/runs/44040872993), beta **1.0.0 (202)** ricevuta da Apple il 17 novembre 2026 alle 07:52:12 UTC. Disponibilità dopo l'elaborazione Apple, distinta dall'upload verificato.
-- **ZIP Playgrounds:** `NeuralNotes-iPad-0.33.0.zip`, 377 file verificati, SHA-256 `63ef58580ce27495c7d0c5a2331d67320eb21da185a4613257acf7419b2bf910`. [Artefatto esatto della CI](https://github.com/sminikiller/NeuralNotes/actions/runs/43976555572/artifacts/14281671880). La copia locale è in `.verification/` e non è inclusa nel repository.
+- **Sorgenti verificati** `c659c86aba686b3e2513eb697555e7d4769e16f6`.
+- **Verifica Apple** con 452 XCTest Core, 98 Swift Testing, 291 test nativi e quattro test UI passati. Compilazione Release e avvio dello ZIP sul simulatore riusciti. [Run 44087496773](https://github.com/sminikiller/NeuralNotes/actions/runs/44087496773).
+- **TestFlight** conferma la build **1.0.0 (205)** attiva per il gruppo interno `io`. [Upload](https://github.com/sminikiller/NeuralNotes/actions/runs/44093381864) · [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44095296305).
+- **ZIP Playgrounds** `NeuralNotes-iPad-0.33.1.zip` con 377 file verificati. SHA-256 `c21b86b1d86bd482e2689244dec7017239ca4edab6e07dc630f74beb71be6822`. [Artefatto CI](https://github.com/sminikiller/NeuralNotes/actions/runs/44087496773/artifacts/14330978678).
 - **Distribuzione senza Mac:** [procedura TestFlight](release/TESTFLIGHT_SENZA_MAC.md). Identità, firma e segreti già configurati non vanno ricreati.
 
 Restano distinti i collaudi prolungati su iPad fisico e la fluidità sui PDF personali. La beta non attiva iCloud; l'implementazione e i test locali dei servizi account/AI non ne attestano la pubblicazione online.
