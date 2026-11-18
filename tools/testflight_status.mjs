@@ -28,7 +28,7 @@ if (checkICloud) {
   const bundleID = 'com.lorenzominichilli.neuralnotes';
   const identifiers = await get('bundleIds', { 'filter[identifier]': bundleID });
   if (identifiers.data.length !== 1) throw new Error('Expected exactly one NeuralNotes bundle ID');
-  const capabilities = await get(`bundleIds/${identifiers.data[0].id}/bundleIdCapabilities`, { limit: '200' });
+  const capabilities = await get(`bundleIds/${identifiers.data[0].id}/bundleIdCapabilities`);
   const relevant = capabilities.data.map(capability => capability.attributes).filter(attributes =>
     ['ICLOUD', 'SIGN_IN_WITH_APPLE', 'APPLE_ID_AUTH'].includes(attributes.capabilityType));
   const report = { checkedAt: new Date().toISOString(), bundleID, capabilities: relevant };

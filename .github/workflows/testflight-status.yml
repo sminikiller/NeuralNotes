@@ -30,7 +30,7 @@ jobs:
           NN_ASC_ISSUER_ID: ${{ secrets.NN_ASC_ISSUER_ID }}
         run: node tools/testflight_status.mjs
       - name: Validate the configured profile for iCloud (read only)
-        if: inputs.check_icloud
+        if: always() && inputs.check_icloud
         env:
           NN_PROFILE_BASE64: ${{ secrets.NN_PROFILE_BASE64 }}
         shell: bash
