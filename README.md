@@ -1,16 +1,20 @@
-# NeuralNotes 0.33.2 — beta TestFlight 1.0.0 (210)
+# NeuralNotes — Guida completa e beta TestFlight
 
 La cartella di lavoro corrente è `AppAppunti`. Il ramo aggiornato e predefinito su GitHub è **`codex/photo-perspective-sync-center`**. Le precedenti cartelle e i worktree delle fasi 0.29–0.31 erano copie di sviluppo superate; non usarle come sorgente della versione corrente.
 
-La **0.33.2** nasconde orario e batteria nell’editor, porta la barra pagine più in basso ed estende l’area di scrittura ai bordi superiore e inferiore in Solo foglio. [Consegna 0.33.2](docs/DELIVERY_0_33_2.md) · [Consegna 0.33.1](docs/DELIVERY_0_33_1.md) · [Consegna 0.33](docs/DELIVERY_0_33.md) · [Consegna 0.32](docs/DELIVERY_0_32.md) · [Piano strumenti](docs/PIANO_STRUMENTI_2026.md) · [Guida](docs/GUIDA_FUNZIONI.md).
+## Guida completa
 
-- **Sorgenti verificati** `ac662318ed89fcaeaacdd6e3bc2d320f0729688f`. La build firmata usa gli stessi sorgenti con il test aggiornato in `a54a345`.
-- **Verifica Apple** con test Core, 291 test nativi, scorrimento pagine e verifica finale dei bordi in vista normale e Solo foglio. Compilazione Release e avvio dello ZIP sul simulatore riusciti. [Prova finale](https://github.com/sminikiller/NeuralNotes/actions/runs/44270639898).
-- **TestFlight** conferma la build **1.0.0 (210)** attiva per il gruppo interno `io`. [Upload](https://github.com/sminikiller/NeuralNotes/actions/runs/44272460687) · [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44281111346).
-- **ZIP Playgrounds** `NeuralNotes-iPad-0.33.2.zip` con 377 file verificati. SHA-256 `35245d334edacc918104f5a461fa91a690b79bd0f0cd9a0ccfb810fb8460c61a`. [Artefatto CI](https://github.com/sminikiller/NeuralNotes/actions/runs/44105995077/artifacts/14340191903).
-- **Distribuzione senza Mac:** [procedura TestFlight](release/TESTFLIGHT_SENZA_MAC.md). Identità, firma e segreti già configurati non vanno ricreati.
+Apri **Libreria → Guida completa** o, nel quaderno, **⋯ → Guida completa**. Gli **84 tutorial e 122 esercizi** coprono strumenti, gesti Apple Pencil, scorciatoie da tastiera, ritagli PDF, studio, audio, IA e protezione dei quaderni.
 
-Restano distinti i collaudi prolungati su iPad fisico e la fluidità sui PDF personali. La beta non attiva iCloud; l'implementazione e i test locali dei servizi account/AI non ne attestano la pubblicazione online.
+Cerca una funzione, segui i passaggi e prova l’esercizio su un quaderno di test. **Riprendi il tutorial** riapre l’ultima lezione. Spunta **Esito verificato** dopo aver confrontato il risultato e segna la lezione come completata. Le spunte sono salvate sul dispositivo. [Leggi il manuale](docs/GUIDA_FUNZIONI.md) · [Note di rilascio e prove suggerite](docs/DELIVERY_TESTFLIGHT_GUIDA.md).
+
+## Beta TestFlight
+
+La build **1.0.0 (212)** con la guida completa è disponibile dal **18 novembre 2026** per il gruppo interno `io`. Su iPad apri **TestFlight → NeuralNotes → Aggiorna**. [Caricamento](https://github.com/sminikiller/NeuralNotes/actions/runs/44290090049) · [Conferma Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44292223832).
+
+La compilazione Release e i test di ricerca, checklist e ripresa della guida sul simulatore iPad sono riusciti. Le prove con Pencil, fotocamera, microfono e documenti personali si fanno su iPad. La beta interna usa la firma TestFlight senza iCloud. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44285553227) · [Distribuzione senza Mac](release/TESTFLIGHT_SENZA_MAC.md).
+
+[Editor a schermo intero 0.33.2](docs/DELIVERY_0_33_2.md) · [Consegna 0.33.1](docs/DELIVERY_0_33_1.md) · [Consegna 0.33](docs/DELIVERY_0_33.md) · [Consegna 0.32](docs/DELIVERY_0_32.md) · [Piano strumenti](docs/PIANO_STRUMENTI_2026.md).
 
 ## Note storiche delle versioni precedenti
 
@@ -208,4 +212,4 @@ La ricostruzione PDF vettoriale approssima texture e opacità dei pennelli Penci
 
 Su Windows: `python tools/check_project.py --swift-syntax`, `python tools/package_ipad.py`, `python tools/package_project.py`. Sono controlli di sorgenti e packaging, non compilazione Swift. Su un futuro Mac: `bash tools/verify_macos.sh` per core, unit/UI test su simulatore e build Release senza firma.
 
-Restano la verifica Apple della nuova versione, registrazioni reali lunghe, documenti grandi, memoria/latency/VoiceOver e profili di performance. Il piano originale prevede CloudKit in seguito: non è attivo. Modello generativo locale, classificazione automatica e comprensione visiva generativa non sono implementati. Il backend richiede distribuzione/configurazione; account Apple, firma e TestFlight/App Store restano da predisporre. [Stato per modulo e prossime prove](ROADMAP.md) · [Architettura](ARCHITECTURE.md).
+Il collaudo su iPad fisico comprende registrazioni prolungate in standby, documenti grandi, accessibilità e prestazioni. I servizi account e AI gestita dipendono dal backend configurato. La distribuzione pubblica su App Store segue la procedura di produzione. [Prove di accettazione](docs/ACCEPTANCE.md) · [Architettura](ARCHITECTURE.md) · [Distribuzione di produzione](release/DELIVERY.md).

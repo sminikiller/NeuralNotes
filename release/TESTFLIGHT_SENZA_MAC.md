@@ -11,7 +11,7 @@ Restano attivi i backup su File, l'export nativo e il cloud dell'account, quando
 
 **Il compilatore è sui server GitHub.** Sul tuo dispositivo non devi installare Xcode, Swift o un altro compilatore. Per le operazioni sul sito Apple basta il browser, anche dall'iPad.
 
-**Stato al 26 ottobre 2026.** La prima beta, 1.0.0 (build 120), è stata caricata con questa procedura ed è installata sull'iPad.
+La prima beta, 1.0.0 (build 120), è stata caricata con questa procedura il 26 ottobre 2026. Per il numero della build disponibile e le relative istruzioni di prova, consulta il [README](../README.md).
 - App ID, certificato, profilo, scheda dell'app, chiave API, i 6 segreti di GitHub e il gruppo di test sono già pronti.
 - Per una nuova build basta il punto 7.
 - I punti 1–6 servono solo per il rinnovo o per rifare la configurazione.
