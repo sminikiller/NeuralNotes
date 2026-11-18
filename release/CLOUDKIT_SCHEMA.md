@@ -31,9 +31,15 @@ Gli archivi vengono trasferiti in frammenti da massimo 8 MiB, mantenendo tempora
 
 Il simulatore rifiuta esplicitamente questa connessione nell’app. Una compilazione senza firma o la copia dell’entitlement nel progetto non dimostrano che il container sia attivo.
 
+## Verifiche dei sorgenti
+
+La candidata ha superato 454 XCTest Core, 98 test Swift Testing, 293 test applicativi, due test UI iPad e la compilazione Release. I test verificano il ripristino di una copia indipendente, il rifiuto di un download quando l’account cambia durante la preparazione e l’accesso ai backup in File se CloudKit non è disponibile. Il pacchetto Playgrounds compila in Debug e i suoi 380 file corrispondono ai sorgenti verificati. [Verifica SDK Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44296868419).
+
 ## Prova su iPad
 
 1. Sul primo iPad, apri **Libreria → Account e servizi → Account Apple e iCloud**. Verifica la connessione e sincronizza un quaderno chiuso con testo, disegno, una foto e un audio breve.
 2. Sul secondo iPad con lo stesso Account Apple, usa **Sincronizza tutti i quaderni chiusi**. Apri il quaderno ricevuto e verifica pagine, media e trascrizione.
 3. Disattiva la rete, modifica lo stesso quaderno sui due dispositivi e chiudilo. Ricollega un dispositivo alla volta. Il secondo deve mostrare il conflitto e consentire di importare una copia indipendente. Prova anche a scollegare l’Account Apple sul dispositivo di collaudo e verifica che il controllo automatico rimanga inattivo su un account diverso.
 4. Esegui un backup da **Salva la copia di un quaderno** scegliendo iCloud Drive. Da **Ripristina una copia da File**, apri il file `.nnbackup` e verifica che ricompaia come quaderno indipendente. Questo percorso è disponibile anche nelle build senza CloudKit che includono il nuovo pannello.
+
+Nella build 212 puoi già esportare da **⋯ → Esporta → Quaderno nativo e backup → Salva su File** e scegliere iCloud Drive. Per aprire la copia usa **Libreria → Importa PDF o quaderno**. Per le copie periodiche, in **Spazio e recupero → Copia in una cartella di File** scegli una cartella in iCloud Drive e mantieni attive le copie automatiche.

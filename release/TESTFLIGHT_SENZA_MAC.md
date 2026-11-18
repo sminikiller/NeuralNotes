@@ -5,7 +5,7 @@ GitHub compila l'app con Xcode 26.6 su un Mac nel cloud, la firma con il tuo cer
 Questa è la **beta interna**: la usi tu (e chi aggiungi al team) per il collaudo sull'iPad.
 - Non passa dalla revisione di Apple.
 - Non richiede backend pubblico né pagine privacy.
-- Non contiene la sincronizzazione iCloud, che si aggiungerà in una beta successiva.
+- La build 212 permette di esportare i quaderni in iCloud Drive tramite File. Per distribuire poi una beta con sincronizzazione privata serve il profilo CloudKit Production. [Attivazione iCloud](CLOUDKIT_SCHEMA.md).
 
 Restano attivi i backup su File, l'export nativo e il cloud dell'account, quando il servizio sarà pubblicato. La pubblicazione sull'App Store usa invece il percorso completo di [DELIVERY.md](DELIVERY.md).
 
