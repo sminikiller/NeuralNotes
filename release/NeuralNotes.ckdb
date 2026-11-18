@@ -1,0 +1,16 @@
+DEFINE SCHEMA
+    RECORD TYPE NNLibrary (
+        books LIST<STRING>
+    );
+
+    RECORD TYPE NNNotebook (
+        chunks LIST<STRING>,
+        previousChunks LIST<STRING>,
+        digest STRING,
+        title STRING,
+        updated TIMESTAMP
+    );
+
+    RECORD TYPE NNChunk (
+        asset ASSET
+    );

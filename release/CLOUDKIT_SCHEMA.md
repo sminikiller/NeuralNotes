@@ -1,8 +1,19 @@
 # CloudKit — schema richiesto dalla build firmata
 
-Derivato dal codice `NeuralNotes/Infrastructure/Persistence/CloudNotebookSync.swift`. Non attiva un container sul portale Apple.
+Team `64R668842U`, App ID `com.lorenzominichilli.neuralnotes`, contenitore `iCloud.com.lorenzominichilli.neuralnotes`. I quaderni vanno nel **database privato dell’Account Apple** configurato sul dispositivo. L’account NeuralNotes per AI e servizi online ha una gestione separata. [Database privato di CloudKit](https://developer.apple.com/documentation/cloudkit/ckcontainer/privateclouddatabase).
 
-Team atteso: `64R668842U`. App ID: `com.lorenzominichilli.neuralnotes`. Container: `iCloud.com.lorenzominichilli.neuralnotes`. Il codice usa il **database privato dell’utente**, non un archivio pubblico condiviso.
+## Stato e attivazione
+
+La verifica del 18 novembre 2026 ha letto l’App ID tramite l’API di App Store Connect e decodificato il profilo di distribuzione in uso su GitHub. La capability iCloud è assente e il profilo non concede il contenitore. La build 212 rimane la beta disponibile. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44297021522).
+
+1. In **Apple Developer → Identifiers**, crea il contenitore iCloud indicato sopra e associalo all’App ID con **Include CloudKit support**. [Abilitazione delle capability](https://developer.apple.com/help/account/identifiers/enable-app-capabilities).
+2. In **CloudKit Console → CloudKit Database**, scegli lo stesso contenitore e crea in **Development** i tre tipi di record elencati sotto. Per automatizzare l’importazione in Development è disponibile anche [NeuralNotes.ckdb](NeuralNotes.ckdb) per `cktool`. Se esistono altri tipi, confronta ed esporta lo schema prima di applicare modifiche. [Schema con cktool](https://developer.apple.com/icloud/ck-tool/).
+3. Verifica tipi e campi e usa **Deploy Schema Changes** per portarli in **Production**. [Distribuzione dello schema](https://developer.apple.com/documentation/cloudkit/deploying-an-icloud-container-s-schema).
+4. Genera un profilo **App Store Connect** per lo stesso App ID e certificato Apple Distribution già valido. Aggiorna `NN_PROFILE_BASE64` con il nuovo profilo. Il resto della firma usa le credenziali già configurate.
+5. Esegui la verifica di sola lettura `testflight-status.yml` con `check_icloud=true` sul ramo che contiene il codice iCloud. Deve riconoscere la capability e confermare il profilo Production. La verifica dello schema si fa in CloudKit Console.
+6. Usa la corsia interna TestFlight con `scope=testflight`, `testflight_icloud=true` e lo SHA dei sorgenti verificati. La firma controlla contenitore e ambiente. Verifica poi la disponibilità della build in TestFlight.
+
+## Tipi e campi
 
 | Record type | Campo | Tipo |
 | --- | --- | --- |
@@ -16,8 +27,13 @@ Team atteso: `64R668842U`. App ID: `com.lorenzominichilli.neuralnotes`. Containe
 
 L’indice usa il record ID `library.v1`; ogni quaderno usa il proprio UUID, i frammenti `chunk.<UUID>`. Il codice legge i record per ID, senza una ricerca per campo personalizzato. Non abilitare lettura pubblica dei record per far funzionare il collaudo.
 
-Percorso operativo: associare App ID e container nel team Apple; verificare lo schema nell’ambiente Development usando una build di sviluppo firmata; distribuire lo schema in Production dal CloudKit Console; usare un profilo App Store Connect con CloudKit Production per TestFlight. Verificare poi invio, ricezione, conflitto e cambio account su due dispositivi reali.
-
 Gli archivi vengono trasferiti in frammenti da massimo 8 MiB, mantenendo temporaneamente anche i frammenti della revisione precedente. Le quote iCloud dell’utente restano applicabili. Non confondere questa implementazione con il cloud account Supabase, che usa un limite di 100 MiB per quaderno.
 
 Il simulatore rifiuta esplicitamente questa connessione nell’app. Una compilazione senza firma o la copia dell’entitlement nel progetto non dimostrano che il container sia attivo.
+
+## Prova su iPad
+
+1. Sul primo iPad, apri **Libreria → Account e servizi → Account Apple e iCloud**. Verifica la connessione e sincronizza un quaderno chiuso con testo, disegno, una foto e un audio breve.
+2. Sul secondo iPad con lo stesso Account Apple, usa **Sincronizza tutti i quaderni chiusi**. Apri il quaderno ricevuto e verifica pagine, media e trascrizione.
+3. Disattiva la rete, modifica lo stesso quaderno sui due dispositivi e chiudilo. Ricollega un dispositivo alla volta. Il secondo deve mostrare il conflitto e consentire di importare una copia indipendente. Prova anche a scollegare l’Account Apple sul dispositivo di collaudo e verifica che il controllo automatico rimanga inattivo su un account diverso.
+4. Esegui un backup da **Salva la copia di un quaderno** scegliendo iCloud Drive. Da **Ripristina una copia da File**, apri il file `.nnbackup` e verifica che ricompaia come quaderno indipendente. Questo percorso è disponibile anche nelle build senza CloudKit che includono il nuovo pannello.
