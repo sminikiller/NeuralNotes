@@ -2,7 +2,7 @@ import SwiftUI
 import NeuralNotesCore
 
 private enum AccountServiceSheet: String, Identifiable {
-    case account, cloud, ai, privacy, about
+    case account, cloud, iCloud, ai, privacy, about
     var id: String { rawValue }
 }
 
@@ -24,7 +24,7 @@ struct AccountServicesPanel: View {
                 }
                 Section("I tuoi quaderni") {
                     serviceButton("Centro sincronizzazione", detail: cloudDetail, icon: "arrow.triangle.2.circlepath.icloud", target: .cloud)
-                    serviceButton("iCloud", detail: iCloud.status, icon: "icloud", target: .cloud)
+                    serviceButton("Account Apple e iCloud", detail: iCloud.status, icon: "icloud", target: .iCloud)
                 }
                 Section("Intelligenza artificiale") {
                     serviceButton("Motore AI", detail: configuration.engine == .offline ? "Sintesi locale · offline" : "\(configuration.engine.title) · configura e prova la connessione", icon: "sparkles", target: .ai)
@@ -44,6 +44,11 @@ struct AccountServicesPanel: View {
                             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { sheet = nil } } }
                     }
                 case .cloud: CloudSyncPanel(library: library)
+                case .iCloud:
+                    NavigationStack {
+                        ICloudSyncPanel(library: library)
+                            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { sheet = nil } } }
+                    }
                 case .ai: AIConnectionPanel(configuration: $configuration, consentKey: $consent)
                 case .privacy: PrivacyAndSupportPanel()
                 case .about: AboutNeuralNotes()

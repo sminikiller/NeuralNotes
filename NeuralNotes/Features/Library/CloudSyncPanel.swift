@@ -6,7 +6,6 @@ struct CloudSyncPanel: View {
     let library: LibraryViewModel
     @Bindable private var sync = CloudNotebookSync.shared
     @Bindable private var cloud = CloudBackupService.shared
-    @AppStorage("cloud.automatic") private var automatic = false
     @Environment(\.dismiss) private var dismiss
     @State private var versionDocument: CloudDocument?
     var body: some View {
@@ -17,23 +16,11 @@ struct CloudSyncPanel: View {
                 accountBackup
                 if !cloud.queue.jobs.isEmpty { pendingBackups }
                 if !cloud.documents.isEmpty { cloudCopies }
-                Section("iCloud privato") {
-                    Toggle("Sincronizza i quaderni chiusi mentre l’app è aperta", isOn: $automatic)
-                    Text("Le modifiche offline restano sul dispositivo. I quaderni aperti si sincronizzano dopo la chiusura. Le eliminazioni restano nel cestino locale: non cancellano le copie iCloud.").font(.caption)
-                    Button(sync.busy ? "Sincronizzazione…" : "Sincronizza adesso", systemImage: "icloud") { Task { await sync.synchronize(library) } }.disabled(sync.busy)
-                    Text(sync.status).font(.callout).textSelection(.enabled)
+                NavigationLink {
+                    ICloudSyncPanel(library: library)
+                } label: {
+                    Label("Account Apple e iCloud", systemImage: "icloud")
                 }
-                Section("Conflitti · \(sync.conflicts.count)") {
-                    ForEach(sync.conflicts.keys.sorted(by: { $0.uuidString < $1.uuidString }), id: \.self) { id in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(library.notebooks.first(where: { $0.documentID == id })?.title ?? "Quaderno").font(.headline)
-                            Text("Locale e iCloud sono cambiati entrambi. Nessuna versione è stata sostituita.").font(.caption)
-                            Button("Importa anche la copia remota") { Task { await sync.importConflictCopy(id, library: library) } }
-                            Button("Mantieni la versione locale") { Task { await sync.resolve(id, keepingLocal: true, library: library) } }
-                            Button("Usa la versione iCloud · salva prima un backup locale") { Task { await sync.resolve(id, keepingLocal: false, library: library) } }
-                        }
-                    }
-                }.disabled(sync.busy)
             }.navigationTitle("Cloud e sincronizzazione")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
         }.task { await cloud.prepareAccount(); await cloud.refresh() }

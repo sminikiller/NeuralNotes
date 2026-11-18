@@ -44,6 +44,10 @@ on:
         description: Sign and upload to TestFlight (requires production acceptance and distribution secrets; scope testflight uploads an internal beta without them)
         type: boolean
         default: false
+      testflight_icloud:
+        description: Include CloudKit in the internal TestFlight beta after Apple schema and profile are ready
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -253,7 +257,7 @@ jobs:
       - name: Archive for distribution, or sign and upload when explicitly requested
         env:
           NN_DELIVERY_UPLOAD: ${{ (inputs.delivery_upload || inputs.scope == 'testflight') && '1' || '0' }}
-          NN_ICLOUD: ${{ inputs.scope == 'testflight' && '0' || '1' }}
+          NN_ICLOUD: ${{ inputs.scope == 'testflight' && !inputs.testflight_icloud && '0' || '1' }}
           NN_RELEASE_VERSION: '1.0.0'
           NN_RELEASE_BUILD: ${{ github.run_number }}
           NN_CERTIFICATE_P12_BASE64: ${{ secrets.NN_CERTIFICATE_P12_BASE64 }}

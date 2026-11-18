@@ -210,7 +210,8 @@ final class SwiftDataLibraryRepository: LibraryRepository {
     func recoverablePackages() throws -> [URL] {
         try documents.unreferencedPackages(referencedDocumentIDs: Set(allRecords().map(\.documentID)))
     }
-    func installCloudArchive(_ archive: URL, expectedLocal: String?, expectedRemote: String) async throws -> Notebook {
+    func installCloudArchive(_ archive: URL, expectedLocal: String?, expectedRemote: String,
+                             validateSession: () throws -> Void = {}) async throws -> Notebook {
         let staged = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-\(UUID()).nnbook", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: staged) }
         let inspected = try await Task.detached(priority: .utility) {
@@ -219,6 +220,8 @@ final class SwiftDataLibraryRepository: LibraryRepository {
         guard let metadata = inspected.metadata else { throw LibraryFailure.corruptDocument }
         let digest = try await Task.detached(priority: .utility) { try SnapshotDigest.package(staged, metadata: metadata) }.value
         guard digest == expectedRemote else { throw LibraryFailure.corruptDocument }
+        try Task.checkCancellation()
+        try validateSession()
         let all = try allRecords()
         if let record = all.first(where: { $0.documentID == metadata.documentID }) {
             guard record.id == metadata.id, record.deletedAt == nil, let expectedLocal else { throw WorkspaceFailure.staleRevision }

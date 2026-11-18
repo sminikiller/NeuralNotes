@@ -5,6 +5,44 @@ import NeuralNotesCore
 @testable import NeuralNotes
 
 final class AccountNotebookSyncTests: XCTestCase {
+    @MainActor func testFileBackupRestoresAnIndependentNotebook() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let local = try library(root)
+        let book = try local.repository.createNotebook(title: "Copia iCloud Drive", folderID: nil, cover: .lagoon)
+        try local.model.reload()
+        try await write("Contenuto del backup", book: book, library: local.model)
+        let archive = try await local.model.workspace(book).exportNative(metadata: book)
+        defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
+        try await write("Modifica successiva", book: book, library: local.model)
+        try await local.model.restoreNativeBackup(from: archive)
+        let copy = try XCTUnwrap(local.model.notebooks.first { $0.id != book.id })
+        XCTAssertNotEqual(copy.documentID, book.documentID)
+        let originalText = try await text(book, library: local.model)
+        let copiedText = try await text(copy, library: local.model)
+        XCTAssertEqual(originalText, "Modifica successiva")
+        XCTAssertEqual(copiedText, "Contenuto del backup")
+    }
+
+    @MainActor func testSyncSessionIsCheckedBeforeInstallingADownload() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try library(root.appendingPathComponent("source"))
+        let target = try library(root.appendingPathComponent("target"))
+        let book = try source.repository.createNotebook(title: "Quaderno privato", folderID: nil, cover: .lagoon)
+        let snapshot = try await source.model.workspace(book).cloudSnapshot(metadata: book)
+        defer { try? FileManager.default.removeItem(at: snapshot.archive.deletingLastPathComponent()) }
+        do {
+            _ = try await target.model.installCloudArchive(snapshot.archive, expectedLocal: nil, expectedRemote: snapshot.digest) {
+                throw CloudNotebookFailure.account
+            }
+            XCTFail("A snapshot from a disconnected account must be rejected")
+        } catch CloudNotebookFailure.account {}
+        XCTAssertTrue(target.model.notebooks.isEmpty)
+        let installed = try await target.model.installCloudArchive(snapshot.archive, expectedLocal: nil, expectedRemote: snapshot.digest)
+        XCTAssertEqual(installed.documentID, book.documentID)
+    }
+
     @MainActor func testHistoricalVersionDownloadsAsIndependentCopyAndPreservesLatestNotebook() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

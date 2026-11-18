@@ -1202,18 +1202,23 @@ Invio, ricezione e conflitti fra dispositivi.
 - [ ] Con due dispositivi autorizzati e un account configurato invia un piccolo quaderno di prova. Scaricalo sul secondo dispositivo e aprilo.
   **Risultato atteso** — Le pagine e i contenuti modificabili arrivano sul secondo dispositivo. In caso di conflitto puoi esaminare entrambe le copie.
 
-### iCloud privato
+### Account Apple, iCloud e copie in File
 
-Sincronizzazione separata dall’account NeuralNotes.
+Sincronizzazione privata e backup dei quaderni in iCloud Drive.
 
-1. Serve una build firmata configurata con CloudKit e un account iCloud attivo. Nel Playground o senza abilitazione la funzione può non essere disponibile.
-2. Apri Cloud e sincronizzazione e avvia iCloud privato per i quaderni chiusi.
-3. Risolvi i conflitti conservando entrambe le copie o scegliendo una versione. La cancellazione locale non cancella la copia iCloud.
+1. Apri Account e servizi → Account Apple e iCloud. Il servizio usa l’Account Apple in Impostazioni. Su due iPad usa lo stesso account se vuoi ritrovare i quaderni.
+2. Se la build è abilitata a CloudKit, verifica la connessione e usa Sincronizza un quaderno o Sincronizza tutti i quaderni chiusi. Attiva l’opzione automatica solo se vuoi sincronizzare l’intera libreria.
+3. Se entrambe le copie sono cambiate, importa quella remota come nuovo quaderno per confrontarle. Le eliminazioni locali restano nel cestino del dispositivo.
+4. In Backup in File, salva la copia di un quaderno chiuso scegliendo iCloud Drive. Ripristina una copia da File aggiunge il backup alla libreria come quaderno separato.
+5. Per ricevere le copie periodiche in iCloud Drive, scegli una cartella per le copie automatiche e controlla che Backup automatici sia attivo in Spazio e recupero.
 
 #### Esercizi
 
-- [ ] Con un’edizione firmata per iCloud e un account iCloud attivo apri lo stato del servizio. Su due dispositivi prova un quaderno vuoto di test.
-  **Risultato atteso** — Nelle build compatibili il quaderno può essere ricevuto sul secondo dispositivo. Se la funzione non è disponibile, il pannello lo segnala.
+- [ ] Con una build abilitata a CloudKit e lo stesso Account Apple, sincronizza un quaderno di prova sul primo iPad e poi premi Sincronizza tutti sul secondo.
+  **Risultato atteso** — Il secondo iPad riceve lo stesso quaderno. Se la build non abilita CloudKit, il pannello indica come salvare la copia in File.
+
+- [ ] Da Account Apple e iCloud salva una copia di un quaderno chiuso su iCloud Drive. Modifica l’originale, poi ripristina il file .nnbackup.
+  **Risultato atteso** — La libreria mostra sia l’originale con la modifica sia una copia indipendente nello stato del backup.
 
 ### Backup automatici e recupero
 

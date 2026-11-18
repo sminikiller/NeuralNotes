@@ -266,10 +266,12 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Accedi allo stesso account sui dispositivi e apri Account e servizi → Centro sincronizzazione. Chiudi i quaderni e scegli Sincronizza adesso per collegarli a questo account.",
             "Attiva il backup alla chiusura e, se vuoi, Solo Wi-Fi: sui quaderni già collegati prepara una copia e la mantiene in coda fino a una rete adatta. Il limite è 100 MB per quaderno; cartelle e cestino restano locali.",
             "I badge mostrano cloud, coda o conflitto. Da Versioni precedenti puoi scaricare una revisione come quaderno indipendente. Risolvi i conflitti conservando entrambe le copie o scegliendo una versione: prima della sostituzione locale viene conservato un backup." ]),
-        .init("icloud", .protection, "iCloud privato", "icloud", "Sincronizzazione separata dall’account NeuralNotes.", [
-            "Serve una build firmata configurata con CloudKit e un account iCloud attivo. Nel Playground o senza abilitazione la funzione può non essere disponibile.",
-            "Apri Cloud e sincronizzazione e avvia iCloud privato per i quaderni chiusi.",
-            "Risolvi i conflitti conservando entrambe le copie o scegliendo una versione. La cancellazione locale non cancella la copia iCloud." ]),
+        .init("icloud", .protection, "Account Apple, iCloud e copie in File", "icloud", "Sincronizzazione privata e backup dei quaderni in iCloud Drive.", [
+            "Apri Account e servizi → Account Apple e iCloud. Il servizio usa l’Account Apple in Impostazioni. Su due iPad usa lo stesso account se vuoi ritrovare i quaderni.",
+            "Se la build è abilitata a CloudKit, verifica la connessione e usa Sincronizza un quaderno o Sincronizza tutti i quaderni chiusi. Attiva l’opzione automatica solo se vuoi sincronizzare l’intera libreria.",
+            "Se entrambe le copie sono cambiate, importa quella remota come nuovo quaderno per confrontarle. Le eliminazioni locali restano nel cestino del dispositivo.",
+            "In Backup in File, salva la copia di un quaderno chiuso scegliendo iCloud Drive. Ripristina una copia da File aggiunge il backup alla libreria come quaderno separato.",
+            "Per ricevere le copie periodiche in iCloud Drive, scegli una cartella per le copie automatiche e controlla che Backup automatici sia attivo in Spazio e recupero." ]),
         .init("backup", .protection, "Backup automatici e recupero", "externaldrive.badge.checkmark", "Versioni locali e copie esterne.", [
             "Apri Spazio e archiviazione per vedere i backup e configurare una cartella esterna per le copie automatiche.",
             "Conserva un export nativo in File prima di aggiornare o spostare il Playground. Copie diverse dell’app possono usare librerie locali separate.",

@@ -5,7 +5,11 @@ on:
       build:
         description: Existing TestFlight build number to inspect (no upload)
         type: string
-        required: true
+        required: false
+      check_icloud:
+        description: Read the App ID capability and verify CloudKit entitlement in the configured profile
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -20,11 +24,26 @@ jobs:
       - name: Read Apple processing and beta group availability
         env:
           NN_STATUS_BUILD: ${{ inputs.build }}
+          NN_STATUS_ICLOUD: ${{ inputs.check_icloud }}
           NN_ASC_KEY_BASE64: ${{ secrets.NN_ASC_KEY_BASE64 }}
           NN_ASC_KEY_ID: ${{ secrets.NN_ASC_KEY_ID }}
           NN_ASC_ISSUER_ID: ${{ secrets.NN_ASC_ISSUER_ID }}
         run: node tools/testflight_status.mjs
+      - name: Validate the configured profile for iCloud (read only)
+        if: inputs.check_icloud
+        env:
+          NN_PROFILE_BASE64: ${{ secrets.NN_PROFILE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile="$(mktemp)"
+          trap 'rm -f "$profile"' EXIT
+          python3 -c 'import base64, os, sys; sys.stdout.buffer.write(base64.b64decode(os.environ["NN_PROFILE_BASE64"], validate=True))' |
+            openssl cms -verify -inform DER -noverify -out "$profile"
+          python3 tools/validate_distribution_profile.py "$profile" >/dev/null
+          echo "The configured profile grants the production iCloud container."
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
         with:
           name: testflight-status-${{ github.run_id }}
           path: .verification/testflight-status.json

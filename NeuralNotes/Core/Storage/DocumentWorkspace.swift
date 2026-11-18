@@ -422,7 +422,11 @@ public actor DocumentWorkspace {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let destination = directory.appendingPathComponent("NeuralNotes.nnbackup", isDirectory: false)
-        try NativeArchive.write(package: package, metadata: metadata, to: destination)
+        do { try NativeArchive.write(package: package, metadata: metadata, to: destination) }
+        catch {
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
         return destination
     }
 

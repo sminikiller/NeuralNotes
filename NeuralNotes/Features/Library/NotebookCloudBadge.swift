@@ -11,6 +11,9 @@ struct NotebookCloudBadge: View {
             return ("Conflitto · versioni conservate", "exclamationmark.icloud", true)
         }
         if cloud.queue.jobs.contains(where: { $0.documentID == documentID }) { return ("In coda", "arrow.clockwise.icloud", false) }
+        if let date = iCloud.syncedDates[documentID] {
+            return ("iCloud · " + date.formatted(date: .numeric, time: .omitted), "checkmark.icloud", false)
+        }
         if let document = cloud.documents.first(where: { $0.id == documentID }) {
             let date = document.updatedAt.map { " · " + $0.formatted(date: .numeric, time: .omitted) } ?? ""
             return ("Nel cloud" + date, "checkmark.icloud", false)

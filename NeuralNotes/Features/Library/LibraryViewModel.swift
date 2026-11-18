@@ -191,12 +191,21 @@ final class LibraryViewModel {
 
     func importNotebook(from url: URL) async {
         guard !importing else { return }
+        do { try await importFile(url) }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    func restoreNativeBackup(from url: URL) async throws {
+        guard url.pathExtension.lowercased() == "nnbackup" else { throw LibraryFailure.corruptDocument }
+        try await importFile(url)
+    }
+
+    private func importFile(_ url: URL) async throws {
+        guard !importing else { throw LibraryFailure.recoveryRequired("Un’importazione è già in corso.") }
         importing = true; defer { importing = false }
-        do {
-            let notebook = try await repository.importNotebook(from: url, folderID: currentFolderID)
-            scope = notebook.folderID.map(LibraryScope.folder) ?? .all; query = ""
-            try reload()
-        } catch { errorMessage = error.localizedDescription }
+        let notebook = try await repository.importNotebook(from: url, folderID: currentFolderID)
+        scope = notebook.folderID.map(LibraryScope.folder) ?? .all; query = ""
+        try reload()
     }
 
     func delete(_ notebook: Notebook) {
@@ -235,9 +244,12 @@ final class LibraryViewModel {
     }
 
     func workspace(_ notebook: Notebook) throws -> DocumentWorkspace { try repository.workspace(id: notebook.id) }
-    func installCloudArchive(_ url: URL, expectedLocal: String?, expectedRemote: String) async throws -> Notebook {
+    func installCloudArchive(_ url: URL, expectedLocal: String?, expectedRemote: String,
+                             validateSession: () throws -> Void = {}) async throws -> Notebook {
         guard let native = repository as? SwiftDataLibraryRepository else { throw LibraryFailure.missingItem }
-        let book = try await native.installCloudArchive(url, expectedLocal: expectedLocal, expectedRemote: expectedRemote); try reload(); return book
+        let book = try await native.installCloudArchive(url, expectedLocal: expectedLocal, expectedRemote: expectedRemote, validateSession: validateSession)
+        try reload()
+        return book
     }
     func recoverablePackages() throws -> [URL] { try repository.recoverablePackages() }
     func recoverLocalIndexIfEmpty() async {

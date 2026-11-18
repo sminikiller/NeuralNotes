@@ -228,6 +228,24 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
     }
 
+    @MainActor func testAppleAccountShowsFileBackupsWhenCloudKitIsUnavailable() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()
+        let account = app.buttons["libraryAccount"]
+        if !account.waitForExistence(timeout: 3) || !account.isHittable {
+            app.buttons["ToggleSidebar"].firstMatch.tap()
+        }
+        XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
+        let iCloud = app.buttons["services-iCloud"]
+        XCTAssertTrue(iCloud.waitForExistence(timeout: 5)); iCloud.tap()
+        XCTAssertTrue(app.navigationBars["Account Apple e iCloud"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["iCloudConnectionStatus"].exists)
+        XCTAssertTrue(app.buttons["iCloudRestoreNotebook"].isEnabled)
+        XCTAssertFalse(app.buttons["Sincronizza tutti i quaderni chiusi"].exists)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "apple-account-and-file-backups"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
     @MainActor func testPrivacyInformationIsAvailableWithoutAnAccount() {
         continueAfterFailure = false
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing", "--reset-ui-storage"]; app.launch()

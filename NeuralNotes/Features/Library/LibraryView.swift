@@ -28,7 +28,6 @@ private enum LibrarySheet: Identifiable {
 
 @MainActor
 struct LibraryView: View {
-    @AppStorage("cloud.automatic") private var cloudAutomatic = false
     @Bindable var model: LibraryViewModel
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("library.usesGrid") private var usesGrid = true
@@ -115,10 +114,9 @@ struct LibraryView: View {
                 do { try await Task.sleep(for: .seconds(120)) } catch { return }
             }
         }
-        .task(id: cloudAutomatic) {
-            guard cloudAutomatic else { return }
+        .task {
             while !Task.isCancelled {
-                if scenePhase == .active { await CloudNotebookSync.shared.synchronize(model) }
+                if scenePhase == .active { await CloudNotebookSync.shared.synchronizeIfEnabled(model) }
                 do { try await Task.sleep(for: .seconds(120)) } catch { return }
             }
         }
@@ -183,9 +181,15 @@ struct LibraryView: View {
         .onChange(of: CloudNetworkMonitor.shared.unmeteredWiFi) { _, ready in
             if ready { Task { await CloudBackupService.shared.synchronizeIfEnabled(model) } }
         }
+        .onChange(of: CloudNetworkMonitor.shared.available) { _, ready in
+            if ready, scenePhase == .active { Task { await CloudNotebookSync.shared.synchronizeIfEnabled(model) } }
+        }
         .onChange(of: LibraryRevision.shared.value) { _, _ in model.perform { try model.reload() } }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.perform { try model.reload() } }
+            if phase == .active {
+                model.perform { try model.reload() }
+                Task { await CloudNotebookSync.shared.synchronizeIfEnabled(model) }
+            }
         }
         .onChange(of: model.sort) { _, value in persistedSort = value.rawValue }
         .onAppear { model.sort = LibrarySort(rawValue: persistedSort) ?? .modified }

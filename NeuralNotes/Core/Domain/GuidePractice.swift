@@ -441,9 +441,13 @@ enum GuidePractice {
         ],
         "icloud": [
             .init(
-                "Con un’edizione firmata per iCloud e un account iCloud attivo apri lo stato del servizio. Su due dispositivi prova un quaderno vuoto di test.",
-                "Nelle build compatibili il quaderno può essere ricevuto sul secondo dispositivo. Se la funzione non è disponibile, il pannello lo segnala."
+                  "Con una build abilitata a CloudKit e lo stesso Account Apple, sincronizza un quaderno di prova sul primo iPad e poi premi Sincronizza tutti sul secondo.",
+                  "Il secondo iPad riceve lo stesso quaderno. Se la build non abilita CloudKit, il pannello indica come salvare la copia in File."
             ),
+              .init(
+                  "Da Account Apple e iCloud salva una copia di un quaderno chiuso su iCloud Drive. Modifica l’originale, poi ripristina il file .nnbackup.",
+                  "La libreria mostra sia l’originale con la modifica sia una copia indipendente nello stato del backup."
+              ),
         ],
     ]
 
