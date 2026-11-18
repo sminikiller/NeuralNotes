@@ -75,7 +75,9 @@ final class StudyKitUITests: XCTestCase {
         // The canvas AX wrapper includes the navigation bar's scroll-edge inset.
         XCTAssertLessThanOrEqual(undo.frame.minY - canvas.frame.minY, 24)
         XCTAssertLessThan(workspace.frame.minX, toolbar.frame.maxX)
-        XCTAssertLessThanOrEqual(library.frame.minY - app.frame.minY, 12)
+        // UIKit still insets the back button inside its own navigation header.
+        // A visible iPad status bar adds another row above that inset.
+        XCTAssertLessThanOrEqual(library.frame.minY - app.frame.minY, 16, "Navigation header should start at the top of the editor")
         XCTAssertEqual(strip.frame.maxY, app.frame.maxY, accuracy: 2)
         // Keep the touch target close to the edge while leaving room for the Home gesture.
         let bottomClearance = app.frame.maxY - scrubber.frame.maxY
