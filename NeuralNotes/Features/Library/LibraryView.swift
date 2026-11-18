@@ -246,7 +246,7 @@ struct LibraryView: View {
                 Label("Sul tuo iPad", systemImage: "internaldrive")
                     .font(.footnote).foregroundStyle(.secondary)
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
-                Button { sheet = .help } label: { Label("Guida rapida", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
+                Button { sheet = .help } label: { Label("Guida completa", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
                 Button { sheet = .about } label: { Label("Informazioni su NeuralNotes", systemImage: "info.circle") }.accessibilityIdentifier("libraryAbout")
                 Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
                 Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }

@@ -7,7 +7,7 @@ import VisionKit
 import NeuralNotesCore
 
 private enum EditorPanel: String, Identifiable {
-    case elements, audio, search, globalSearch, study, studyKit, crop, pages, practice, storage, paper, workspace, layers, layerExport, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
+    case elements, audio, search, globalSearch, study, studyKit, guide, crop, pages, practice, storage, paper, workspace, layers, layerExport, shapeStyle, connectorStyle, deleteTypes, deleteNotebookTypes
     var id: String { rawValue }
 }
 
@@ -260,6 +260,7 @@ struct EditorView: View {
     private var actionsMenu: some View {
         Menu {
             Button("Studio sul foglio", systemImage: "point.3.connected.trianglepath.dotted", action: openStudyKit)
+            Button("Guida completa", systemImage: "questionmark.circle") { panel = .guide }.accessibilityIdentifier("editorGuide")
             Button("Workspace e preferiti", systemImage: "slider.horizontal.3") { panel = .workspace }
             Toggle("Navigatore zoom", systemImage: "viewfinder", isOn: $model.showZoomNavigator)
             Button(model.zoomWritingOpen ? "Chiudi finestra di scrittura" : "Finestra di scrittura", systemImage: "rectangle.bottomthird.inset.filled") { model.toggleZoomWriting() }
@@ -394,6 +395,7 @@ struct EditorView: View {
         case .search: DocumentSearchPanel(model: model)
         case .study: StudyPanel(model: model, notebook: notebook, library: library)
         case .studyKit: StudyKitPanel(model: model)
+        case .guide: QuickGuidePanel(inEditor: true)
         case .crop:
             if let page = model.page { areaRecognition(page) }
         }

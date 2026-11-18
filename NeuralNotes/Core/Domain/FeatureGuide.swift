@@ -17,7 +17,8 @@ public struct FeatureGuide: Identifiable, Sendable {
     }
     public func matches(_ query: String) -> Bool {
         let words = query.split(whereSeparator: \.isWhitespace)
-        let content = ([title, summary, category.rawValue] + steps).joined(separator: " ")
+        guard !words.isEmpty else { return true }
+        let content = ([title, summary, category.rawValue] + steps + exercises.flatMap { [$0.task, $0.expected] }).joined(separator: " ")
         return words.allSatisfy { content.range(of: String($0), options: [.caseInsensitive, .diacriticInsensitive]) != nil }
     }
     public static func completedIDs(_ stored: String) -> Set<String> {
@@ -171,7 +172,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Personalizza anche gli strumenti di Solo foglio: fino a cinque, incluso il lazo. Le preferenze vengono salvate nel quaderno." ]),
         .init("focus", .writing, "Solo foglio e mini toolbar", "arrow.up.left.and.arrow.down.right", "Libera lo schermo conservando gli strumenti essenziali.", [
             "Tocca Solo foglio per nascondere le barre principali e continuare con lo strumento attivo.",
-            "Tocca il piccolo overlay per espandere i preferiti. Il punto rosso segnala una registrazione anche in questa modalità.",
+            "Tocca l’icona della penna in alto a destra per espandere i preferiti e aprire Studio. Il timer REC rimane sulla stessa riga e apre il pannello Audio con un tocco; Annulla e Ripristina restano a sinistra.",
             "Usa il comando per tornare alla toolbar completa. Cambia i preferiti della mini toolbar nel workspace." ]),
         .init("zoom", .pages, "Zoom e navigazione", "arrow.up.left.and.arrow.down.right", "Pagina intera, larghezza schermo e scorrimento.", [
             "Pizzica con due dita per ingrandire e trascina con le dita per muoverti; Pencil resta dedicata alla scrittura.",
@@ -214,7 +215,7 @@ public struct FeatureGuide: Identifiable, Sendable {
             "Scegli PDF per sfondi, testo, immagini e inchiostro vettoriale. Il backup nativo conserva anche i dati modificabili.",
             "Salva in File e verifica la copia. Importare un backup manuale crea una nuova identità; la sincronizzazione conserva quella originale." ]),
         .init("record", .audio, "Registra una lezione lunga", "mic", "Segmenti, pause e indicatore sempre visibile.", [
-            "Apri Audio e avvia la registrazione concedendo il permesso microfono. Il punto rosso rimane visibile anche in Solo foglio.",
+            "Apri Audio e avvia la registrazione concedendo il permesso microfono. Il timer REC rimane visibile in alto anche in Solo foglio; toccalo per tornare ad Audio.",
             "Scrivi durante la lezione; usa Pausa e Riprendi. Nella build firmata il modo audio background permette di proseguire in standby, salvo interruzioni del sistema.",
             "Premi Stop e verifica la sessione. Playground e simulatore non sostituiscono prove fisiche di più ore, standby e interruzioni." ]),
         .init("audio-link", .audio, "Collega appunti e audio", "waveform.path", "Torna al momento della lezione dal tratto scritto.", [
@@ -301,7 +302,91 @@ public struct FeatureGuide: Identifiable, Sendable {
         .init("pdf-highlight", .pages, "Testo ed evidenziazioni del PDF", "highlighter", "Seleziona testo digitale e conserva i riferimenti.", [
             "Apri lo studio PDF e un documento con testo selezionabile. I PDF composti soltanto da scansioni possono richiedere OCR.",
             "Seleziona le righe da copiare o evidenziare con i controlli PDF disponibili; usa l’indice per raggiungere una sezione.",
-            "Riporta le parti utili negli appunti e controlla il risultato. Per un tratto libero sopra la pagina usa invece l’evidenziatore dell’editor." ])
+            "Riporta le parti utili negli appunti e controlla il risultato. Per un tratto libero sopra la pagina usa invece l’evidenziatore dell’editor." ]),
+        .init("tool-options", .writing, "Apri le opzioni di qualsiasi strumento", "slider.horizontal.3", "Tocco, pressione prolungata e opzioni dal catalogo.", [
+            "Nella toolbar tocca rapidamente un’icona per attivare il suo strumento. Tieni premuto il dito sull’icona finché si apre il pannello delle opzioni. La mini toolbar espansa di Solo foglio supporta lo stesso gesto.",
+            "Se l’icona non è fra i preferiti, tocca il + cerchiato e scorri fino allo strumento. Tieni premuto il nome oppure usa il pulsante con i cursori sul lato destro della riga.",
+            "Le opzioni dipendono dallo strumento. Per esempio, Gomma mostra bersaglio, modalità e dimensione, Penna mostra punte e preset, Goniometro mostra geometria e misura. Tocca fuori per chiudere senza cambiare l’assetto del foglio." ]),
+        .init("scratch", .writing, "Cancella facendo uno scarabocchio", "scribble.variable", "Cancella una parola con la penna o nel campo di testo.", [
+            "Apri Workspace → Gesti e automatismi e attiva Scarabocchio per cancellare. Con Penna scrivi due parole ben distanziate, sollevando spesso la punta per creare tratti separati.",
+            "Sopra la parola da togliere traccia un solo zig zag serrato con più inversioni avanti e indietro. Rilascia sopra la parola. NeuralNotes valuta quanto lo scarabocchio copre i singoli tratti. Un tratto continuo che attraversa più lettere può sparire interamente.",
+            "Lo stesso gesto con Penna può togliere parole da caselle di testo sul livello modificabile. Dentro una casella già in modifica lo zig zag è invece il comando Scrivi a mano di iPadOS. Da impostazioni Apple Pencil attiva Scrivi a mano per quest’ultimo caso.",
+            "Se il segno resta sul foglio, annullalo, controlla strumento e livello e ripeti con passate più fitte su una zona piccola. Per togliere solo una parte di un tratto continuo usa Gomma parziale." ], tools: [.pen, .eraser, .text]),
+        .init("pencil-gestures", .writing, "Apple Pencil e gesti con le dita", "hand.draw", "Scrittura, zoom, scorrimento e comandi della Pencil compatibile.", [
+            "Con Scrittura con il dito disattivata, usa Pencil per scrivere e il dito per muoverti. Il doppio tocco del dito alterna pagina intera e larghezza. Se abiliti la scrittura con il dito, scorri e fai doppio tocco con due dita; pizzica sempre con due dita.",
+            "Con Trascina oltre il fondo per avanzare attivo nel Workspace, trascina oltre il fondo nella navigazione verticale. Avanzi alla pagina dopo o aggiungi una pagina se sei già all’ultima.",
+            "Se la Pencil supporta doppio tocco o pressione sul corpo, configura il gesto in Impostazioni → Apple Pencil. NeuralNotes segue l’azione del sistema: cambia gomma, torna allo strumento precedente o apre le opzioni. Dove supportato, il passaggio sopra il foglio mostra l’ingombro dello strumento.",
+            "Il doppio tocco sul corpo della Pencil e il doppio tocco sul foglio sono gesti distinti. Se il tuo modello non offre il primo, usa le icone e la pressione prolungata della toolbar." ]),
+        .init("keyboard-editor", .writing, "Scorciatoie da tastiera del quaderno", "keyboard", "Cerca, naviga e modifica con la tastiera fisica.", [
+            "Esci dal campo di testo con Fine e tocca il foglio. P sceglie Penna, E Gomma, H Evidenziatore, L Lazo, T Testo, S Rettangolo, G Goniometro e R Righello. I numeri da 1 a 5 richiamano i preset di penna salvati. Queste lettere nel campo attivo scrivono testo.",
+            "Freccia sinistra o Pagina su torna indietro. Freccia destra o Pagina giù avanza. ⇧⌘N aggiunge una pagina e ⌘N crea un quaderno dalla libreria. ⌘T apre una scheda e ⌘W chiude quella corrente.",
+            "⌘0 adatta la pagina intera, ⌘+ ingrandisce, ⌘− riduce e ⌘. alterna Solo foglio. ⌘F cerca nel quaderno, ⇧⌘F cerca nella libreria e ⌘K attiva o disattiva la Lente.",
+            "⌘Z annulla e ⇧⌘Z ripristina. ⌘A seleziona tutto, ⌘X taglia, ⌘D duplica l’oggetto selezionato. Nelle azioni della selezione ⌘C copia e ⌘V incolla. ⇧⌘V incolla testo senza lo stile della fonte. Per le scorciatoie di formattazione apri il tutorial Pedice, apice e incolla." ]),
+        .init("pen-presets", .writing, "Punte, spessori e preset di penna", "pencil.tip", "Scegli la resa dell’inchiostro e richiamala rapidamente.", [
+            "Tieni premuta Penna e apri Tipo di penna. Confronta Penna, Matita, Monolinea, Stilografica, Acquerello, Pastello e Calligrafica fra i tipi disponibili sulla tua versione di iPadOS.",
+            "Regola colore e spessore e prova due tratti. Puoi usare i campioni recenti, scegliere un colore con il selettore o impostarlo con un valore esadecimale nella tavolozza. Lo spessore si applica ai tratti successivi.",
+            "Usa Salva questa penna per registrare tipo, colore e spessore. Richiama il preset dalle opzioni o premendo il numero del preset, da 1 a 5. La palette dell’evidenziatore rimane separata." ], tools: [.pen]),
+        .init("pdf-snippet", .pages, "Ritaglia un pezzo di PDF negli appunti", "crop", "Inserisci una figura come immagine oppure una citazione come testo.", [
+            "Apri il quaderno di destinazione e controlla che il livello attivo sia visibile e sbloccato. Tocca PDF affiancato nella barra superiore, poi Apri PDF da File. Per un PDF già usato nel quaderno puoi scegliere il nome della fonte.",
+            "Se vuoi una figura, tocca l’icona Ritaglia PDF negli appunti. Nel riquadro PDF trascina fra gli angoli della zona da conservare e rilascia. Attendi l’inserimento come immagine nella pagina del quaderno. Con Oggetti toccala, spostala o ridimensionala.",
+            "Se vuoi parole modificabili, esci dal ritaglio e seleziona testo digitale nel PDF con le maniglie, poi tocca Inserisci testo. Se il PDF contiene solo una scansione, puoi ritagliare il blocco e usare Riconosci un’area per leggere il testo.",
+            "La fonte esterna rimane un riferimento consultabile. Annulla rimuove l’inserimento dal quaderno. Per annotare tutte le pagine come fogli del quaderno, usa invece Importa PDF." ]),
+        .init("shape-line-arrow", .writing, "Linea e Freccia con estremi modificabili", "arrow.up.right", "Disegna da un punto all’altro e cambia le punte.", [
+            "Scegli Linea o Freccia dal + cerchiato. Per la freccia appoggia la punta nel punto di partenza e trascina verso il punto che vuoi indicare.",
+            "Con Oggetti seleziona la figura e muovi uno dei due estremi. Per agganciare una linea vicino a un angolo standard, controlla l’aggancio nelle opzioni forme.",
+            "Apri Stile forme per cambiare spessore, colore e tratteggio. Per le forme che lo consentono scegli dove mettere le punte. Il connettore da un nodo della mappa segue invece il suo nodo se lo sposti." ], tools: [.line, .arrow]),
+        .init("shape-closed", .writing, "Cerchio, Rettangolo, Triangolo e Rombo", "square.on.circle", "Disegna figure chiuse, poi cambia forma e riempimento.", [
+            "Scegli Cerchio per un’ellisse e trascina in un riquadro largo o alto. Per un cerchio regolare usa un riquadro quadrato. Seleziona Rettangolo, Triangolo o Rombo per lavorare nello stesso modo con un profilo diverso.",
+            "Tocca la figura con Oggetti. Usa le maniglie per cambiare dimensione o rotazione. In Stile forme regola contorno e riempimento. Per il rettangolo usa il raggio degli angoli quando disponibile.",
+            "Con Stile per le nuove forme imposti il prossimo disegno. Le forme già presenti conservano il proprio stile fino a quando le selezioni e applichi una modifica." ], tools: [.ellipse, .rectangle, .triangle]),
+        .init("shape-polygons", .writing, "Poligoni, stelle e archi", "star", "Modifica lati, vertici, punte e apertura.", [
+            "Nel menu Inserisci con l’icona della foto scegli Poligono, Poligono libero, Stella o Arco. Il poligono regolare e la stella usano le opzioni per numero di lati o punte.",
+            "Per Poligono libero tocca un punto per ogni vertice e chiudi la figura come indicato dalla barra. Con Oggetti selezionala e sposta un vertice. Nella stella puoi cambiare la profondità delle punte; nell’arco, l’inizio e l’apertura.",
+            "Dopo aver modificato un parametro, prova Annulla e Ripristina. Stile forme applica colori e contorno alla selezione; controlla che stia lavorando sulla forma giusta prima di confermare." ]),
+        .init("text-scribble", .writing, "Scrivi a mano dentro una casella", "character.cursor.ibeam", "Correggi testo digitato usando i gesti di iPadOS.", [
+            "In Impostazioni → Apple Pencil attiva Scrivi a mano. Nell’app scegli Testo e tocca la pagina. Scrivi con Pencil nel campo attivo e aspetta la conversione in testo modificabile.",
+            "Traccia uno zig zag su una parola per cancellarla. Tieni ferma la punta in un punto del testo per aprire uno spazio in cui scrivere. Traccia una breve linea verticale tra due caratteri per unirli o separarli.",
+            "Cerchia o sottolinea una parte del testo per selezionarla. Il doppio tocco seleziona la parola, tre tocchi selezionano un paragrafo. Usa le maniglie per regolare la selezione. Tocca Fine quando vuoi tornare al foglio." ], tools: [.text]),
+        .init("study-maps", .study, "Elenchi, checklist e mappe di Studio", "point.3.connected.trianglepath.dotted", "Costruisci uno schema o trasformalo partendo da un elenco.", [
+            "Dal + cerchiato apri Studio → Inserisci. Scegli un modello fra mappa concettuale, causa e conseguenza, confronto, albero gerarchico, domanda e risposta e scheda infermieristica. Regola colore e nodi prima di inserire.",
+            "Per un elenco, scrivi una voce per riga, con due spazi all’inizio delle voci secondarie. Scegli Punti, Numeri o Checklist. Usa Inserisci elenco per ottenere un oggetto di testo modificabile, oppure crea una mappa per avere nodi collegati.",
+            "Seleziona un nodo con Oggetti. Fai doppio tocco per rinominarlo. I punti sul bordo servono a collegare un altro nodo o aggiungerne uno. Usa Collegamenti e fonti per associare un nodo a un’altra pagina." ]),
+        .init("study-notes", .study, "Post-it, linguette e capitoli", "note.text", "Segna dubbi e punti chiave e ritrovali da un indice.", [
+            "In Studio → Post-it inserisci un richiamo e scegli fra Importante, Da ripassare, Dubbio ed Esempio. Scrivi nel campo e scegli un colore. Con Oggetti sposta il post-it o apri Modifica selezione.",
+            "Usa la linguetta per richiudere il post-it e ritrovalo da Studio → Post-it. Tocca una voce dell’elenco per raggiungere la pagina del richiamo.",
+            "In Studio → Capitoli crea o modifica una sezione e assegna una pagina. Usa il colore per distinguerla e attiva le linguette laterali. Tocca una linguetta per saltare al capitolo. Puoi riorganizzare le sezioni dall’indice." ]),
+        .init("layer-exports", .pages, "Esportazioni mirate e scotch nel PDF", "square.and.arrow.up", "Scegli formato, livelli e cosa rivelare nel documento condiviso.", [
+            "Da ⋯ → Esporta → Scegli livelli e formato scegli PDF, immagine o quaderno nativo fra le opzioni offerte. Per il PDF puoi usare tutti i livelli, quelli visibili o selezionarli esplicitamente.",
+            "Con Scotch nel PDF scegli se esportare lo stato del foglio, il contenuto coperto o le risposte senza scotch. Apri il file prodotto e controlla prima di condividerlo.",
+            "Dal resto del menu Esporta puoi scegliere PDF vettoriale o con aspetto PencilKit, pagina PNG o JPEG, area selezionata PNG, testo semplice, Markdown, raccolta evidenziazioni PDF e Stampa. Il formato nativo serve quando vuoi mantenere il quaderno modificabile." ]),
+        .init("quick-note", .library, "Nota rapida, Inbox e cestino dei quaderni", "tray", "Cattura un’idea senza scegliere subito dove archiviarla.", [
+            "Dalla barra laterale della libreria tocca Nota rapida. Scrivi nel foglio che si apre e torna alla libreria quando hai finito.",
+            "Apri Inbox per trovare le note rapide. Dal menu del quaderno puoi sistemare il titolo, aggiungere tag e spostarlo in una cartella.",
+            "Se elimini un quaderno, cercalo nel Cestino della libreria per ripristinarlo. Il cestino del quaderno, dentro la griglia Pagine, serve invece per i singoli fogli." ]),
+        .init("clipboard-selection", .writing, "Copia, taglia, duplica e incolla una selezione", "doc.on.clipboard", "Sposta contenuti modificabili o ricava un’immagine trasparente.", [
+            "Con il lazo misto o con Oggetti seleziona inchiostro e oggetti. Copia mantiene l’originale. Taglia rimuove la selezione dopo averla copiata. Duplica aggiunge una copia sulla pagina.",
+            "Usa Incolla dalla barra della selezione. Per una destinazione precisa, usa Copia o sposta in un’altra pagina. Copiando insieme due nodi puoi mantenere i collegamenti interni alla selezione.",
+            "Per usare il risultato come immagine in un’altra app, scegli Copia come immagine o Condividi immagine. Il PNG della selezione ha sfondo trasparente. Per esportare anche la carta scegli Pagina PNG." ], tools: [.lasso, .objects]),
+        .init("document-attachments", .pages, "Allegati e inserimento da File", "paperclip", "Scegli quando importare un documento e quando conservarlo come allegato.", [
+            "Apri ⋯ → Inserisci. Importa immagine porta una foto nel foglio, Importa PDF crea pagine, Aggiungi pagine da un backup copia i contenuti del quaderno selezionato.",
+            "Per conservare un file insieme agli appunti senza trasformarlo in nuove pagine, usa Aggiungi allegato e selezionalo da File.",
+            "Con un’altra app affiancata puoi anche trascinare sulla pagina contenuti compatibili. Controlla pagina, file e formato prima di proseguire." ]),
+        .init("lecture-notes", .audio, "Trascrizioni per capitoli e sbobina", "doc.richtext", "Passa dal parlato agli appunti con riferimenti audio.", [
+            "Apri la trascrizione di una sessione. Seleziona Per minuto o Per capitoli e tocca un riferimento temporale per ascoltare da quel punto. Esporta capitoli crea una copia Markdown.",
+            "Dalla sessione apri la sezione Sbobina. Per generare appunti strutturati serve una trascrizione e un servizio AI compatibile configurato. Leggi la richiesta di consenso prima di inviare testo.",
+            "Se disponibile, apri Leggi la sbobina, ascolta da un blocco e controlla il testo rispetto alla registrazione. Nelle azioni puoi esportare Markdown o inserire il risultato come pagine del quaderno." ]),
+        .init("search-global", .study, "Cerca in più quaderni e torna alla fonte", "magnifyingglass", "Distingui la ricerca locale delle pagine dalla ricerca in libreria.", [
+            "Da ⋯ → Documento → Cerca nel documento, oppure ⌘F, cerca nella pagina e nel quaderno aperto. Seleziona il risultato per passare alla pagina e vedere l’evidenziazione disponibile.",
+            "Dalla libreria usa Cerca negli appunti, oppure ⇧⌘F mentre sei nell’editor, per cercare in più quaderni. Un termine presente solo in una scansione o nella grafia può richiedere il riconoscimento OCR.",
+            "Verifica quaderno, numero di pagina ed estratto prima di aprire un risultato. Se una parola scritta a mano manca, riconosci una pagina o un’area e cerca di nuovo dopo il salvataggio." ]),
+        .init("study-session", .study, "Prepara una pagina da ripassare", "eye.slash", "Copri, rivela e verifica le risposte una alla volta.", [
+            "Scrivi una domanda seguita dalla risposta su più righe. Vai in Studio → Ripasso e inserisci uno scotch sopra la prima risposta. Con Oggetti spostalo o ridimensionalo per lasciare la domanda leggibile.",
+            "Prova Pieno, Trasparente e A righe dalle opzioni. Il trasparente lascia intravedere il contenuto; usa una copertura piena quando vuoi ricordarlo senza indizi. Con uno strumento diverso da Oggetti, tocca la copertura per rivelarla o ricoprirla.",
+            "Avvia Inizia ripasso sul livello modificabile. Usa Scopri prossima e Ricopri tutte, poi esci con Fine. Controlla lo stato delle coperture prima di condividere un PDF." ]),
+        .init("pencil-navigation-rail", .pages, "Barra pagine, anteprima e comandi rapidi", "slider.horizontal.below.rectangle", "Scorri fino a una pagina e gestisci i fogli senza chiudere l’editor.", [
+            "Trascina il cursore della barra in basso. Leggi il numero e la miniatura dell’anteprima. Rilascia per aprire quel foglio. Tocca il contatore per saltare direttamente a un numero.",
+            "Usa le frecce per passare al foglio vicino. Il + in basso aggiunge una pagina; nel menu ⋯ della barra puoi inserire una pagina bianca dopo questa, duplicare, riordinare o aprire la griglia.",
+            "Il + cerchiato della toolbar in alto ha un altro compito: apre il catalogo degli strumenti e Studio. In Solo foglio puoi tornare alla vista normale per riaprire la barra pagine." ])
     ]
 }
 

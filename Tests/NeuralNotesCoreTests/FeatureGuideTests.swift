@@ -28,4 +28,25 @@ final class FeatureGuideTests: XCTestCase {
         XCTAssertEqual(FeatureGuide.completedIDs("not json"), [])
         XCTAssertEqual(FeatureGuide.completedIDs("[\"undo\",\"undo\",\"old\"]"), ["undo"])
     }
+
+    func testEveryLessonHasAnObservableExerciseAndEveryExerciseBelongsToALesson() {
+        XCTAssertEqual(Set(GuidePractice.catalog.keys), Set(FeatureGuide.catalog.map(\.id)))
+        for guide in FeatureGuide.catalog {
+            XCTAssertFalse(guide.exercises.isEmpty, guide.id)
+            XCTAssertTrue(guide.exercises.allSatisfy { $0.task.count >= 25 && $0.expected.count >= 25 }, guide.id)
+            XCTAssertEqual(Set(guide.exercises.map(\.task)).count, guide.exercises.count, guide.id)
+        }
+    }
+
+    func testExercisesMustAllBeCheckedAndProgressSurvivesSerialization() throws {
+        let undo = try XCTUnwrap(FeatureGuide.catalog.first { $0.id == "undo" })
+        XCTAssertGreaterThan(undo.exercises.count, 1)
+        let first = undo.exerciseID(at: 0)
+        let checked = Set(undo.exercises.indices.map { undo.exerciseID(at: $0) })
+        XCTAssertFalse(undo.isPracticed([first]))
+        XCTAssertTrue(undo.isPracticed(checked))
+        XCTAssertEqual(FeatureGuide.checkedExerciseIDs(FeatureGuide.storeCheckedExercises(checked.union(["old/100"]))), checked)
+        XCTAssertTrue(FeatureGuide.checkedExerciseIDs("not json").isEmpty)
+        XCTAssertTrue(undo.matches("riporta in vita"))
+    }
 }

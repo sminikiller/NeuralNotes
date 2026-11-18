@@ -3,21 +3,39 @@ import NeuralNotesCore
 
 @MainActor
 struct QuickGuidePanel: View {
+    let inEditor: Bool
     @Environment(\.dismiss) private var dismiss
     @AppStorage("onboarding.completed") private var completed = false
     @AppStorage("guide.completed.v1") private var stored = "[]"
+    @AppStorage("guide.exercises.v1") private var exerciseProgress = "[]"
+    @AppStorage("guide.lastLesson.v1") private var lastLesson = ""
     @State private var query = ""
+    @State private var confirmReset = false
     private var read: Set<String> { FeatureGuide.completedIDs(stored) }
+    private var checked: Set<String> { FeatureGuide.checkedExerciseIDs(exerciseProgress) }
+
+    init(inEditor: Bool = false) { self.inEditor = inEditor }
+
     var body: some View {
+        let checked = self.checked
+        let read = self.read
+        let practiced = FeatureGuide.catalog.filter { read.contains($0.id) && $0.isPracticed(checked) }.count
         NavigationStack {
             List {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("Uno spazio per pensare", systemImage: "book.pages.fill").font(.title2.bold()).foregroundStyle(Brand.accent)
-                        Text("Cerca una funzione e segui i passaggi. I progressi restano su questo dispositivo.").foregroundStyle(.secondary)
-                        ProgressView(value: Double(read.count), total: Double(FeatureGuide.catalog.count))
-                        Text("\(read.count) di \(FeatureGuide.catalog.count) tutorial completati").font(.caption).foregroundStyle(.secondary)
+                        Text("Prova gli esercizi in un quaderno di test e spunta quelli di cui hai verificato il risultato. I progressi restano su questo dispositivo.").foregroundStyle(.secondary)
+                        ProgressView(value: Double(practiced), total: Double(FeatureGuide.catalog.count))
+                        Text("\(practiced) di \(FeatureGuide.catalog.count) tutorial completati").font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
+                }
+                if query.isEmpty, let recent = FeatureGuide.catalog.first(where: { $0.id == lastLesson }) {
+                    NavigationLink { lesson(recent) } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("Riprendi il tutorial", systemImage: "arrow.uturn.right")
+                            Text(recent.title).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.accessibilityIdentifier("guideResume")
                 }
                 ForEach(GuideCategory.allCases, id: \.self) { category in
                     let guides = FeatureGuide.catalog.filter { $0.category == category && $0.matches(query) }
@@ -25,8 +43,8 @@ struct QuickGuidePanel: View {
                         Section(category.rawValue) {
                             ForEach(guides) { guide in
                                 NavigationLink {
-                                    FeatureGuideDetail(guide: guide, stored: $stored)
-                                } label: { guideLabel(guide) }
+                                    lesson(guide)
+                                } label: { guideLabel(guide, done: read.contains(guide.id) && guide.isPracticed(checked)) }
                                 .accessibilityIdentifier("guide-\(guide.id)")
                             }
                         }
@@ -36,15 +54,27 @@ struct QuickGuidePanel: View {
                 if query.isEmpty {
                     Section {
                         Button("Inizia a scrivere", systemImage: "arrow.right") { completed = true; dismiss() }
-                        if !read.isEmpty { Button("Azzera progressi della guida", role: .destructive) { stored = "[]" } }
+                        if !read.isEmpty || !checked.isEmpty {
+                            Button("Azzera progressi della guida", role: .destructive) { confirmReset = true }
+                        }
                     }
                 }
             }.searchable(text: $query, prompt: "Cerca una funzione o un gesto")
-                .navigationTitle("Guida rapida").navigationBarTitleDisplayMode(.inline)
+                .navigationTitle("Guida completa").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { completed = true; dismiss() } } }
+                .confirmationDialog("Azzerare i progressi della guida?", isPresented: $confirmReset, titleVisibility: .visible) {
+                    Button("Azzera progressi", role: .destructive) { stored = "[]"; exerciseProgress = "[]" }
+                }
         }
     }
-    private func guideLabel(_ guide: FeatureGuide) -> some View {
+    private func lesson(_ guide: FeatureGuide) -> some View {
+        FeatureGuideDetail(guide: guide, stored: $stored, exerciseProgress: $exerciseProgress, inEditor: inEditor) {
+            completed = true
+            dismiss()
+        }.onAppear { lastLesson = guide.id }
+    }
+
+    private func guideLabel(_ guide: FeatureGuide, done: Bool) -> some View {
         HStack(spacing: 14) {
             Image(systemName: guide.icon).frame(width: 26).foregroundStyle(Brand.accent).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
@@ -52,7 +82,7 @@ struct QuickGuidePanel: View {
                 Text(guide.summary).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            if read.contains(guide.id) { Image(systemName: "checkmark.circle.fill").foregroundStyle(Brand.accent).accessibilityLabel("Completato") }
+            if done { Image(systemName: "checkmark.circle.fill").foregroundStyle(Brand.accent).accessibilityLabel("Completato") }
         }.padding(.vertical, 4)
     }
 }
@@ -61,8 +91,13 @@ struct QuickGuidePanel: View {
 private struct FeatureGuideDetail: View {
     let guide: FeatureGuide
     @Binding var stored: String
+    @Binding var exerciseProgress: String
+    let inEditor: Bool
+    let close: () -> Void
     @State private var step = 0
-    private var done: Bool { FeatureGuide.completedIDs(stored).contains(guide.id) }
+    private var checked: Set<String> { FeatureGuide.checkedExerciseIDs(exerciseProgress) }
+    private var practiced: Bool { guide.isPracticed(checked) }
+    private var done: Bool { practiced && FeatureGuide.completedIDs(stored).contains(guide.id) }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -80,10 +115,6 @@ private struct FeatureGuideDetail: View {
                     Spacer()
                     if step + 1 < guide.steps.count {
                         Button("Avanti", systemImage: "chevron.right") { step += 1 }.buttonStyle(.borderedProminent)
-                    } else {
-                        Button(done ? "Completato" : "Segna come completato", systemImage: "checkmark") {
-                            var ids = FeatureGuide.completedIDs(stored); ids.insert(guide.id); stored = FeatureGuide.store(ids)
-                        }.buttonStyle(.borderedProminent).disabled(done).accessibilityIdentifier("guideComplete")
                     }
                 }
                 DisclosureGroup("Mostra tutti i passaggi") {
@@ -91,7 +122,44 @@ private struct FeatureGuideDetail: View {
                         Text("\(index + 1). \(text)").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                     }
                 }
+                practiceSection
             }.padding(28).frame(maxWidth: 800, alignment: .leading).frame(maxWidth: .infinity)
-        }.navigationTitle("Tutorial").navigationBarTitleDisplayMode(.inline)
+        }.accessibilityIdentifier("guideLessonScroll").navigationTitle("Tutorial").navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var practiceSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Prova nel quaderno").font(.title2.bold())
+            if inEditor {
+                Button("Torna al quaderno per provare", systemImage: "pencil.tip", action: close).buttonStyle(.bordered)
+                Text("Riapri la guida da ⋯ e scegli Riprendi il tutorial.").font(.callout).foregroundStyle(.secondary)
+            } else {
+                Text("Apri un quaderno di prova. Puoi riprendere questo tutorial da ⋯ → Guida completa nell’editor.").font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(Array(guide.exercises.enumerated()), id: \.offset) { index, exercise in
+                let id = guide.exerciseID(at: index)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Prova \(index + 1)").font(.headline)
+                    Text(exercise.task)
+                    Text("Risultato atteso").font(.subheadline.bold())
+                    Text(exercise.expected).foregroundStyle(.secondary)
+                    Toggle("Esito verificato", isOn: exerciseBinding(id)).accessibilityIdentifier("guideExercise-\(id)")
+                }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+            }
+            Button(done ? "Completato" : "Segna come completato", systemImage: "checkmark") {
+                var ids = FeatureGuide.completedIDs(stored)
+                ids.insert(guide.id)
+                stored = FeatureGuide.store(ids)
+            }.buttonStyle(.borderedProminent).disabled(done || !practiced).accessibilityIdentifier("guideComplete")
+        }
+    }
+
+    private func exerciseBinding(_ id: String) -> Binding<Bool> {
+        Binding(get: { checked.contains(id) }, set: { value in
+            var ids = checked
+            if value { ids.insert(id) } else { ids.remove(id) }
+            exerciseProgress = FeatureGuide.storeCheckedExercises(ids)
+        })
     }
 }

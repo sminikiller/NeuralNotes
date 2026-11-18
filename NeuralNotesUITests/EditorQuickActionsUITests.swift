@@ -103,7 +103,19 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["guideStep"].waitForExistence(timeout: 5))
         app.buttons["Avanti"].tap(); app.buttons["Avanti"].tap()
         let complete = app.buttons["guideComplete"]
-        XCTAssertTrue(complete.exists); complete.tap(); XCTAssertFalse(complete.isEnabled)
+        let lesson = app.scrollViews["guideLessonScroll"]
+        for _ in 0..<7 where !complete.isHittable { lesson.swipeUp() }
+        XCTAssertTrue(complete.exists); XCTAssertFalse(complete.isEnabled)
+        for index in [2, 1] {
+            let exercise = app.switches["guideExercise-undo/\(index)"]
+            for _ in 0..<7 where !exercise.isHittable { lesson.swipeDown() }
+            XCTAssertTrue(exercise.isHittable)
+            exercise.coordinate(withNormalizedOffset: .init(dx: 0.94, dy: 0.5)).tap()
+            XCTAssertEqual(exercise.value as? String, "1")
+            if index == 2 { XCTAssertFalse(complete.isEnabled) }
+        }
+        for _ in 0..<7 where !complete.isHittable { lesson.swipeUp() }
+        XCTAssertTrue(complete.isEnabled); complete.tap(); XCTAssertFalse(complete.isEnabled)
         app.terminate(); app.launchArguments = ["--ui-testing"]; app.launch()
         let reopened = app.buttons["libraryGuide"]
         if !reopened.waitForExistence(timeout: 3) || !reopened.isHittable { app.buttons["ToggleSidebar"].firstMatch.tap() }
@@ -111,6 +123,12 @@ final class EditorQuickActionsUITests: XCTestCase {
         reopened.tap()
         let progress = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '1 di ' AND label ENDSWITH ' tutorial completati'")).firstMatch
         XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        let resume = app.buttons["guideResume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5)); resume.tap()
+        XCTAssertTrue(app.staticTexts["guideStep"].waitForExistence(timeout: 5))
+        for _ in 0..<7 where !complete.isHittable { lesson.swipeUp() }
+        XCTAssertEqual(app.switches["guideExercise-undo/2"].value as? String, "1")
+        XCTAssertFalse(complete.isEnabled)
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "feature-guide-progress"; attachment.lifetime = .keepAlways; add(attachment)
     }
     @MainActor func testNewNativeStrokeAfterUndoDoesNotBringBackTheErasedStroke() async throws {
