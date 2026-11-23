@@ -10,9 +10,14 @@ Cerca una funzione, segui i passaggi e prova l’esercizio su un quaderno di tes
 
 ## Beta TestFlight
 
-La build **1.0.0 (212)** con la guida completa è disponibile dal **18 novembre 2026** per il gruppo interno `io`. Su iPad apri **TestFlight → NeuralNotes → Aggiorna**. [Caricamento](https://github.com/sminikiller/NeuralNotes/actions/runs/44290090049) · [Conferma Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44292223832).
+La build **1.0.0 (217)** è disponibile dal **23 novembre 2026** per il gruppo interno `io`. Su iPad apri **TestFlight → NeuralNotes → Aggiorna**. [Caricamento](https://github.com/sminikiller/NeuralNotes/actions/runs/45249218901) · [Disponibilità confermata da Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/45250897079).
 
-La compilazione Release e i test di ricerca, checklist e ripresa della guida sul simulatore iPad sono riusciti. Le prove con Pencil, fotocamera, microfono e documenti personali si fanno su iPad. La beta interna usa la firma TestFlight senza iCloud. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44285553227) · [Distribuzione senza Mac](release/TESTFLIGHT_SENZA_MAC.md).
+- Nel quaderno apri il PDF affiancato, cambia pagina e chiudi con **×**. Riapri il lettore per ritrovare lo stesso documento alla pagina lasciata, anche dopo aver riaperto il quaderno.
+- In una casella di testo seleziona alcune parole e prova **Taglia**, **Duplica** ed **Elimina**. Con il lazo trovi i comandi anche per la selezione di tratti e oggetti.
+- Con la penna traccia una linea e tieni ferma la punta. Dopo il riconoscimento muovila avanti o indietro per cambiare la lunghezza mantenendo l’angolo. Prova poi **Annulla** e **Ripristina**.
+- Per confrontare la fluidità, scrivi sopra e accanto a una foto grande, anche con lo zoom attivo. Il salvataggio dei soli tratti conserva lo sfondo già disegnato.
+
+La verifica comprende 552 test Core, 295 test nativi, il flusso UI di ritaglio PDF con annulla e ripristina e la build Release. La latenza con Apple Pencil si misura sull’iPad fisico. Questa beta usa il profilo interno senza iCloud nativo. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/45244905139) · [Distribuzione senza Mac](release/TESTFLIGHT_SENZA_MAC.md).
 
 [Editor a schermo intero 0.33.2](docs/DELIVERY_0_33_2.md) · [Consegna 0.33.1](docs/DELIVERY_0_33_1.md) · [Consegna 0.33](docs/DELIVERY_0_33.md) · [Consegna 0.32](docs/DELIVERY_0_32.md) · [Piano strumenti](docs/PIANO_STRUMENTI_2026.md).
 
