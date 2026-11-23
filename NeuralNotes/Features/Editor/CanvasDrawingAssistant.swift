@@ -218,14 +218,27 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
             let dx = (b.x - a.x) * shape.width, dy = (b.y - a.y) * shape.height
             let length = hypot(dx, dy)
             if length >= 4 {
-                heldAxis = (start, CGVector(dx: dx / length, dy: dy / length), length, CGPoint(x: last.x, y: last.y))
+                heldAxis = (start, CGVector(dx: dx / length, dy: dy / length), CGFloat(length), CGPoint(x: last.x, y: last.y))
             }
         }
         if page.layers != nil {
             host.layeredScene.showRecognitionBaseline(before)
         } else {
-            previousInk.image = DocumentServices.image(page: page, drawing: before, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
-            previousInk.frame = host.surface.frame; host.addSubview(previousInk)
+            if before.strokes.contains(where: { $0.ink.inkType == .marker }) {
+                // Multiply-blended marker needs its underlying paper in the same bitmap.
+                previousInk.image = DocumentServices.image(page: page, drawing: before, workspace: model.workspace, maxDimension: 1600, pdfMode: .preview)
+                previousInk.frame = host.surface.frame; host.addSubview(previousInk)
+            } else if !before.strokes.isEmpty {
+                let visible = host.surface.convert(host.bounds, from: host).intersection(host.surface.bounds)
+                let region = before.bounds.intersection(visible)
+                if !region.isNull && !region.isEmpty {
+                    let scale = min(host.canvas.zoomScale * host.traitCollection.displayScale,
+                                    sqrt(6_000_000 / max(1, region.width * region.height)))
+                    previousInk.image = PaperInk.image(before, from: region, scale: max(0.1, scale))
+                    previousInk.frame = host.surface.convert(region, to: host)
+                    host.insertSubview(previousInk, aboveSubview: host.canvas)
+                }
+            }
             host.canvas.layer.opacity = 0
         }
         drawPreview(kind)

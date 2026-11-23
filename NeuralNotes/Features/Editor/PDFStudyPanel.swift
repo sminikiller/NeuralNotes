@@ -42,7 +42,8 @@ final class PDFStudyController: NSObject {
     @ObservationIgnored var preparedExternal: (URL, PDFDocument)?
     @ObservationIgnored var didReadPage: ((String, Int) -> Void)?
     @ObservationIgnored private var installingDocument = false
-    @objc func capturePosition() {
+    @objc private func pageChanged(_ notification: Notification) { capturePosition() }
+    func capturePosition() {
         guard !installingDocument, let file, let view, let page = view.currentPage, let document = view.document else { return }
         let index = document.index(for: page)
         if index >= 0 && index < document.pageCount { didReadPage?(file, index) }
@@ -51,7 +52,7 @@ final class PDFStudyController: NSObject {
         guard self.view !== view || observer == nil else { return }
         detach()
         self.view = view
-        NotificationCenter.default.addObserver(self, selector: #selector(capturePosition), name: .PDFViewPageChanged, object: view)
+        NotificationCenter.default.addObserver(self, selector: #selector(pageChanged(_:)), name: .PDFViewPageChanged, object: view)
         observer = NotificationCenter.default.addObserver(forName: .PDFViewSelectionChanged, object: view, queue: .main) { [weak self, weak view] _ in
             Task { @MainActor [weak self, weak view] in
                 self?.hasSelection = view?.currentSelection != nil
