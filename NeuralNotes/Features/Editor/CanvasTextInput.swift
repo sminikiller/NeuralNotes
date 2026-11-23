@@ -202,6 +202,6 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         let remove = UIAction(title: "Elimina", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
             self?.changeSelectedText(duplicate: false)
         }
-        return UIMenu(children: suggestedActions + [duplicate, remove, lens])
+        return UIMenu(children: suggestedActions + [lens, duplicate, remove])
     }
 }

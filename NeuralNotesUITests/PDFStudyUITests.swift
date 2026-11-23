@@ -31,6 +31,7 @@ final class PDFStudyUITests: XCTestCase {
         XCTAssertFalse(crop.isHittable, "The clipping tool must return to PDF navigation after one selection")
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "compact-sidebar-PDF-image-in-notebook"; shot.lifetime = .keepAlways; add(shot)
         app.buttons["closeStudyInspector"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: panel)], timeout: 10)
         XCTAssertTrue(app.buttons["selectionTransfer"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
         undo.tap()

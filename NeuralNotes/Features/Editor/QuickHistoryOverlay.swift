@@ -7,12 +7,12 @@ struct QuickHistoryOverlay: View {
     private var busy: Bool { model.loading || model.navigating || model.hasActiveStroke || !model.hasLease }
     var body: some View {
         HStack(spacing: 2) {
-            Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44) }
+            Button { Task { await model.performUndo() } } label: { Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44).contentShape(Rectangle()) }
                 .disabled(busy || !model.canUndo).accessibilityLabel("Annulla ultima azione").accessibilityIdentifier("quickUndo")
                 .keyboardShortcut("z", modifiers: .command)
                 .accessibilityHint(model.history.undo?.label ?? "Nessuna azione da annullare")
             Divider().frame(height: 20).accessibilityHidden(true)
-            Button { Task { await model.performRedo() } } label: { Image(systemName: "arrow.uturn.forward").frame(width: 44, height: 44) }
+            Button { Task { await model.performRedo() } } label: { Image(systemName: "arrow.uturn.forward").frame(width: 44, height: 44).contentShape(Rectangle()) }
                 .disabled(busy || !model.canRedo).accessibilityLabel("Ripristina ultima azione").accessibilityIdentifier("quickRedo")
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 .accessibilityHint(model.history.redo?.label ?? "Nessuna azione da ripristinare")
