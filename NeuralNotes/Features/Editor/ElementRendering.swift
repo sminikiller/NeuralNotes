@@ -4,8 +4,6 @@ import NeuralNotesCore
 @MainActor
 enum ElementRendering {
     static func drawImage(_ element: ImageElement, package: URL, context: CGContext) {
-        guard let image = DocumentRenderCache.shared.croppedImage(package.appendingPathComponent(element.file), crop: element.crop ?? .full,
-            perspective: element.perspective, quarterTurns: element.photoQuarterTurns ?? 0, enhanced: element.photoEnhanced ?? false) else { return }
         let rect = CGRect(x: element.x, y: element.y, width: element.width, height: element.height)
         context.saveGState()
         context.translateBy(x: rect.midX, y: rect.midY)
@@ -13,8 +11,12 @@ enum ElementRendering {
         context.rotate(by: CGFloat(angle) * .pi / 180)
         let sideways = abs(angle.truncatingRemainder(dividingBy: 180)) == 90
         let size = sideways ? CGSize(width: rect.height, height: rect.width) : rect.size
-        image.draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
-        context.restoreGState()
+        defer { context.restoreGState() }
+        let target = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
+        guard target.intersects(context.boundingBoxOfClipPath),
+              let image = DocumentRenderCache.shared.croppedImage(package.appendingPathComponent(element.file), crop: element.crop ?? .full,
+                  perspective: element.perspective, quarterTurns: element.photoQuarterTurns ?? 0, enhanced: element.photoEnhanced ?? false) else { return }
+        image.draw(in: target)
     }
 
     static func drawShape(_ shape: ShapeElement, context: CGContext, page: PageSnapshot? = nil) {

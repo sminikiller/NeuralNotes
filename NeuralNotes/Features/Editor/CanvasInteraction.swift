@@ -637,8 +637,8 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
         guard let host, let model, model.hasLease, model.tool == .objects, !model.selectionPageDragMode,
               !model.interactionBusy, !model.navigating, !model.loading,
-              let id = hit(host.surface.convert(location, from: host)), id != inkID else { return nil }
-        if !model.selectedIDs.contains(id) { model.selectedObjectID = id }; refresh()
+              let id = hit(host.surface.convert(location, from: host)) else { return nil }
+        if id != inkID && !model.selectedIDs.contains(id) { model.selectedObjectID = id }; refresh()
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
             guard let model = self?.model else { return nil }
             let copy = UIAction(title: "Copia", image: UIImage(systemName: "doc.on.doc")) { _ in model.copySelection() }
@@ -662,7 +662,9 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
                     lens.append(UIAction(title: "Mostra il testo di origine", image: UIImage(systemName: "text.viewfinder")) { _ in Task { await model.focusLensNote(id, source: true) } })
                 }
             }
-            var items: [UIMenuElement] = [edit, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
+            let cut = UIAction(title: "Taglia", image: UIImage(systemName: "scissors")) { _ in model.cutSelection() }
+            if id == self?.inkID { return UIMenu(children: [cut, copy, duplicate, remove]) }
+            var items: [UIMenuElement] = [edit, cut, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
             if model.page?.shapes?.contains(where: { $0.id == id }) == true || model.page?.connectors?.contains(where: { $0.id == id }) == true {
                 items.insert(UIAction(title: "Modifica etichetta", image: UIImage(systemName: "textformat")) { _ in model.editDiagramLabel(id) }, at: 1)
             }

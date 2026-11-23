@@ -44,7 +44,7 @@ final class VisiblePaperDetail: UIView {
         let at = CGPoint(x: (rect.minX - host.surface.frame.minX) / z, y: (rect.minY - host.surface.frame.minY) / z)
         let visible = CGRect(origin: at, size: CGSize(width: rect.width / z, height: rect.height / z))
         let moving = host.canvas.isDragging || host.canvas.isDecelerating || host.canvas.isZooming || host.viewportAnimationActive
-        let contentChanged = page != host.surface.page || package != host.surface.package || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs
+        let contentChanged = page?.hasSamePaperContent(as: host.surface.page) != true || package != host.surface.package || hiddenTextID != host.surface.hiddenTextID || hiddenObjectID != host.surface.hiddenObjectID || hiddenObjectIDs != host.surface.allHiddenObjectIDs
         let needsResolution = zoom != z && (!moving || z / zoom > 1.5 || z / zoom < 0.67)
         let rebuild = contentChanged || !region.contains(visible) || needsResolution
         if rebuild {

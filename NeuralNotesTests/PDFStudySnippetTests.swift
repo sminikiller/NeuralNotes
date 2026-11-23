@@ -44,6 +44,24 @@ final class PDFStudySnippetTests: XCTestCase {
         let bounded = try XCTUnwrap(UIImage(data: large)?.cgImage)
         XCTAssertLessThanOrEqual(bounded.width, 2048); XCTAssertLessThanOrEqual(bounded.height, 2048)
     }
+    @MainActor func testSidePDFResumesOnSavedPageUsingANewController() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 400, height: 600)).writePDF(to: url) { output in
+            for _ in 0..<5 { output.beginPage() }
+        }
+        let reader = PDFStudyController(), view = PDFView(frame: CGRect(x: 0, y: 0, width: 400, height: 600))
+        var saved = -1
+        reader.didReadPage = { _, page in saved = page }
+        reader.attach(view); reader.load(file: url.lastPathComponent, package: url.deletingLastPathComponent(), index: 0)
+        view.go(to: try XCTUnwrap(view.document?.page(at: 3))); reader.detach()
+        XCTAssertEqual(saved, 3)
+        let next = PDFStudyController(), reopened = PDFView(frame: view.frame)
+        next.attach(reopened); next.load(file: url.lastPathComponent, package: url.deletingLastPathComponent(), index: saved)
+        let document = try XCTUnwrap(reopened.document)
+        XCTAssertEqual(document.index(for: try XCTUnwrap(reopened.currentPage)), 3)
+        next.detach()
+    }
     @MainActor func testSidebarDoesNotVisitAllPDFPagesOnEveryPenRevision() throws {
         let url = try source(); defer { try? FileManager.default.removeItem(at: url) }
         let controller = PDFStudyController(), view = PDFView()

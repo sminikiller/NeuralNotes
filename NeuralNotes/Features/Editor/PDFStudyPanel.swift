@@ -5,6 +5,21 @@ import PencilKit
 import UniformTypeIdentifiers
 import NeuralNotesCore
 
+/// Local reading position. External documents remain in Files and retain their provider authorization.
+private struct StudyReadingPosition: Codable {
+    let file: String
+    let bookmark: Data?
+    var index: Int
+    static func key(_ notebook: UUID) -> String { "NeuralNotes.studyPDF." + notebook.uuidString }
+    static func read(_ notebook: UUID) -> Self? {
+        guard let data = UserDefaults.standard.data(forKey: key(notebook)) else { return nil }
+        return try? JSONDecoder().decode(Self.self, from: data)
+    }
+    func save(_ notebook: UUID) {
+        if let data = try? JSONEncoder().encode(self) { UserDefaults.standard.set(data, forKey: Self.key(notebook)) }
+    }
+}
+
 @MainActor @Observable
 final class PDFStudyController: NSObject {
     weak var view: PDFView?
@@ -24,10 +39,19 @@ final class PDFStudyController: NSObject {
         let destination: PDFDestination
         init(label: String, destination: PDFDestination) { id = UUID(); self.label = label; self.destination = destination }
     }
+    @ObservationIgnored var preparedExternal: (URL, PDFDocument)?
+    @ObservationIgnored var didReadPage: ((String, Int) -> Void)?
+    @ObservationIgnored private var installingDocument = false
+    @objc func capturePosition() {
+        guard !installingDocument, let file, let view, let page = view.currentPage, let document = view.document else { return }
+        let index = document.index(for: page)
+        if index >= 0 && index < document.pageCount { didReadPage?(file, index) }
+    }
     func attach(_ view: PDFView) {
         guard self.view !== view || observer == nil else { return }
         detach()
         self.view = view
+        NotificationCenter.default.addObserver(self, selector: #selector(capturePosition), name: .PDFViewPageChanged, object: view)
         observer = NotificationCenter.default.addObserver(forName: .PDFViewSelectionChanged, object: view, queue: .main) { [weak self, weak view] _ in
             Task { @MainActor [weak self, weak view] in
                 self?.hasSelection = view?.currentSelection != nil
@@ -65,6 +89,8 @@ final class PDFStudyController: NSObject {
     }
     @ObservationIgnored private var appliedMarkups: [Int: [PDFMarkup]] = [:]
     func detach() {
+        capturePosition()
+        NotificationCenter.default.removeObserver(self, name: .PDFViewPageChanged, object: view)
         if let observer { NotificationCenter.default.removeObserver(observer) }; observer = nil
         stopSearch()
     }
@@ -92,8 +118,13 @@ final class PDFStudyController: NSObject {
     @objc private func ended(_ notification: Notification) { if (notification.object as? PDFDocument) === searchedDocument { finding = false } }
     func load(file: String, package: URL, index: Int, external: URL? = nil) {
         guard let view, self.file != file || view.document == nil else { return }
+        installingDocument = true
+        defer { installingDocument = false; capturePosition() }
         stopSearch()
-        self.file = file; appliedMarkups = [:]; view.document = PDFDocument(url: external ?? package.appendingPathComponent(file)); outline = []
+        self.file = file; appliedMarkups = [:]
+        if let preparedExternal, external == preparedExternal.0 { view.document = preparedExternal.1 }
+        else { view.document = PDFDocument(url: external ?? package.appendingPathComponent(file)) }
+        preparedExternal = nil; outline = []
         hasSelection = false
         var visitedNodes = 0
         func visit(_ node: PDFOutline, level: Int) {
@@ -102,7 +133,7 @@ final class PDFStudyController: NSObject {
             for i in 0..<node.numberOfChildren { if let child = node.child(at: i) { visit(child, level: level + 1) } }
         }
         if let root = view.document?.outlineRoot { visit(root, level: -1) }
-        if let page = view.document?.page(at: index) { view.go(to: page) }
+        if let page = view.document?.page(at: min(max(0, index), max(0, (view.document?.pageCount ?? 1) - 1))) { view.go(to: page) }
         search(searchTerm)
     }
     func markups(kind: PDFMarkupKind, pages: [PageSnapshot]) -> [(UUID, PDFMarkup)] {
@@ -155,6 +186,7 @@ struct PDFStudyPanel: View {
     @Bindable var model: EditorViewModel
     var close: () -> Void = {}
     @State private var controller = PDFStudyController()
+    @State private var initialIndex = 0
     @State private var selectedFile = ""
     @State private var query = ""
     @State private var matchIndex = 0
@@ -187,13 +219,13 @@ struct PDFStudyPanel: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("pdfStudyPanel")
-        .onAppear { selectedFile = model.page?.pdfFile ?? files.first ?? "" }
+        .onAppear { restorePosition() }
         .task(id: selectedFile + "|" + query) {
             do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
             matchIndex = 0; controller.search(query)
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
-            do { try openReference(result.get()); clipping = false } catch { self.error = error.localizedDescription }
+            do { try openReference(result.get()); clipping = false } catch CocoaError.userCancelled { } catch { self.error = error.localizedDescription }
         }
         .sheet(item: $research) { item in PDFResearchSheet(model: model, term: item.text) }
         .alert("PDF", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
@@ -206,9 +238,8 @@ struct PDFStudyPanel: View {
             Menu {
                 Button("Apri PDF da File", systemImage: "folder") { importing = true }.accessibilityIdentifier("openReferencePDF")
                 ForEach(files, id: \.self) { file in
-                    Button(URL(fileURLWithPath: file).lastPathComponent) { selectedFile = file; clipping = false }
+                    Button(URL(fileURLWithPath: file).lastPathComponent) { chooseInternal(file); clipping = false }
                 }
-                if let url = externalURL { Button(url.lastPathComponent) { selectedFile = url.absoluteString; clipping = false } }
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.richtext")
@@ -230,7 +261,7 @@ struct PDFStudyPanel: View {
                 Button("Apri questa pagina nell’editor", systemImage: "arrow.left.to.line") { openCurrentPage() }.disabled(isExternal || selectedFile.isEmpty)
             } label: { Image(systemName: "ellipsis.circle").frame(width: 38, height: 44) }
                 .accessibilityLabel("Azioni PDF")
-            Button(action: close) { Image(systemName: "xmark").frame(width: 38, height: 44) }
+            Button { controller.capturePosition(); close() } label: { Image(systemName: "xmark").frame(width: 38, height: 44) }
                 .accessibilityLabel("Chiudi pannello").accessibilityIdentifier("closeStudyInspector")
         }.buttonStyle(.plain).foregroundStyle(Brand.accent).padding(.horizontal, 8)
     }
@@ -264,7 +295,7 @@ struct PDFStudyPanel: View {
     @ViewBuilder private var documentView: some View {
         if !selectedFile.isEmpty {
             StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package,
-                index: isExternal ? 0 : model.page?.pdfIndex ?? 0, pages: model.pages, external: isExternal ? externalURL : nil,
+                index: initialIndex, pages: model.pages, external: isExternal ? externalURL : nil,
                 conceptMode: conceptMode, clipping: clipping, onSnippet: insertSnippet,
                 onConcept: { text in conceptMode = false; model.lensAsk(text: text, fromSidePDF: true) })
         } else {
@@ -310,16 +341,52 @@ struct PDFStudyPanel: View {
         guard !term.isEmpty else { error = "Nessun testo selezionabile in questa zona: prova la selezione del PDF o importa il documento per usare l’OCR."; return }
         research = PDFResearchTerm(text: String(term.prefix(120))); error = nil
     }
-    private func openReference(_ url: URL) throws {
+    private func remember(_ file: String, bookmark: Data?, index: Int) {
+        let notebook = model.workspace.documentID
+        var position = StudyReadingPosition(file: file, bookmark: bookmark, index: index)
+        position.save(notebook)
+        controller.didReadPage = { source, current in
+            guard source == file, current != position.index else { return }
+            position.index = current
+            position.save(notebook)
+        }
+        initialIndex = index
+        selectedFile = file
+    }
+    private func restorePosition() {
+        if let saved = StudyReadingPosition.read(model.workspace.documentID) {
+            if let bookmark = saved.bookmark {
+                do {
+                    var stale = false
+                    let url = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI], relativeTo: nil, bookmarkDataIsStale: &stale)
+                    try openReference(url, index: saved.index)
+                } catch { self.error = "Il PDF precedente non è accessibile. Puoi riaprirlo da File." }
+                return
+            }
+            if files.contains(saved.file) { remember(saved.file, bookmark: nil, index: saved.index); return }
+        }
+        if let file = model.page?.pdfFile ?? files.first { chooseInternal(file) }
+    }
+    private func chooseInternal(_ file: String) {
+        guard selectedFile != file else { return }
+        releaseReference()
+        remember(file, bookmark: nil, index: file == model.page?.pdfFile ? model.page?.pdfIndex ?? 0 : 0)
+    }
+    private func openReference(_ url: URL, index: Int = 0) throws {
         let access = url.startAccessingSecurityScopedResource()
         guard let document = PDFDocument(url: url), !document.isLocked, document.pageCount > 0 else {
             if access { url.stopAccessingSecurityScopedResource() }; throw PDFImportFailure.unreadable
         }
-        releaseReference(); externalURL = url; scoped = access; selectedFile = url.absoluteString; error = nil
+        let bookmark: Data
+        do { bookmark = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil) }
+        catch { if access { url.stopAccessingSecurityScopedResource() }; throw error }
+        releaseReference(); externalURL = url; scoped = access
+        controller.preparedExternal = (url, document)
+        remember(url.absoluteString, bookmark: bookmark, index: index); error = nil
     }
     private func releaseReference() {
         if scoped { externalURL?.stopAccessingSecurityScopedResource() }
-        scoped = false; externalURL = nil
+        scoped = false; externalURL = nil; controller.preparedExternal = nil
     }
     private func mark(_ kind: PDFMarkupKind) {
         let marks = controller.markups(kind: kind, pages: model.pages)

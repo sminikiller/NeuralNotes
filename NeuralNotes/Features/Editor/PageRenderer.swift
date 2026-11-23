@@ -180,6 +180,19 @@ enum PageRenderer {
     }
 }
 
+// Native ink and autosave metadata live outside the paper raster. Only fields
+// that can change the painted page should invalidate its retained pixels.
+extension PageSnapshot {
+    func hasSamePaperContent(as other: Self) -> Bool {
+        id == other.id && paper == other.paper && appearance == other.appearance &&
+            width == other.width && height == other.height && pdfFile == other.pdfFile &&
+            pdfIndex == other.pdfIndex && pdfMarkups == other.pdfMarkups &&
+            texts == other.texts && images == other.images && shapes == other.shapes &&
+            connectors == other.connectors && tapes == other.tapes && objectOrder == other.objectOrder &&
+            aboveInkObjects == other.aboveInkObjects && (layers == nil) == (other.layers == nil)
+    }
+}
+
 @MainActor
 final class PageSurfaceView: UIView {
     init() {
@@ -216,9 +229,7 @@ final class PageSurfaceView: UIView {
     var page = PageSnapshot() {
         didSet {
             if oldValue.id != page.id { layer.contents = nil }
-            if oldValue.id != page.id || oldValue.paper != page.paper || oldValue.texts != page.texts
-                || oldValue.images != page.images || oldValue.shapes != page.shapes || oldValue.connectors != page.connectors || oldValue.pdfFile != page.pdfFile
-                || oldValue.pdfMarkups != page.pdfMarkups || oldValue.appearance != page.appearance || oldValue.width != page.width || oldValue.height != page.height {
+            if !oldValue.hasSamePaperContent(as: page) {
                 setNeedsDisplay()
             }
         }

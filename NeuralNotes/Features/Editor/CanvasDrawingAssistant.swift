@@ -16,6 +16,7 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     private let preview = CAShapeLayer()
     private let previousInk = UIImageView()
     private var before = PKDrawing()
+    private var heldAxis: (start: StrokeSample, vector: CGVector, length: CGFloat, touch: CGPoint)?
     private var held = false
     var hasRecognizedPreview: Bool { held }
     var zoomWritingInput = false
@@ -123,7 +124,10 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         }
         // Recognition is latched until lift. Coalesced final samples and tiny
         // Pencil motion must never cancel an already confirmed preview.
-        guard !held else { return }
+        if held {
+            if let sample = samples.last { resizeHeldLine(to: sample, page: page, zoom: host.canvas.zoomScale) }
+            return
+        }
         for raw in samples {
             let p = CGPoint(x: max(0, min(CGFloat(page.width), raw.x)), y: max(0, min(CGFloat(page.height), raw.y)))
             points.append(StrokeSample(x: Double(p.x), y: Double(p.y)))
@@ -208,6 +212,15 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
               let result = ShapeRecognizer.recognize(points, enabled: model.tool == .marker ? [.line] : model.shapePreferences.kinds) else { return }
         let kind = result.shape.kind
         held = true; model.pendingHeldShape = (page.id, kind, points); model.pendingShapeRecognition = result
+        if kind == .line, let a = result.shape.start, let b = result.shape.end, let last = points.last {
+            let shape = result.shape
+            let start = StrokeSample(x: shape.x + a.x * shape.width, y: shape.y + a.y * shape.height)
+            let dx = (b.x - a.x) * shape.width, dy = (b.y - a.y) * shape.height
+            let length = hypot(dx, dy)
+            if length >= 4 {
+                heldAxis = (start, CGVector(dx: dx / length, dy: dy / length), length, CGPoint(x: last.x, y: last.y))
+            }
+        }
         if page.layers != nil {
             host.layeredScene.showRecognitionBaseline(before)
         } else {
@@ -217,6 +230,29 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
         }
         drawPreview(kind)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+    private func resizeHeldLine(to touch: CGPoint, page: PageSnapshot, zoom: CGFloat) {
+        guard let axis = heldAxis, let model, var result = model.pendingShapeRecognition else { return }
+        let u = axis.vector, start = axis.start
+        let travel = (touch.x - axis.touch.x) * u.dx + (touch.y - axis.touch.y) * u.dy
+        let deadZone = 3 / max(0.05, zoom)
+        var length = axis.length + (abs(travel) <= deadZone ? 0 : travel)
+        func limit(origin: CGFloat, direction: CGFloat, size: CGFloat) -> CGFloat {
+            if direction > 0 { return (size - origin) / direction }
+            if direction < 0 { return -origin / direction }
+            return .infinity
+        }
+        length = max(4, min(length, limit(origin: start.x, direction: u.dx, size: page.width),
+                            limit(origin: start.y, direction: u.dy, size: page.height)))
+        if length == axis.length, model.pendingHeldShape?.samples.count != 2 { return }
+        let end = StrokeSample(x: start.x + length * u.dx, y: start.y + length * u.dy)
+        guard var shape = ShapeElement.dragged(kind: .line, from: start, to: end, color: .black, lineWidth: result.shape.lineWidth) else { return }
+        shape.id = result.shape.id
+        guard shape != result.shape else { return }
+        result.shape = shape
+        model.pendingShapeRecognition = result
+        model.pendingHeldShape = (page.id, .line, [start, end])
+        drawPreview(.line)
     }
     private func drawPreview(_ kind: ShapeKind) {
         guard let host, let model else { return }
@@ -253,7 +289,9 @@ final class CanvasDrawingAssistant: NSObject, UIGestureRecognizerDelegate {
     }
     func finishPreview() {
         cleanupTask?.cancel(); cleanupTask = nil
-        host?.layeredScene.showRecognitionBaseline(nil)
+        heldAxis = nil
+        guard held || preview.superlayer != nil || previousInk.superview != nil else { return }
+        if held && model?.page?.layers != nil { host?.layeredScene.showRecognitionBaseline(nil) }
         host?.canvas.layer.opacity = 1; previousInk.removeFromSuperview(); previousInk.image = nil
         preview.removeFromSuperlayer(); preview.path = nil; held = false
     }

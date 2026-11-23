@@ -138,6 +138,7 @@ struct EditorQuickToolbar: View {
     private var selectionBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 18) {
+                if hasSelection { SelectionEditButtons(model: model).labelStyle(.iconOnly) }
                 Button { model.editSelection() } label: { Label(model.selectedShapes.isEmpty ? "Modifica" : "Stile forma", systemImage: "slider.horizontal.3") }
                     .accessibilityLabel(model.selectedShapes.isEmpty ? "Modifica selezione" : "Stile forme")
                     .accessibilityIdentifier("selectionShapeStyle").disabled(!hasSelection)
@@ -182,10 +183,19 @@ struct EditorQuickToolbar: View {
                 Button { model.rotateSelectedImage() } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota immagine").disabled(!selectedImage)
                 Button { model.copySelection() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copia selezione").keyboardShortcut("c", modifiers: .command).disabled(!hasSelection)
                 Button { Task { await model.pasteSelection() } } label: { Image(systemName: "doc.on.clipboard") }.accessibilityLabel("Incolla").keyboardShortcut("v", modifiers: .command)
-                Button { model.duplicateSelectedObject() } label: { Image(systemName: "plus.square.on.square") }.accessibilityLabel("Duplica selezione").disabled(!hasSelection)
-                Button(role: .destructive) { model.deleteSelectedObject() } label: { Image(systemName: "trash") }.accessibilityLabel("Elimina selezione").disabled(!hasSelection)
             }.frame(minHeight: 44).padding(.horizontal, 16)
         }.accessibilityIdentifier("selectionActionsScroll")
+    }
+}
+
+struct SelectionEditButtons: View {
+    let model: EditorViewModel
+    var body: some View {
+        Group {
+            Button("Taglia", systemImage: "scissors") { model.cutSelection() }.accessibilityLabel("Taglia selezione")
+            Button("Duplica", systemImage: "plus.square.on.square") { model.duplicateSelectedObject() }.accessibilityLabel("Duplica selezione")
+            Button("Elimina", systemImage: "trash", role: .destructive) { model.deleteSelectedObject() }.accessibilityLabel("Elimina selezione")
+        }
     }
 }
 

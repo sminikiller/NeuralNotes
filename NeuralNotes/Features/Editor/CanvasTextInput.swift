@@ -169,6 +169,24 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         !(formatting?.replaceNewline(in: range, replacement: text) ?? false)
     }
     func textViewDidEndEditing(_ textView: UITextView) { model?.endTextEdit() }
+    @discardableResult
+    func changeSelectedText(duplicate: Bool) -> Bool {
+        let range = view.selectedRange
+        guard let model, model.canEditActiveLayer, model.editingTextID == shownID, shownID != nil,
+              view.markedTextRange == nil, range.length > 0, range.location <= view.attributedText.length,
+              range.length <= view.attributedText.length - range.location else { return false }
+        let value = NSMutableAttributedString(attributedString: view.attributedText)
+        if duplicate {
+            guard value.length + range.length <= 100_000 else { return false }
+            value.insert(value.attributedSubstring(from: range), at: NSMaxRange(range))
+        } else { value.deleteCharacters(in: range) }
+        model.commitTextEdit()
+        view.attributedText = value
+        view.selectedRange = duplicate ? NSRange(location: NSMaxRange(range), length: range.length) : NSRange(location: range.location, length: 0)
+        placeholder.isHidden = value.length > 0
+        updateModel(); model.commitTextEdit(); layout()
+        return true
+    }
     func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
         let value = (textView.text ?? "") as NSString
         guard range.location != NSNotFound, range.location >= 0, range.length > 0,
@@ -178,6 +196,12 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
         let lens = UIAction(title: "Chiedi alla Lente AI", image: UIImage(systemName: "sparkle.magnifyingglass")) { [weak self] _ in
             self?.model?.lensAsk(text: selected)
         }
-        return UIMenu(children: suggestedActions + [lens])
+        let duplicate = UIAction(title: "Duplica", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
+            self?.changeSelectedText(duplicate: true)
+        }
+        let remove = UIAction(title: "Elimina", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
+            self?.changeSelectedText(duplicate: false)
+        }
+        return UIMenu(children: suggestedActions + [duplicate, remove, lens])
     }
 }

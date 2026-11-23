@@ -202,7 +202,7 @@ final class EditorIntegrationTests: XCTestCase {
                 // Includes the final coalesced samples delivered by touchesEnded.
                 assistant.move(samples: [CGPoint(x: end.x + 8, y: end.y + 5), CGPoint(x: end.x + 12, y: end.y + 6)])
                 XCTAssertEqual(model.pendingHeldShape?.kind, kind)
-                XCTAssertEqual(model.pendingHeldShape?.samples.count, confirmed)
+                XCTAssertEqual(model.pendingHeldShape?.samples.count, kind == .line ? 2 : confirmed)
                 assistant.end(cancelled: false); model.strokeEnded(); model.finishInkGesture()
                 XCTAssertNil(model.pendingHeldShape); XCTAssertEqual(model.canvas.layer.opacity, 1)
                 let corrected = try XCTUnwrap(model.canvas.drawing.strokes.first)
@@ -216,7 +216,8 @@ final class EditorIntegrationTests: XCTestCase {
                     let length = hypot(dx, dy)
                     XCTAssertGreaterThan(length, 200)
                     XCTAssertEqual(start.x, locations[0].x, accuracy: 2)
-                    XCTAssertEqual(end.x, locations.last!.x, accuracy: 2)
+                    XCTAssertEqual(end.x, locations.last!.x + 12, accuracy: 2)
+                    XCTAssertEqual(end.y, start.y, accuracy: 0.01)
                     for point in corrected.path {
                         let offsetX = point.location.x - start.x
                         let offsetY = point.location.y - start.y
@@ -797,6 +798,24 @@ final class EditorIntegrationTests: XCTestCase {
                 XCTAssertEqual(model.page?.id, active.id)
                 XCTAssertEqual(host.canvas.zoomScale, host.canvas.minimumZoomScale, accuracy: 0.0001)
             }
+        }
+    }
+
+    @MainActor
+    func testSelectedTextDuplicatesAndDeletesOnlySelectedUTF16Range() async throws {
+        try await withEditor { model in
+            model.chooseTool(.text)
+            model.beginTextEdit(at: CGPoint(x: 20, y: 20))
+            let value = NSAttributedString(string: "Una 🍎 qui", attributes: [.foregroundColor: UIColor.systemRed])
+            model.updateLiveText(value)
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            let input = CanvasTextInput(host: host, model: model); input.refresh()
+            input.view.selectedRange = (value.string as NSString).range(of: "🍎")
+            XCTAssertTrue(input.changeSelectedText(duplicate: true))
+            XCTAssertEqual(model.page?.texts.last?.text, "Una 🍎🍎 qui")
+            XCTAssertTrue(input.changeSelectedText(duplicate: false))
+            XCTAssertEqual(model.page?.texts.last?.text, value.string)
+            XCTAssertNotNil(model.page?.texts.last?.rtf)
         }
     }
 

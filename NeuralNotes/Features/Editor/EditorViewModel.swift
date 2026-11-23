@@ -367,7 +367,7 @@ final class EditorViewModel {
         editBeforeGesture = captureEdit(ink: true)
         inkGestureBaseline = canvas.drawing; inkGestureGeneration = UUID()
         strokeTime = audio?.recordingAnchor
-        signaturesBeforeStroke = Set(signatures())
+        signaturesBeforeStroke = strokeTime != nil && page?.layers == nil ? Set(signatures()) : []
     }
 
     func strokeEnded() {

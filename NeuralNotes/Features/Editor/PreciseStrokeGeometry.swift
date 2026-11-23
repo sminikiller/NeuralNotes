@@ -22,8 +22,8 @@ enum PreciseStrokeGeometry {
         for arrow in ShapeGeometry.arrowPaths(for: shape) { result.append(UIBezierPath(cgPath: ShapePathRendering.path(arrow))) }
         return result
     }
-    static func stroke(kind: ShapeKind, points: [StrokeSample], original: PKStroke) -> PKStroke {
-        guard let shape = shape(kind: kind, points: points) else { return original }
+    static func stroke(kind: ShapeKind, points: [StrokeSample], original: PKStroke, recognized: ShapeElement? = nil) -> PKStroke {
+        guard let shape = recognized ?? shape(kind: kind, points: points) else { return original }
         let paths = [ShapeGeometry.path(for: shape)] + ShapeGeometry.arrowPaths(for: shape)
         var locations: [StrokeSample] = []
         for path in paths {
@@ -35,12 +35,13 @@ enum PreciseStrokeGeometry {
                 }
             }
         }
-        let sample = original.path.first
-        let size = sample?.size ?? CGSize(width: 3, height: 3)
+        guard !original.path.isEmpty else { return original }
         let controls = locations.enumerated().map { index, point in
-            PKStrokePoint(location: CGPoint(x: point.x, y: point.y), timeOffset: Double(index) * 0.01,
-                size: size, opacity: sample?.opacity ?? 1, force: sample?.force ?? 1,
-                azimuth: sample?.azimuth ?? 0, altitude: sample?.altitude ?? .pi / 2)
+            let position = Double(index) / Double(max(1, locations.count - 1))
+            let sample = original.path.interpolatedPoint(at: position * Double(original.path.count - 1))
+            return PKStrokePoint(location: CGPoint(x: point.x, y: point.y), timeOffset: Double(index) * 0.01,
+                size: sample.size, opacity: sample.opacity, force: sample.force,
+                azimuth: sample.azimuth, altitude: sample.altitude)
         }
         guard controls.count > 1 else { return original }
         return PKStroke(ink: original.ink, path: PKStrokePath(controlPoints: controls, creationDate: original.path.creationDate))

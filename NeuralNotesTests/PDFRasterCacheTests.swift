@@ -85,6 +85,10 @@ final class PDFRasterCacheTests: XCTestCase {
         host.canvas.zoomScale = 3; host.canvas.contentOffset = CGPoint(x: 300, y: 360); host.alignSurface()
         host.paperDetail.update(from: host, force: true)
         let before = host.paperDetail.redrawRequests
+        host.surface.page.revision += 1
+        host.surface.page.drawingFile = "drawings/new-ink.drawing"
+        host.paperDetail.update(from: host, force: true)
+        XCTAssertEqual(host.paperDetail.redrawRequests, before, "A native ink save must preserve the existing paper and photo raster")
         for step in 1...60 {
             host.canvas.contentOffset = CGPoint(x: 300 + step, y: 360 + step)
             host.alignSurface(); host.paperDetail.update(from: host, force: true)

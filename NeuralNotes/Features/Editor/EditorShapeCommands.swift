@@ -90,7 +90,7 @@ extension EditorViewModel {
               let original = canvas.drawing.strokes.last else { return false }
         if shapePreferences.output == .ink || tool == .marker {
             let oldSignature = EditorInkSignatures.make(canvas.drawing).last
-            let corrected = PreciseStrokeGeometry.stroke(kind: held.kind, points: held.samples, original: original)
+            let corrected = PreciseStrokeGeometry.stroke(kind: held.kind, points: held.samples, original: original, recognized: pendingShapeRecognition?.shape)
             installNativeInk(PKDrawing(strokes: previous.strokes + [corrected]))
             if let oldSignature, let signature = EditorInkSignatures.make(canvas.drawing).last {
                 if var anchors = page?.anchors {
@@ -106,7 +106,9 @@ extension EditorViewModel {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         original.ink.color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         shape.red = Double(red); shape.green = Double(green); shape.blue = Double(blue)
-        shape.lineWidth = min(200, max(0.1, Double(original.path.first?.size.width ?? CGFloat(thickness)))); shape.strokeOpacity = Double(alpha)
+        let widths = original.path.map { min($0.size.width, $0.size.height) }.sorted()
+        let sampledWidth = widths.isEmpty ? thickness : Double(widths[widths.count / 2])
+        shape.lineWidth = max(0.1, min(thickness, sampledWidth)); shape.strokeOpacity = Double(alpha)
         let originalSignature = EditorInkSignatures.make(canvas.drawing).last
         guard var current = page else { return false }
         if let signature = originalSignature {

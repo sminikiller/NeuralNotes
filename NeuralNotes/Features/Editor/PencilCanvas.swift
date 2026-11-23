@@ -363,7 +363,6 @@ struct PencilCanvas: UIViewRepresentable {
             context.coordinator.lastFitRequest = model.fitPageRequest
             host.layoutIfNeeded(); host.fitPage(animated: true)
         }
-        host.alignSurface()
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }

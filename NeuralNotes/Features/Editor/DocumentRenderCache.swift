@@ -24,13 +24,14 @@ final class DocumentRenderCache {
         return image
     }
     func croppedImage(_ url: URL, crop: NormalizedCrop, perspective: PerspectiveQuad? = nil, quarterTurns: Int = 0, enhanced: Bool = false) -> UIImage? {
-        guard let image = image(url) else { return nil }
-        if crop == .full, perspective == nil, quarterTurns == 0, !enhanced, image.imageOrientation == .up { return image }
+        if crop == .full, perspective == nil, quarterTurns == 0, !enhanced, let cached = images.object(forKey: url as NSURL), cached.imageOrientation == .up { return cached }
         let edit = PhotoAdjustment(crop: crop, perspective: perspective, quarterTurns: quarterTurns, enhanced: enhanced)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         guard let encoded = try? encoder.encode(edit) else { return nil }
         let key = "\(url.path)|\(encoded.base64EncodedString())" as NSString
         if let cached = crops.object(forKey: key) { return cached }
+        guard let image = image(url) else { return nil }
+        if crop == .full, perspective == nil, quarterTurns == 0, !enhanced, image.imageOrientation == .up { return image }
         guard let value = PhotoPerspective.render(image, adjustment: edit), let cut = value.cgImage else { return nil }
         crops.setObject(value, forKey: key, cost: cut.width * cut.height * 4)
         return value

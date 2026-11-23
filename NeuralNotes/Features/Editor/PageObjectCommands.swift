@@ -48,7 +48,7 @@ extension EditorViewModel {
 
 @MainActor
 final class ForegroundObjectsView: UIView {
-    var page = PageSnapshot() { didSet { if oldValue != page { setNeedsDisplay() } } }
+    var page = PageSnapshot() { didSet { if !oldValue.hasSamePaperContent(as: page) { setNeedsDisplay() } } }
     var package = URL(fileURLWithPath: "/")
     var hiddenTextID: UUID?
     var hiddenObjectID: UUID?

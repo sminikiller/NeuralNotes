@@ -78,6 +78,7 @@ struct ToolOptionsPopover: View {
             Slider(value: $model.selectionWidth, in: 0.5...40)
             Button("Applica spessore a tratti e forme") { model.changeSelectionWidth(model.selectionWidth) }
             Button("Seleziona tutto", systemImage: "checkmark.square") { model.chooseTool(.objects); model.selectAll() }
+            if !model.selectedIDs.isEmpty || model.selectionIncludesInk { SelectionEditButtons(model: model) }
             MoveSelectionMenu(model: model)
             Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }
         }
