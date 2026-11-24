@@ -145,6 +145,14 @@ struct EditorQuickToolbar: View {
                 }
                 Button("Incolla", systemImage: "doc.on.clipboard") { Task { await model.pasteSelection() } }
                 MoveSelectionMenu(model: model).labelStyle(.iconOnly)
+                if hasSelection && model.pages.count > 1 {
+                    Button("Trascina sulle miniature", systemImage: "rectangle.grid.1x2") {
+                        selectionOpen = false
+                        model.selectionPageDragMode.toggle()
+                    }
+                    .labelStyle(.iconOnly)
+                    .accessibilityIdentifier("selectionPageDrag")
+                }
                 if model.arrangementCount >= 2 { SelectionAlignmentMenu(model: model) }
                 if !model.selectedShapes.isEmpty || model.selectedConnector != nil {
                     Button("Stile", systemImage: "slider.horizontal.3") { model.editSelection() }
@@ -158,9 +166,6 @@ struct EditorQuickToolbar: View {
                             if model.selectedIDs.count == 1, model.selectedShapes.isEmpty, model.selectedConnector == nil {
                                 Button("Modifica oggetto", systemImage: "pencil") { model.editSelection() }
                             }
-                            Button("Trascina sulle miniature", systemImage: "rectangle.grid.1x2") {
-                                selectionOpen = false; model.selectionPageDragMode.toggle()
-                            }.accessibilityIdentifier("selectionPageDrag")
                         }
                         Menu("Dimensioni e rotazione") {
                             Button("Ingrandisci 10%") { model.transformSelection(scale: 1.1) }
