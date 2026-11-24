@@ -36,9 +36,9 @@ final class SelectionPageDragUITests: XCTestCase {
         app.buttons["Seleziona tutto"].tap()
         let handle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "shapeHandle-")).firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
-        tapReady(app.buttons["editorUndo"]); page(1, in: app)
+        tapReady(app.buttons["quickUndo"]); page(1, in: app)
         app.buttons["Seleziona tutto"].tap(); XCTAssertTrue(handle.waitForExistence(timeout: 5))
-        tapReady(app.buttons["editorRedo"]); page(2, in: app)
+        tapReady(app.buttons["quickRedo"]); page(2, in: app)
         app.buttons["Seleziona tutto"].tap(); XCTAssertTrue(handle.waitForExistence(timeout: 5))
         tapReady(app.buttons["editorPreviousPage"]); page(1, in: app)
         app.buttons["Seleziona tutto"].tap(); XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
