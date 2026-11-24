@@ -6,7 +6,7 @@ extension CanvasHost {
     var editorKeyCommands: [UIKeyCommand] {
         let specs: [(String, UIKeyModifierFlags, String)] = [
             ("f", [.command, .shift], "Cerca in tutti i quaderni"), ("t", .command, "Apri una scheda"), ("w", .command, "Chiudi questa scheda"),
-            ("v", [.command, .shift], "Incolla senza formattazione"),
+            ("c", .command, "Copia selezione"), ("v", .command, "Incolla"), ("v", [.command, .shift], "Incolla senza formattazione"),
             ("n", [.command, .shift], "Nuova pagina"), ("f", .command, "Cerca nel quaderno"), ("k", .command, "Lente AI"),
             ("0", .command, "Pagina intera"), ("+", .command, "Ingrandisci"), ("-", .command, "Riduci"),
             (".", .command, "Solo foglio"), ("a", .command, "Seleziona tutto"), ("x", .command, "Taglia selezione"),
@@ -18,7 +18,9 @@ extension CanvasHost {
             ("1", [], "Penna preferita 1"), ("2", [], "Penna preferita 2"), ("3", [], "Penna preferita 3"),
             ("4", [], "Penna preferita 4"), ("5", [], "Penna preferita 5")
         ]
-        return specs.map { input, flags, title in
+        return specs.filter { input, _, _ in
+            model?.editingTextID == nil || !["c", "v", "x", "a"].contains(input)
+        }.map { input, flags, title in
             let command = UIKeyCommand(input: input, modifierFlags: flags, action: #selector(editorKey(_:)))
             command.discoverabilityTitle = title; return command
         }
@@ -39,7 +41,8 @@ extension CanvasHost {
             case "f": if flags.contains(.shift) { model.globalSearchRequest += 1 } else { model.searchRequest += 1 }
             case "t": model.openNotebookRequest += 1
             case "w": model.closeNotebookRequest += 1
-            case "v": if flags.contains(.shift) { Task { await model.pasteSelection(plainText: true) } }
+            case "c": _ = model.copySelection()
+            case "v": Task { await model.pasteSelection(plainText: flags.contains(.shift)) }
             case "k": model.chooseTool(model.tool == .lens ? .pen : .lens)
             case "0": fitPage(animated: true)
             case "+", "-": canvas.setZoomScale(min(canvas.maximumZoomScale, max(canvas.minimumZoomScale, canvas.zoomScale * (input == "+" ? 1.25 : 0.8))), animated: true)

@@ -9,6 +9,27 @@ import NeuralNotesCore
 
 final class EditorIntegrationTests: XCTestCase {
     @MainActor
+    func testPastedTextKeepsSelectionAndAvoidsPreviousBox() async throws {
+        try await withEditor { model in
+            UIPasteboard.general.string = "Una riga di appunti"
+            model.chooseTool(.pen)
+            await model.pasteSelection()
+            let firstPage = try XCTUnwrap(model.page)
+            let first = try XCTUnwrap(firstPage.texts.last)
+            XCTAssertEqual(model.selectedIDs, [first.id])
+            XCTAssertEqual(model.tool, .objects)
+            XCTAssertTrue(model.copySelection())
+            await model.pasteSelection()
+            let nextPage = try XCTUnwrap(model.page)
+            let next = try XCTUnwrap(nextPage.texts.last)
+            XCTAssertNotEqual(next.id, first.id)
+            XCTAssertEqual(model.selectedIDs, [next.id])
+            XCTAssertFalse(RichText.bounds(first, pageHeight: firstPage.height).intersects(RichText.bounds(next, pageHeight: nextPage.height)))
+            model.cutSelection()
+            XCTAssertEqual(model.page?.texts.map(\.id), [first.id])
+        }
+    }
+    @MainActor
     func testInkStillSavesWhenWorkspaceSettingsCatalogIsUnreadable() async throws {
         try await withEditor { model in
             try await model.workspace.setEditorWorkspaces(model.workspaces)

@@ -332,6 +332,11 @@ final class EditorViewModel {
         debounce = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(700)) } catch { return }
             guard let self else { return }
+            // Give a moving vertical viewport a short idle window. Explicit
+            // saves and page handoffs still drain dirty ink immediately.
+            for _ in 0..<8 where self.pageNavigation == .vertical && (self.canvas.isDragging || self.canvas.isDecelerating) {
+                do { try await Task.sleep(for: .milliseconds(125)) } catch { return }
+            }
             _ = await self.flush()
         }
     }
@@ -759,8 +764,9 @@ final class EditorViewModel {
         if selectedIDs.count > 1 || selectionIncludesInk || selectedConnector != nil { if copySelection() { Task { await pasteSelection() } }; return }
         let before = captureEdit()
         guard let id = selectedObjectID else { return }
-        if var text = page?.texts.first(where: { $0.id == id }) {
+        if let current = page, var text = current.texts.first(where: { $0.id == id }) {
             text.id = UUID(); text.x += 20; text.y += 20
+            placePastedText(&text, on: current)
             page?.texts.append(text); selectedObjectID = text.id
         } else if var image = page?.images.first(where: { $0.id == id }) {
             image.id = UUID(); image.x += 20; image.y += 20

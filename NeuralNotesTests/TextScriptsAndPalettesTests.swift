@@ -138,6 +138,7 @@ final class TextScriptsAndPalettesTests: XCTestCase {
             input.view.selectedRange = NSRange(location: 1, length: 0)
             XCTAssertTrue(input.paste(plain: false))
             XCTAssertEqual(input.view.text, "ARich")
+            XCTAssertEqual(input.view.selectedRange, NSRange(location: 1, length: 4))
             XCTAssertEqual(try self.font(input.view, at: 2).pointSize, 26, accuracy: 0.01)
             XCTAssertTrue(try self.font(input.view, at: 2).fontDescriptor.symbolicTraits.contains(.traitBold))
             await model.performUndo(); input.refresh(); XCTAssertEqual(input.view.text, "A")

@@ -530,7 +530,9 @@ struct EditorView: View {
         EditorQuickToolbar(model: model, photo: { media = .photos }, camera: { Task { await openCamera() } },
                            text: startTyping, edit: { panel = .elements }, crop: { openImageCrop() },
                            workspace: { panel = .workspace }, study: openStudyKit, lens: lensActions)
-            .disabled(!model.hasLease || model.loading || model.navigating || working)
+            .disabled(!model.hasLease || working || (model.pageNavigation != .vertical && (model.loading || model.navigating)))
+            .allowsHitTesting(!model.loading && !model.navigating)
+            .accessibilityHidden(model.loading || model.navigating)
     }
     private func startTyping() { model.chooseTool(.text); model.beginTextEdit(at: CGPoint(x: 48, y: 96)) }
     private var lensActions: LensBarActions {

@@ -4,7 +4,7 @@ Team `64R668842U`, App ID `com.lorenzominichilli.neuralnotes`, contenitore `iClo
 
 ## Stato e attivazione
 
-La verifica del 18 novembre 2026 ha letto l’App ID tramite l’API di App Store Connect e decodificato il profilo di distribuzione in uso su GitHub. La capability iCloud è assente e il profilo non concede il contenitore. La build 212 rimane la beta disponibile. [Verifica Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/44297021522).
+Il 24 novembre 2026 l’API di App Store Connect ha restituito l’App ID senza capability iCloud o Sign in with Apple. Il profilo di distribuzione in uso su GitHub non concede il contenitore. La build 217 ha completato l’elaborazione con zero errori e l’avviso SDK 90725. [Controllo capability e profilo](https://github.com/sminikiller/NeuralNotes/actions/runs/45347036625) · [Dettagli upload Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/45347437603).
 
 1. In **Apple Developer → Identifiers**, crea il contenitore iCloud indicato sopra e associalo all’App ID con **Include CloudKit support**. [Abilitazione delle capability](https://developer.apple.com/help/account/identifiers/enable-app-capabilities).
 2. In **CloudKit Console → CloudKit Database**, scegli lo stesso contenitore e crea in **Development** i tre tipi di record elencati sotto. Per automatizzare l’importazione in Development è disponibile anche [NeuralNotes.ckdb](NeuralNotes.ckdb) per `cktool`. Se esistono altri tipi, confronta ed esporta lo schema prima di applicare modifiche. [Schema con cktool](https://developer.apple.com/icloud/ck-tool/).
@@ -12,6 +12,10 @@ La verifica del 18 novembre 2026 ha letto l’App ID tramite l’API di App Stor
 4. Genera un profilo **App Store Connect** per lo stesso App ID e certificato Apple Distribution già valido. Aggiorna `NN_PROFILE_BASE64` con il nuovo profilo. Il resto della firma usa le credenziali già configurate.
 5. Esegui la verifica di sola lettura `testflight-status.yml` con `check_icloud=true` sul ramo che contiene il codice iCloud. Deve riconoscere la capability e confermare il profilo Production. La verifica dello schema si fa in CloudKit Console.
 6. Usa la corsia interna TestFlight con `scope=testflight`, `testflight_icloud=true` e lo SHA dei sorgenti verificati. La firma controlla contenitore e ambiente. Verifica poi la disponibilità della build in TestFlight.
+
+## Accesso con Apple per l’account NeuralNotes
+
+Per usare **Accedi con Apple** anche per l’account NeuralNotes, abilita **Sign in with Apple** sullo stesso App ID prima di generare il profilo. Nel progetto Supabase del servizio attiva il provider Apple e autorizza il Bundle ID nativo. Configura l’indirizzo HTTPS del servizio tramite `tools/configure_service.py`. Il pulsante appare nelle build distribuite con l’indirizzo configurato e il profilo che consente `com.apple.developer.applesignin`. Il backend Auth verifica il token Apple e il nonce, poi l’app salva la sessione verificata nel Portachiavi. Prova accesso, uscita, rinnovo e cancellazione su un dispositivo con l’account di collaudo. L’accesso al database CloudKit privato usa direttamente l’account iCloud dell’iPad. [Configurazione Apple in Supabase](https://supabase.com/docs/guides/auth/social-sign-in/auth-apple).
 
 ## Tipi e campi
 

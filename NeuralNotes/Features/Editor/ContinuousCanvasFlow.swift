@@ -37,9 +37,17 @@ final class ContinuousCanvasFlow {
     func updateSource() -> Bool {
         guard let model else { return false }
         let changedMode = enabled != previouslyEnabled; previouslyEnabled = enabled
-        var pages = model.pages
-        if let page = model.page, let i = pages.firstIndex(where: { $0.id == page.id }) { pages[i] = page }
-        layout = ContinuousPageLayout(pages: pages)
+        if enabled {
+            let pages = model.pages, active = model.page
+            if layout.frames.count != pages.count || !zip(layout.frames, pages).allSatisfy({ frame, stored in
+                let page = active.flatMap { $0.id == stored.id ? $0 : nil } ?? stored
+                return frame.id == page.id && frame.width == page.width && frame.height == page.height
+            }) {
+                var source = pages
+                if let active, let index = source.firstIndex(where: { $0.id == active.id }) { source[index] = active }
+                layout = ContinuousPageLayout(pages: source)
+            }
+        }
         if !enabled {
             for task in tasks.values { task.cancel() }; tasks = [:]; tokens = [:]
             for view in previews.values { view.removeFromSuperview() }; previews = [:]; cache = [:]; failures = [:]; pending = nil
@@ -93,9 +101,9 @@ final class ContinuousCanvasFlow {
 
     func dragBegan() {
         guard enabled, let model, !model.interactionBusy else { return }
-        // Prepare a clean editor while the finger scrolls, so prefetched pages
-        // can accept Pencil's very first touch without an async page load.
-        Task { [weak self] in _ = await model.flush(); await self?.prepareVisiblePages() }
+        // A page switch flushes dirty ink before handing off ownership.
+        // Serializing the drawing at finger-down stalls the first scroll frame.
+        _ = arrange()
     }
 
     func prepareVisiblePages() async {
@@ -161,17 +169,12 @@ final class ContinuousCanvasFlow {
         guard pending == nil, let host, let model, !model.interactionBusy, !model.navigating,
               let target = model.pages.first(where: { $0.id == id }) else { return }
         captureViewport(target: id)
-        if let current = model.page, current.layers == nil {
-            let drawing = host.canvas.drawing
-            let image = DocumentServices.image(page: current, drawing: drawing, workspace: model.workspace, maxDimension: 1200, pdfMode: .preview)
-            let imageCost = (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0)
-            let points = drawing.strokes.reduce(0) { $0 + $1.path.count }
-            let file = current.drawingFile.flatMap { try? NativeArchive.fileURL($0, in: model.workspace.package) }
-            let encodedBytes = (try? file?.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            let keep = PreviewBudget.canRetainDrawing(encodedBytes: encodedBytes, controlPoints: points, imageBytes: imageCost)
-            cache[current.id] = Cached(page: current, drawing: keep ? drawing : nil, image: image,
-                imageCost: imageCost, drawingCost: keep ? PreviewBudget.drawingCost(encodedBytes: encodedBytes, controlPoints: points) : 0)
-            enforceBudget()
+        // installPage rebases the existing viewport. Use the prefetched native ink
+        // before switching through the asynchronous navigation/loading states.
+        if let ready = cache[id], let drawing = ready.drawing, model.activatePreparedPage(ready.page, drawing: drawing) {
+            if host.surface.page.id != id { host.synchronizePage() }
+            if pendingInputHint { host.showPageInputHint("Pagina pronta: inizia a scrivere."); pendingInputHint = false }
+            return
         }
         Task { [weak self, weak model] in
             guard let self, let model else { return }
@@ -221,9 +224,14 @@ final class ContinuousCanvasFlow {
                 y: CGFloat(frame.y - active.y) * z - host.canvas.contentOffset.y,
                 width: CGFloat(frame.width) * z, height: CGFloat(frame.height) * z)
             guard let page = model.pages.first(where: { $0.id == frame.id }) else { continue }
-            if let ready = cache[page.id], ready.page == page { view.image = ready.image; view.viewWithTag(81)?.isHidden = true }
+            if let ready = cache[page.id], ready.page == page {
+                if view.image !== ready.image { view.image = ready.image }
+                view.viewWithTag(81)?.isHidden = true
+            }
             else {
-                view.image = nil; view.viewWithTag(81)?.isHidden = false
+                // The preview view belongs exclusively to this UUID. Keep its
+                // previous bitmap on screen while its replacement is being drawn.
+                view.viewWithTag(81)?.isHidden = view.image != nil
                 if failures[page.id] != page { loadPreview(page) }
             }
         }

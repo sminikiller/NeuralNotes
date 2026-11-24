@@ -115,8 +115,9 @@ final class CanvasTextInput: NSObject, UITextViewDelegate, UIScribbleInteraction
               original.length - range.length + value.length <= 100_000 else { return false }
         model.commitTextEdit()
         original.replaceCharacters(in: range, with: value)
-        view.attributedText = original; view.selectedRange = NSRange(location: range.location + value.length, length: 0)
+        view.attributedText = original
         if value.length > 0 { view.typingAttributes = value.attributes(at: value.length - 1, effectiveRange: nil) }
+        view.selectedRange = NSRange(location: range.location, length: value.length)
         placeholder.isHidden = !view.text.isEmpty; updateModel(); model.commitTextEdit(); layout()
         return true
     }

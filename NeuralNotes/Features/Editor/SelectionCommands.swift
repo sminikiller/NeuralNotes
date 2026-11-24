@@ -49,6 +49,9 @@ extension EditorViewModel {
         let bytes = selectionIncludesInk ? drawing.dataRepresentation() : nil
         do { EditorClipboard.current = try SelectionSnapshot(page: copy, drawing: bytes, source: workspace.package, maximumBytes: maximumBytes) }
         catch { self.error = "Selezione non copiata: controlla che i media esistano e scegli una parte più piccola (limite \(max(0, maximumBytes) / (1024 * 1024)) MB). Gli originali restano nel foglio."; return false }
+        if !selectionIncludesInk, ids.count == 1, let text = copy.texts.first {
+            TextPasteboard.write(text)
+        }
         EditorClipboard.documentID = workspace.documentID
         EditorClipboard.changeCount = UIPasteboard.general.changeCount
         status = "Selezione copiata"
@@ -92,7 +95,12 @@ extension EditorViewModel {
                 }
             }
             var result = original, ids = Set<UUID>()
-            for var text in copy.texts { text.x += 20; text.y += 20; result.texts.append(text); ids.insert(text.id) }
+            let singleText = copy.objectIDs.count == 1 && copiedDrawing?.strokes.isEmpty != false
+            for var text in copy.texts {
+                text.x += 20; text.y += 20
+                if singleText { placePastedText(&text, on: original) }
+                result.texts.append(text); ids.insert(text.id)
+            }
             for var image in images { image.x += 20; image.y += 20; result.images.append(image); ids.insert(image.id) }
             for var shape in copy.shapes ?? [] {
                 shape.x += 20; shape.y += 20
@@ -128,7 +136,11 @@ extension EditorViewModel {
             guard page?.id == original.id, drawingLayerID == owner else { throw WorkspaceFailure.staleRevision }
             page = result
             if copiedDrawing != nil { installNativeInk(delivered) }
-            selectedIDs = ids; selectionIncludesInk = false; selectedStrokeIndices = nil
+            if tool != .objects { chooseTool(.objects) }
+            selectedIDs = ids
+            let appended = originalInk.strokes.count..<delivered.strokes.count
+            selectionIncludesInk = !appended.isEmpty
+            selectedStrokeIndices = appended.isEmpty ? nil : Set(appended)
             recordEdit(before, label: "Incolla selezione"); drawingChanged()
         } catch { self.error = error.localizedDescription }
     }
@@ -143,8 +155,29 @@ extension EditorViewModel {
             text.x = min(max(0, point.x - text.width / 2), current.width - text.width)
             text.y = min(max(0, point.y), current.height - 40)
         }
+        placePastedText(&text, on: current)
+        text.layerID = activeLayerID
         mutatePage(plain ? "Incolla testo semplice" : "Incolla testo formattato") { $0.texts.append(text) }
+        if tool != .objects { chooseTool(.objects) }
         selectedObjectID = text.id
     }
 
+    func placePastedText(_ text: inout TextElement, on page: PageSnapshot) {
+        text.x = min(max(0, text.x), max(0, page.width - text.width))
+        let height = RichText.bounds(text, pageHeight: max(page.height, text.y + page.height)).height
+        let limit = max(0, page.height - height)
+        let start = min(max(0, text.y), limit)
+        let right = text.x + text.width, left = text.x
+        let obstacles = page.texts.filter { $0.x < right && $0.x + $0.width > left }
+            .map { RichText.bounds($0, pageHeight: page.height) }.sorted { $0.minY < $1.minY }
+        func freePosition(from y: Double) -> Double? {
+            var next = y
+            for box in obstacles where box.maxY + 8 > next {
+                if next + height + 8 <= box.minY { break }
+                next = box.maxY + 8
+            }
+            return next <= limit ? next : nil
+        }
+        text.y = freePosition(from: start) ?? freePosition(from: 0) ?? start
+    }
 }

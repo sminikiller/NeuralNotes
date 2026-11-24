@@ -1,5 +1,6 @@
 import UIKit
 import UniformTypeIdentifiers
+import NeuralNotesCore
 
 /// Keep formatting shortcuts with the actual text responder. Canvas shortcuts
 /// must not consume typed letters or use a second, disconnected text editor.
@@ -33,6 +34,11 @@ final class PageTextView: UITextView {
 
 @MainActor
 enum TextPasteboard {
+    static func write(_ text: TextElement) {
+        var item: [String: Any] = [UTType.utf8PlainText.identifier: Data(text.text.utf8)]
+        if let rtf = RichText.data(RichText.attributed(text)) { item[UTType.rtf.identifier] = rtf }
+        UIPasteboard.general.items = [item]
+    }
     /// Bound external rich text before parsing it. Plain paste inherits the
     /// destination's typing style rather than importing the source's formatting.
     static func read(plain: Bool, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString? {

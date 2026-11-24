@@ -137,52 +137,77 @@ struct EditorQuickToolbar: View {
     }
     private var selectionBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 18) {
-                if hasSelection { SelectionEditButtons(model: model).labelStyle(.iconOnly) }
-                Button { model.editSelection() } label: { Label(model.selectedShapes.isEmpty ? "Modifica" : "Stile forma", systemImage: "slider.horizontal.3") }
-                    .accessibilityLabel(model.selectedShapes.isEmpty ? "Modifica selezione" : "Stile forme")
-                    .accessibilityIdentifier("selectionShapeStyle").disabled(!hasSelection)
-                if model.selectionIncludesInk { HandwritingMenu(model: model) }
-                if model.page?.tapes?.contains(where: { $0.id == model.selectedObjectID }) == true {
-                    Button("Stile scotch", systemImage: "rectangle.fill", action: study)
-                }
-                if let note = model.page?.texts.first(where: { $0.id == model.selectedObjectID }), note.studyNote != nil {
-                    Button(note.studyNote?.collapsed == true ? "Apri post-it" : "Richiudi post-it", systemImage: "note.text") { model.toggleStudyNote(note.id) }
-                    Button("Post-it del quaderno", systemImage: "list.bullet.rectangle", action: study)
-                }
-
-                Toggle(isOn: $model.multiSelection) { Image(systemName: "checkmark.circle") }.toggleStyle(.button).accessibilityLabel("Selezione multipla")
-                Toggle(isOn: Binding(get: { model.selectRectangle }, set: { model.selectRectangle = $0; if $0 { model.selectFreehand = false } })) { Image(systemName: "rectangle.dashed") }.toggleStyle(.button).accessibilityLabel("Seleziona con un rettangolo")
+            HStack(spacing: 8) {
                 Button { model.selectAll() } label: { Image(systemName: "checkmark.square") }.accessibilityLabel("Seleziona tutto")
-                Text("\(model.selectedIDs.count + (model.selectionIncludesInk ? 1 : 0)) selezionati").font(.caption).foregroundStyle(.secondary)
-                MoveSelectionMenu(model: model).labelStyle(.iconOnly)
-                Button { selectionOpen = false; model.selectionPageDragMode.toggle() } label: { Image(systemName: "rectangle.grid.1x2") }
-                    .accessibilityLabel("Trascina sulle miniature").accessibilityIdentifier("selectionPageDrag").disabled(!hasSelection)
-                SelectionAlignmentMenu(model: model)
-                if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.shapes?.contains(where: { $0.id == id }) == true {
-                    Button { model.editDiagramLabel(id) } label: { Image(systemName: "textformat") }.accessibilityLabel("Testo nella forma").accessibilityIdentifier("selectionDiagramLabel")
+                if hasSelection {
+                    Button("Copia", systemImage: "doc.on.doc") { model.copySelection() }
+                        .accessibilityLabel("Copia selezione")
                 }
+                Button("Incolla", systemImage: "doc.on.clipboard") { Task { await model.pasteSelection() } }
+                MoveSelectionMenu(model: model).labelStyle(.iconOnly)
+                if model.arrangementCount >= 2 { SelectionAlignmentMenu(model: model) }
+                if !model.selectedShapes.isEmpty || model.selectedConnector != nil {
+                    Button("Stile", systemImage: "slider.horizontal.3") { model.editSelection() }
+                        .accessibilityIdentifier("selectionShapeStyle")
+                }
+                if model.selectionIncludesInk { HandwritingMenu(model: model) }
                 Menu {
-                    Button("Porta davanti", systemImage: "square.3.layers.3d.top.filled") { model.arrangeSelection(front: true) }
-                    Button("Chiedi alla Lente AI", systemImage: "sparkles") { model.lensAskAboutSelection() }
-                    Button("Converti in testo", systemImage: "text.viewfinder") { Task { await model.convertSelectionToText() } }
-                    Button("Copia come immagine", systemImage: "photo.on.rectangle") { model.copySelectionImage() }
-                    Button("Condividi immagine", systemImage: "square.and.arrow.up") { model.selectionImageShareRequest += 1 }
-                    Button("Porta dietro", systemImage: "square.3.layers.3d.bottom.filled") { model.arrangeSelection(front: false) }
-                    Button("Blocca oggetti", systemImage: "lock") { model.lockSelection() }
-                    Button("Sblocca tutti gli oggetti", systemImage: "lock.open") { model.unlockObjects() }
-                    Button("Ingrandisci 10%") { model.transformSelection(scale: 1.1) }
-                    Button("Riduci 10%") { model.transformSelection(scale: 1 / 1.1) }
-                    Button("Ruota a destra 15°") { model.transformSelection(degrees: 15) }
-                    Button("Ruota a sinistra 15°") { model.transformSelection(degrees: -15) }
-                    Button("Applica il colore corrente") { model.recolorSelection(InkColor(model.ink)) }
-                } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }.accessibilityLabel("Trasforma selezione").disabled(!hasSelection)
-                Button(action: crop) { Image(systemName: "crop") }.accessibilityLabel("Ritaglia immagine").disabled(!selectedImage)
-                Button { model.imageStraightenRequest += 1 } label: { Image(systemName: "viewfinder") }
-                    .accessibilityLabel("Raddrizza immagine").disabled(!selectedImage)
-                Button { model.rotateSelectedImage() } label: { Image(systemName: "rotate.right") }.accessibilityLabel("Ruota immagine").disabled(!selectedImage)
-                Button { model.copySelection() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copia selezione").keyboardShortcut("c", modifiers: .command).disabled(!hasSelection)
-                Button { Task { await model.pasteSelection() } } label: { Image(systemName: "doc.on.clipboard") }.accessibilityLabel("Incolla").keyboardShortcut("v", modifiers: .command)
+                    if hasSelection {
+                        Section {
+                            SelectionEditButtons(model: model)
+                            if model.selectedIDs.count == 1, model.selectedShapes.isEmpty, model.selectedConnector == nil {
+                                Button("Modifica oggetto", systemImage: "pencil") { model.editSelection() }
+                            }
+                            Button("Trascina sulle miniature", systemImage: "rectangle.grid.1x2") {
+                                selectionOpen = false; model.selectionPageDragMode.toggle()
+                            }.accessibilityIdentifier("selectionPageDrag")
+                        }
+                        Menu("Dimensioni e rotazione") {
+                            Button("Ingrandisci 10%") { model.transformSelection(scale: 1.1) }
+                            Button("Riduci 10%") { model.transformSelection(scale: 1 / 1.1) }
+                            Button("Ruota a destra 15°") { model.transformSelection(degrees: 15) }
+                            Button("Ruota a sinistra 15°") { model.transformSelection(degrees: -15) }
+                        }
+                        if selectedImage {
+                            Button("Ritaglia immagine", systemImage: "crop", action: crop)
+                            Button("Raddrizza immagine", systemImage: "viewfinder") { model.imageStraightenRequest += 1 }
+                            Button("Ruota immagine", systemImage: "rotate.right") { model.rotateSelectedImage() }
+                        }
+                        if model.selectedIDs.count == 1, let id = model.selectedObjectID {
+                            if model.page?.shapes?.contains(where: { $0.id == id }) == true {
+                                Button("Testo nella forma", systemImage: "textformat") { model.editDiagramLabel(id) }
+                                    .accessibilityIdentifier("selectionDiagramLabel")
+                            }
+                            if model.page?.tapes?.contains(where: { $0.id == id }) == true {
+                                Button("Stile scotch", systemImage: "rectangle.fill", action: study)
+                            }
+                            if let note = model.page?.texts.first(where: { $0.id == id }), let style = note.studyNote {
+                                Button(style.collapsed == true ? "Apri post-it" : "Richiudi post-it") { model.toggleStudyNote(id) }
+                                Button("Post-it del quaderno", action: study)
+                            }
+                        }
+                        Menu("Ordine e colore") {
+                            Button("Porta davanti") { model.arrangeSelection(front: true) }
+                            Button("Porta dietro") { model.arrangeSelection(front: false) }
+                            Button("Applica il colore corrente") { model.recolorSelection(InkColor(model.ink)) }
+                            if !model.selectedIDs.isEmpty { Button("Blocca oggetti") { model.lockSelection() } }
+                        }
+                        Menu("Usa la selezione") {
+                            Button("Chiedi alla Lente AI") { model.lensAskAboutSelection() }
+                            if model.selectionIncludesInk { Button("Converti in testo") { Task { await model.convertSelectionToText() } } }
+                            Button("Copia come immagine") { model.copySelectionImage() }
+                            Button("Condividi immagine") { model.selectionImageShareRequest += 1 }
+                        }
+                    }
+                    Section("Selezione") {
+                        Toggle("Selezione multipla", isOn: $model.multiSelection)
+                        Toggle("Seleziona con un rettangolo", isOn: Binding(get: { model.selectRectangle }, set: {
+                            model.selectRectangle = $0; if $0 { model.selectFreehand = false }
+                        }))
+                        if model.page?.lockedObjects?.isEmpty == false { Button("Sblocca tutti gli oggetti") { model.unlockObjects() } }
+                    }
+                } label: { Label("Azioni", systemImage: "ellipsis.circle") }
+                    .accessibilityIdentifier("selectionMoreActions")
             }.frame(minHeight: 44).padding(.horizontal, 16)
         }.accessibilityIdentifier("selectionActionsScroll")
     }

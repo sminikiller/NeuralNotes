@@ -23,6 +23,7 @@ final class SelectionPageDragUITests: XCTestCase {
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.5)))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
         let frame = canvas.frame
+        app.buttons["selectionMoreActions"].tap()
         let rail = app.buttons["selectionPageDrag"]; XCTAssertTrue(rail.waitForExistence(timeout: 5)); rail.tap()
         let destination = app.buttons["selectionPageDrop-2"]
         XCTAssertTrue(destination.waitForExistence(timeout: 5)); XCTAssertTrue(destination.isHittable)

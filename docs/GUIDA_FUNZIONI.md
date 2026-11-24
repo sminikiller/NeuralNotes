@@ -1226,7 +1226,7 @@ Versioni locali e copie esterne.
 
 1. Apri Spazio e archiviazione per vedere i backup e configurare una cartella esterna per le copie automatiche.
 2. Conserva un export nativo in File prima di aggiornare o spostare il Playground. Copie diverse dell’app possono usare librerie locali separate.
-3. Se mancano quaderni apri Recupero quaderni o importa un backup. Non eliminare i dati dell’app per risolvere un errore di compilazione.
+3. Se mancano quaderni apri Account e servizi → Assistenza sui quaderni → Recupero quaderni o importa un backup. Non eliminare i dati dell’app per risolvere un errore di compilazione.
 
 #### Esercizi
 
@@ -1250,13 +1250,13 @@ Dettagli a richiesta e conferme discrete.
 
 Controlli isolati e collaudo fisico.
 
-1. Dalla libreria apri Verifica sul dispositivo ed esegui i controlli integrati.
+1. Nella versione di sviluppo trovi Verifica sul dispositivo in Account e servizi → Assistenza sui quaderni.
 2. I test usano documenti di prova e mostrano i risultati per area. Non sostituiscono il collaudo del tuo materiale reale.
 3. Prima della delivery verifica audio lungo, standby, fotocamera, PDF grandi e un aggiornamento conservando il backup dei quaderni.
 
 #### Esercizi
 
-- [ ] Apri Verifica sul dispositivo dalla libreria ed esegui i controlli. Consulta i risultati prima di tornare al quaderno.
+- [ ] Nella versione di sviluppo apri Account e servizi → Assistenza sui quaderni → Verifica sul dispositivo ed esegui i controlli. Consulta i risultati prima di tornare al quaderno.
   **Risultato atteso** — Puoi distinguere verifiche superate, non disponibili e fallite. La prova non aggiunge modifiche ai tuoi quaderni.
 
 ## Collaudo dei PDF — beta 1.0.0 (177)
