@@ -11,6 +11,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     private let wordHighlight = CAShapeLayer()
     /// The picture of the object being dragged.
     private var dragPreview: CALayer?
+    private var previewGroup = Set<UUID>()
     private var before: EditorContentState?
     private var start = CGPoint.zero
     private var original: [UUID: CGRect] = [:]
@@ -90,7 +91,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 
     func resetForPageChange() {
         host?.diagramPreview?.reset()
-        dragPreview?.removeFromSuperlayer(); dragPreview = nil
+        dragPreview?.removeFromSuperlayer(); dragPreview = nil; previewGroup.removeAll()
         for layer in [outline, handle, marquee, wordHighlight] {
             layer.path = nil; layer.setAffineTransform(.identity)
         }
@@ -289,8 +290,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             } else { resizing = false }
         }
         // One object moving: a picture of it follows the finger and the page changes once, on release.
-        if original.count == 1, !model.selectionIncludesInk, let id = original.keys.first, previewable(id, page: page) {
-            startPreview(id, page: page, host: host)
+        let previewIDs = Set(original.keys)
+        if !previewIDs.isEmpty, !model.selectionIncludesInk, previewIDs.allSatisfy({ previewable($0, page: page) }) {
+            startPreview(previewIDs, page: page, host: host)
         }
         snapEngine = model.snapEngine(excluding: model.selectedIDs)
         if !original.isEmpty { host.diagramPreview?.start(page: page, moving: Set(original.keys)) }
@@ -395,7 +397,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             }
             dx = width - group.width
         }
-        if !resizing, let group = original.values.reduce(nil as CGRect?, { $0?.union($1) ?? $1 }) {
+        if !resizing, let group {
             let a = -Double(group.minX), b = page.width - Double(group.maxX)
             let c = -Double(group.minY), d = page.height - Double(group.maxY)
             dx = max(min(a, b), min(max(a, b), dx)); dy = max(min(c, d), min(max(c, d), dy))
@@ -500,8 +502,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         page.texts.contains { $0.id == id } || page.images.contains { $0.id == id } || (page.shapes ?? []).contains { $0.id == id }
     }
 
-    private func startPreview(_ id: UUID, page: PageSnapshot, host: CanvasHost) {
-        guard let visual = objectRect(id) else { return }
+    private func startPreview(_ ids: Set<UUID>, page: PageSnapshot, host: CanvasHost) {
+        let visual = ids.compactMap { objectRect($0) }.reduce(CGRect.null) { $0.union($1) }
+        guard !visual.isNull else { return }
         let box = visual.insetBy(dx: -12, dy: -12)
         guard box.width > 0, box.height > 0 else { return }
         // Bound the actual bitmap, including Retina scale, to two million pixels.
@@ -511,17 +514,20 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let package = host.surface.package
         let image = UIGraphicsImageRenderer(size: box.size, format: format).image { context in
             context.cgContext.translateBy(x: -box.minX, y: -box.minY)
-            PageRenderer.drawSingle(id, page: page, package: package, in: context.cgContext)
+            for foreground in [false, true] {
+                PageRenderer.drawSelected(ids, foreground: foreground, page: page, package: package, in: context.cgContext)
+            }
         }
         let layer = CALayer()
         layer.contents = image.cgImage; layer.contentsScale = scale; layer.contentsGravity = .resize
         layer.frame = host.surface.convert(box, to: host)
-        layer.shadowColor = UIColor.black.cgColor; layer.shadowOpacity = 0.25; layer.shadowRadius = 10; layer.shadowOffset = CGSize(width: 0, height: 6)
         CATransaction.begin(); CATransaction.setDisableActions(true)
         host.layer.addSublayer(layer)
         CATransaction.commit()
         dragPreview = layer
-        host.surface.hiddenObjectID = id
+        if ids.count == 1 { host.surface.hiddenObjectID = ids.first }
+        else { previewGroup = ids; host.surface.interactionHiddenObjectIDs.formUnion(ids) }
+        host.paperDetail.update(from: host); host.updateNativeInkVisibility()
         host.foregroundObjects.update(host); host.lensNotes.update(host)
     }
 
@@ -540,7 +546,9 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         layer.removeFromSuperlayer(); outline.setAffineTransform(.identity); handle.setAffineTransform(.identity)
         CATransaction.commit()
         dragPreview = nil
+        host.surface.interactionHiddenObjectIDs.subtract(previewGroup); previewGroup.removeAll()
         host.surface.hiddenObjectID = nil
+        host.paperDetail.update(from: host); host.updateNativeInkVisibility()
         host.foregroundObjects.update(host); host.lensNotes.update(host)
     }
     /// Touch slack for note icons and controls, constant on screen at any zoom.

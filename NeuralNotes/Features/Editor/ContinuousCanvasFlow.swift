@@ -200,7 +200,8 @@ final class ContinuousCanvasFlow {
         let z = max(0.001, host.canvas.zoomScale)
         let top = Double(host.canvas.contentOffset.y / z) + active.y
         let visibleHeight = Double(host.bounds.height / z)
-        let candidates = layout.frames.filter { $0.id != active.id && $0.maxY >= top - visibleHeight && $0.y <= top + visibleHeight * 2 }
+        let candidates = layout.frames(intersecting: top - visibleHeight, through: top + visibleHeight * 2)
+            .filter { $0.id != active.id }
             .sorted { abs(($0.y + $0.height / 2) - (top + visibleHeight / 2)) < abs(($1.y + $1.height / 2) - (top + visibleHeight / 2)) }
         let wanted = Set(candidates.prefix(PreviewBudget.maximumPrefetchedPages).map(\.id))
         for id in Array(previews.keys) where !wanted.contains(id) { previews.removeValue(forKey: id)?.removeFromSuperview() }

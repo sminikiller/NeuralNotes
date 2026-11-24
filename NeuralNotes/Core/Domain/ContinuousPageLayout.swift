@@ -22,6 +22,16 @@ public struct ContinuousPageLayout: Equatable, Sendable {
         self.frames = frames; self.width = width; self.height = max(0, y - (valid.isEmpty ? 0 : spacing))
         self.maximumPageHeight = valid.map(\.height).max() ?? 1; self.gap = spacing
     }
+    /// Frames are ordered by document height. Visit only the neighbourhood of the viewport.
+    public func frames(intersecting lower: Double, through upper: Double) -> ArraySlice<Frame> {
+        var low = 0, high = frames.count
+        while low < high {
+            let mid = low + (high - low) / 2
+            if frames[mid].maxY < lower { low = mid + 1 } else { high = mid }
+        }
+        return frames[low...].prefix { $0.y <= upper }
+    }
+
     public func frame(_ id: UUID) -> Frame? { frames.first { $0.id == id } }
     public func page(atX x: Double, y: Double) -> UUID? {
         frames.first { x >= $0.x && x <= $0.x + $0.width && y >= $0.y && y <= $0.maxY }?.id

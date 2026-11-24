@@ -285,7 +285,7 @@ final class CanvasHost: UIView {
         defer { foregroundObjects.update(self); inkReplay.update(self); markerReadability.update(self); searchHighlight.update(self); lensNotes.update(self); lensBar.update(self); laserPointer.update(self); zoomNavigator.update(self); rulerGuide?.update(); protractorGuide?.update(); shapeHandles?.update(); diagramHandles?.update(); selectionPageDrag?.update(); updateNativeInkVisibility(); model?.zoomWritingController?.refreshOverview() }
         surface.updateResolution(zoom: 1, screenScale: window?.screen.scale ?? UIScreen.main.scale)
         if flow?.arrange() == true {
-            paperDetail.update(from: self)
+            if emptyInkCover.isHidden { paperDetail.update(from: self) }
             interaction?.refresh(); textInput?.layout(); return
         }
         let zoom = canvas.zoomScale
@@ -300,7 +300,7 @@ final class CanvasHost: UIView {
         if canvas.contentInset != inset { canvas.contentInset = inset }
         surface.center = CGPoint(x: size.width * zoom / 2 - canvas.contentOffset.x,
                                  y: size.height * zoom / 2 - canvas.contentOffset.y)
-        paperDetail.update(from: self)
+        if emptyInkCover.isHidden { paperDetail.update(from: self) }
         interaction?.refresh()
         textInput?.layout()
     }
