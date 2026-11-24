@@ -82,6 +82,14 @@ class ReleaseReadinessTests(unittest.TestCase):
         profile = self.profile(); profile["Entitlements"]["com.apple.developer.icloud-container-environment"] = "Development"
         with self.assertRaises(ValueError): validate(profile)
 
+    def test_production_profile_can_authorize_multiple_environments_and_services(self):
+        profile = self.profile()
+        profile["Entitlements"]["com.apple.developer.icloud-services"] = "*"
+        profile["Entitlements"]["com.apple.developer.icloud-container-environment"] = ["Production", "Development"]
+        self.assertEqual(validate(profile), profile["UUID"])
+        profile["Entitlements"]["com.apple.developer.icloud-container-environment"] = ["Development"]
+        with self.assertRaises(ValueError): validate(profile)
+
     def test_profile_uuid_keeps_the_case_xcode_matches(self):
         profile = self.profile(); profile["UUID"] = "abcdef12-3456-4789-8abc-def012345678"
         self.assertEqual(validate(profile), "abcdef12-3456-4789-8abc-def012345678")

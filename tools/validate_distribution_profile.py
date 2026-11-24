@@ -27,9 +27,11 @@ def validate(profile, now=None, require_cloud=True):
         raise ValueError("Profile contains no distribution certificate.")
     if require_cloud and CONTAINER not in entitlements.get("com.apple.developer.icloud-container-identifiers", []):
         raise ValueError("Profile does not grant the NeuralNotes iCloud container.")
-    if require_cloud and "CloudKit" not in entitlements.get("com.apple.developer.icloud-services", []):
+    services = entitlements.get("com.apple.developer.icloud-services")
+    if require_cloud and not (services in ("*", "CloudKit") or isinstance(services, list) and "CloudKit" in services):
         raise ValueError("Profile does not enable CloudKit.")
-    if require_cloud and entitlements.get("com.apple.developer.icloud-container-environment") != "Production":
+    environments = entitlements.get("com.apple.developer.icloud-container-environment")
+    if require_cloud and not (environments == "Production" or isinstance(environments, list) and "Production" in environments):
         raise ValueError("Distribution requires the production CloudKit environment.")
     profile_uuid = profile["UUID"]
     if str(uuid.UUID(profile_uuid)) != profile_uuid.lower():
