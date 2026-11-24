@@ -42,6 +42,11 @@ if (checkICloud) {
   const builds = await get('builds', { 'filter[app]': app.id, 'filter[version]': buildNumber, include: 'preReleaseVersion,buildBetaDetail', limit: '200' });
   const groups = await get('betaGroups', { 'filter[app]': app.id, limit: '200' });
   const report = { checkedAt: new Date().toISOString(), app: { id: app.id, name: app.attributes.name, bundleId: app.attributes.bundleId }, buildNumber, builds: [], groups: [] };
+  const uploads = await get(`apps/${app.id}/buildUploads`, {
+    'filter[cfBundleVersion]': buildNumber, 'filter[platform]': 'IOS',
+    'fields[buildUploads]': 'cfBundleShortVersionString,cfBundleVersion,uploadedDate,state', limit: '200'
+  });
+  report.uploads = uploads.data.map(upload => upload.attributes);
   for (const build of builds.data) {
     const related = name => builds.included?.find(v => v.id === build.relationships[name]?.data?.id && v.type === build.relationships[name]?.data?.type)?.attributes;
     report.builds.push({ id: build.id, ...build.attributes, preReleaseVersion: related('preReleaseVersion'), betaDetail: related('buildBetaDetail') });
