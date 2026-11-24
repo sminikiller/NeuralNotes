@@ -12,7 +12,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 5)); XCTAssertFalse(undo.isEnabled); XCTAssertFalse(redo.isEnabled)
         XCTAssertLessThan(undo.frame.midX, app.frame.width * 0.25)
         XCTAssertLessThan(undo.frame.midY, canvas.frame.minY + canvas.frame.height * 0.3)
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)], timeout: 10)
@@ -339,7 +339,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         let app = XCUIApplication(); openEditor(app)
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 8))
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
@@ -361,7 +361,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         let app = XCUIApplication(); openEditor(app)
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 8))
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
         app.buttons["editorPageActions"].tap(); app.buttons["Elimina elementi per tipo…"].tap()
@@ -391,7 +391,7 @@ final class EditorQuickActionsUITests: XCTestCase {
     }
     @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
         let app = XCUIApplication(); openEditor(app)
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Inserisci foto"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Inserisci foto"].tap()
         let cancel = app.navigationBars.buttons.matching(NSPredicate(format: "label IN %@", ["Cancel", "Annulla"])).firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 8)); cancel.tap()
         XCTAssertTrue(app.buttons["editorAddText"].waitForExistence(timeout: 5))

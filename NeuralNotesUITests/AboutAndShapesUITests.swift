@@ -39,7 +39,7 @@ final class AboutAndShapesUITests: XCTestCase {
         app.buttons["openEditorButton"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
-        app.buttons["Inserisci foto o forma"].tap()
+        app.buttons["editorInsertMenu"].tap()
         let star = app.buttons["Stella"]; XCTAssertTrue(star.waitForExistence(timeout: 5)); star.tap()
         let a = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.4))
         let b = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.62))

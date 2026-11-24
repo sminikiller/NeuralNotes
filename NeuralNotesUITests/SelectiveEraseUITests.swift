@@ -19,7 +19,7 @@ final class SelectiveEraseUITests: XCTestCase {
         app.navigationBars["Gesti e automatismi"].buttons["Workspace"].tap(); app.buttons["Fine"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 8))
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.4)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.6)))
         app.buttons["tool-Gomma"].press(forDuration: 0.6)

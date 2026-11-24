@@ -18,7 +18,7 @@ final class SelectionPageDragUITests: XCTestCase {
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
         tapReady(app.buttons["editorAddPage"]); page(2, in: app)
         tapReady(app.buttons["editorPreviousPage"]); page(1, in: app)
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         canvas.coordinate(withNormalizedOffset: .init(dx: 0.35, dy: 0.35)).press(forDuration: 0.05,
             thenDragTo: canvas.coordinate(withNormalizedOffset: .init(dx: 0.6, dy: 0.5)))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()

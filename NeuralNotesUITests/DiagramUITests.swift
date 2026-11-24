@@ -15,7 +15,7 @@ final class DiagramUITests: XCTestCase {
         XCTAssertTrue(book.waitForExistence(timeout: 8)); book.tap(); app.buttons["openEditorButton"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
-        app.buttons["Inserisci foto o forma"].tap()
+        app.buttons["editorInsertMenu"].tap()
         let rectangle = app.buttons["Rettangolo"]
         XCTAssertTrue(rectangle.waitForExistence(timeout: 5)); rectangle.tap()
         let start = canvas.coordinate(withNormalizedOffset: .init(dx: 0.4, dy: 0.4))

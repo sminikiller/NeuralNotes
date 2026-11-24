@@ -12,7 +12,7 @@ final class SnapAndAlignmentUITests: XCTestCase {
         XCTAssertTrue(notebook.waitForExistence(timeout: 8)); notebook.tap(); app.buttons["openEditorButton"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
-        app.buttons["Inserisci foto o forma"].tap(); app.buttons["Rettangolo"].tap()
+        app.buttons["editorInsertMenu"].tap(); app.buttons["Rettangolo"].tap()
         for x in [0.28, 0.43, 0.61] {
             let a = canvas.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.4))
             let b = canvas.coordinate(withNormalizedOffset: CGVector(dx: x + 0.09, dy: 0.51))
