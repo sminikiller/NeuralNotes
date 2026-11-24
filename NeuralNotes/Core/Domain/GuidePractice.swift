@@ -466,7 +466,7 @@ enum GuidePractice {
         ],
         "diagnostics": [
             .init(
-                "Apri Verifica sul dispositivo dalla libreria ed esegui i controlli. Consulta i risultati prima di tornare al quaderno.",
+                "Nella versione di sviluppo apri Account e servizi → Assistenza sui quaderni → Verifica sul dispositivo ed esegui i controlli. Consulta i risultati prima di tornare al quaderno.",
                 "Puoi distinguere verifiche superate, non disponibili e fallite. La prova non aggiunge modifiche ai tuoi quaderni."
             ),
         ],

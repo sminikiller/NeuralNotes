@@ -219,13 +219,17 @@ public actor DocumentWorkspace {
         return inputs
     }
 
-    public func setDefaultPageTemplate(_ template: PageTemplate) throws {
+    private func validateDefaultTemplate(_ template: PageTemplate) throws {
         guard template.appearance.isValid else { throw LibraryFailure.corruptDocument }
         if let file = template.pdfFile {
             guard let index = template.pdfIndex, index >= 0, index < Int.max, let width = template.sourceWidth, let height = template.sourceHeight,
                   width.isFinite, height.isFinite, (1...20000).contains(width), (1...20000).contains(height),
                   FileManager.default.fileExists(atPath: try url(file).path) else { throw LibraryFailure.corruptDocument }
         }
+    }
+
+    public func setDefaultPageTemplate(_ template: PageTemplate) throws {
+        try validateDefaultTemplate(template)
         var value = try catalog(); value.defaultPageTemplate = template
         try write(value, "catalog.json")
     }
@@ -347,8 +351,20 @@ public actor DocumentWorkspace {
     }
 
     public func setCoverAppearance(image: Data?, design: CoverDesign, useLastEditedPage: Bool? = nil) throws {
+        try updateAppearance(design: design, useLastEditedPage: useLastEditedPage, image: .replace(image), template: nil)
+    }
+
+    public enum CoverImageChange: Sendable { case keep, replace(Data?) }
+
+    public func updateAppearance(design: CoverDesign, useLastEditedPage: Bool?, image: CoverImageChange, template: PageTemplate?) throws {
         guard design.isValid else { throw LibraryFailure.corruptDocument }
-        var index = try catalog(); index.coverImageFile = try image.map { try storeImage($0) }; index.coverDesign = design
+        var index = try catalog()
+        if let template {
+            try validateDefaultTemplate(template)
+            index.defaultPageTemplate = template
+        }
+        if case let .replace(bytes) = image { index.coverImageFile = try bytes.map { try storeImage($0) } }
+        index.coverDesign = design
         if let useLastEditedPage { index.coverUsesLastEditedPage = useLastEditedPage }
         try write(index, "catalog.json")
     }

@@ -63,7 +63,7 @@ final class CloudNotebookSync {
         guard !busy else { return }
         busy = true; defer { busy = false }
         do { _ = try await connect(); status = "Account Apple collegato a iCloud." }
-        catch { status = error.localizedDescription }
+        catch { connected = false; status = error.localizedDescription }
     }
 
     func setAutomatic(_ enabled: Bool, library: LibraryViewModel) async {

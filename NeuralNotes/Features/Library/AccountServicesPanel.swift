@@ -2,7 +2,7 @@ import SwiftUI
 import NeuralNotesCore
 
 private enum AccountServiceSheet: String, Identifiable {
-    case account, cloud, iCloud, ai, privacy, about
+    case account, cloud, iCloud, ai, privacy, about, recovery, diagnostics
     var id: String { rawValue }
 }
 
@@ -32,6 +32,12 @@ struct AccountServicesPanel: View {
                 Section("Informazioni") {
                     serviceButton("Informazioni su NeuralNotes", detail: "Versione, crediti e feedback", icon: "info.circle", target: .about)
                     serviceButton("Privacy e assistenza", detail: "Dati locali, servizi online e contatti", icon: "hand.raised", target: .privacy)
+                    DisclosureGroup("Assistenza sui quaderni") {
+                        serviceButton("Recupero quaderni", detail: "Ritrova documenti conservati sul dispositivo", icon: "arrow.uturn.backward.circle", target: .recovery)
+#if DEBUG
+                        serviceButton("Verifica sul dispositivo", detail: "Esegui i controlli di sviluppo", icon: "checkmark.seal", target: .diagnostics)
+#endif
+                    }
                 }
             }.navigationTitle("Account e servizi")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }
@@ -51,6 +57,8 @@ struct AccountServicesPanel: View {
                     }
                 case .ai: AIConnectionPanel(configuration: $configuration, consentKey: $consent)
                 case .privacy: PrivacyAndSupportPanel()
+                case .recovery: RecoveryPanel(library: library)
+                case .diagnostics: DiagnosticsPanel()
                 case .about: AboutNeuralNotes()
                 }
             }
@@ -69,6 +77,7 @@ struct AccountServicesPanel: View {
         }.accessibilityIdentifier("services-\(target.rawValue)")
     }
     private func refresh() async {
+        await iCloud.refreshConnection()
         account = await ManagedAIAccount.client.snapshot(); configuration = AIEngineStore.load()
         consent = await AIEngineRouter.restoredConsent(configuration)
         await cloud.prepareAccount()

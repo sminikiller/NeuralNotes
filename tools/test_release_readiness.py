@@ -56,7 +56,7 @@ class ReleaseReadinessTests(unittest.TestCase):
     def test_archive_metadata_rejects_missing_api_reasons_and_obsolete_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
             app = Path(directory) / "Products/Applications/NeuralNotes.app"; app.mkdir(parents=True)
-            info = {"DTSDKName": "iphoneos26.5", "CFBundleIdentifier": "com.lorenzominichilli.neuralnotes",
+            info = {"DTSDKName": "iphoneos27.0", "CFBundleIdentifier": "com.lorenzominichilli.neuralnotes",
                     "CFBundleExecutable": "NeuralNotes", "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "1",
                     "CFBundleIcons~ipad": {"CFBundlePrimaryIcon": {"CFBundleIconName": "AppIcon"}}}
             (app / "Info.plist").write_bytes(plistlib.dumps(info))
@@ -69,7 +69,7 @@ class ReleaseReadinessTests(unittest.TestCase):
             self.assertEqual(len(archive_proof(directory)["requiredReasonCategories"]), 4)
             info["DTSDKName"] = "iphoneos18.5"
             (app / "Info.plist").write_bytes(plistlib.dumps(info))
-            with self.assertRaisesRegex(ValueError, "SDK 26"): archive_proof(directory)
+            with self.assertRaisesRegex(ValueError, "SDK 27"): archive_proof(directory)
 
     def test_profile_metadata_requires_distribution_and_matching_cloud_entitlements(self):
         self.assertEqual(validate(self.profile()), "00000000-0000-4000-8000-000000000001")

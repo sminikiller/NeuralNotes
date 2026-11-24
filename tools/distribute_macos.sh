@@ -16,7 +16,7 @@ build="${NN_RELEASE_BUILD:-52}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 [[ "$build" =~ ^[1-9][0-9]*$ ]]
 sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
-[[ "${sdk%%.*}" -ge 26 ]] || { echo 'Distribution requires iOS SDK 26 or later.'; exit 1; }
+[[ "${sdk%%.*}" -ge 27 ]] || { echo 'Distribution requires iOS SDK 27 or later.'; exit 1; }
 xcodebuild -version
 scratch="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/neuralnotes-signing.XXXXXX")"
 keychain="$scratch/signing.keychain-db"
@@ -85,28 +85,27 @@ subprocess.run(['security','list-keychains','-d','user','-s',sys.argv[2],*previo
 PY
   security import "$scratch/distribution.p12" -k "$keychain" -P "$NN_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
-  if [ "$cloud" = 1 ]; then
-    python3 - "$scratch/production.entitlements" <<'PY'
+  python3 - "$scratch" "$cloud" <<'PY'
 import plistlib, sys
 from pathlib import Path
-value = plistlib.loads(Path('NeuralNotes/Resources/NeuralNotes.entitlements').read_bytes())
-value['com.apple.developer.icloud-container-environment'] = 'Production'
-Path(sys.argv[1]).write_bytes(plistlib.dumps(value))
-PY
-    app_signing=("CODE_SIGN_ENTITLEMENTS=$scratch/production.entitlements")
-  else
-    # Internal beta: no iCloud container entitlement, and the app keeps iCloud sync
-    # switched off. Both files live in the temporary folder, never in the checkout.
-    python3 - "$scratch/beta.entitlements" "$scratch/Info.plist" <<'PY'
-import plistlib, sys
-from pathlib import Path
-Path(sys.argv[1]).write_bytes(plistlib.dumps({}))
+folder = Path(sys.argv[1])
+cloud = sys.argv[2] == '1'
 info = plistlib.loads(Path('NeuralNotes/Resources/Info.plist').read_bytes())
-info['NNCloudSigned'] = False
-Path(sys.argv[2]).write_bytes(plistlib.dumps(info))
+entitlements = {}
+if cloud:
+    entitlements = plistlib.loads(Path('NeuralNotes/Resources/NeuralNotes.entitlements').read_bytes())
+    entitlements['com.apple.developer.icloud-container-environment'] = 'Production'
+granted = plistlib.loads((folder / 'profile.plist').read_bytes())['Entitlements']
+apple_key = 'com.apple.developer.applesignin'
+apple_login = bool(info.get('NeuralNotesServiceURL')) and 'Default' in granted.get(apple_key, [])
+if apple_login:
+    entitlements[apple_key] = ['Default']
+info['NNAppleLoginSigned'] = apple_login
+info['NNCloudSigned'] = cloud
+(folder / 'app.entitlements').write_bytes(plistlib.dumps(entitlements))
+(folder / 'Info.plist').write_bytes(plistlib.dumps(info))
 PY
-    app_signing=("CODE_SIGN_ENTITLEMENTS=$scratch/beta.entitlements" "INFOPLIST_FILE=$scratch/Info.plist")
-  fi
+  app_signing=("CODE_SIGN_ENTITLEMENTS=$scratch/app.entitlements" "INFOPLIST_FILE=$scratch/Info.plist")
   # Swift package targets reject a provisioning profile, so signing is set on the app
   # target only. The original project file is restored on exit.
   cp "$root/NeuralNotes.xcodeproj/project.pbxproj" "$scratch/project.pbxproj"

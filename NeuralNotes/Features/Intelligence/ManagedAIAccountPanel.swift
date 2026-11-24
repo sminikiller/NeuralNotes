@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import AuthenticationServices
+import CryptoKit
 import NeuralNotesCore
 
 @MainActor
@@ -25,6 +27,7 @@ struct ManagedAIAccountPanel: View {
     @State private var deleteSentAt: Date?
     @State private var confirmDeletion = false
     @State private var exported: AccountExport?
+    @State private var appleNonce: String?
     var body: some View {
         Form {
             Section {
@@ -49,7 +52,21 @@ struct ManagedAIAccountPanel: View {
                     } else { Text("Consumi non ancora letti.").font(.caption).foregroundStyle(.secondary) }
                     Button("Aggiorna consumi", systemImage: "arrow.clockwise") { refreshOverview() }.disabled(busy)
                 }
-            } else { login }
+            } else {
+                if Bundle.main.object(forInfoDictionaryKey: "NNAppleLoginSigned") as? Bool == true,
+                   let service = ManagedAIAccount.bundledStudyURL {
+                    Section("Account Apple") {
+                        SignInWithAppleButton(.signIn) { request in
+                            let nonce = UUID().uuidString + UUID().uuidString
+                            appleNonce = nonce
+                            request.requestedScopes = [.email]
+                            request.nonce = SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
+                        } onCompletion: { result in finishAppleLogin(result, service: service) }
+                        .frame(height: 46).disabled(busy)
+                    }
+                }
+                login
+            }
             if endpoint.isEmpty {
                 Section { Text("Il servizio online non è ancora attivato in questo pacchetto. La scrittura e le funzioni locali sono disponibili.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("managedAINotConfigured") }
             }
@@ -181,6 +198,29 @@ struct ManagedAIAccountPanel: View {
             } catch is CancellationError { }
             catch { self.error = error.localizedDescription }
         }
+    }
+    private func finishAppleLogin(_ result: Result<ASAuthorization, Error>, service: URL) {
+        let nonce = appleNonce
+        appleNonce = nil
+        do {
+            let authorization = try result.get()
+            guard !busy, let nonce, let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let bytes = credential.identityToken, let token = String(data: bytes, encoding: .utf8) else { throw ManagedAIFailure.response }
+            busy = true; error = nil
+            job = Task {
+                defer { busy = false }
+                do {
+                    _ = try await ManagedAIAccount.client.connect(studyURL: service)
+                    try Task.checkCancellation()
+                    account = try await ManagedAIAccount.client.verifyApple(identityToken: token, nonce: nonce, studyURL: service)
+                    CloudBackupService.shared.accountDidChange()
+                    overview = try? await ManagedAIAccount.overview()
+                    displayName = overview?.displayName ?? ""
+                } catch is CancellationError { }
+                catch { self.error = error.localizedDescription }
+            }
+        } catch let failure as ASAuthorizationError where failure.code == .canceled { }
+        catch { self.error = error.localizedDescription }
     }
     private func verify() {
         guard !busy, let address = sentTo else { return }; busy = true; error = nil

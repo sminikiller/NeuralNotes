@@ -60,7 +60,8 @@ public struct ManagedAIService: Codable, Equatable, Sendable {
         var url = authURL.appendingPathComponent("auth/v1").appendingPathComponent(path)
         if path == "token" || path == "logout" {
             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-            components.queryItems = [URLQueryItem(name: path == "token" ? "grant_type" : "scope", value: path == "token" ? "refresh_token" : "local")]
+            let grant = body?["id_token"] == nil ? "refresh_token" : "id_token"
+            components.queryItems = [URLQueryItem(name: path == "token" ? "grant_type" : "scope", value: path == "token" ? grant : "local")]
             url = components.url!
         }
         var request = URLRequest(url: url); request.httpMethod = "POST"; request.timeoutInterval = 20
@@ -149,8 +150,17 @@ public actor ManagedAIClient {
         guard let service else { throw ManagedAIFailure.configuration }
         let email = try Self.email(email)
         guard (6...10).contains(code.count), code.utf8.allSatisfy({ (48...57).contains($0) }) else { throw ManagedAIFailure.code }
+        return try await authenticate(service, request: service.request(path: "verify", body: ["email": email, "token": code, "type": "email"]), now: now)
+    }
+    public func verifyApple(identityToken: String, nonce: String, studyURL: URL) async throws -> ManagedAISession {
+        guard let service, service.studyURL == studyURL else { throw ManagedAIFailure.configuration }
+        guard (1...16384).contains(identityToken.utf8.count), (32...128).contains(nonce.utf8.count) else { throw ManagedAIFailure.response }
+        let request = try service.request(path: "token", body: ["provider": "apple", "id_token": identityToken, "nonce": nonce])
+        return try await authenticate(service, request: request, now: Date())
+    }
+    private func authenticate(_ service: ManagedAIService, request: URLRequest, now: Date) async throws -> ManagedAISession {
         let id = UUID(); generation = id; refresh?.task.cancel(); refresh = nil
-        let response = try await transport.send(service.request(path: "verify", body: ["email": email, "token": code, "type": "email"]))
+        let response = try await transport.send(request)
         try Self.check(response)
         let value = try ManagedAISession.decode(response.data, service: service, now: now)
         guard generation == id, self.service == service, !Task.isCancelled else { throw CancellationError() }

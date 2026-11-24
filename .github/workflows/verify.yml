@@ -14,9 +14,9 @@ on:
         type: string
         required: false
       apple_xcode:
-        description: Compiler for native/UI follow-up (delivery always uses 26.6)
+        description: Compiler for native/UI follow-up (delivery uses SDK 27)
         type: choice
-        options: ['16.4', '26.6']
+        options: ['16.4', '26.6', '27.0']
         default: '16.4'
       ui_test:
         description: Optional comma-separated Class/testMethod filters for UI-only or focused verification
@@ -123,9 +123,9 @@ jobs:
   apple:
     if: inputs.scope != 'playground' && inputs.scope != 'archive' && inputs.scope != 'testflight'
     needs: portable
-    runs-on: ${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '26.6') && 'macos-26' || 'macos-15' }}
+    runs-on: ${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '27.0') && 'xcode-27' || inputs.apple_xcode == '26.6' && 'macos-26' || 'macos-15' }}
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '26.6') && '26.6' || '16.4' }}.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_${{ (inputs.scope == 'delivery' || inputs.apple_xcode == '27.0') && '27.0' || inputs.apple_xcode || '16.4' }}.app/Contents/Developer
     # The complete UI suite can pass near the former 60-minute deadline;
     # leave time for Release compilation and exporting the existing evidence.
     timeout-minutes: 75
@@ -221,10 +221,10 @@ jobs:
        (inputs.scope == 'delivery' && needs.backend-services.result == 'success' &&
         needs.upgrade.result == 'success' && needs.apple.result == 'success' && needs.playground.result == 'success'))
     needs: [portable, backend-services, upgrade, apple, playground]
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 25
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require unchanged verified application for an archive-only or TestFlight follow-up

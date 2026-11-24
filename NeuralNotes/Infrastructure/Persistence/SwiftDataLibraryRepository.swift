@@ -202,7 +202,7 @@ final class SwiftDataLibraryRepository: LibraryRepository {
         }
         let orphans = try documents.unreferencedPackages(referencedDocumentIDs: Set(records.map(\.documentID)))
         if !orphans.isEmpty {
-            issues.append("\(orphans.count) quaderni conservati senza riferimento. Apri Recupero quaderni nella sidebar.")
+            issues.append("\(orphans.count) quaderni conservati senza riferimento. Apri Recupero quaderni dall’avviso in libreria.")
         }
         return issues
     }

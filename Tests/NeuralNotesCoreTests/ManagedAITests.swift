@@ -73,6 +73,23 @@ final class ManagedAITests: XCTestCase {
         let count = await transport.count("verify"); XCTAssertEqual(count, 1)
         do { _ = try await client.token(for: URL(string: "https://other.example/v1/study")!, now: now); XCTFail("Cross service token") } catch ManagedAIFailure.signedOut { }
     }
+    func testAppleLoginExchangesNonceAndOnlyPersistsVerifiedSession() async throws {
+        let storage = MemoryManagedSession()
+        let nonce = UUID().uuidString
+        let transport = ManagedFixtureTransport { request in
+            if request.url?.path.hasSuffix("/config") == true { return .init(data: Self.configuration, status: 200) }
+            XCTAssertEqual(request.url?.query, "grant_type=id_token")
+            XCTAssertEqual(request.url?.host, "auth.example")
+            let body = try JSONDecoder().decode([String: String].self, from: XCTUnwrap(request.httpBody))
+            XCTAssertEqual(body, ["provider": "apple", "id_token": "fixture.apple.token", "nonce": nonce])
+            return .init(data: Self.tokens(), status: 200)
+        }
+        let client = ManagedAIClient(transport: transport, storage: storage)
+        _ = try await client.connect(studyURL: url)
+        let verified = try await client.verifyApple(identityToken: "fixture.apple.token", nonce: nonce, studyURL: url)
+        XCTAssertEqual(verified.userID, Self.user)
+        XCTAssertEqual(try storage.load(), verified)
+    }
     func testConcurrentRefreshRotatesOnlyOnceAndPersistsForNextLaunch() async throws {
         let storage = MemoryManagedSession(try session())
         let transport = ManagedFixtureTransport { _ in

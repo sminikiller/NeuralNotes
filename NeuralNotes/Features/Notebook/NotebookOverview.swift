@@ -49,7 +49,7 @@ struct NotebookOverview: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
-                        Button("Copertina", systemImage: "paintpalette") { customizingCover = true }
+                        Button("Copertina e fogli", systemImage: "paintpalette") { customizingCover = true }
                         Button("Modifica", systemImage: "square.and.pencil") { isEditing = true }
                             .accessibilityIdentifier("editOpenedNotebookButton")
                     }

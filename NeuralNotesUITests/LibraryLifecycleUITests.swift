@@ -13,7 +13,7 @@ final class LibraryLifecycleUITests: XCTestCase {
         app.buttons["saveNotebookButton"].tap()
         let notebook = app.buttons.matching(NSPredicate(format: "label == %@", "Anteprima")).firstMatch
         XCTAssertTrue(notebook.waitForExistence(timeout: 5)); notebook.press(forDuration: 1)
-        let cover = app.buttons["Personalizza copertina"]
+        let cover = app.buttons["Copertina e fogli"]
         XCTAssertTrue(cover.waitForExistence(timeout: 5)); cover.tap()
         let toggle = app.switches["coverLastEditedPage"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
@@ -25,6 +25,14 @@ final class LibraryLifecycleUITests: XCTestCase {
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: toggle)
         wait(for: [enabled], timeout: 5)
+        app.segmentedControls.buttons["Fogli"].tap()
+        let margin = app.switches["Margine sinistro"]
+        XCTAssertTrue(margin.waitForExistence(timeout: 5))
+        let previousMargin = margin.value as? String
+        margin.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        let expectedMargin = previousMargin == "1" ? "0" : "1"
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expectedMargin), object: margin)
+        wait(for: [changed], timeout: 5)
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.lifetime = .keepAlways; add(screenshot)
         app.buttons["saveCoverButton"].tap()
         XCTAssertTrue(notebook.waitForExistence(timeout: 5))
@@ -32,7 +40,10 @@ final class LibraryLifecycleUITests: XCTestCase {
         XCTAssertTrue(notebook.waitForExistence(timeout: 10)); notebook.press(forDuration: 1)
         XCTAssertTrue(cover.waitForExistence(timeout: 5)); cover.tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: toggle)], timeout: 5)
         XCTAssertEqual(toggle.value as? String, "1")
+        app.segmentedControls.buttons["Fogli"].tap()
+        XCTAssertEqual(margin.value as? String, expectedMargin)
     }
 
     @MainActor

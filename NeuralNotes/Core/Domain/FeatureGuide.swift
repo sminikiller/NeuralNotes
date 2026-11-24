@@ -275,13 +275,13 @@ public struct FeatureGuide: Identifiable, Sendable {
         .init("backup", .protection, "Backup automatici e recupero", "externaldrive.badge.checkmark", "Versioni locali e copie esterne.", [
             "Apri Spazio e archiviazione per vedere i backup e configurare una cartella esterna per le copie automatiche.",
             "Conserva un export nativo in File prima di aggiornare o spostare il Playground. Copie diverse dell’app possono usare librerie locali separate.",
-            "Se mancano quaderni apri Recupero quaderni o importa un backup. Non eliminare i dati dell’app per risolvere un errore di compilazione." ]),
+            "Se mancano quaderni apri Account e servizi → Assistenza sui quaderni → Recupero quaderni o importa un backup. Non eliminare i dati dell’app per risolvere un errore di compilazione." ]),
         .init("status", .protection, "Stato del salvataggio e spazio", "checkmark.circle", "Dettagli a richiesta e conferme discrete.", [
             "Tocca l’icona di stato in basso per i dettagli e il comando Salva adesso.",
             "Le conferme appaiono pochi istanti. In caso di errore controlla spazio libero e permessi prima di chiudere.",
             "Da Spazio e archiviazione controlla audio e backup. Due copie recenti vengono protette anche se superano il budget calcolato." ]),
         .init("diagnostics", .protection, "Verifica sul dispositivo", "checkmark.seal", "Controlli isolati e collaudo fisico.", [
-            "Dalla libreria apri Verifica sul dispositivo ed esegui i controlli integrati.",
+            "Nella versione di sviluppo trovi Verifica sul dispositivo in Account e servizi → Assistenza sui quaderni.",
             "I test usano documenti di prova e mostrano i risultati per area. Non sostituiscono il collaudo del tuo materiale reale.",
             "Prima della delivery verifica audio lungo, standby, fotocamera, PDF grandi e un aggiornamento conservando il backup dei quaderni." ]),
         .init("laser", .writing, "Puntatore laser", "scope", "Indica un punto senza aggiungere inchiostro permanente.", [

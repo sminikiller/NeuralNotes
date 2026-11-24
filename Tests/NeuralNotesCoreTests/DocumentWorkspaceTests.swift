@@ -205,6 +205,33 @@ final class DocumentWorkspaceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: file), photo)
     }
 
+    func testEditingNotebookAppearancePreservesOldPagesAndReusesCoverFile() async throws {
+        let (root, _, _, workspace) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try await workspace.addDefaultPage()
+        try await workspace.setCoverAppearance(image: Data([1, 2]), design: CoverDesign())
+        let initial = try await workspace.catalog()
+        var paper = PageTemplate(paper: .grid)
+        paper.appearance.tone = .slate
+        try await workspace.updateAppearance(design: CoverDesign(), useLastEditedPage: false, image: .keep, template: paper)
+        let catalog = try await workspace.catalog()
+        XCTAssertNotNil(initial.coverImageFile)
+        XCTAssertEqual(catalog.coverImageFile, initial.coverImageFile)
+        let next = try await workspace.addDefaultPage()
+        XCTAssertEqual(next.paper, .grid)
+        XCTAssertEqual(next.appearance?.tone, .slate)
+        let pages = try await workspace.pages()
+        XCTAssertEqual(pages.first(where: { $0.id == first.id }), first)
+        paper.pdfFile = "attachments/missing.pdf"
+        do {
+            try await workspace.updateAppearance(design: CoverDesign(), useLastEditedPage: true, image: .replace(nil), template: paper)
+            XCTFail("Expected invalid template")
+        } catch LibraryFailure.corruptDocument { }
+        let afterFailure = try await workspace.catalog()
+        XCTAssertEqual(afterFailure.coverImageFile, initial.coverImageFile)
+        XCTAssertEqual(afterFailure.coverUsesLastEditedPage, false)
+    }
+
     func testUnsafePathsAreRejected() async throws {
         let (root, _, _, workspace) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

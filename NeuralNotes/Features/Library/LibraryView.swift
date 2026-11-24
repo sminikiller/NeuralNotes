@@ -171,6 +171,7 @@ struct LibraryView: View {
                 }
             }
         .alert("Integrità dei documenti", isPresented: $showIntegrityReport) {
+            Button("Recupero quaderni") { sheet = .recovery }
             Button("OK", role: .cancel) { }
         } message: { Text(model.integrityIssues.joined(separator: "\n\n")) }
     }
@@ -246,19 +247,13 @@ struct LibraryView: View {
             if !model.allTags.isEmpty {
                 Section("Tag") { ForEach(model.allTags, id: \.self) { tag in Label(tag, systemImage: "number").tag(LibraryScope.tag(tag)) } }
             }
-            Section {
-                Label("Sul tuo iPad", systemImage: "internaldrive")
-                    .font(.footnote).foregroundStyle(.secondary)
+            Section("Strumenti") {
                 Button { sheet = .search } label: { Label("Cerca negli appunti", systemImage: "magnifyingglass") }
-                Button { sheet = .help } label: { Label("Guida completa", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
-                Button { sheet = .about } label: { Label("Informazioni su NeuralNotes", systemImage: "info.circle") }.accessibilityIdentifier("libraryAbout")
-                Button { sheet = .diagnostics } label: { Label("Verifica sul dispositivo", systemImage: "checkmark.seal") }
-                Button { sheet = .recovery } label: { Label("Recupero quaderni", systemImage: "arrow.uturn.backward.circle") }
                 Button { importingNotebook = true } label: { Label("Importa PDF o quaderno", systemImage: "square.and.arrow.down") }
                     .disabled(model.importing)
                 if model.importing { ProgressView("Importazione del quaderno…") }
-            } footer: {
-                Text("I tuoi quaderni, uno spazio per le idee.")
+                Button { sheet = .help } label: { Label("Guida completa", systemImage: "questionmark.circle") }.accessibilityIdentifier("libraryGuide")
+                Button { sheet = .about } label: { Label("Informazioni su NeuralNotes", systemImage: "info.circle") }.accessibilityIdentifier("libraryAbout")
             }
         }
         .navigationTitle("NeuralNotes")
@@ -282,9 +277,8 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("SPAZIO ALLE IDEE").font(.caption.weight(.semibold)).tracking(2).foregroundStyle(Brand.accent)
                         Text(model.title).font(.largeTitle.bold())
-                        Text("\(model.visibleNotebooks.count) quaderni · salvati sul dispositivo")
+                        Text(model.visibleNotebooks.count == 1 ? "1 quaderno" : "\(model.visibleNotebooks.count) quaderni")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
@@ -407,7 +401,7 @@ struct LibraryView: View {
             Button("Modifica e rinomina", systemImage: "pencil") { sheet = .editNotebook(notebook) }
             Button("Tag e organizzazione", systemImage: "tag") { sheet = .organization(notebook) }
             Button(model.organization[notebook.id]?.pinned == true ? "Rimuovi da primo piano" : "Metti in primo piano", systemImage: "pin") { Task { await model.togglePinned(notebook) } }
-            Button("Personalizza copertina", systemImage: "paintpalette") { sheet = .cover(notebook) }
+            Button("Copertina e fogli", systemImage: "paintpalette") { sheet = .cover(notebook) }
             Button("Spazio e recupero", systemImage: "externaldrive") { sheet = .storage(notebook) }
             Button(notebook.isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti", systemImage: "star") { model.toggleFavorite(notebook) }
             Button("Duplica", systemImage: "plus.square.on.square") { Task { await model.duplicate(notebook) } }
