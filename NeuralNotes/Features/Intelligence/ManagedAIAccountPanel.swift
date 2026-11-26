@@ -23,6 +23,8 @@ struct ManagedAIAccountPanel: View {
     @State private var deleteSentAt: Date?
     @State private var confirmDeletion = false
     @State private var exported: AccountExport?
+    @AppStorage("account.apple.subject") private var appleSubject = ""
+    @State private var appleAuthorized = false
     @State private var appleNonce: String?
     var body: some View {
         Form {
@@ -49,15 +51,19 @@ struct ManagedAIAccountPanel: View {
                     Button("Aggiorna consumi", systemImage: "arrow.clockwise") { refreshOverview() }.disabled(busy)
                 }
             } else {
+                if appleAuthorized {
+                    Label("Account Apple collegato", systemImage: "person.crop.circle.badge.checkmark")
+                    Button("Esci da questo dispositivo") { appleSubject = ""; appleAuthorized = false }
+                }
                 if Bundle.main.object(forInfoDictionaryKey: "NNAppleLoginSigned") as? Bool == true,
-                   let service = ManagedAIAccount.bundledStudyURL {
+                   !appleAuthorized || ManagedAIAccount.bundledStudyURL != nil {
                     Section("Account Apple") {
                         SignInWithAppleButton(.signIn) { request in
                             let nonce = UUID().uuidString + UUID().uuidString
                             appleNonce = nonce
                             request.requestedScopes = [.email]
                             request.nonce = SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
-                        } onCompletion: { result in finishAppleLogin(result, service: service) }
+                        } onCompletion: { result in finishAppleLogin(result, service: ManagedAIAccount.bundledStudyURL) }
                         .frame(height: 46).disabled(busy)
                     }
                 }
@@ -74,9 +80,13 @@ struct ManagedAIAccountPanel: View {
             if let error { Text(error).foregroundStyle(.red) }
         }.navigationTitle("Account NeuralNotes")
             .task {
+                await refreshAppleCredential()
                 account = await ManagedAIAccount.client.snapshot()
                 endpoint = account?.service.studyURL.absoluteString ?? ManagedAIAccount.bundledStudyURL?.absoluteString ?? (initial.engine == .backend ? initial.endpoint : "")
                 if account != nil { overview = try? await ManagedAIAccount.overview(); displayName = overview?.displayName ?? "" }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: ASAuthorizationAppleIDProvider.credentialRevokedNotification)) { _ in
+                Task { await refreshAppleCredential() }
             }
             .interactiveDismissDisabled(busy)
             .sheet(item: $exported, onDismiss: { if let file = exportedFile { try? FileManager.default.removeItem(at: file) }; exportedFile = nil }) { item in AccountExportShare(url: item.url) }
@@ -163,13 +173,29 @@ struct ManagedAIAccountPanel: View {
             catch { self.error = error.localizedDescription; notice = "Se la rimozione era già iniziata, richiedi un nuovo codice per riprenderla."; deleteCodeSent = false }
         }
     }
-    private func finishAppleLogin(_ result: Result<ASAuthorization, Error>, service: URL) {
+    private func refreshAppleCredential() async {
+        let subject = appleSubject
+        guard !subject.isEmpty else { appleAuthorized = false; return }
+        do {
+            let state = try await ASAuthorizationAppleIDProvider().credentialState(forUserID: subject)
+            guard appleSubject == subject else { return }
+            appleAuthorized = state == .authorized
+            if state == .revoked || state == .notFound {
+                appleSubject = ""
+                try await ManagedAIAccount.client.signOut()
+                account = nil; overview = nil; CloudBackupService.shared.accountDidChange()
+            }
+        } catch { appleAuthorized = false }
+    }
+    private func finishAppleLogin(_ result: Result<ASAuthorization, Error>, service: URL?) {
         let nonce = appleNonce
         appleNonce = nil
         do {
             let authorization = try result.get()
             guard !busy, let nonce, let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let bytes = credential.identityToken, let token = String(data: bytes, encoding: .utf8) else { throw ManagedAIFailure.response }
+            appleSubject = credential.user; appleAuthorized = true
+            guard let service else { return }
             busy = true; error = nil
             job = Task {
                 defer { busy = false }
@@ -204,7 +230,7 @@ struct ManagedAIAccountPanel: View {
         guard !busy else { return }; busy = true; error = nil
         job = Task {
             defer { busy = false }
-            do { try await ManagedAIAccount.client.signOut(); account = nil; overview = nil; CloudBackupService.shared.accountDidChange() }
+            do { try await ManagedAIAccount.client.signOut(); appleSubject = ""; appleAuthorized = false; account = nil; overview = nil; CloudBackupService.shared.accountDidChange() }
             catch { account = await ManagedAIAccount.client.snapshot(); self.error = error.localizedDescription }
         }
     }

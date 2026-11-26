@@ -97,7 +97,7 @@ if cloud:
     entitlements['com.apple.developer.icloud-container-environment'] = 'Production'
 granted = plistlib.loads((folder / 'profile.plist').read_bytes())['Entitlements']
 apple_key = 'com.apple.developer.applesignin'
-apple_login = bool(info.get('NeuralNotesServiceURL')) and 'Default' in granted.get(apple_key, [])
+apple_login = 'Default' in granted.get(apple_key, [])
 if apple_login:
     entitlements[apple_key] = ['Default']
 info['NNAppleLoginSigned'] = apple_login

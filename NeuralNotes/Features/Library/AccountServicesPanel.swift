@@ -11,6 +11,7 @@ struct AccountServicesPanel: View {
     let library: LibraryViewModel
     @Bindable private var cloud = CloudBackupService.shared
     @Bindable private var iCloud = CloudNotebookSync.shared
+    @AppStorage("account.apple.subject") private var appleSubject = ""
     @State private var account: ManagedAISession?
     @State private var configuration = AIEngineStore.load()
     @State private var consent: String?
@@ -20,10 +21,10 @@ struct AccountServicesPanel: View {
         NavigationStack {
             List {
                 Section("Account") {
-                    serviceButton("Account Apple e iCloud", detail: iCloud.status, icon: "person.crop.circle", target: .iCloud)
+                    serviceButton("Account Apple", detail: appleSubject.isEmpty ? "Accedi con Apple" : "Gestisci account e servizi", icon: "person.crop.circle", target: .account)
                 }
                 Section("Servizi collegati") {
-                    serviceButton("Servizi online", detail: account?.email ?? "Collega con Apple", icon: "link", target: .account)
+                    serviceButton("iCloud per i quaderni", detail: iCloud.status, icon: "icloud", target: .iCloud)
                     serviceButton("Centro sincronizzazione", detail: cloudDetail, icon: "arrow.triangle.2.circlepath.icloud", target: .cloud)
                 }
                 Section("Intelligenza artificiale") {
