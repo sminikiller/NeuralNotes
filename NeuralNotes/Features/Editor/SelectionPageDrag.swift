@@ -104,9 +104,11 @@ final class SelectionPageDragController: NSObject, UIDragInteractionDelegate {
         // never notebook contents, and the session cannot leave this app.
         provider.registerDataRepresentation(forTypeIdentifier: SelectionPageDragPayload.type.identifier, visibility: .all) { completion in completion(data, nil); return nil }
         let item = UIDragItem(itemProvider: provider); item.localObject = payload
-        if let image = try? model.selectionImage() {
-            let preview = UIImageView(image: image), factor = min(1, 240 / max(image.size.width, image.size.height))
-            preview.frame = CGRect(origin: .zero, size: CGSize(width: image.size.width * factor, height: image.size.height * factor))
+        // Lift the pixels already on screen. Rendering the document selection
+        // synchronously here can stall UIKit before the drag session starts.
+        let visible = source.frame.intersection(host.bounds)
+        if !visible.isEmpty, !visible.isNull,
+           let preview = host.resizableSnapshotView(from: visible, afterScreenUpdates: false, withCapInsets: .zero) {
             let parameters = UIDragPreviewParameters(); parameters.backgroundColor = .clear
             item.previewProvider = { UIDragPreview(view: preview, parameters: parameters) }
         }

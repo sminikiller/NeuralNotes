@@ -64,7 +64,7 @@ private struct SelectionPageDropThumbnail: View {
             VStack(spacing: 4) {
                 PageThumbnail(page: page, workspace: model.workspace, maxDimension: 160).frame(width: 70, height: 90).clipped()
                 Text("\(number)").font(.caption.monospacedDigit())
-            }.padding(4).background(targeted ? Brand.accent.opacity(0.35) : .clear, in: RoundedRectangle(cornerRadius: 8))
+            }.padding(4).contentShape(Rectangle()).background(targeted ? Brand.accent.opacity(0.35) : .clear, in: RoundedRectangle(cornerRadius: 8))
         }.buttonStyle(.plain).disabled(model.selectionDropPending)
             .accessibilityLabel("Pagina \(number), \(model.selectionDragCopy ? "copia" : "sposta") la selezione")
             .accessibilityIdentifier("selectionPageDrop-\(number)")

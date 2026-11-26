@@ -4,7 +4,9 @@ Team `64R668842U`, App ID `com.lorenzominichilli.neuralnotes`, contenitore `iClo
 
 ## Stato e attivazione
 
-Il 24 novembre 2026 l’API di App Store Connect ha restituito l’App ID senza capability iCloud o Sign in with Apple. Il profilo di distribuzione in uso su GitHub non concede il contenitore. La build 217 ha completato l’elaborazione con zero errori e l’avviso SDK 90725. [Controllo capability e profilo](https://github.com/sminikiller/NeuralNotes/actions/runs/45347036625) · [Dettagli upload Apple](https://github.com/sminikiller/NeuralNotes/actions/runs/45347437603).
+Il 24 novembre 2026 il team ha registrato il contenitore e lo ha associato a NeuralNotes con supporto CloudKit. La console Apple ha confermato il deploy in Production dei tipi NNLibrary, NNNotebook e NNChunk. Il profilo App Store rigenerato con lo stesso certificato autorizza il contenitore e l’ambiente Production. La verifica di distribuzione richiede la build firmata e la prova su due dispositivi con lo stesso Account Apple. [Verifica del profilo e dell’App ID](https://github.com/sminikiller/NeuralNotes/actions/runs/45465239468).
+
+### Procedura di configurazione e rinnovo
 
 1. In **Apple Developer → Identifiers**, crea il contenitore iCloud indicato sopra e associalo all’App ID con **Include CloudKit support**. [Abilitazione delle capability](https://developer.apple.com/help/account/identifiers/enable-app-capabilities).
 2. In **CloudKit Console → CloudKit Database**, scegli lo stesso contenitore e crea in **Development** i tre tipi di record elencati sotto. Per automatizzare l’importazione in Development è disponibile anche [NeuralNotes.ckdb](NeuralNotes.ckdb) per `cktool`. Se esistono altri tipi, confronta ed esporta lo schema prima di applicare modifiche. [Schema con cktool](https://developer.apple.com/icloud/ck-tool/).
