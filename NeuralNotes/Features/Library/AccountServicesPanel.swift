@@ -20,11 +20,11 @@ struct AccountServicesPanel: View {
         NavigationStack {
             List {
                 Section("Account") {
-                    serviceButton("Account NeuralNotes", detail: account?.email ?? (account == nil ? "Accesso non effettuato" : "Collegato"), icon: "person.crop.circle", target: .account)
+                    serviceButton("Account Apple e iCloud", detail: iCloud.status, icon: "person.crop.circle", target: .iCloud)
                 }
-                Section("I tuoi quaderni") {
+                Section("Servizi collegati") {
+                    serviceButton("Servizi online", detail: account?.email ?? "Collega con Apple", icon: "link", target: .account)
                     serviceButton("Centro sincronizzazione", detail: cloudDetail, icon: "arrow.triangle.2.circlepath.icloud", target: .cloud)
-                    serviceButton("Account Apple e iCloud", detail: iCloud.status, icon: "icloud", target: .iCloud)
                 }
                 Section("Intelligenza artificiale") {
                     serviceButton("Motore AI", detail: configuration.engine == .offline ? "Sintesi locale · offline" : "\(configuration.engine.title) · configura e prova la connessione", icon: "sparkles", target: .ai)

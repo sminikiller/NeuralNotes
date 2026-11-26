@@ -6,6 +6,7 @@ import NeuralNotesCore
 final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     weak var host: CanvasHost?
     weak var model: EditorViewModel?
+    private let rotateTextButton = UIButton(type: .system)
     private let outline = CAShapeLayer(), handle = CAShapeLayer(), marquee = CAShapeLayer()
     /// Words under a Lens stroke, highlighted like a marker while the stroke goes on.
     private let wordHighlight = CAShapeLayer()
@@ -35,6 +36,13 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model
         super.init()
+        rotateTextButton.setImage(UIImage(systemName: "rotate.right"), for: .normal)
+        rotateTextButton.backgroundColor = .secondarySystemBackground
+        rotateTextButton.layer.cornerRadius = 18
+        rotateTextButton.accessibilityLabel = "Ruota testo di 15 gradi"
+        rotateTextButton.addAction(UIAction { [weak model] _ in model?.transformSelection(degrees: 15) }, for: .touchUpInside)
+        rotateTextButton.isHidden = true
+        host.addSubview(rotateTextButton)
         outline.fillColor = UIColor.clear.cgColor; outline.strokeColor = UIColor.systemTeal.cgColor; outline.lineWidth = 2
         handle.fillColor = UIColor.systemTeal.cgColor
         marquee.fillColor = UIColor.systemTeal.withAlphaComponent(0.1).cgColor
@@ -109,6 +117,14 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if swipe.isEnabled != enabled { swipe.isEnabled = enabled }
             if swipe.numberOfTouchesRequired != touches { swipe.numberOfTouchesRequired = touches }
         }
+        if let host, let model, model.tool == .objects, !model.movingObjects, !model.selectionPageDragMode,
+           model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.texts.contains(where: { $0.id == id }) == true,
+           let box = objectRect(id) {
+            let rect = host.surface.convert(box, to: host)
+            rotateTextButton.frame = CGRect(x: rect.midX - 18, y: max(0, rect.minY - 39), width: 36, height: 36)
+            rotateTextButton.isHidden = !host.bounds.intersects(rect)
+            host.bringSubviewToFront(rotateTextButton)
+        } else { rotateTextButton.isHidden = true }
         guard let host, let model, model.tool == .objects else { outline.path = nil; handle.path = nil; return }
         let path = UIBezierPath()
         for id in model.selectedIDs {
@@ -283,7 +299,8 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             for id in model.selectedIDs { original[id] = objectRect(id, visual: false) }
             if model.selectionIncludesInk { original[inkID] = model.selectedInkBounds }
             if original.count == 1, !model.selectionIncludesInk, let rect = original.values.first {
-                resizing = hypot(point.x - rect.maxX, point.y - rect.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
+                let corner = original.keys.first.flatMap { objectRect($0) } ?? rect
+                resizing = hypot(point.x - corner.maxX, point.y - corner.maxY) <= 24 / max(host.canvas.zoomScale, 0.1)
                 if let id = original.keys.first, page.shapes?.contains(where: { $0.id == id }) == true { resizing = false }
                 if let id = original.keys.first, page.connectors?.contains(where: { $0.id == id }) == true { resizing = false }
                 if let id = original.keys.first, page.texts.first(where: { $0.id == id })?.lensNote?.isCollapsed == true { resizing = false }
@@ -643,9 +660,13 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
 @MainActor
 extension CanvasInteraction: UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard let host, let model, model.hasLease, model.tool == .objects, !model.selectionPageDragMode,
+        guard let host, let model, model.hasLease, (model.tool == .objects || model.tool == .text), model.editingTextID == nil, !model.selectionPageDragMode,
               !model.interactionBusy, !model.navigating, !model.loading,
               let id = hit(host.surface.convert(location, from: host)) else { return nil }
+        if model.tool == .text {
+            guard model.page?.texts.contains(where: { $0.id == id }) == true else { return nil }
+            model.chooseTool(.objects)
+        }
         if id != inkID && !model.selectedIDs.contains(id) { model.selectedObjectID = id }; refresh()
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
             guard let model = self?.model else { return nil }
@@ -672,7 +693,8 @@ extension CanvasInteraction: UIContextMenuInteractionDelegate {
             }
             let cut = UIAction(title: "Taglia", image: UIImage(systemName: "scissors")) { _ in model.cutSelection() }
             if id == self?.inkID { return UIMenu(children: [cut, copy, duplicate, remove]) }
-            var items: [UIMenuElement] = [edit, cut, copy, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
+            let paste = UIAction(title: "Incolla", image: UIImage(systemName: "doc.on.clipboard")) { _ in Task { await model.pasteSelection() } }
+            var items: [UIMenuElement] = [edit, cut, copy, paste, duplicate, ai, UIMenu(title: "Livelli", children: [front, back, lock]), remove]
             if model.page?.shapes?.contains(where: { $0.id == id }) == true || model.page?.connectors?.contains(where: { $0.id == id }) == true {
                 items.insert(UIAction(title: "Modifica etichetta", image: UIImage(systemName: "textformat")) { _ in model.editDiagramLabel(id) }, at: 1)
             }

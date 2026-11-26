@@ -106,9 +106,8 @@ extension EditorViewModel {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         original.ink.color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         shape.red = Double(red); shape.green = Double(green); shape.blue = Double(blue)
-        let widths = original.path.map { min($0.size.width, $0.size.height) }.sorted()
-        let sampledWidth = widths.isEmpty ? thickness : Double(widths[widths.count / 2])
-        shape.lineWidth = max(0.1, min(thickness, sampledWidth)); shape.strokeOpacity = Double(alpha)
+        shape.lineWidth = Double((canvas.tool as? PKInkingTool)?.width ?? CGFloat(thickness))
+        shape.strokeOpacity = Double(alpha)
         let originalSignature = EditorInkSignatures.make(canvas.drawing).last
         guard var current = page else { return false }
         if let signature = originalSignature {

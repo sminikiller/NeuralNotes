@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import QuickLook
 import Observation
 import PencilKit
 import UniformTypeIdentifiers
@@ -200,6 +201,11 @@ struct PDFStudyPanel: View {
     @State private var inserting = false
     @State private var research: PDFResearchTerm?
     @State private var error: String?
+    private static let presentationTypes = ["ppt", "pptx"].compactMap { UTType(filenameExtension: $0) }
+    private var showingSlides: Bool { externalURL.map(Self.isPresentation) ?? false }
+    private static func isPresentation(_ url: URL) -> Bool {
+        ["ppt", "pptx"].contains(url.pathExtension.lowercased())
+    }
     private var isExternal: Bool { externalURL?.absoluteString == selectedFile }
     private var files: [String] { Array(Set(model.pages.compactMap(\.pdfFile))).sorted() }
     var body: some View {
@@ -225,7 +231,7 @@ struct PDFStudyPanel: View {
             do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
             matchIndex = 0; controller.search(query)
         }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf] + Self.presentationTypes) { result in
             do { try openReference(result.get()); clipping = false } catch CocoaError.userCancelled { } catch { self.error = error.localizedDescription }
         }
         .sheet(item: $research) { item in PDFResearchSheet(model: model, term: item.text) }
@@ -237,7 +243,7 @@ struct PDFStudyPanel: View {
     private var header: some View {
         HStack(spacing: 2) {
             Menu {
-                Button("Apri PDF da File", systemImage: "folder") { importing = true }.accessibilityIdentifier("openReferencePDF")
+                Button("Apri PDF o PowerPoint da File", systemImage: "folder") { importing = true }.accessibilityIdentifier("openReferencePDF")
                 ForEach(files, id: \.self) { file in
                     Button(URL(fileURLWithPath: file).lastPathComponent) { chooseInternal(file); clipping = false }
                 }
@@ -248,6 +254,7 @@ struct PDFStudyPanel: View {
                     Image(systemName: "chevron.down").font(.caption2)
                 }.font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
             }.accessibilityIdentifier("studyPDFSource")
+            if !showingSlides {
             Button { searching.toggle(); if !searching { query = "" } } label: { Image(systemName: "magnifyingglass").frame(width: 38, height: 44) }
                 .accessibilityLabel("Cerca nel PDF")
             Button { clipping.toggle(); conceptMode = false } label: { Image(systemName: "crop").frame(width: 38, height: 44).background(clipping ? Brand.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 8)) }
@@ -262,6 +269,7 @@ struct PDFStudyPanel: View {
                 Button("Apri questa pagina nell’editor", systemImage: "arrow.left.to.line") { openCurrentPage() }.disabled(isExternal || selectedFile.isEmpty)
             } label: { Image(systemName: "ellipsis.circle").frame(width: 38, height: 44) }
                 .accessibilityLabel("Azioni PDF")
+            }
             Button { controller.capturePosition(); close() } label: { Image(systemName: "xmark").frame(width: 38, height: 44) }
                 .accessibilityLabel("Chiudi pannello").accessibilityIdentifier("closeStudyInspector")
         }.buttonStyle(.plain).foregroundStyle(Brand.accent).padding(.horizontal, 8)
@@ -294,15 +302,17 @@ struct PDFStudyPanel: View {
         }.padding(.horizontal, 8)
     }
     @ViewBuilder private var documentView: some View {
-        if !selectedFile.isEmpty {
+        if showingSlides, let externalURL {
+            PresentationReader(url: externalURL).id(externalURL)
+        } else if !selectedFile.isEmpty {
             StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package,
                 index: initialIndex, pages: model.pages, external: isExternal ? externalURL : nil,
                 conceptMode: conceptMode, clipping: clipping, onSnippet: insertSnippet,
                 onConcept: { text in conceptMode = false; model.lensAsk(text: text, fromSidePDF: true) })
         } else {
             ContentUnavailableView {
-                Label("PDF di riferimento", systemImage: "doc")
-            } description: { Text("Leggi un PDF accanto al foglio. Seleziona testo o ritaglia un’immagine da inserire negli appunti.") } actions: { Button("Apri PDF da File") { importing = true }.accessibilityIdentifier("openReferencePDF") }
+                Label("Documento di riferimento", systemImage: "doc")
+            } description: { Text("Leggi un PDF accanto al foglio. Seleziona testo o ritaglia un’immagine da inserire negli appunti.") } actions: { Button("Apri PDF o PowerPoint da File") { importing = true }.accessibilityIdentifier("openReferencePDF") }
         }
     }
     private func openCurrentPage() {
@@ -375,14 +385,20 @@ struct PDFStudyPanel: View {
     }
     private func openReference(_ url: URL, index: Int = 0) throws {
         let access = url.startAccessingSecurityScopedResource()
-        guard let document = PDFDocument(url: url), !document.isLocked, document.pageCount > 0 else {
+        let slides = Self.isPresentation(url)
+        let document = slides ? nil : PDFDocument(url: url)
+        guard slides ? QLPreviewController.canPreview(url as NSURL) : (document?.isLocked == false && (document?.pageCount ?? 0) > 0) else {
             if access { url.stopAccessingSecurityScopedResource() }; throw PDFImportFailure.unreadable
         }
         let bookmark: Data
         do { bookmark = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil) }
         catch { if access { url.stopAccessingSecurityScopedResource() }; throw error }
         releaseReference(); externalURL = url; scoped = access
-        controller.preparedExternal = (url, document)
+        if let document { controller.preparedExternal = (url, document) }
+        if slides {
+            controller.detach(); controller.view = nil; controller.hasSelection = false
+            clipping = false; searching = false; conceptMode = false; query = ""
+        }
         remember(url.absoluteString, bookmark: bookmark, index: index); error = nil
     }
     private func releaseReference() {
@@ -415,4 +431,21 @@ extension EditorViewModel {
             pages = try await workspace.pages(); scheduleMaintenance()
         } catch { self.error = error.localizedDescription }
     }
+}
+
+private struct PresentationReader: UIViewControllerRepresentable {
+    let url: URL
+    final class Source: NSObject, QLPreviewControllerDataSource {
+        let url: NSURL
+        init(_ url: URL) { self.url = url as NSURL }
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url }
+    }
+    func makeCoordinator() -> Source { Source(url) }
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+    func updateUIViewController(_ controller: QLPreviewController, context: Context) {}
 }

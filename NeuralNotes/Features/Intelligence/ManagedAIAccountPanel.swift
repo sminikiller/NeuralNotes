@@ -11,10 +11,6 @@ struct ManagedAIAccountPanel: View {
     var offersAIConfiguration = true
     @Environment(\.dismiss) private var dismiss
     @State private var endpoint = ""
-    @State private var email = ""
-    @State private var code = ""
-    @State private var sentTo: String?
-    @State private var sentAt: Date?
     @State private var account: ManagedAISession?
     @State private var overview: ManagedAccountOverview?
     @State private var busy = false
@@ -32,7 +28,7 @@ struct ManagedAIAccountPanel: View {
         Form {
             Section {
                 Label("Account NeuralNotes", systemImage: "person.crop.circle").font(.headline)
-                Text("Accedi con un codice email. Modelli e chiavi sono gestiti dal servizio. I contenuti vengono inviati quando usi l’AI online o colleghi un quaderno al cloud.").font(.caption)
+                Text("Collega i servizi con il tuo Account Apple. Modelli e chiavi sono gestiti dal servizio. I contenuti vengono inviati quando usi l’AI online o colleghi un quaderno al cloud.").font(.caption)
             }
             if let account {
                 Section("Account") {
@@ -65,7 +61,6 @@ struct ManagedAIAccountPanel: View {
                         .frame(height: 46).disabled(busy)
                     }
                 }
-                login
             }
             if endpoint.isEmpty {
                 Section { Text("Il servizio online non è ancora attivato in questo pacchetto. La scrittura e le funzioni locali sono disponibili.").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("managedAINotConfigured") }
@@ -159,44 +154,13 @@ struct ManagedAIAccountPanel: View {
                 for _ in 0..<100 {
                     try Task.checkCancellation(); notice = "Rimozione delle copie online in corso…"
                     if try await ManagedAIAccount.deleteAccount(owner: owner) {
-                        account = nil; overview = nil; sentTo = nil; deleteCodeSent = false
+                        account = nil; overview = nil; deleteCodeSent = false
                         notice = "Account eliminato. I quaderni locali sono conservati."; return
                     }
                 }
                 notice = "Rimozione ancora in corso. Richiedi un nuovo codice per riprenderla; gli appunti locali sono conservati."
             } catch is CancellationError { }
             catch { self.error = error.localizedDescription; notice = "Se la rimozione era già iniziata, richiedi un nuovo codice per riprenderla."; deleteCodeSent = false }
-        }
-    }
-    private var login: some View {
-        Section("Accesso con email") {
-            TextField("Email", text: $email).keyboardType(.emailAddress).textContentType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled().disabled(busy)
-                .accessibilityIdentifier("managedAIEmail")
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let remaining = max(0, Int(ceil(60 - context.date.timeIntervalSince(sentAt ?? .distantPast))))
-                Button(sentTo == nil ? "Invia codice" : remaining > 0 ? "Nuovo codice fra \(remaining) s" : "Invia un nuovo codice") { sendCode() }
-                    .disabled(busy || endpoint.isEmpty || remaining > 0).accessibilityIdentifier("managedAISendCode")
-            }
-            if let sentTo {
-                Text("Se l’indirizzo è abilitato riceverai un codice su \(sentTo).").font(.caption)
-                TextField("Codice email", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode).disabled(busy)
-                    .accessibilityIdentifier("managedAICode")
-                Button("Accedi") { verify() }.disabled(busy || code.isEmpty || email.trimmingCharacters(in: .whitespacesAndNewlines) != sentTo)
-                    .accessibilityIdentifier("managedAIVerify")
-            }
-        }
-    }
-    private func sendCode() {
-        guard let url = URL(string: endpoint), !busy else { return }; busy = true; error = nil
-        let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        job = Task {
-            defer { busy = false }
-            do {
-                _ = try await ManagedAIAccount.client.connect(studyURL: url)
-                try await ManagedAIAccount.client.requestCode(email: address)
-                try Task.checkCancellation(); sentTo = address; sentAt = Date(); code = ""
-            } catch is CancellationError { }
-            catch { self.error = error.localizedDescription }
         }
     }
     private func finishAppleLogin(_ result: Result<ASAuthorization, Error>, service: URL) {
@@ -222,16 +186,6 @@ struct ManagedAIAccountPanel: View {
         } catch let failure as ASAuthorizationError where failure.code == .canceled { }
         catch { self.error = error.localizedDescription }
     }
-    private func verify() {
-        guard !busy, let address = sentTo else { return }; busy = true; error = nil
-        let value = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        job = Task {
-            defer { busy = false }
-            do { account = try await ManagedAIAccount.client.verify(email: address, code: value); code = ""; CloudBackupService.shared.accountDidChange(); overview = try? await ManagedAIAccount.overview(); displayName = overview?.displayName ?? "" }
-            catch is CancellationError { }
-            catch { self.error = error.localizedDescription }
-        }
-    }
     private func refreshOverview() {
         guard !busy else { return }; busy = true; error = nil
         job = Task {
@@ -250,7 +204,7 @@ struct ManagedAIAccountPanel: View {
         guard !busy else { return }; busy = true; error = nil
         job = Task {
             defer { busy = false }
-            do { try await ManagedAIAccount.client.signOut(); account = nil; overview = nil; sentTo = nil; code = ""; CloudBackupService.shared.accountDidChange() }
+            do { try await ManagedAIAccount.client.signOut(); account = nil; overview = nil; CloudBackupService.shared.accountDidChange() }
             catch { account = await ManagedAIAccount.client.snapshot(); self.error = error.localizedDescription }
         }
     }

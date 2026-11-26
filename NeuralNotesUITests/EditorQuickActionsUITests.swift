@@ -223,9 +223,9 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
         let access = app.buttons["services-account"].firstMatch
         XCTAssertTrue(access.waitForExistence(timeout: 5)); access.tap()
-        XCTAssertTrue(app.textFields["managedAIEmail"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["managedAINotConfigured"].exists)
-        XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
+        XCTAssertTrue(app.staticTexts["managedAINotConfigured"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["managedAIEmail"].exists)
+        XCTAssertFalse(app.buttons["managedAISendCode"].exists)
     }
 
     @MainActor func testAppleAccountShowsFileBackupsWhenCloudKitIsUnavailable() {
@@ -276,8 +276,8 @@ final class EditorQuickActionsUITests: XCTestCase {
         for _ in 0..<5 where !(account.exists && account.isHittable) { app.swipeUp() }
         account.tap()
         XCTAssertTrue(app.staticTexts["managedAINotConfigured"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.textFields["managedAIEmail"].exists)
-        XCTAssertFalse(app.buttons["managedAISendCode"].isEnabled)
+        XCTAssertFalse(app.textFields["managedAIEmail"].exists)
+        XCTAssertFalse(app.buttons["managedAISendCode"].exists)
     }
 
     @MainActor func testPageStripStaysCompactAndLeavesTheRemainingHeightToTheCanvas() {
