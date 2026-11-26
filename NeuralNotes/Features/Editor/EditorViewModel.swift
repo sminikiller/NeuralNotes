@@ -127,6 +127,7 @@ final class EditorViewModel {
     var selectionPageDragMode = false { didSet { configureTool() } }
     var selectionDragCopy = false
     var selectionDropPending = false
+    @ObservationIgnored let pageDropTargets = NSMapTable<NSUUID, UIView>.strongToWeakObjects()
     @ObservationIgnored let selectionDragOwner = UUID()
     @ObservationIgnored var activeSelectionPageDrag: SelectionPageDragRecord?
     var selectionIncludesInk = false

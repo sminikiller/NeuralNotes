@@ -68,6 +68,7 @@ private struct SelectionPageDropThumbnail: View {
         }.buttonStyle(.plain).disabled(model.selectionDropPending)
             .accessibilityLabel("Pagina \(number), \(model.selectionDragCopy ? "copia" : "sposta") la selezione")
             .accessibilityIdentifier("selectionPageDrop-\(number)")
+            .background(PageDropAnchor(model: model, id: page.id).allowsHitTesting(false))
             .onDrop(of: [SelectionPageDragPayload.type.identifier], delegate: SelectionPageDropDelegate(model: model, pageID: page.id, targeted: $targeted))
     }
     private func transferByTap() {
@@ -79,5 +80,15 @@ private struct SelectionPageDropThumbnail: View {
             do { try await model.completeSelectionPageDrop(data, to: page.id, copy: model.selectionDragCopy) }
             catch { if model.error == nil { model.error = error.localizedDescription } }
         }
+    }
+}
+
+@MainActor
+private struct PageDropAnchor: UIViewRepresentable {
+    let model: EditorViewModel
+    let id: UUID
+    func makeUIView(context: Context) -> UIView { UIView() }
+    func updateUIView(_ view: UIView, context: Context) {
+        model.pageDropTargets.setObject(view, forKey: id as NSUUID)
     }
 }

@@ -72,10 +72,13 @@ extension EditorViewModel {
 }
 
 @MainActor
-final class SelectionPageDragController: NSObject, UIDragInteractionDelegate {
+final class SelectionPageDragController: NSObject {
     private weak var host: CanvasHost?
     private weak var model: EditorViewModel?
     private let source = UIView()
+    private var ticket: Data?
+    private var lift: UIView?
+    private var touchOrigin = CGPoint.zero
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init()
         source.backgroundColor = .clear; source.isOpaque = false; source.isHidden = true
@@ -84,8 +87,9 @@ final class SelectionPageDragController: NSObject, UIDragInteractionDelegate {
         source.accessibilityHint = "Tieni premuto e trascina su una miniatura. Puoi anche toccare direttamente la destinazione."
         // PencilKit has its own drag interaction. A source above the selected
         // area receives this deliberate gesture without competing with it.
-        let interaction = UIDragInteraction(delegate: self); interaction.isEnabled = true
-        source.addInteraction(interaction); host.addSubview(source)
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(trackSelection(_:)))
+        hold.minimumPressDuration = 0.28
+        source.addGestureRecognizer(hold); host.addSubview(source)
     }
     func update() {
         guard let host, let model, model.selectionPageDragMode, !model.loading, !model.navigating,
@@ -95,24 +99,46 @@ final class SelectionPageDragController: NSObject, UIDragInteractionDelegate {
         source.frame = host.surface.convert(model.selectionBounds, to: host)
         source.isHidden = false; host.bringSubviewToFront(source)
     }
-    func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem] {
-        guard let host, let model, model.selectionBounds.contains(session.location(in: host.surface)),
-              let payload = model.makeSelectionPageDrag(), let data = try? JSONEncoder().encode(payload) else { return [] }
-        let provider = NSItemProvider()
-        // UIKit's drag service must be able to advertise this representation
-        // to SwiftUI's destination. It contains only a short-lived ticket,
-        // never notebook contents, and the session cannot leave this app.
-        provider.registerDataRepresentation(forTypeIdentifier: SelectionPageDragPayload.type.identifier, visibility: .all) { completion in completion(data, nil); return nil }
-        let item = UIDragItem(itemProvider: provider); item.localObject = payload
-        // Lift the pixels already on screen. Rendering the document selection
-        // synchronously here can stall UIKit before the drag session starts.
-        let visible = source.frame.intersection(host.bounds)
-        if !visible.isEmpty, !visible.isNull,
-           let preview = host.resizableSnapshotView(from: visible, afterScreenUpdates: false, withCapInsets: .zero) {
-            let parameters = UIDragPreviewParameters(); parameters.backgroundColor = .clear
-            item.previewProvider = { UIDragPreview(view: preview, parameters: parameters) }
+    @objc private func trackSelection(_ gesture: UILongPressGestureRecognizer) {
+        guard let host, let model, let window = source.window else { return }
+        let point = gesture.location(in: window)
+        switch gesture.state {
+        case .began:
+            guard let payload = model.makeSelectionPageDrag() else { return }
+            ticket = try? JSONEncoder().encode(payload)
+            touchOrigin = point
+            let visible = source.frame.intersection(host.bounds)
+            if !visible.isEmpty, let picture = host.resizableSnapshotView(from: visible, afterScreenUpdates: false, withCapInsets: .zero) {
+                picture.frame = host.convert(visible, to: window)
+                picture.alpha = 0.75; picture.isUserInteractionEnabled = false
+                window.addSubview(picture); lift = picture
+            }
+        case .changed:
+            lift?.transform = CGAffineTransform(translationX: point.x - touchOrigin.x, y: point.y - touchOrigin.y)
+        case .ended:
+            lift?.removeFromSuperview(); lift = nil
+            let data = ticket; ticket = nil
+            guard let data, !model.selectionDropPending,
+                  let target = model.pages.first(where: { page in
+                      guard page.id != model.page?.id, let view = model.pageDropTargets.object(forKey: page.id as NSUUID),
+                            view.window === window, view.bounds.contains(view.convert(point, from: window)) else { return false }
+                      var parent = view.superview
+                      while let node = parent {
+                          if node.isHidden || (node.clipsToBounds && !node.bounds.contains(node.convert(point, from: window))) { return false }
+                          parent = node.superview
+                      }
+                      return true
+                  }) else { model.activeSelectionPageDrag = nil; return }
+            model.selectionDropPending = true
+            let copy = model.selectionDragCopy
+            Task {
+                defer { model.selectionDropPending = false }
+                do { try await model.completeSelectionPageDrop(data, to: target.id, copy: copy) }
+                catch { if model.error == nil { model.error = error.localizedDescription } }
+            }
+        case .cancelled, .failed:
+            lift?.removeFromSuperview(); lift = nil; ticket = nil; model.activeSelectionPageDrag = nil
+        default: break
         }
-        return [item]
     }
-    func dragInteraction(_ interaction: UIDragInteraction, sessionIsRestrictedToDraggingApplication session: UIDragSession) -> Bool { true }
 }
