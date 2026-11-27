@@ -25,7 +25,9 @@ struct AccountServicesPanel: View {
                 }
                 Section("Servizi collegati") {
                     serviceButton("iCloud per i quaderni", detail: iCloud.status, icon: "icloud", target: .iCloud)
-                    serviceButton("Centro sincronizzazione", detail: cloudDetail, icon: "arrow.triangle.2.circlepath.icloud", target: .cloud)
+                    if cloud.accountConnected {
+                        serviceButton("Copie del servizio online", detail: cloudDetail, icon: "archivebox", target: .cloud)
+                    }
                 }
                 Section("Intelligenza artificiale") {
                     serviceButton("Motore AI", detail: configuration.engine == .offline ? "Sintesi locale · offline" : "\(configuration.engine.title) · configura e prova la connessione", icon: "sparkles", target: .ai)

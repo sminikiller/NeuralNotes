@@ -1,6 +1,8 @@
 import SwiftUI
 import PDFKit
 import QuickLook
+import WebKit
+import CryptoKit
 import Observation
 import PencilKit
 import UniformTypeIdentifiers
@@ -194,6 +196,8 @@ struct PDFStudyPanel: View {
     @State private var matchIndex = 0
     @State private var importing = false
     @State private var externalURL: URL?
+    @State private var slidePDF: URL?
+    @State private var slideFallback = false
     @State private var scoped = false
     @State private var conceptMode = false
     @State private var clipping = false
@@ -254,7 +258,7 @@ struct PDFStudyPanel: View {
                     Image(systemName: "chevron.down").font(.caption2)
                 }.font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
             }.accessibilityIdentifier("studyPDFSource")
-            if !showingSlides {
+            if !showingSlides || slidePDF != nil {
             Button { searching.toggle(); if !searching { query = "" } } label: { Image(systemName: "magnifyingglass").frame(width: 38, height: 44) }
                 .accessibilityLabel("Cerca nel PDF")
             Button { clipping.toggle(); conceptMode = false } label: { Image(systemName: "crop").frame(width: 38, height: 44).background(clipping ? Brand.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 8)) }
@@ -302,11 +306,21 @@ struct PDFStudyPanel: View {
         }.padding(.horizontal, 8)
     }
     @ViewBuilder private var documentView: some View {
-        if showingSlides, let externalURL {
-            PresentationReader(url: externalURL).id(externalURL)
+        if showingSlides, slidePDF == nil, let externalURL {
+            if slideFallback {
+                PresentationReader(url: externalURL).id(externalURL)
+            } else {
+                SlidePrintReader(url: externalURL) { result in
+                    guard self.externalURL == externalURL else { return }
+                    switch result {
+                    case .success(let file): slidePDF = file
+                    case .failure: slideFallback = true; error = "iPadOS non riesce a preparare questa presentazione per lo studio. È disponibile l’anteprima originale."
+                    }
+                }.id(externalURL)
+            }
         } else if !selectedFile.isEmpty {
             StudyPDFView(controller: controller, file: selectedFile, package: model.workspace.package,
-                index: initialIndex, pages: model.pages, external: isExternal ? externalURL : nil,
+                index: initialIndex, pages: model.pages, external: slidePDF ?? (isExternal ? externalURL : nil),
                 conceptMode: conceptMode, clipping: clipping, onSnippet: insertSnippet,
                 onConcept: { text in conceptMode = false; model.lensAsk(text: text, fromSidePDF: true) })
         } else {
@@ -396,6 +410,10 @@ struct PDFStudyPanel: View {
         releaseReference(); externalURL = url; scoped = access
         if let document { controller.preparedExternal = (url, document) }
         if slides {
+            if let cached = SlidePrintReader.cachedFile(for: url), FileManager.default.fileExists(atPath: cached.path),
+               let pdf = PDFDocument(url: cached), pdf.pageCount > 0 {
+                slidePDF = cached; controller.preparedExternal = (cached, pdf)
+            }
             controller.detach(); controller.view = nil; controller.hasSelection = false
             clipping = false; searching = false; conceptMode = false; query = ""
         }
@@ -403,6 +421,7 @@ struct PDFStudyPanel: View {
     }
     private func releaseReference() {
         if scoped { externalURL?.stopAccessingSecurityScopedResource() }
+        slidePDF = nil; slideFallback = false
         scoped = false; externalURL = nil; controller.preparedExternal = nil
     }
     private func mark(_ kind: PDFMarkupKind) {
@@ -448,4 +467,77 @@ private struct PresentationReader: UIViewControllerRepresentable {
         return controller
     }
     func updateUIViewController(_ controller: QLPreviewController, context: Context) {}
+}
+
+/// Use the local Office print representation so PDFKit can address pages, text and crop coordinates.
+@MainActor
+private struct SlidePrintReader: UIViewRepresentable {
+    let url: URL
+    let finish: (Result<URL, Error>) -> Void
+    static func cachedFile(for url: URL) -> URL? {
+        guard let metadata = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+              let date = metadata.contentModificationDate, let size = metadata.fileSize else { return nil }
+        let key = url.absoluteString + "|" + String(date.timeIntervalSince1970) + "|" + String(size)
+        let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        return FileManager.default.temporaryDirectory.appendingPathComponent("slides-" + digest + ".pdf")
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(url: url, finish: finish) }
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = context.coordinator
+        view.loadFileURL(url, allowingReadAccessTo: url)
+        return view
+    }
+    func updateUIView(_ view: WKWebView, context: Context) {}
+    static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
+        coordinator.task?.cancel(); view.navigationDelegate = nil; view.stopLoading()
+    }
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        let url: URL
+        let finish: (Result<URL, Error>) -> Void
+        var task: Task<Void, Never>?
+        init(url: URL, finish: @escaping (Result<URL, Error>) -> Void) { self.url = url; self.finish = finish }
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            decisionHandler(action.request.url == url ? .allow : .cancel)
+        }
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { finish(.failure(PDFImportFailure.unreadable)) }
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            task?.cancel()
+            task = Task { @MainActor in
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                webView.layoutIfNeeded()
+                let renderer = SlidePageRenderer()
+                renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAt: 0)
+                let count = renderer.numberOfPages
+                guard count > 0 else { finish(.failure(PDFImportFailure.unreadable)); return }
+                let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
+                do {
+                    try UIGraphicsPDFRenderer(bounds: renderer.paperRect).writePDF(to: file) { context in
+                        renderer.prepare(forDrawingPages: NSRange(location: 0, length: count))
+                        for index in 0..<count {
+                            context.beginPage()
+                            renderer.drawPage(at: index, in: renderer.paperRect)
+                        }
+                    }
+                    guard PDFDocument(url: file)?.pageCount == count else { throw PDFImportFailure.unreadable }
+                    if let cached = SlidePrintReader.cachedFile(for: url) {
+                        let manager = FileManager.default
+                        if manager.fileExists(atPath: cached.path) { _ = try manager.replaceItemAt(cached, withItemAt: file) }
+                        else { try manager.moveItem(at: file, to: cached) }
+                        finish(.success(cached))
+                    } else { finish(.success(file)) }
+                } catch { try? FileManager.default.removeItem(at: file); finish(.failure(error)) }
+            }
+        }
+    }
+    private final class SlidePageRenderer: UIPrintPageRenderer {
+        override var paperRect: CGRect { CGRect(x: 0, y: 0, width: 960, height: 540) }
+        override var printableRect: CGRect { paperRect }
+    }
 }

@@ -134,8 +134,10 @@ final class EditorViewModel {
     var selectedStrokeIndices: Set<Int>?
     var selectedInkBounds: CGRect {
         guard let selectedStrokeIndices else { return canvas.drawing.bounds }
-        let rect = selectedStrokeIndices.filter { canvas.drawing.strokes.indices.contains($0) }
-            .reduce(CGRect.null) { $0.union(canvas.drawing.strokes[$1].renderBounds) }
+        let strokes = canvas.drawing.strokes
+        let rect = selectedStrokeIndices.reduce(CGRect.null) { bounds, index in
+            strokes.indices.contains(index) ? bounds.union(strokes[index].renderBounds) : bounds
+        }
         return rect.isNull ? .zero : rect
     }
     var selectedObjectID: UUID? {

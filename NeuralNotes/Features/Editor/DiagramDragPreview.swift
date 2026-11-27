@@ -42,6 +42,12 @@ final class DiagramDragPreview: UIView {
         let selected = Set(frames.keys)
         var overrides: [UUID: ConnectorObject] = [:]
         for (id, frame) in frames {
+            if !resizing, var object = originalObjects[id] {
+                object.rect.x += dx; object.rect.y += dy
+                object.shape?.x += dx; object.shape?.y += dy
+                overrides[id] = object
+                continue
+            }
             if var shape = page.shapes?.first(where: { $0.id == id }) {
                 shape.x += dx; shape.y += dy; overrides[id] = ConnectorObject(shape: shape)
             } else if let source = page.texts.first(where: { $0.id == id }) {

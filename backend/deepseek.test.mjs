@@ -121,12 +121,9 @@ test('DeepSeek web rejects unsafe URLs, empty search and missing citations', asy
 test('Hosted Auth validates with fixed trusted origin and rejects malformed user IDs', async () => {
   const authenticate = supabaseAuthenticator({ url: 'https://project.supabase.co', publicKey: 'sb_publishable_fixture' }, async (url, options) => {
     assert.equal(url.href, 'https://project.supabase.co/auth/v1/user'); assert.equal(options.headers.Authorization, 'Bearer fixture-token');
-    return Response.json({ id: ref.documentID, identities: [{ provider: "apple", identity_data: { sub: "apple-test-subject" } }] });
+    return Response.json({ id: ref.documentID });
   });
   assert.equal(await authenticate('fixture-token'), ref.documentID); assert.equal(await authenticate(''), null);
-  const emailOnly = supabaseAuthenticator({ url: 'https://project.supabase.co', publicKey: 'sb_publishable_fixture' },
-    async () => Response.json({ id: ref.documentID, identities: [{ provider: 'email' }] }));
-  assert.equal(await emailOnly('token'), null);
   const bad = supabaseAuthenticator({ url: 'https://project.supabase.co', publicKey: 'sb_publishable_fixture' }, async () => Response.json({ id: 'forged' }));
   assert.equal(await bad('token'), null);
 });

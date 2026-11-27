@@ -22,6 +22,7 @@ final class ContinuousCanvasFlow {
     private var cache: [UUID: Cached] = [:]
     private var previews: [UUID: UIImageView] = [:]
     private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var pageIndices: [UUID: Int] = [:]
     private var previewTail: Task<Void, Never>?
     private var tokens: [UUID: UUID] = [:]
     private var failures: [UUID: PageSnapshot] = [:]
@@ -46,6 +47,8 @@ final class ContinuousCanvasFlow {
                 var source = pages
                 if let active, let index = source.firstIndex(where: { $0.id == active.id }) { source[index] = active }
                 layout = ContinuousPageLayout(pages: source)
+                pageIndices.removeAll(keepingCapacity: true)
+                for (i, page) in source.enumerated() { pageIndices[page.id] = i }
             }
         }
         if !enabled {
@@ -224,7 +227,8 @@ final class ContinuousCanvasFlow {
             view.frame = CGRect(x: CGFloat(frame.x - active.x) * z - host.canvas.contentOffset.x,
                 y: CGFloat(frame.y - active.y) * z - host.canvas.contentOffset.y,
                 width: CGFloat(frame.width) * z, height: CGFloat(frame.height) * z)
-            guard let page = model.pages.first(where: { $0.id == frame.id }) else { continue }
+            guard let index = pageIndices[frame.id], model.pages.indices.contains(index), model.pages[index].id == frame.id else { continue }
+            let page = model.pages[index]
             if let ready = cache[page.id], ready.page == page {
                 if view.image !== ready.image { view.image = ready.image }
                 view.viewWithTag(81)?.isHidden = true

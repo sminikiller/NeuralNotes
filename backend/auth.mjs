@@ -18,8 +18,7 @@ export function supabaseAuthenticator({ url, publicKey }, transport = fetch) {
     for await (const chunk of response.body) { size += chunk.length; if (size > 65536) return null; chunks.push(chunk); }
     const text = Buffer.concat(chunks).toString('utf8');
     let user; try { user = JSON.parse(text); } catch { return null; }
-    if (user.is_anonymous === true || !Array.isArray(user.identities) ||
-        !user.identities.some(identity => identity?.provider === 'apple' && identity.identity_data?.sub)) return null;
+    if (user.is_anonymous === true) return null;
     return typeof user.id === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(user.id) ? user.id : null;
   };
 }
