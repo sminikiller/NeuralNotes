@@ -34,13 +34,13 @@ extension EditorViewModel {
         }
         return result
     }
-    func transformSelection(scale: CGFloat = 1, degrees: CGFloat = 0) {
+    func transformSelection(scale: CGFloat = 1, degrees: CGFloat = 0, anchor: CGPoint? = nil) {
         finishInkGesture(); endTextEdit()
         guard hasLease, !interactionBusy, !loading, !navigating, var page, (0.2...5).contains(scale), degrees.isFinite else { return }
         selectedIDs = scopedSelectionIDs(in: page)
         let bounds = selectionBounds; guard !bounds.isNull else { return }
         let before = captureEdit(ink: selectionIncludesInk)
-        let cx = bounds.midX, cy = bounds.midY
+        let cx = anchor?.x ?? bounds.midX, cy = anchor?.y ?? bounds.midY
         let transform = CGAffineTransform(translationX: -cx, y: -cy).concatenating(CGAffineTransform(scaleX: scale, y: scale))
             .concatenating(CGAffineTransform(rotationAngle: degrees * .pi / 180)).concatenating(CGAffineTransform(translationX: cx, y: cy))
         func center(_ x: Double, _ y: Double, _ w: Double, _ h: Double) -> CGPoint { CGPoint(x: x + w / 2, y: y + h / 2).applying(transform) }

@@ -185,4 +185,44 @@ final class SelectionAlignmentTests: XCTestCase {
             XCTAssertTrue(handles.rotateByDegrees(-15)); XCTAssertEqual(model.page?.shapes?.first?.rotation, 0)
         }
     }
+    @MainActor func testLassoGripsAnchorTheOppositeSideAndRotateAroundTheCenter() async throws {
+        try await fixture { model in
+            let strokes = [100, 125, 260].map { y -> PKStroke in
+                let points = (0...12).map { n in PKStrokePoint(location: CGPoint(x: 150 + n * 4, y: y),
+                    timeOffset: Double(n) / 60, size: .init(width: 3, height: 3), opacity: 1,
+                    force: 1, azimuth: 0, altitude: .pi / 2) }
+                return PKStroke(ink: PKInk(.pen, color: .black), path: .init(controlPoints: points, creationDate: Date()))
+            }
+            model.canvas.drawing = PKDrawing(strokes: strokes)
+            model.chooseTool(.lasso)
+            model.selectedStrokeIndices = [0, 1]; model.selectionIncludesInk = true
+            let host = CanvasHost(canvas: model.canvas); host.model = model
+            host.frame = CGRect(x: 0, y: 0, width: 768, height: 1024)
+            host.synchronizePage(); host.layoutIfNeeded()
+            let handles = ShapeHandlesOverlay(host: host, model: model)
+            host.addSubview(handles); handles.update()
+            let controls = handles.subviews.compactMap { $0 as? UIButton }
+            XCTAssertEqual(Set(controls.compactMap(\.accessibilityIdentifier)), ["inkHandle-start", "inkHandle-end", "inkHandle-rotation"])
+            for button in controls { XCTAssertTrue(handles.hitTest(button.center, with: nil) === button) }
+            let box = model.selectionBounds
+            for side in [ShapeHandle.start, .end] {
+                let direction: CGFloat = side == .start ? -1 : 1
+                let start = CGPoint(x: side == .start ? box.minX : box.maxX, y: box.midY)
+                var drag = InkHandleDrag(box: box, handle: side, start: start)
+                drag.move(to: CGPoint(x: start.x + direction * box.width / 2, y: start.y))
+                XCTAssertEqual(drag.scale, 1.5, accuracy: 0.001)
+                XCTAssertEqual(drag.pivot.applying(drag.transform).x, drag.pivot.x, accuracy: 0.001)
+            }
+            let center = CGPoint(x: box.midX, y: box.midY)
+            var twist = InkHandleDrag(box: box, handle: .rotation, start: CGPoint(x: center.x, y: center.y - 30))
+            twist.move(to: CGPoint(x: center.x + 30, y: center.y))
+            XCTAssertEqual(twist.radians, .pi / 2, accuracy: 0.001)
+            model.transformSelection(degrees: twist.radians * 180 / .pi, anchor: twist.pivot)
+            XCTAssertEqual(model.canvas.drawing.strokes[0].transform.b, 1, accuracy: 0.001)
+            XCTAssertEqual(model.canvas.drawing.strokes[1].transform.b, 1, accuracy: 0.001)
+            XCTAssertEqual(model.canvas.drawing.strokes[2].transform, strokes[2].transform)
+            await model.performUndo()
+            XCTAssertEqual(model.canvas.drawing.strokes.map(\.transform), strokes.map(\.transform))
+        }
+    }
 }

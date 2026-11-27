@@ -1,4 +1,5 @@
 import UIKit
+import PencilKit
 import NeuralNotesCore
 
 @MainActor
@@ -11,7 +12,11 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     private var dragged: ShapeHandle?
     private var snapEngine: SnapEngine?
     private var lastSnappedRotation: Double?
-    var isInteracting: Bool { draft != nil }
+    private var inkDrag: InkHandleDrag?
+    private var inkPreview: UIImage?
+    private var inkBox: CGRect?
+    private var rotationBelow = false
+    var isInteracting: Bool { draft != nil || inkDrag != nil }
 
     init(host: CanvasHost, model: EditorViewModel) {
         self.host = host; self.model = model; super.init(frame: .zero)
@@ -23,6 +28,32 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
     func update() {
         guard let host, let model else { return }
         frame = host.bounds
+        if model.selectionIncludesInk, !model.selectionPageDragMode, model.canEditActiveLayer,
+           model.tool == .objects || model.tool == .lasso {
+            let box = inkDrag?.box ?? model.selectionBounds
+            if !box.isNull, !box.isEmpty {
+                isHidden = false; inkBox = box
+                let transform = inkDrag?.transform ?? .identity
+                if inkDrag == nil {
+                    rotationBelow = host.surface.convert(CGPoint(x: box.midX, y: box.minY), to: self).y < 52
+                }
+                let points: [(ShapeHandle, CGPoint)] = [
+                    (.start, CGPoint(x: box.minX, y: box.midY)),
+                    (.end, CGPoint(x: box.maxX, y: box.midY)),
+                    (.rotation, CGPoint(x: box.midX, y: rotationBelow ? box.maxY : box.minY))
+                ]
+                place(points.map { handle, location in
+                    var at = location.applying(transform)
+                    if handle == .rotation {
+                        let angle = (inkDrag?.radians ?? 0), gap: CGFloat = (rotationBelow ? -32 : 32) / max(0.05, host.canvas.zoomScale)
+                        at.x += sin(angle) * gap; at.y -= cos(angle) * gap
+                    }
+                    return (handle, at)
+                }, ink: true)
+                return
+            }
+        }
+        if inkBox != nil { reset() }
         guard !model.selectionPageDragMode, model.tool == .objects || model.tool == .lasso,
               model.selectedIDs.count == 1, !model.selectionIncludesInk,
               let id = model.selectedObjectID, !(model.page?.lockedObjects ?? []).contains(id),
@@ -30,26 +61,51 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         isHidden = false
         let value = draft ?? shape
         let positions = ShapeHandles.positions(value, zoom: host.canvas.zoomScale)
-        if buttons.map(\.handle) != positions.map(\.0) {
+        place(positions.map { ($0.0, CGPoint(x: $0.1.x, y: $0.1.y)) }, ink: false)
+    }
+    private func place(_ positions: [(ShapeHandle, CGPoint)], ink: Bool) {
+        guard let host else { return }
+        if buttons.map(\.handle) != positions.map(\.0) || buttons.first?.isInk != ink {
             buttons.forEach { $0.removeFromSuperview() }
-            buttons = positions.map { makeButton($0.0) }
+            buttons = positions.map { makeButton($0.0, ink: ink) }
             buttons.forEach { addSubview($0) }
         }
         for (button, position) in zip(buttons, positions) {
-            let point = host.surface.convert(CGPoint(x: position.1.x, y: position.1.y), to: self)
-            button.frame = CGRect(x: point.x - 9, y: point.y - 9, width: 18, height: 18)
+            let point = host.surface.convert(position.1, to: self)
+            let size = ink && button.handle != .rotation ? CGSize(width: 14, height: 20) : CGSize(width: 18, height: 18)
+            button.bounds = CGRect(origin: .zero, size: size)
+            button.center = point
         }
         setNeedsDisplay()
     }
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard !isHidden else { return false }
         if buttons.contains(where: { $0.frame.insetBy(dx: -13, dy: -13).contains(point) }) { return true }
-        guard let shape = selectedShape, shape.kind == .freePolygon, let host else { return false }
+        guard inkBox == nil, let shape = selectedShape, shape.kind == .freePolygon, let host else { return false }
         let at = host.surface.convert(point, from: self)
         var contour = shape; contour.fill = nil
         return ShapeGeometry.hit(.init(x: at.x, y: at.y), shape: contour, zoom: host.canvas.zoomScale, tolerance: 10)
     }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if inkBox != nil, !isHidden, isUserInteractionEnabled {
+            return buttons.filter { $0.point(inside: $0.convert(point, from: self), with: event) }
+                .min { hypot($0.center.x - point.x, $0.center.y - point.y) < hypot($1.center.x - point.x, $1.center.y - point.y) }
+        }
+        return super.hitTest(point, with: event)
+    }
     override func draw(_ rect: CGRect) {
+        if let box = inkBox, let host, let context = UIGraphicsGetCurrentContext() {
+            context.saveGState()
+            context.translateBy(x: host.surface.frame.minX, y: host.surface.frame.minY)
+            let zoom = max(0.05, host.canvas.zoomScale)
+            context.scaleBy(x: zoom, y: zoom)
+            context.concatenate(inkDrag?.transform ?? .identity)
+            inkPreview?.draw(in: box, blendMode: .normal, alpha: 0.75)
+            context.setLineWidth(2 / (zoom * (inkDrag?.scale ?? 1)))
+            context.setStrokeColor(UIColor.systemTeal.cgColor); context.stroke(box)
+            context.restoreGState()
+            return
+        }
         guard let draft, let host, let context = UIGraphicsGetCurrentContext() else { return }
         context.saveGState(); context.translateBy(x: host.surface.frame.minX, y: host.surface.frame.minY)
         context.scaleBy(x: host.canvas.zoomScale, y: host.canvas.zoomScale)
@@ -59,12 +115,16 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         guard let id = model?.selectedObjectID else { return nil }
         return model?.page?.shapes?.first { $0.id == id }
     }
-    private func makeButton(_ handle: ShapeHandle) -> ShapeHandleButton {
-        let button = ShapeHandleButton(handle: handle)
+    private func makeButton(_ handle: ShapeHandle, ink: Bool) -> ShapeHandleButton {
+        let button = ShapeHandleButton(handle: handle, isInk: ink)
         button.backgroundColor = .systemTeal; button.layer.borderColor = UIColor.white.cgColor
         button.layer.borderWidth = 2; button.layer.cornerRadius = handle == .rotation ? 9 : 5
         button.accessibilityLabel = handle.title; button.accessibilityIdentifier = "shapeHandle-\(handle)"
-        let pan = SnapPanGestureRecognizer(target: self, action: #selector(moveHandle(_:)))
+        if ink {
+            button.accessibilityLabel = handle == .rotation ? "Ruota selezione" : (handle == .start ? "Ridimensiona dal lato sinistro" : "Ridimensiona dal lato destro")
+            button.accessibilityIdentifier = "inkHandle-\(handle)"
+        }
+        let pan = SnapPanGestureRecognizer(target: self, action: ink ? #selector(moveInkHandle(_:)) : #selector(moveHandle(_:)))
         pan.maximumNumberOfTouches = 2; button.addGestureRecognizer(pan)
         button.accessibilityCustomActions = handle == .rotation ? [
             UIAccessibilityCustomAction(name: "Ruota 15° a destra") { [weak self] _ in self?.rotateByDegrees(15) ?? false },
@@ -75,9 +135,21 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             UIAccessibilityCustomAction(name: "Sposta in alto") { [weak self] _ in self?.adjust(handle, dx: 0, dy: -4) ?? false },
             UIAccessibilityCustomAction(name: "Sposta in basso") { [weak self] _ in self?.adjust(handle, dx: 0, dy: 4) ?? false }
         ]
+        if ink && handle != .rotation {
+            button.accessibilityCustomActions = [("Ingrandisci", CGFloat(1.1)), ("Riduci", 1 / CGFloat(1.1))].map { name, factor in
+                UIAccessibilityCustomAction(name: name) { [weak self] _ in
+                    guard let self, let box = self.inkBox, let model = self.model, !model.interactionBusy else { return false }
+                    model.transformSelection(scale: factor, anchor: InkHandleDrag.anchor(for: handle, box: box))
+                    self.update(); return true
+                }
+            }
+        }
         return button
     }
     func rotateByDegrees(_ degrees: Double) -> Bool {
+        if inkBox != nil, let model, model.selectionIncludesInk, model.canEditActiveLayer, !model.interactionBusy {
+            model.transformSelection(degrees: degrees); update(); return true
+        }
         guard degrees.isFinite, abs(degrees) <= 360, let model, model.hasLease, !model.interactionBusy,
               !model.loading, !model.navigating, var shape = selectedShape,
               !(model.page?.lockedObjects ?? []).contains(shape.id) else { return false }
@@ -92,6 +164,33 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             snapRotation: model.snapPreferences.objectsEnabled, snapProportions: model.snapPreferences.objectsEnabled)
         commit(result, model: model); return true
     }
+    @objc private func moveInkHandle(_ gesture: UIPanGestureRecognizer) {
+        guard let host, let model, let button = gesture.view as? ShapeHandleButton else { return }
+        if gesture.state == .cancelled || gesture.state == .failed { reset(); update(); return }
+        let point = gesture.location(in: host.surface)
+        if gesture.state == .began {
+            guard let box = inkBox, model.selectionIncludesInk, !model.interactionBusy else { return }
+            let delta = gesture.translation(in: host.surface)
+            inkDrag = InkHandleDrag(box: box, handle: button.handle,
+                start: CGPoint(x: point.x - delta.x, y: point.y - delta.y))
+            model.cancelMaintenance(); model.movingObjects = true
+            host.canvas.panGestureRecognizer.isEnabled = false
+            let indices = model.selectedStrokeIndices
+            let strokes = model.canvas.drawing.strokes.enumerated().compactMap { indices?.contains($0.offset) == false ? nil : $0.element }
+            let pixelScale = min(host.canvas.zoomScale * host.traitCollection.displayScale, sqrt(1_500_000 / max(1, box.width * box.height)))
+            inkPreview = PKDrawing(strokes: strokes).image(from: box, scale: pixelScale)
+        }
+        guard var drag = inkDrag else { return }
+        drag.move(to: point); inkDrag = drag; update()
+        if gesture.state == .ended {
+            reset()
+            if drag.scale != 1 || drag.radians != 0 {
+                model.transformSelection(scale: drag.scale, degrees: drag.radians * 180 / .pi, anchor: drag.pivot)
+            }
+            host.synchronizePage(); update()
+        }
+    }
+
     @objc private func moveHandle(_ gesture: UIPanGestureRecognizer) {
         guard let host, let model, let button = gesture.view as? ShapeHandleButton else { return }
         if gesture.state == .began {
@@ -149,6 +248,8 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         }
     }
     func reset() {
+        if inkDrag != nil { model?.movingObjects = false }
+        inkDrag = nil; inkPreview = nil; inkBox = nil
         if draft != nil {
             model?.movingObjects = false
             host?.diagramPreview?.reset()
@@ -158,8 +259,11 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
         snapEngine = nil; lastSnappedRotation = nil; host?.snapGuides?.show([])
         if let host { PaperInk.configureNavigation(host.canvas, fingerDrawing: model?.fingerDrawing ?? false) }
     }
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        inkBox == nil
+    }
     @objc private func editVertex(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began, let host, let model, let shape = selectedShape,
+        guard gesture.state == .began, inkBox == nil, let host, let model, let shape = selectedShape,
               shape.kind == .freePolygon, !model.interactionBusy else { return }
         let at = gesture.location(in: host.surface)
         let local = ShapeGeometry.rotate(.init(x: at.x, y: at.y), shape: shape, inverse: true)
@@ -183,7 +287,36 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
 @MainActor
 private final class ShapeHandleButton: UIButton {
     let handle: ShapeHandle
-    init(handle: ShapeHandle) { self.handle = handle; super.init(frame: .zero) }
+    let isInk: Bool
+    init(handle: ShapeHandle, isInk: Bool) { self.isInk = isInk; self.handle = handle; super.init(frame: .zero) }
     required init?(coder: NSCoder) { nil }
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool { bounds.insetBy(dx: -13, dy: -13).contains(point) }
+}
+
+
+/// Page-space geometry shared by the live frame and the single undoable edit.
+struct InkHandleDrag {
+    let box: CGRect
+    let handle: ShapeHandle
+    let start: CGPoint
+    var scale: CGFloat = 1
+    var radians: CGFloat = 0
+    static func anchor(for handle: ShapeHandle, box: CGRect) -> CGPoint {
+        CGPoint(x: handle == .start ? box.maxX : (handle == .end ? box.minX : box.midX), y: box.midY)
+    }
+    var pivot: CGPoint { Self.anchor(for: handle, box: box) }
+    var transform: CGAffineTransform {
+        CGAffineTransform(translationX: pivot.x, y: pivot.y)
+            .rotated(by: radians).scaledBy(x: scale, y: scale).translatedBy(x: -pivot.x, y: -pivot.y)
+    }
+    mutating func move(to point: CGPoint) {
+        if handle == .rotation {
+            let dx = point.x - pivot.x, dy = point.y - pivot.y
+            guard hypot(dx, dy) > 0.001 else { return }
+            radians = atan2(dy, dx) - atan2(start.y - pivot.y, start.x - pivot.x)
+        } else {
+            let sign: CGFloat = handle == .start ? -1 : 1
+            scale = min(5, max(0.2, 1 + sign * (point.x - start.x) / max(0.001, box.width)))
+        }
+    }
 }

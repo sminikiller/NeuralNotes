@@ -6,11 +6,6 @@ import NeuralNotesCore
 final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     weak var host: CanvasHost?
     weak var model: EditorViewModel?
-    private let scaleInkButton = UIButton(type: .system)
-    private var scaleCenter = CGPoint.zero
-    private var startRadius: CGFloat = 1
-    private var scaleDraft: CGFloat = 1
-    private var scalingInk = false
     private let rotateTextButton = UIButton(type: .system)
     private let outline = CAShapeLayer(), handle = CAShapeLayer(), marquee = CAShapeLayer()
     /// Words under a Lens stroke, highlighted like a marker while the stroke goes on.
@@ -48,12 +43,6 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         rotateTextButton.addAction(UIAction { [weak model] _ in model?.transformSelection(degrees: 15) }, for: .touchUpInside)
         rotateTextButton.isHidden = true
         host.addSubview(rotateTextButton)
-        scaleInkButton.setImage(UIImage(systemName: "arrow.up.left.and.arrow.down.right"), for: .normal)
-        scaleInkButton.backgroundColor = .secondarySystemBackground
-        scaleInkButton.layer.cornerRadius = 18; scaleInkButton.isHidden = true
-        scaleInkButton.accessibilityLabel = "Ridimensiona selezione"
-        scaleInkButton.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(scaleInk(_:))))
-        host.addSubview(scaleInkButton)
         outline.fillColor = UIColor.clear.cgColor; outline.strokeColor = UIColor.systemTeal.cgColor; outline.lineWidth = 2
         handle.fillColor = UIColor.systemTeal.cgColor
         marquee.fillColor = UIColor.systemTeal.withAlphaComponent(0.1).cgColor
@@ -109,7 +98,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func resetForPageChange() {
-        scalingInk = false; scaleInkButton.isHidden = true; rotateTextButton.isHidden = true
+        rotateTextButton.isHidden = true
         host?.diagramPreview?.reset()
         dragPreview?.removeFromSuperlayer(); dragPreview = nil; previewGroup.removeAll()
         for layer in [outline, handle, marquee, wordHighlight] {
@@ -129,24 +118,19 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             if swipe.isEnabled != enabled { swipe.isEnabled = enabled }
             if swipe.numberOfTouchesRequired != touches { swipe.numberOfTouchesRequired = touches }
         }
-        if scalingInk { return }
-        scaleInkButton.isHidden = true; rotateTextButton.isHidden = true
-        if let host, let model, model.tool == .objects, !model.movingObjects, !model.selectionPageDragMode {
-            let box: CGRect?
-            if model.selectionIncludesInk { box = model.selectionBounds }
-            else if model.selectedIDs.count == 1, let id = model.selectedObjectID, model.page?.texts.contains(where: { $0.id == id }) == true { box = objectRect(id) }
-            else { box = nil }
-            if let box, !box.isNull, !box.isEmpty {
-                let rect = host.surface.convert(box, to: host)
-                rotateTextButton.frame = CGRect(x: rect.midX - 18, y: max(0, rect.minY - 39), width: 36, height: 36)
-                rotateTextButton.accessibilityLabel = "Ruota selezione di 15 gradi"
-                rotateTextButton.isHidden = !host.bounds.intersects(rect)
-                host.bringSubviewToFront(rotateTextButton)
-                if model.selectionIncludesInk {
-                    scaleInkButton.frame = CGRect(x: rect.maxX - 18, y: rect.maxY - 18, width: 36, height: 36)
-                    scaleInkButton.isHidden = false; host.bringSubviewToFront(scaleInkButton)
-                }
-            }
+        rotateTextButton.isHidden = true
+        if let host, let model, model.tool == .objects, !model.movingObjects, !model.selectionPageDragMode,
+           !model.selectionIncludesInk, model.selectedIDs.count == 1, let id = model.selectedObjectID,
+           model.page?.texts.contains(where: { $0.id == id }) == true, let box = objectRect(id) {
+            let rect = host.surface.convert(box, to: host)
+            rotateTextButton.frame = CGRect(x: rect.midX - 18, y: max(0, rect.minY - 39), width: 36, height: 36)
+            rotateTextButton.isHidden = !host.bounds.intersects(rect)
+            host.bringSubviewToFront(rotateTextButton)
+        }
+        if model?.selectionIncludesInk == true {
+            outline.path = nil; handle.path = nil
+            host?.shapeHandles?.update()
+            return
         }
         guard let host, let model, model.tool == .objects else { outline.path = nil; handle.path = nil; return }
         let path = UIBezierPath()
@@ -163,7 +147,6 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
                 box.close(); path.append(box)
             } else if let rect = objectRect(id) { path.append(UIBezierPath(rect: host.surface.convert(rect, to: host))) }
         }
-        if model.selectionIncludesInk { path.append(UIBezierPath(rect: host.surface.convert(model.selectedInkBounds, to: host))) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         outline.path = path.cgPath
         if model.selectedIDs.count == 1, !model.selectionIncludesInk, let id = model.selectedObjectID,
@@ -174,28 +157,6 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
             handle.path = UIBezierPath(ovalIn: CGRect(x: display.maxX - 7, y: display.maxY - 7, width: 14, height: 14)).cgPath
         } else { handle.path = nil }
         CATransaction.commit()
-    }
-
-    @objc private func scaleInk(_ pan: UIPanGestureRecognizer) {
-        guard let host, let model, model.selectionIncludesInk else { scalingInk = false; return }
-        let point = pan.location(in: host)
-        switch pan.state {
-        case .began:
-            let rect = host.surface.convert(model.selectionBounds, to: host)
-            scaleCenter = CGPoint(x: rect.midX, y: rect.midY)
-            startRadius = max(1, hypot(point.x - scaleCenter.x, point.y - scaleCenter.y))
-            scaleDraft = 1; scalingInk = true
-        case .changed:
-            scaleDraft = min(5, max(0.2, hypot(point.x - scaleCenter.x, point.y - scaleCenter.y) / startRadius))
-            let half = CGSize(width: abs(scaleInkButton.center.x - scaleCenter.x), height: abs(scaleInkButton.center.y - scaleCenter.y))
-            let rect = CGRect(x: scaleCenter.x - half.width * scaleDraft, y: scaleCenter.y - half.height * scaleDraft,
-                              width: 2 * half.width * scaleDraft, height: 2 * half.height * scaleDraft)
-            CATransaction.begin(); CATransaction.setDisableActions(true); outline.path = UIBezierPath(rect: rect).cgPath; CATransaction.commit()
-        case .ended:
-            scalingInk = false; model.transformSelection(scale: scaleDraft); refresh()
-        case .cancelled, .failed: scalingInk = false; refresh()
-        default: break
-        }
     }
 
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
@@ -227,7 +188,7 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        if let view = touch.view, view.isDescendant(of: scaleInkButton) || view.isDescendant(of: rotateTextButton) { return false }
+        if let view = touch.view, view.isDescendant(of: rotateTextButton) { return false }
         if model?.zoomWritingOpen == true { return false }
         if let handles = host?.shapeHandles, let touched = touch.view,
            touched !== handles, touched.isDescendant(of: handles) { return false }
