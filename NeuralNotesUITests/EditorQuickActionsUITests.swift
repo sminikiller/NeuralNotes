@@ -186,7 +186,7 @@ final class EditorQuickActionsUITests: XCTestCase {
         }
         let blank = try darkPixels(in: first)
         draw(in: first)
-        let undo = app.buttons["editorUndo"], redo = app.buttons["editorRedo"]
+        let undo = app.buttons["quickUndo"], redo = app.buttons["quickRedo"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: undo)
         await fulfillment(of: [ready], timeout: 5)
         let initialInk = try await renderedPixels(in: first, ink: true, baseline: blank)
@@ -347,8 +347,8 @@ final class EditorQuickActionsUITests: XCTestCase {
         let newPage = app.buttons["selectionNewPageAfter"]; XCTAssertTrue(newPage.waitForExistence(timeout: 8))
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "selection-new-destination"; screenshot.lifetime = .keepAlways; add(screenshot)
         newPage.tap(); waitForPage(2, total: 2, in: app)
-        app.buttons["editorUndo"].tap(); waitForPage(1, total: 1, in: app)
-        app.buttons["editorRedo"].tap(); waitForPage(2, total: 2, in: app)
+        app.buttons["quickUndo"].tap(); waitForPage(1, total: 1, in: app)
+        app.buttons["quickRedo"].tap(); waitForPage(2, total: 2, in: app)
         // History restores page contents, and deliberately clears the active
         // selection. Select again to verify the restored object is available.
         app.buttons["Seleziona tutto"].tap()
@@ -380,13 +380,13 @@ final class EditorQuickActionsUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); XCTAssertEqual(confirm.label, "Elimina elementi"); confirm.tap()
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: dialog)], timeout: 8)
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: apply)], timeout: 12)
-        XCTAssertTrue(app.buttons["editorUndo"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["quickUndo"].waitForExistence(timeout: 8))
         app.buttons["tool-Oggetti"].tap(); app.buttons["Seleziona tutto"].tap()
         XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
-        app.buttons["editorUndo"].tap(); app.buttons["Seleziona tutto"].tap()
+        app.buttons["quickUndo"].tap(); app.buttons["Seleziona tutto"].tap()
         let handle = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "shapeHandle-")).firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 5)); XCTAssertTrue(app.buttons["selectionTransfer"].isEnabled)
-        app.buttons["editorRedo"].tap(); app.buttons["Seleziona tutto"].tap()
+        app.buttons["quickRedo"].tap(); app.buttons["Seleziona tutto"].tap()
         XCTAssertFalse(app.buttons["selectionTransfer"].isEnabled)
     }
     @MainActor func testPhotoLibraryOpensAndCancelReturnsToTheSameCanvas() {
@@ -617,8 +617,8 @@ final class EditorQuickActionsUITests: XCTestCase {
         let text = app.textViews["pageTextInput"]; XCTAssertTrue(text.waitForExistence(timeout: 5))
         text.tap(); text.typeText(" Nota dal test")
         app.buttons["pageTextDone"].tap()
-        let undo = app.buttons["editorUndo"]; XCTAssertTrue(undo.waitForExistence(timeout: 5)); XCTAssertTrue(undo.isEnabled); undo.tap()
-        let redo = app.buttons["editorRedo"]; XCTAssertTrue(redo.waitForExistence(timeout: 5))
+        let undo = app.buttons["quickUndo"]; XCTAssertTrue(undo.waitForExistence(timeout: 5)); XCTAssertTrue(undo.isEnabled); undo.tap()
+        let redo = app.buttons["quickRedo"]; XCTAssertTrue(redo.waitForExistence(timeout: 5))
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: redo)
         wait(for: [ready], timeout: 5); redo.tap()
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.lifetime = .keepAlways; add(attachment)
