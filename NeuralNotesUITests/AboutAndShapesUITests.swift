@@ -34,7 +34,7 @@ final class AboutAndShapesUITests: XCTestCase {
         let create = app.buttons["newNotebookButton"]; XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
         let title = app.textFields["notebookNameField"]; XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("Forme 0.25")
         app.buttons["saveNotebookButton"].tap()
-        let book = app.buttons.matching(NSPredicate(format: "label == %@", "Forme 0.25")).firstMatch
+        let book = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "notebook-")).firstMatch
         XCTAssertTrue(book.waitForExistence(timeout: 8)); book.tap()
         app.buttons["openEditorButton"].tap()
         let canvas = app.descendants(matching: .any)["pencilCanvas"].firstMatch
