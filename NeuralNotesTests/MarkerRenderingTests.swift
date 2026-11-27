@@ -13,6 +13,30 @@ final class MarkerRenderingTests: XCTestCase {
         }
         return PKStroke(ink: PKInk(type, color: color), path: PKStrokePath(controlPoints: samples, creationDate: Date()))
     }
+    @MainActor func testLassoTransformPreviewRetainsInkColorAndShowsWhiteStrokesOnWhitePaperInDarkMode() throws {
+        let box = CGRect(x: 0, y: 0, width: 280, height: 90)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let paper = UIGraphicsImageRenderer(size: box.size, format: format)
+        func preview(onWhite color: UIColor) throws -> CGImage {
+            let drawing = PKDrawing(strokes: [ink(.pen, color: color, y: 45, width: 12)])
+            var result: UIImage?
+            UITraitCollection(userInterfaceStyle: .dark).performAsCurrent {
+                let preview = PaperInk.selectionPreview(drawing, from: box, scale: 1)
+                result = paper.image { output in
+                    UIColor.white.setFill(); output.fill(box)
+                    preview.draw(in: box)
+                }
+            }
+            return try XCTUnwrap(result?.cgImage)
+        }
+        XCTAssertGreaterThan(pixelCount(try preview(onWhite: .black), white: false), 150)
+        XCTAssertGreaterThan(pixelCount(try preview(onWhite: .red), white: false, red: true), 150)
+        let white = try preview(onWhite: .white)
+        XCTAssertGreaterThan(white.width * white.height - pixelCount(white, white: true), 40)
+        let center = try XCTUnwrap(white.cropping(to: CGRect(x: 100, y: 44, width: 20, height: 2)))
+        XCTAssertEqual(pixelCount(center, white: true), 40)
+    }
     @MainActor func testMarkerCompositionReusesTheDocumentAcrossPointerSamplesAndKeepsWhitePenAboveColor() throws {
         var page = PageSnapshot(); page.width = 300; page.height = 200; page.appearance = .init(tone: .slate)
         let base = PKDrawing(strokes: [ink(.pen, color: .white, y: 70, width: 4)])

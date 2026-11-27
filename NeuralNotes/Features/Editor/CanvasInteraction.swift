@@ -538,8 +538,10 @@ final class CanvasInteraction: NSObject, UIGestureRecognizerDelegate {
         let package = host.surface.package
         let image = UIGraphicsImageRenderer(size: box.size, format: format).image { context in
             context.cgContext.translateBy(x: -box.minX, y: -box.minY)
-            for foreground in [false, true] {
-                PageRenderer.drawSelected(ids, foreground: foreground, page: page, package: package, in: context.cgContext)
+            host.surface.traitCollection.performAsCurrent {
+                for foreground in [false, true] {
+                    PageRenderer.drawSelected(ids, foreground: foreground, page: page, package: package, in: context.cgContext)
+                }
             }
         }
         let layer = CALayer()

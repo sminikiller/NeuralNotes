@@ -33,4 +33,17 @@ enum PaperInk {
         traits.performAsCurrent { rendered = drawing.image(from: rect, scale: scale) }
         return rendered
     }
+
+    /// Bake a subtle edge into the transparent drag image once, at gesture start.
+    static func selectionPreview(_ drawing: PKDrawing, from rect: CGRect, scale: CGFloat) -> UIImage {
+        let ink = image(drawing, from: rect, scale: scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: rect.size, format: format).image { output in
+            output.cgContext.setShadow(offset: .zero, blur: 3 / scale,
+                color: UIColor(white: 0.32, alpha: 0.95).cgColor)
+            ink.draw(in: CGRect(origin: .zero, size: rect.size))
+        }
+    }
 }

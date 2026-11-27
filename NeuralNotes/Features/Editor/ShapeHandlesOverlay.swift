@@ -100,7 +100,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             let zoom = max(0.05, host.canvas.zoomScale)
             context.scaleBy(x: zoom, y: zoom)
             context.concatenate(inkDrag?.transform ?? .identity)
-            inkPreview?.draw(in: box, blendMode: .normal, alpha: 0.75)
+            inkPreview?.draw(in: box)
             context.setLineWidth(2 / (zoom * (inkDrag?.scale ?? 1)))
             context.setStrokeColor(UIColor.systemTeal.cgColor); context.stroke(box)
             context.restoreGState()
@@ -178,7 +178,7 @@ final class ShapeHandlesOverlay: UIView, UIGestureRecognizerDelegate {
             let indices = model.selectedStrokeIndices
             let strokes = model.canvas.drawing.strokes.enumerated().compactMap { indices?.contains($0.offset) == false ? nil : $0.element }
             let pixelScale = min(host.canvas.zoomScale * host.traitCollection.displayScale, sqrt(1_500_000 / max(1, box.width * box.height)))
-            inkPreview = PKDrawing(strokes: strokes).image(from: box, scale: pixelScale)
+            inkPreview = PaperInk.selectionPreview(PKDrawing(strokes: strokes), from: box, scale: pixelScale)
         }
         guard var drag = inkDrag else { return }
         drag.move(to: point); inkDrag = drag; update()
