@@ -98,7 +98,7 @@ private struct PrivacyAndSupportPanel: View {
                     Text("Puoi scrivere e gestire i quaderni senza un account. I file locali restano sull’iPad; esporta un backup nativo prima di cambiare installazione.")
                 }
                 Section("Account e cloud") {
-                    Text("L’accesso email utilizza un codice. Se colleghi un quaderno al cloud, il servizio conserva il profilo, i file inviati e le relative versioni. I quaderni possono contenere testo, immagini e registrazioni.")
+                    Text("Puoi accedere a NeuralNotes con il tuo Account Apple. I quaderni che colleghi a iCloud vengono sincronizzati nel tuo spazio iCloud privato. I quaderni possono contenere testo, immagini e registrazioni.")
                     Text("Da Account NeuralNotes puoi esportare i dati dell’account o richiederne la cancellazione. Le copie locali e quelle nel tuo account Apple si gestiscono separatamente.")
                 }
                 Section("Intelligenza artificiale") {

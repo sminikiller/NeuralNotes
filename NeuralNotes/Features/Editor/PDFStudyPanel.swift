@@ -254,13 +254,13 @@ struct PDFStudyPanel: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.richtext")
-                    Text(selectedFile.isEmpty ? "Apri PDF" : URL(fileURLWithPath: selectedFile).lastPathComponent).lineLimit(1)
+                    Text(externalURL?.lastPathComponent ?? (selectedFile.isEmpty ? "Apri documento" : URL(fileURLWithPath: selectedFile).lastPathComponent)).lineLimit(1)
                     Image(systemName: "chevron.down").font(.caption2)
                 }.font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
             }.accessibilityIdentifier("studyPDFSource")
             if !showingSlides || slidePDF != nil {
             Button { searching.toggle(); if !searching { query = "" } } label: { Image(systemName: "magnifyingglass").frame(width: 38, height: 44) }
-                .accessibilityLabel("Cerca nel PDF")
+                .accessibilityLabel(showingSlides ? "Cerca nelle slide" : "Cerca nel PDF")
             Button { clipping.toggle(); conceptMode = false } label: { Image(systemName: "crop").frame(width: 38, height: 44).background(clipping ? Brand.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 8)) }
                 .accessibilityLabel("Ritaglia PDF negli appunti").accessibilityIdentifier("studyPDFClip")
                 .disabled(selectedFile.isEmpty || inserting || !model.canEditActiveLayer)
@@ -298,7 +298,7 @@ struct PDFStudyPanel: View {
     }
     private var searchControls: some View {
         HStack {
-            TextField("Cerca nel PDF", text: $query).textFieldStyle(.roundedBorder)
+            TextField(showingSlides ? "Cerca nelle slide" : "Cerca nel PDF", text: $query).textFieldStyle(.roundedBorder)
             if controller.finding { ProgressView().controlSize(.small) }
             Text("\(controller.matches.count)").font(.caption.monospacedDigit())
             Button("Precedente", systemImage: "chevron.up") { showMatch(-1) }.labelStyle(.iconOnly).disabled(controller.matches.isEmpty)
@@ -314,7 +314,7 @@ struct PDFStudyPanel: View {
                     guard self.externalURL == externalURL else { return }
                     switch result {
                     case .success(let file): slidePDF = file
-                    case .failure: slideFallback = true; error = "iPadOS non riesce a preparare questa presentazione per lo studio. È disponibile l’anteprima originale."
+                    case .failure: slideFallback = true; error = "iPadOS non riesce a preparare questa presentazione per lo studio. Ãˆ disponibile lâ€™anteprima originale."
                     }
                 }.id(externalURL)
             }
